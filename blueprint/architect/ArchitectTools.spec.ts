@@ -1,5 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
@@ -55,7 +55,8 @@ describe('Architect tools', () => {
                     variables: {
                         symbol: {type: 'string', setBy: 'prompt', default: {value: 'X'}},
                         pick: {type: 'filter', setBy: 'prompt'},
-                        fixed: {type: 'string', default: {value: 'y'}}
+                        fixed: {type: 'string', default: {value: 'y'}},
+                        basket: {type: 'toolbox.portfolio', setBy: 'prompt'}
                     },
                     root: 'note',
                     elements: {note: {component: 'markdown', config: {text: '{symbol}'}}}
@@ -67,6 +68,7 @@ describe('Architect tools', () => {
 
         model.drillInRepository = repository;
         expect(availableArchitectTools(model).map(it => it.name)).toContain('list_blueprints');
+        const opens = vi.spyOn(repository, 'openAsync');
         expect(await run('list_blueprints', {}, model)).toEqual({
             blueprints: [
                 {
@@ -77,6 +79,9 @@ describe('Architect tools', () => {
                 }
             ]
         });
+        // Read once per publish: a second call opens nothing again.
+        await run('list_blueprints', {}, model);
+        expect(opens).toHaveBeenCalledTimes(1);
     });
 
     it('reads the blueprint whole, or the subtrees at given paths, with its version', () => {

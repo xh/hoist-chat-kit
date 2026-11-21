@@ -49,6 +49,9 @@ export class DrillInModel extends HoistModel {
             return;
         }
         this.blueprintModel.setAccess('read');
+        if (drillIn.dropped?.length) {
+            XH.warningToast(`Some values could not be passed on: ${drillIn.dropped.join(', ')}.`);
+        }
         runInAction(() => (this.isOpen = true));
     }
 }
@@ -64,8 +67,11 @@ export const drillInDialog = hoistCmp.factory<DrillInProps>({
     model: false,
     render({host, drillIn}) {
         const impl = useLocalModel(() => new DrillInModel(host, drillIn));
+        const width = Math.min(1100, window.innerWidth * 0.9);
         return dialog({
             className: 'xh-blueprint-drill-in-dialog',
+            // Blueprint's dialog is 500px wide unless told otherwise.
+            style: {width},
             title: impl.titleFor(drillIn),
             icon: Icon.openExternal(),
             isOpen: true,
@@ -73,7 +79,7 @@ export const drillInDialog = hoistCmp.factory<DrillInProps>({
             onClose: () => host.closeDrillIn(),
             children: drillInBody({
                 impl,
-                width: Math.min(1100, window.innerWidth * 0.9),
+                width: '100%',
                 height: Math.min(800, window.innerHeight * 0.8)
             })
         });
@@ -94,7 +100,7 @@ export const drillInPopoverContent = hoistCmp.factory<DrillInProps>({
 // Implementation
 //------------------
 const drillInBody = hoistCmp.factory<
-    HoistProps & {impl: DrillInModel; width: number; height: number}
+    HoistProps & {impl: DrillInModel; width: number | string; height: number}
 >({
     displayName: 'BlueprintDrillInBody',
     model: false,

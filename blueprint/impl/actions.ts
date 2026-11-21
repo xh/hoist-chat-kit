@@ -3,7 +3,7 @@ import {castArray, isArray, isPlainObject, isString, mapValues, omit} from 'loda
 import {findSchemaErrors} from '../../impl/SchemaUtils';
 import {isAllowedUrl} from '../../impl/UrlUtils';
 import type {BlueprintModel} from '../BlueprintModel';
-import {linkTextOf} from '../BlueprintLink';
+import {linkTextFor} from '../BlueprintLink';
 import {BLUEPRINT_LINK_RESERVED} from './linkParams';
 import {checkVariableValue} from './variableValues';
 
@@ -76,18 +76,35 @@ export function describeAction(
 //------------------
 // Implementation
 //------------------
+// What resolving a step left behind: the row fields it read that the row lacks, and the declared
+// type of each `openBlueprint` value that came from a variable.
+const RESOLVED = new WeakMap<
+    PlainObject,
+    {missingRow: string[]; varTypes: Record<string, string>}
+>();
+
 function resolveAction(
     model: BlueprintModel,
     action: PlainObject,
     {row}: ActionRunContext
 ): PlainObject {
-    const fromRow = (v: unknown): unknown => {
-        if (isArray(v)) return v.map(fromRow);
-        if (!isPlainObject(v)) return v;
-        const o = v as PlainObject;
-        return isString(o.$row) ? (row?.[o.$row] ?? null) : mapValues(o, fromRow);
-    };
-    return model.resolve(fromRow(action));
+    const missingRow: string[] = [],
+        fromRow = (v: unknown): unknown => {
+            if (isArray(v)) return v.map(fromRow);
+            if (!isPlainObject(v)) return v;
+            const o = v as PlainObject;
+            if (!isString(o.$row)) return mapValues(o, fromRow);
+            const value = row?.[o.$row] ?? null;
+            if (value == null) missingRow.push(o.$row);
+            return value;
+        },
+        varTypes = mapValues(
+            isPlainObject(action?.variables) ? action.variables : {},
+            (v: PlainObject) => (isString(v?.$var) ? model.getVariable(v.$var)?.decl.type : null)
+        ),
+        ret = model.resolve(fromRow(action));
+    if (isPlainObject(ret)) RESOLVED.set(ret, {missingRow, varTypes});
+    return ret;
 }
 
 function describeResolved(model: BlueprintModel, step: PlainObject): string {
@@ -136,11 +153,13 @@ function checkAction(model: BlueprintModel, step: PlainObject): string {
             const unknown = castArray(step.sources ?? []).find(it => !model.getSource(it));
             return unknown ? `Unknown source '${unknown}'.` : null;
         }
-        case 'openBlueprint':
+        case 'openBlueprint': {
             if (model.isDrillIn) return 'A drill-in cannot open another blueprint.';
-            return model.drillInRepository
-                ? null
-                : 'This blueprint opens no other blueprints here.';
+            if (!model.drillInRepository) return 'This blueprint opens no other blueprints here.';
+            // A group row's value for a field below it is a total, often none: never pass it as null.
+            const [missing] = RESOLVED.get(step)?.missingRow ?? [];
+            return missing ? `Pick a row with one ${missing}.` : null;
+        }
         default:
             return spec.run ? null : `The app cannot run '${step.type}'.`;
     }
@@ -168,17 +187,22 @@ async function runAction(model: BlueprintModel, step: PlainObject, ctx: ActionRu
             window.open(step.url, '_blank', 'noopener');
             return;
         case 'openBlueprint': {
-            const params: Record<string, string | string[]> = {id: step.blueprint};
+            const params: Record<string, string | string[]> = {id: step.blueprint},
+                dropped: string[] = [],
+                varTypes = RESOLVED.get(step)?.varTypes ?? {};
             // As a link carries them, so the target's link parser takes them on its own terms.
             Object.entries<unknown>(step.variables ?? {}).forEach(([name, value]) => {
-                const text = linkTextOf(value, model.registry);
-                if (text != null && !BLUEPRINT_LINK_RESERVED.includes(name)) params[name] = text;
+                if (BLUEPRINT_LINK_RESERVED.includes(name) || value == null) return;
+                const text = linkTextFor(value, varTypes[name], model.registry);
+                if (text == null) dropped.push(name);
+                else params[name] = text;
             });
             model.openDrillIn({
                 id: step.blueprint,
                 as: step.as ?? 'dialog',
                 title: step.title ?? null,
                 params,
+                ...(dropped.length ? {dropped} : {}),
                 ...(step.as === 'popover' && ctx.anchor ? {anchor: ctx.anchor} : {})
             });
             return;

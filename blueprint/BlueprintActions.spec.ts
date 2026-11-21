@@ -358,6 +358,27 @@ describe('openBlueprint', () => {
         expect(model.drillIn.params).toEqual({id: 'symbol-detail', top: '3'});
     });
 
+    it("formats a variable's value by its declared type, and names a value it cannot pass", async () => {
+        const model = open();
+        model.setBlueprint({
+            ...model.blueprint,
+            variables: {
+                ...model.blueprint.variables,
+                at: {type: 'date', setBy: 'prompt', default: {value: Date.UTC(2026, 10, 20)}},
+                book: {type: 'string', setBy: 'prompt', default: {value: 'Main'}}
+            }
+        });
+        await model.runActionsAsync(
+            drill({at: {$var: 'at'}, book: {$var: 'book'}, portfolio: {holdings: []}})
+        );
+        expect(model.drillIn.params).toEqual({
+            id: 'symbol-detail',
+            at: '2026-11-20T00:00:00.000Z',
+            book: 'Main'
+        });
+        expect(model.drillIn.dropped).toEqual(['portfolio']);
+    });
+
     it('refuses to open from a drill-in, or with no repository to open from', () => {
         const nested = open({isDrillIn: true});
         expect(nested.actionBlockedReason(drill({}))).toMatch(/drill-in cannot open/);

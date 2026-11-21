@@ -235,6 +235,34 @@ describe('blueprint desktop widgets', () => {
                 });
             });
 
+            it('refuses a row action on a row that holds no value for a field it passes', async () => {
+                const bp = loadBlueprint('p1-one-grid.json');
+                bp.elements.posGrid.config.rowActions = [
+                    {
+                        label: 'Open detail',
+                        action: {
+                            type: 'openBlueprint',
+                            blueprint: 'symbol-detail',
+                            variables: {symbol: {$row: 'symbol'}}
+                        }
+                    }
+                ];
+                const model = open(bp);
+                model.drillInRepository = {type: 'acme.dashboard'} as any;
+                const grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
+                await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+                const [item] = (gridModel.contextMenu as any)({}, gridModel),
+                    row = (label: string) =>
+                        gridModel.store.allRecords.find(it => it.data.cubeLabelValue === label);
+                // A sector row spans several symbols, so it has none to pass.
+                expect(item.displayFn({record: row('Energy')})).toEqual({
+                    disabled: true,
+                    tooltip: 'Pick a row with one symbol.'
+                });
+                expect(item.displayFn({record: row('XOM')}).disabled).toBe(false);
+            });
+
             it('runs its first row action on a double click', async () => {
                 const bp = loadBlueprint('p1-one-grid.json');
                 bp.elements.posGrid.config.rowActions = [

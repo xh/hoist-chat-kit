@@ -78,6 +78,8 @@ export interface BlueprintDrillIn {
     params: Record<string, string | string[]>;
     /** The control a popover anchors to. Absent, and it opens as a dialog. */
     anchor?: string;
+    /** The variables whose values had no link form, so the target did not get them. */
+    dropped?: string[];
 }
 
 /** The result of an edit: the new version, or the issues that refused it. */

@@ -5,7 +5,8 @@ import type {BlueprintDataProvider} from '../BlueprintDataProvider';
 import type {BlueprintAccess, BlueprintMode} from '../Blueprint';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import type {DataCatalog, DatasetDef} from '../DataCatalog';
-import type {BlueprintRepository} from '../repository/BlueprintRepository';
+import type {BlueprintRepository, BlueprintSummary} from '../repository/BlueprintRepository';
+import {isLinkSettableType} from '../impl/linkParams';
 import {applyOps} from '../applyOps';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
@@ -352,19 +353,19 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             "List the user's published blueprints of this one's type, for an openBlueprint target: each one's id, name, description, and the variables a link may set, by name and type, which the action's variables can pass.",
         parameters: {type: 'object', properties: {}},
         isAvailable: target => !!target.drillInRepository,
-        run: async (_, {drillInRepository: repository}) => {
+        run: async (_, {drillInRepository: repository, registry}) => {
             const published = (await repository.listAsync())
                     .filter(it => it.publishedVersion != null)
                     .slice(0, MAX_LISTED_BLUEPRINTS),
-                records = await Promise.all(
-                    published.map(it => repository.openAsync(it.id, {as: 'publish'}))
+                variables = await Promise.all(
+                    published.map(it => publishVariablesAsync(repository, it, registry))
                 );
             return {
                 blueprints: published.map((it, idx) => ({
                     id: it.id,
                     name: it.name,
                     ...(it.description ? {description: it.description} : {}),
-                    variables: linkVariables(records[idx]?.blueprint)
+                    variables: variables[idx]
                 }))
             };
         }
@@ -506,9 +507,38 @@ const COLUMN_TYPES: Record<string, string> = {
 // The most blueprints list_blueprints reads, each a request for its latest publish.
 const MAX_LISTED_BLUEPRINTS = 50;
 
-// The variables of a blueprint a link may set, by name and type. A link never sets a filter.
-function linkVariables(blueprint: Blueprint): {name: string; type: string}[] {
+// The variables a link may set of each publish, by repository, read once per publish.
+const PUBLISH_VARIABLES = new WeakMap<object, Map<string, LinkVariable[]>>();
+
+interface LinkVariable {
+    name: string;
+    type: string;
+}
+
+async function publishVariablesAsync(
+    repository: BlueprintRepository,
+    summary: BlueprintSummary,
+    registry: ArchitectTarget['registry']
+): Promise<LinkVariable[]> {
+    if (!PUBLISH_VARIABLES.has(repository)) PUBLISH_VARIABLES.set(repository, new Map());
+    const cache = PUBLISH_VARIABLES.get(repository),
+        key = `${summary.id}|${summary.publishedVersion}`;
+    if (!cache.has(key)) {
+        const record = await repository.openAsync(summary.id, {as: 'publish'});
+        cache.set(key, linkVariables(record?.blueprint, registry));
+    }
+    return cache.get(key);
+}
+
+// The variables of a blueprint a link may set, by name and type: settable from outside, of a type
+// with a link form.
+function linkVariables(
+    blueprint: Blueprint,
+    registry: ArchitectTarget['registry']
+): LinkVariable[] {
     return Object.entries(blueprint?.variables ?? {})
-        .filter(([, decl]) => isSettableFromOutside(decl) && decl.type !== 'filter')
+        .filter(
+            ([, decl]) => isSettableFromOutside(decl) && isLinkSettableType(decl.type, registry)
+        )
         .map(([name, decl]) => ({name, type: decl.type}));
 }

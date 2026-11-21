@@ -25,7 +25,7 @@ export interface BlueprintLinkState {
     problems: string[];
 }
 
-export {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
+export {BLUEPRINT_LINK_RESERVED, isLinkSettableType} from './impl/linkParams';
 
 /**
  * Read a link to a blueprint from its route's params: which version to open, and, given the
@@ -262,6 +262,21 @@ function readDateRange(text: string, registry: BlueprintRegistry): unknown {
             : undefined;
     }
     return getOwn(registry?.dateRangePresets, text) ? text : undefined;
+}
+
+/**
+ * A value in its link form: by the type given, such as the declared type of the variable it came
+ * from, else as {@link linkTextOf} reads it. Null for one with none.
+ */
+export function linkTextFor(
+    value: unknown,
+    type: string,
+    registry: BlueprintRegistry
+): string | string[] {
+    if (value == null) return null;
+    return type
+        ? formatValue({type} as VariableDecl, value, registry)
+        : linkTextOf(value, registry);
 }
 
 /**
