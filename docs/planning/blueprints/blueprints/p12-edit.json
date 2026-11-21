@@ -1,0 +1,20 @@
+{
+    "base": 12,
+    "description": "Add a refresh button under the positions panel, and its column view switcher in its header",
+    "ops": [
+        {
+            "op": "addElement",
+            "id": "posRefresh",
+            "element": {"component": "buttonGroup", "config": {"buttons": [{"label": "Refresh", "icon": "refresh", "action": {"type": "refresh"}}]}},
+            "parent": "posPanel",
+            "slot": "bbar"
+        },
+        {
+            "op": "addElement",
+            "id": "posViewsSelector",
+            "element": {"component": "presetSelector", "config": {"group": "posViews", "display": "toggle"}},
+            "parent": "posPanel",
+            "slot": "headerItems"
+        }
+    ]
+}

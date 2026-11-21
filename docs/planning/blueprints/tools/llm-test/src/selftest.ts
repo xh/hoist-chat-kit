@@ -12,7 +12,8 @@ for (const file of fs.readdirSync(path.join(PLANNING_DIR, 'blueprints')).sort())
     const bp = loadBlueprint(file);
     if (!bp.elements) continue;
     const issues = validate(bp, {artifacts: ARTIFACTS, isAnswer: /answer|segment/.test(file)});
-    console.log(`${issues.length ? 'FAIL' : 'ok  '} ${file}`);
+    const hasErrors = issues.some(i => i.severity === 'error');
+    console.log(`${hasErrors ? 'FAIL' : issues.length ? 'warn' : 'ok  '} ${file}`);
     issues.forEach(i => console.log(`     ${i.severity} ${i.code} ${i.path}: ${i.message}`));
     if (issues.some(i => i.severity === 'error')) failed++;
 }
@@ -29,7 +30,8 @@ const p3 = loadBlueprint('p3-morning-report.json'),
         'p4-edit.json applied to p2': p4,
         'p7-edit.json applied to p2': applyOps(p2, loadBlueprint('p7-edit.json').ops),
         'p10-edit.json applied to p3': applyOps(p3, loadBlueprint('p10-edit.json').ops),
-        'p11-edit.json applied to p2': applyOps(p2, loadBlueprint('p11-edit.json').ops)
+        'p11-edit.json applied to p2': applyOps(p2, loadBlueprint('p11-edit.json').ops),
+        'p12-edit.json applied to p12-host': applyOps(loadBlueprint('p12-host.json'), loadBlueprint('p12-edit.json').ops)
     };
 let editsFailed = 0;
 for (const [name, res] of Object.entries(applied)) {
@@ -74,6 +76,7 @@ const expected_: Record<string, any> = {
     P10: {blueprint: applied['p10-edit.json applied to p3'].result, segments: [], replies: ['']},
     P11: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W4: {blueprint: loadBlueprint('w4-day-two-axes.json'), segments: [], replies: ['']},
+    P12: {blueprint: applied['p12-edit.json applied to p12-host'].result, segments: [], replies: ['']},
     P11o: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}
 };

@@ -88,6 +88,12 @@ const userSet = (v: any) => v.setBy === 'prompt' || (v.setBy?.element && !v.setB
 const oakSources = (bp: Blueprint) => Object.entries<any>(bp.sources ?? {})
     .filter(([, s]) => [s.params?.fund, ...[s.filter].flat().filter((f: any) => f?.field === 'fund').map((f: any) => f.value)].some(v => bp.variables?.[varOf(v)!]?.default?.value === 'Oak Mount'))
     .map(([name]) => name);
+/** True if a slot of an element holds a widget that passes, directly or inside a toolbar there. */
+const slotHolds = (bp: Blueprint, id: string, slot: string, test: (e: any) => boolean) =>
+    ((bp.elements?.[id] as any)?.[slot] ?? []).some((ref: any) => {
+        const el: any = bp.elements?.[ref.id];
+        return el && (test(el) || (el.component === 'toolbar' && (el.children ?? []).some((c: any) => bp.elements?.[c.id] && test(bp.elements[c.id]))));
+    });
 const BUILD = 'Mode: design. The user has write access. Build a new blueprint: it starts empty, at version 0.';
 
 export const SCENARIOS: Scenario[] = [
@@ -387,6 +393,25 @@ export const SCENARIOS: Scenario[] = [
             ['no callout text holds a number of its own', o => cfg(o.blueprint, 'callout').every(c => !/\d/.test(literalText(c.text)))],
             ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
             ['asks for design mode before it edits', askedFirst]
+        ]
+    },
+    {
+        id: 'P12',
+        title: 'A button in a bottom toolbar and a view switch in a header',
+        host: 'p12-host.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [
+            {prompt: 'Add a refresh button along the bottom of the positions panel.'},
+            {prompt: 'Put the switch between the column views up in the header, next to the title.'}
+        ],
+        checks: [
+            ['a refresh button in the bottom toolbar of the positions panel', o => slotHolds(o.blueprint, 'posPanel', 'bbar', e => e.component === 'buttonGroup' && JSON.stringify(e.config).includes('"refresh"'))],
+            ["the column views' selector in the panel's header", o => {
+                const isViews = (e: any) => e.component === 'presetSelector' && e.config?.group === 'posViews',
+                    cell = (o.blueprint.elements?.positions?.children ?? []).find((it: any) => it.id === 'posPanel');
+                return slotHolds(o.blueprint, 'posPanel', 'headerItems', isViews) || (cell?.headerItems ?? []).some((it: any) => isViews(o.blueprint.elements[it.id]));
+            }],
+            ['no new cell on the canvas', o => (o.blueprint.elements?.positions?.children ?? []).length === loadBlueprint('p12-host.json').elements.positions.children.length]
         ]
     },
     {

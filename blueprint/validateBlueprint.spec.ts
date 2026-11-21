@@ -38,7 +38,8 @@ describe('validateBlueprint', () => {
                 artifacts: ARTIFACTS,
                 isAnswer: /answer|segment/.test(file)
             });
-            expect(issues).toEqual([]);
+            // A host blueprint is the start of an edit, and may lack what the edit adds.
+            expect(issues.filter(it => it.severity === 'error' || !/host/.test(file))).toEqual([]);
         }
     );
 
