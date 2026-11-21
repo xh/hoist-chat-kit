@@ -8,17 +8,20 @@ import {
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import {readAnswerTool} from './readAnswer';
 import {type DesignModeTarget, requestDesignModeTool} from './requestDesignMode';
+import {type FeatureRequestSink, requestFeatureTool} from './requestFeature';
 
 /**
  * The Architect's tools for a target, as chat kit client tools. The edit tools enforce the mode
  * and access the target holds when each call runs. With the chat's `catalog`, the Architect also
  * learns where each widget is allowed, and can read the chat's answers to add them to the target.
+ * With `featureRequests`, it can send the app a request for a capability the registry lacks, once
+ * the user approves it. Pass `withFeatureRequests` to `architectPrompt()` with it.
  */
 export function architectChatTools(
     target: ArchitectTarget,
-    opts: {catalog?: ChatUiCatalog} = {}
+    opts: {catalog?: ChatUiCatalog; featureRequests?: FeatureRequestSink} = {}
 ): ChatToolSpec[] {
-    const {catalog} = opts,
+    const {catalog, featureRequests} = opts,
         tools = availableArchitectTools(target).map(({name, description, parameters, run}) => ({
             name,
             description,
@@ -42,6 +45,7 @@ export function architectChatTools(
     return [
         ...tools,
         ...(target.setMode ? [requestDesignModeTool(target as DesignModeTarget)] : []),
-        ...(catalog ? [readAnswerTool(catalog, target)] : [])
+        ...(catalog ? [readAnswerTool(catalog, target)] : []),
+        ...(featureRequests ? [requestFeatureTool(featureRequests)] : [])
     ];
 }

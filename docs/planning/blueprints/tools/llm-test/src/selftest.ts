@@ -33,7 +33,9 @@ const p3 = loadBlueprint('p3-morning-report.json'),
         'p11-edit.json applied to p2': applyOps(p2, loadBlueprint('p11-edit.json').ops),
         'p12-edit.json applied to p12-host': applyOps(loadBlueprint('p12-host.json'), loadBlueprint('p12-edit.json').ops),
         'p13-edit.json applied to p2': applyOps(p2, loadBlueprint('p13-edit.json').ops),
-        'p14-edit.json applied to p2': applyOps(p2, loadBlueprint('p14-edit.json').ops)
+        'p14-edit.json applied to p2': applyOps(p2, loadBlueprint('p14-edit.json').ops),
+        'f1-edit.json applied to p2': applyOps(p2, loadBlueprint('f1-edit.json').ops),
+        'f2-edit.json applied to p2': applyOps(p2, loadBlueprint('f2-edit.json').ops)
     };
 let editsFailed = 0;
 for (const [name, res] of Object.entries(applied)) {
@@ -81,6 +83,14 @@ const expected_: Record<string, any> = {
     W5: {blueprint: loadBlueprint('w5-current-conditions.json'), segments: [], replies: ['']},
     P13: {blueprint: applied['p13-edit.json applied to p2'].result, segments: [], replies: ['']},
     P14: {blueprint: applied['p14-edit.json applied to p2'].result, segments: [], replies: ['']},
+    F1: {
+        blueprint: applied['f1-edit.json applied to p2'].result,
+        segments: [],
+        replies: [''],
+        calls: ['edit_blueprint', 'request_feature'],
+        featureRequests: [{summary: 'A world map widget that shades countries by a measure', category: 'widget', userWords: 'Show my positions on a world map', workaround: 'Added day P&L by region as a column chart.'}]
+    },
+    F2: {blueprint: applied['f2-edit.json applied to p2'].result, segments: [], replies: [''], calls: ['edit_blueprint']},
     P12: {blueprint: applied['p12-edit.json applied to p12-host'].result, segments: [], replies: ['']},
     P11o: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}

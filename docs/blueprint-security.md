@@ -97,6 +97,13 @@ A chat answer is a blueprint that an LLM writes during a reply:
   on the chat's card. The edit tools check mode and access on every call, whatever the prompt
   says.
 
+## What a Feature Request Can Send
+
+- Nothing without the user's approval, on a card that shows every field it sends.
+- Only the user's own words: `userWords` must appear word for word in one of their messages.
+- No data: a `fragment` is config only, and the kit refuses one with inline rows or artifacts.
+- At most one a turn. The app's server checks each request again, and caps each user's count.
+
 ## What a Link Can Do
 
 A link opens a blueprint by its id, and sets state:

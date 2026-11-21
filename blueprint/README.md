@@ -207,9 +207,34 @@ mode and access, and each variable's current value.
 | `find_usages` | Finds every path that uses a field, a format, a variable or a source |
 | `request_design_mode` | Asks the user, on the chat's approval card, to switch to design mode |
 | `read_answer` | Reads an answer of the chat, to add it to the blueprint |
+| `request_feature` | Sends the app a request for a capability the registry lacks, once the user approves it |
 
-`architectChatTools()` adds `read_answer` only with the chat's `catalog`, and
-`request_design_mode` only for a target that can change its mode.
+`architectChatTools()` adds `read_answer` only with the chat's `catalog`, `request_design_mode`
+only for a target that can change its mode, and `request_feature` only with a `featureRequests`
+sink.
+
+### Take feature requests from the Architect
+
+When a user asks for something no registry entry can do, the Architect builds the closest
+supported way, then offers a feature request. Give it a sink, and tell its prompt:
+
+```typescript
+const featureRequests: FeatureRequestSink = {
+    submitAsync: request => XH.postJson({url: 'blueprints/featureRequest', body: request})
+};
+architectChatTools(blueprintModel, {catalog: chatUiCatalog, featureRequests});
+architectPrompt({catalogs: [catalog], registry, withAnswers: true, withFeatureRequests: true});
+```
+
+- The user approves or declines each request on the chat's approval card, which shows every field
+  it sends. A declined request sends nothing.
+- `userWords` must copy one of the user's messages word for word, apart from whitespace, so the
+  model cannot put words in the user's mouth. A `fragment` is config only, at most 5,000
+  characters, and never holds inline rows or artifacts.
+- The tool sends at most one request a turn. The kit adds `context`: the app, its version, the
+  user and the time. The sink adds what it knows, such as the blueprint open.
+- A request is untrusted input. The server checks it again, and caps how many each user sends.
+  Throw from `submitAsync` to refuse one, with a message the model passes on.
 
 ### Choose the Architect's model
 

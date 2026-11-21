@@ -1,0 +1,13 @@
+{
+    "base": 12,
+    "description": "Add a heatmap of day P&L by sector and strategy",
+    "ops": [
+        {
+            "op": "addElement",
+            "id": "pnlHeatmap",
+            "element": {"component": "heatmap", "config": {"source": "positions", "x": "sector", "y": "strategy", "value": "pnlDay", "title": "Day P&L by Sector and Strategy"}},
+            "parent": "dashboard",
+            "child": {"x": 0, "y": 14, "w": 12, "h": 6}
+        }
+    ]
+}
