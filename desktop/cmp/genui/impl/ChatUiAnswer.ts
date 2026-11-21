@@ -169,17 +169,18 @@ const gridCard = hoistCmp.factory({
         const {source, resolvedConfig: config, blueprintModel, id} = model,
             host = blueprintModel.hostContext as ChatUiAnswerHostContext;
         if (!source) return null;
-        const isPartial = !!host?.isPartial(id),
-            columns = castArray(config.columnState ?? [])
-                .map(it => (isString(it) ? it : it?.field))
-                .filter(it => source.fields[it])
-                .map(it => toGridColumn(it, model));
+        const records = source.cube.store.records,
+            named = castArray(config.columnState ?? []).map(it => (isString(it) ? it : it?.field)),
+            // A grid that names no columns shows those its source's rows hold.
+            fields = named.length ? named : Object.keys(records[0]?.data ?? {}),
+            columns = fields.filter(it => source.fields[it]).map(it => toGridColumn(it, model)),
+            isPartial = !!host?.isPartial(id) || (!named.length && !source.hasLoaded);
         return chatUiGrid({
             title: config.title,
             columns,
             // Plain copies, without the key the source gives each row.
             rows: withStandIn(
-                source.cube.store.records.map(it => omit({...it.data}, 'id')),
+                records.map(it => omit({...it.data}, 'id')),
                 {},
                 isPartial
             ),

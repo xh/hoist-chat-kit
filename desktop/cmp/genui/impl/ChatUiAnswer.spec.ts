@@ -1,13 +1,16 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {fragment} from '@xh/hoist/cmp/layout';
 import {isArray} from 'lodash';
+import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {BlueprintModel, DataCatalog, degradeAnswer} from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
 import {toAnswerBlueprint} from '../../../../genui/impl/answerBlueprint';
 import {ChartWidgetModel} from '../../blueprint/ChartWidget';
+import {BlueprintViewModel} from '../../blueprint/impl/BlueprintViewModel';
 import {chatUiChartSpec} from '../ChatUiChart';
 import {answerLoadBar, toChatChartProps} from './ChatUiAnswer';
 import {toHighchartsConfig, toSeries} from './ChatUiChartData';
@@ -234,5 +237,52 @@ describe('a chart in an answer', () => {
             fireEvent.click(retry);
             expect(loadAsync).toHaveBeenCalledTimes(2);
         });
+    });
+});
+
+/**
+ * A flat grid in an answer draws as chat kit's grid card. A grid that names no columns shows the
+ * columns its source's rows hold, rather than claiming its data is gone.
+ */
+describe('a grid in an answer', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    it("shows its source's columns when it names none", async () => {
+        const catalog = new ChatUiCatalog({components: [chatUiChartSpec()]}),
+            model = new BlueprintModel({
+                blueprint: {
+                    sources: {
+                        movers: {
+                            inline: {
+                                fields: [
+                                    {name: 'symbol', type: 'string', isDimension: true},
+                                    {name: 'pnlDay', type: 'number'}
+                                ],
+                                rows: [
+                                    {symbol: 'NVDA', pnlDay: -120},
+                                    {symbol: 'AAPL', pnlDay: -45}
+                                ]
+                            }
+                        }
+                    },
+                    root: 'grid',
+                    elements: {grid: {component: 'cubeGrid', config: {source: 'movers'}}}
+                },
+                catalog: new DataCatalog({datasets: {}}),
+                registry: catalog.registry,
+                dataProvider: null,
+                isAnswer: true,
+                defaultPresentation: 'card'
+            }),
+            viewModel = new BlueprintViewModel(model);
+        onTestFinished(() => {
+            viewModel.destroy();
+            model.destroy();
+        });
+        const {container} = render(fragment(viewModel.renderElement('grid')) as ReactElement);
+        await vi.waitFor(() => expect(container.textContent).toContain('NVDA'));
+        expect(container.textContent).not.toContain('no longer available');
     });
 });
