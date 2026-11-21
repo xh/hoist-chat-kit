@@ -20,6 +20,7 @@ export type EditorNode = EditorBase &
         | {kind: 'oneOf'; options: EditorNode[]}
         | {kind: 'source'}
         | {kind: 'variable'}
+        | {kind: 'blueprint'}
         | {kind: 'preset'}
         | {kind: 'field'; role: FieldRole; multiple: boolean}
         | {kind: 'filter'}
@@ -50,7 +51,7 @@ export interface EditorBase {
 /**
  * The editors for a widget's config, one per property of its schema, in the schema's order. The
  * registry's annotations pick a kind: `x-source`, `x-field`, `x-filter`, `x-format`, `x-renderer`,
- * `x-action` and `x-variable`. A list of fields whose items may also be objects with settings, such as a grid's
+ * `x-action`, `x-variable` and `x-blueprint`. A list of fields whose items may also be objects with settings, such as a grid's
  * columns, is a `fieldList`, and an object keyed freely by field a `map` with a `keyRole`. Any
  * shape the kit has no editor for is `json`, so every value can be edited.
  */
@@ -74,6 +75,7 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
         schema
     };
     if (schema['x-variable']) return {...base, kind: 'variable'};
+    if (schema['x-blueprint']) return {...base, kind: 'blueprint'};
     if (schema['x-preset']) return {...base, kind: 'preset'};
     if (schema['x-source']) return {...base, kind: 'source'};
     if (schema['x-filter']) return {...base, kind: 'filter'};

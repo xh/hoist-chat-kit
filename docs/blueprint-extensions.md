@@ -97,6 +97,7 @@ editors what a value means:
 | `x-action` | An action, or a list of steps | Checks each step against its type's params |
 | `x-template` | Text with `{variable}` and `{source.field}` references. `'variables'` marks a title, which reads variables only | Checks each reference, and warns of a literal figure. Fills a title's variables in `resolvedConfig` |
 | `x-preset` | The name of one of the blueprint's preset groups | Checks the name |
+| `x-blueprint` | The id of a stored blueprint of the same type | Offers a picker over the repository's list |
 | `x-unit` | The unit of a number, such as `px` | Shows it beside the editor |
 | `x-starter: false` | An optional property | Leaves it out of a new widget's config |
 

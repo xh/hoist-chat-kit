@@ -73,6 +73,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added JSON Schema's `default` to widget config schemas. Design mode shows an unset property at
   its default, and `BlueprintWidgetModel.configDefault()` applies it.
 * Added `ActionSpec.allowedIn`. The validator refuses an action outside the blueprints it names.
+* Added the `openBlueprint` action, which opens another blueprint of the same type over this one,
+  in a dialog or a popover, with values passed as a link passes them, and `cubeGrid.rowActions`.
+  The Architect lists targets with `list_blueprints`.
 * Added conditional styles to `cubeGrid`: a column's `styles` and the grid's `rowStyles` color,
   bold or flag cells and rows where a filter matches, from a closed set of style keys, on
   hoist-react's `cellStyle` and `rowStyle`.

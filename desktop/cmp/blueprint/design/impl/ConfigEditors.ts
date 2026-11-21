@@ -225,6 +225,18 @@ function editorFor(
                 width: '100%',
                 onCommit: v => commit(optional(v))
             });
+        case 'blueprint': {
+            const {impl} = ctx;
+            if (!impl.blueprintOptions) impl.loadBlueprintOptionsAsync().catchDefault();
+            return select({
+                value: value ?? null,
+                options: withCurrent(impl.blueprintOptions ?? [], value),
+                enableClear: !node.required,
+                disabled,
+                width: '100%',
+                onCommit: v => commit(optional(v))
+            });
+        }
         case 'source':
             return select({
                 value: value ?? null,

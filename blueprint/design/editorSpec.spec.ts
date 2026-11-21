@@ -38,6 +38,14 @@ describe('toEditorSpec', () => {
         expect(node).toMatchObject({kind: 'variable', bindable: false});
     });
 
+    it('makes a param that names a stored blueprint a blueprint picker', () => {
+        const [node] = toEditorSpec({
+            type: 'object',
+            properties: {blueprint: {type: 'string', 'x-blueprint': true}}
+        });
+        expect(node).toMatchObject({kind: 'blueprint'});
+    });
+
     it('names the annotated kinds, before their plain type', () => {
         const chart = byKey(toEditorSpec(configOf('chart')));
         expect(chart.source.kind).toBe('source');

@@ -346,12 +346,19 @@ that run as steps:
 - An action's parameters sit beside its `type`, and the runner checks them against the type's
   schema before any step runs. Values are literals, `{"$var": name}`, or, for an action run on a
   row, `{"$row": field}`.
-- The built-in types are `setVariable`, `resetVariable`, `refresh`, `navigate` and `openUrl`.
-  Chat answers add chat kit's `send` and `callTool`. Apps add their own.
+- The built-in types are `setVariable`, `resetVariable`, `refresh`, `navigate`, `openUrl` and
+  `openBlueprint`. Chat answers add chat kit's `send` and `callTool`. Apps add their own.
+- A grid's `rowActions` list actions on a row, in its right-click menu, the first also on a double
+  click. `{"$row": field}` reads the row's fields and the value of each group on its path.
 - An action can set only a variable a link could set. To clear one, use `resetVariable`.
 - Each step starts once the one before it ends. If a step fails, the rest do not run, and the
   user sees why. A step with `confirm`, or of a type with side effects, asks the user first.
 - `openUrl` opens only the http and https URLs on the app's allow list, which is empty by default.
+- `openBlueprint` opens another blueprint of the same type over this one, in a dialog or a
+  popover at its button: `{"type": "openBlueprint", "blueprint": id, "as": "dialog", "variables":
+  {"symbol": {"$row": "symbol"}}}`. Its values reach the target as a link's do, so the target takes
+  only the variables a link may set. It opens in run mode, read only, cannot open another, and only
+  dashboards may use it.
 
 ## Change a Blueprint with Edits
 

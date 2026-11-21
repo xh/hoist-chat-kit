@@ -127,7 +127,7 @@ Variables:
 
 Filters are Hoist filters: {"field": f, "op": "=", "value": v}, or {"op": "AND", "filters": [...]}. Operators: = != > >= < <= like "not like" begins ends includes excludes. A list value with = means any of. A whole filter or a value can be {"$var": name}. A clause whose bound value is null is dropped.
 
-Actions sit on props a widget declares, such as a button's action: {"type": "setVariable", "variable": "v", "value": ...}. Parameters sit beside type. An action can set only a variable whose setBy is "prompt", "action", or a widget without an output. To clear a variable, use resetVariable, not setVariable with null.
+Actions sit on props a widget declares, such as a button's action: {"type": "setVariable", "variable": "v", "value": ...}. Parameters sit beside type. An action can set only a variable whose setBy is "prompt", "action", or a widget without an output. To clear a variable, use resetVariable, not setVariable with null. To open another blueprint over this one, such as a symbol's detail from a grid row, use openBlueprint on a button or in a cubeGrid's rowActions, with a target and its variables from list_blueprints.
 
 Formats: a field's kind sets its default format. A grid sets a column's format in its columns: "columns": {"mktVal": {"format": {"scale": "millions", "precision": 1}}}. columnState holds only order, width, hidden and pinned. A format is a named format, an object of Hoist number options (precision, scale, ledger, colorSpec, label...), or {"name": "pnl", ...changes}. Redefine a named format for this blueprint with "formats": {"pnl": {...}}, which changes every field whose kind uses it.
 

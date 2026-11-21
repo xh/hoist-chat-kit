@@ -205,13 +205,15 @@ mode and access, and each variable's current value.
 | `set_variable` | Sets a variable that a prompt or the Architect may set |
 | `query_dataset` | Queries a dataset, and returns the result as an artifact of the reply |
 | `find_usages` | Finds every path that uses a field, a format, a variable or a source |
+| `list_blueprints` | Lists the published blueprints of this one's type, with the variables a link may set, for an `openBlueprint` target |
 | `request_design_mode` | Asks the user, on the chat's approval card, to switch to design mode |
 | `read_answer` | Reads an answer of the chat, to add it to the blueprint |
 | `request_feature` | Sends the app a request for a capability the registry lacks, once the user approves it |
 
 `architectChatTools()` adds `read_answer` only with the chat's `catalog`, `request_design_mode`
-only for a target that can change its mode, and `request_feature` only with a `featureRequests`
-sink.
+only for a target that can change its mode, `request_feature` only with a `featureRequests` sink,
+and `list_blueprints` only for a model that a `BlueprintDocumentModel` holds, whose repository it
+lists.
 
 ### Take feature requests from the Architect
 

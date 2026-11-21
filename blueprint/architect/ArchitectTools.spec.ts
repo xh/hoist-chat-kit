@@ -4,6 +4,7 @@ import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blue
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
+import {InMemoryBlueprintRepository} from '../repository/InMemoryBlueprintRepository';
 import {fieldUsages} from '../usages';
 import {architectPrompt} from './architectPrompt';
 import type {ArchitectToolError} from './ArchitectTools';
@@ -39,6 +40,44 @@ describe('Architect tools', () => {
 
     const run = (name: string, input: any, target: ArchitectTarget) =>
         ARCHITECT_TOOLS.find(it => it.name === name).run(input, target) as any;
+
+    it("lists the library's published blueprints of its type, with the variables a link may set, and nothing else", async () => {
+        const model = open(),
+            repository = new InMemoryBlueprintRepository({
+                type: 'acme.dashboard',
+                canCreate: true,
+                accessOf: () => ({access: 'write', canPublish: true})
+            }),
+            detail = await repository.createAsync({
+                name: 'Symbol detail',
+                description: 'One symbol over time.',
+                blueprint: {
+                    variables: {
+                        symbol: {type: 'string', setBy: 'prompt', default: {value: 'X'}},
+                        pick: {type: 'filter', setBy: 'prompt'},
+                        fixed: {type: 'string', default: {value: 'y'}}
+                    },
+                    root: 'note',
+                    elements: {note: {component: 'markdown', config: {text: '{symbol}'}}}
+                }
+            });
+        await repository.publishAsync(detail.id, {base: 1});
+        await repository.createAsync({name: 'Unpublished', blueprint: {}});
+        expect(availableArchitectTools(model).map(it => it.name)).not.toContain('list_blueprints');
+
+        model.drillInRepository = repository;
+        expect(availableArchitectTools(model).map(it => it.name)).toContain('list_blueprints');
+        expect(await run('list_blueprints', {}, model)).toEqual({
+            blueprints: [
+                {
+                    id: detail.id,
+                    name: 'Symbol detail',
+                    description: 'One symbol over time.',
+                    variables: [{name: 'symbol', type: 'string'}]
+                }
+            ]
+        });
+    });
 
     it('reads the blueprint whole, or the subtrees at given paths, with its version', () => {
         const model = open();

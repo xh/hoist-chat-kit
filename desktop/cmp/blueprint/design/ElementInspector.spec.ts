@@ -44,6 +44,23 @@ describe('ElementInspector', () => {
         return {model, design, inspector};
     }
 
+    it("offers the repository's blueprints of the host's type for an openBlueprint target", async () => {
+        const {model, inspector} = open();
+        model.drillInRepository = {
+            type: 'acme.dashboard',
+            listAsync: async () => [
+                {id: 'detail', name: 'Symbol detail'},
+                {id: 'risk', name: 'Risk'}
+            ]
+        } as any;
+        expect(inspector.blueprintOptions).toBeNull();
+        await inspector.loadBlueprintOptionsAsync();
+        expect(inspector.blueprintOptions).toEqual([
+            {value: 'detail', label: 'Symbol detail'},
+            {value: 'risk', label: 'Risk'}
+        ]);
+    });
+
     it("edits the selected element's config, one property per edit, and removes a cleared one", () => {
         const {model, inspector} = open();
         expect(inspector.nodes.map(it => it.key)).toContain('title');

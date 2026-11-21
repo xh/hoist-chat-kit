@@ -89,6 +89,10 @@ widget maps each value to CSS itself, and drops anything outside the list.
 - **URLs on a list.** `openUrl` opens only http and https URLs that the app's `urlAllowList`
   permits, and the list is empty by default. An entry matches by parsed origin and path prefix,
   so `https://a.com` does not allow `https://a.com.evil.com`.
+- **Drill-ins open as links do.** `openBlueprint` opens its target through the host's repository,
+  as the user, so it opens only what the user may read, of the same type. Its values pass through
+  the target's link parser, with every limit a link meets. It opens read only, cannot open
+  another, and a chat answer cannot use it.
 - **Params stay untrusted.** An app action's `run` gets params that passed the schema, but a
   model or a user may have chosen them. Check them as the app checks any input.
 

@@ -1,7 +1,7 @@
 import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
-import {action, observableRef} from '@xh/hoist/mobx';
+import {action, observableRef, runInAction} from '@xh/hoist/mobx';
 import {isEmpty, isString, pickBy, sortBy, uniq} from 'lodash';
 import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
@@ -28,6 +28,9 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The item of each list whose settings are open, by the list's key. One at a time. */
     @observableRef accessor openItems: Record<string, number> = {};
+    /** The stored blueprints an `x-blueprint` param may name, once loaded. Null until then. */
+    @observableRef accessor blueprintOptions: Option[] = null;
+    private loadingBlueprints = false;
 
     isItemOpen(key: string, index: number): boolean {
         return this.openItems[key] === index;
@@ -126,6 +129,18 @@ export abstract class ConfigEditorModel extends HoistModel {
         const group = blueprintModel.blueprint.presets[control.group],
             item = group.items?.[control.item];
         return `Preset: ${group.label ?? control.group} › ${item?.label ?? control.item}`;
+    }
+
+    /** Load the blueprints of the host's repository, for an `x-blueprint` param. */
+    async loadBlueprintOptionsAsync() {
+        // An editor asks as it draws, so a draw before the list arrives asks again.
+        if (this.loadingBlueprints) return;
+        this.loadingBlueprints = true;
+        const repository = this.designModel.blueprintModel.drillInRepository,
+            list = repository ? await repository.listAsync() : [];
+        runInAction(() => {
+            this.blueprintOptions = list.map(it => ({value: it.id, label: it.name}));
+        });
     }
 
     /** The variables an action may set, for an `x-variable` param. */

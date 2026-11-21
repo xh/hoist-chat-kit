@@ -5,10 +5,12 @@ import type {BlueprintDataProvider} from '../BlueprintDataProvider';
 import type {BlueprintAccess, BlueprintMode} from '../Blueprint';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import type {DataCatalog, DatasetDef} from '../DataCatalog';
+import type {BlueprintRepository} from '../repository/BlueprintRepository';
 import {applyOps} from '../applyOps';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
 import {fieldUsages} from '../usages';
+import {isSettableFromOutside} from '../validateBlueprint';
 import {getAt, getOwn} from '../impl/pointer';
 import {queryRows} from '../impl/queryRows';
 import {summaryOf} from './architectPrompt';
@@ -40,6 +42,8 @@ export interface ArchitectTarget {
     setMode?(mode: BlueprintMode): void;
     /** Set a variable that a prompt, an action or the Architect may set, and return its value. */
     setVariable?(name: string, value: unknown): unknown;
+    /** The repository `openBlueprint` opens from, which `list_blueprints` lists. */
+    readonly drillInRepository?: BlueprintRepository;
 }
 
 /**
@@ -343,6 +347,29 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
         }
     },
     {
+        name: 'list_blueprints',
+        description:
+            "List the user's published blueprints of this one's type, for an openBlueprint target: each one's id, name, description, and the variables a link may set, by name and type, which the action's variables can pass.",
+        parameters: {type: 'object', properties: {}},
+        isAvailable: target => !!target.drillInRepository,
+        run: async (_, {drillInRepository: repository}) => {
+            const published = (await repository.listAsync())
+                    .filter(it => it.publishedVersion != null)
+                    .slice(0, MAX_LISTED_BLUEPRINTS),
+                records = await Promise.all(
+                    published.map(it => repository.openAsync(it.id, {as: 'publish'}))
+                );
+            return {
+                blueprints: published.map((it, idx) => ({
+                    id: it.id,
+                    name: it.name,
+                    ...(it.description ? {description: it.description} : {}),
+                    variables: linkVariables(records[idx]?.blueprint)
+                }))
+            };
+        }
+    },
+    {
         name: 'find_usages',
         description:
             'Find every path in the blueprint that uses a field, a named format, a variable or a source. Give exactly one. A field counts where a widget, a source or a variable names it, and where a widget with no source of its own, such as a grouping chooser, offers it to the widgets that read its variable. A field instance counts on its own name and on its base field.',
@@ -475,3 +502,13 @@ const COLUMN_TYPES: Record<string, string> = {
     date: 'datetime',
     bool: 'boolean'
 };
+
+// The most blueprints list_blueprints reads, each a request for its latest publish.
+const MAX_LISTED_BLUEPRINTS = 50;
+
+// The variables of a blueprint a link may set, by name and type. A link never sets a filter.
+function linkVariables(blueprint: Blueprint): {name: string; type: string}[] {
+    return Object.entries(blueprint?.variables ?? {})
+        .filter(([, decl]) => isSettableFromOutside(decl) && decl.type !== 'filter')
+        .map(([name, decl]) => ({name, type: decl.type}));
+}
