@@ -53,6 +53,26 @@ describe('DataCatalog', () => {
         );
     });
 
+    it('refuses a key that names a field its dataset lacks, naming both', () => {
+        const keyed = (key: string[]): DataCatalogJson => ({
+            datasets: {
+                orders: {
+                    key,
+                    params: {},
+                    fields: [
+                        {name: 'orderId', type: 'string'},
+                        {name: 'symbol', type: 'string', isDimension: true}
+                    ]
+                }
+            }
+        });
+        // A key need not be a dimension: a join checks that where its grain needs one.
+        expect(() => new DataCatalog(keyed(['orderId']))).not.toThrow();
+        expect(() => new DataCatalog(keyed(['orderId', 'fund']))).toThrow(
+            /key field 'fund' of dataset 'orders'/
+        );
+    });
+
     it("refuses an unknown kind on a dataset's or a field's parameter", () => {
         expect(
             () => new DataCatalog(catalog([], {asOf: {type: 'localDate', kind: 'nope'}}))

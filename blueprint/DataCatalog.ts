@@ -55,7 +55,11 @@ export interface DatasetDef {
     description?: string;
     guidance?: string;
     params: Record<string, ParamDef>;
-    /** The fields that identify a row, which give a join its grain. */
+    /**
+     * The fields that identify a row, which give a join its grain. Each must be a field of the
+     * dataset. A join that keys on one by group, as a coarser value or a reduce does, also needs it
+     * to be a dimension (`join.keyNotDimension`).
+     */
     key?: string[];
     /** Every field, keyed by name, with shared fields and kind defaults resolved. */
     fields: Record<string, FieldDef>;
@@ -106,6 +110,12 @@ export class DataCatalog {
             Object.entries(ds.params ?? {}).forEach(([pn, pd]) =>
                 checkKind(pd.kind, `parameter '${pn}' of dataset '${name}'`)
             );
+            // A join takes its grain from the key, so a key that names no field gives wrong numbers.
+            (ds.key ?? [])
+                .filter(it => !fields.some(f => f.name === it))
+                .forEach(it =>
+                    problems.push(`key field '${it}' of dataset '${name}' is not one of its fields`)
+                );
             fields.forEach(f => {
                 checkKind(f.kind, `field '${f.name}' of dataset '${name}'`);
                 Object.entries(f.params ?? {}).forEach(([pn, pd]) =>

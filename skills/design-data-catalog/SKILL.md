@@ -7,7 +7,7 @@ description: Design or change an app's Data Catalog for Hoist Blueprints, and th
 
 A catalog reaches three readers. The validator refuses any name the catalog does not hold. The
 Architect chooses data from the catalog's guidance. The app's server answers each request for a
-dataset. A catalog that serves only the validator still renders, but the Architect picks the
+dataset. A catalog that serves only the validator still renders. But the Architect picks the
 wrong measure, a total shows a wrong number, or a link reads data the user may not see. This
 skill is the design workflow, and no doc restates its rules.
 
@@ -30,7 +30,9 @@ server, read a doc by its id, such as `chat-kit:docs/blueprint-format.md`.
   fine one. It is cheaper than rolling up fine rows, and it gives joins a coarser grain.
 - **Declare `key` on every dataset:** the fields that identify one row. Check it against the row
   id the server builds. A join takes its grain from the two keys, so a wrong key gives wrong
-  numbers silently. Every key field must be a field of the dataset, and a dimension.
+  numbers silently. Every key field must be a field of the dataset, and the catalog refuses one
+  that is not. A join can group by a key field, for a coarser value or a reduce. That key field
+  must also be a dimension, or the join refuses it (`join.keyNotDimension`).
 - **A series is a field of type `number[]`.** Its `kind` applies to each point. A series whose
   aggregator is `SUM` sums point by point, and any other never rolls up. Compute it only when a
   request names it, and say its size in its guidance.
@@ -53,32 +55,36 @@ server, read a doc by its id, such as `chat-kit:docs/blueprint-format.md`.
 
 ## 3. Aggregators
 
-An aggregator says what a field shows on a group row, and what a join reduces it to. For each
-field, ask what it should show under every grouping it can appear in.
+An aggregator says what a field shows on a group row, and what a join reduces it to. A field
+takes its kind's aggregator unless it sets its own. For each field, ask what it should show under
+every grouping it can appear in.
 
 | Aggregator | Use for |
 |---|---|
 | `SUM`, `AVG`, `MIN`, `MAX` | Measures that add up, or whose extremes mean something |
 | `UNIQUE` | A value that all of a group's rows share, such as a price by symbol. Blank otherwise |
 | `{type: 'weightedAverage', weightField, absolute}` | Ratios such as beta or duration |
-| `{type: 'last' \| 'first', orderField}` | A value per period, reduced to its latest or earliest, such as a close by day |
+| `{type: 'last' \| 'first', orderField}` | A value per period, reduced to its latest or earliest, such as a close by day. `orderField` is required: without it the field does not roll up, and only a join reports it |
 | `"server"` | Measures only the server can roll up, such as VaR or a return. The Cube shows them as `SUPPLIED` |
-| None | A value that never rolls up. Group rows show it blank, and no join can reduce it |
+| None | A number shows blank on group rows. Any other type, and a dimension, defaults to `UNIQUE`. No join can reduce a field with none |
 
 - **A blank beats a wrong number.** If `SUM` is right for one grouping and wrong for another,
   such as a quantity across symbols, use `UNIQUE`.
 - **A `"server"` field obliges the server** to answer each request's `groupBy` sets with their
   aggregates, and `loadAggregatesAsync` with new ones.
 - **A keyed field is never declared.** A measure joined from a coarser dataset becomes keyed on
-  its own, such as NAV joined onto positions. It shows only where a row pins the join's key. Its
-  total applies the field's own aggregator once per key, for `SUM`, `AVG`, `MIN`, `MAX` and
-  `UNIQUE` only.
+  its own, such as NAV joined onto positions. It shows where a row pins the join's key. It also
+  totals once per key on a row grouped only by that key and the joined dataset's own dimensions,
+  such as a fund's style. A total applies the field's own aggregator, for `SUM`, `AVG`, `MIN`,
+  `MAX` and `UNIQUE` only.
 - **Check each field a join could reduce.** For a per-period dataset, an OHLC bar is first by
   period, `MAX`, `MIN` and last by period.
 
 ## 4. Joins
 
-Blueprints declare joins. The catalog makes them possible, and decides whether they are right:
+Blueprints declare joins. A join's `on` maps each field of the primary source to the field of the
+joined source it matches, such as `{"fund": "fund"}`. The catalog makes joins possible, and
+decides whether they are right:
 
 - A `key` on both datasets, and the `on` fields as dimensions.
 - Aggregators that reduce correctly by the join's key.
@@ -103,11 +109,11 @@ it. Say in the dataset's guidance when to join it, and on which key.
 
 ## 6. Write for the Architect
 
-The Architect's index shows each dataset in one line, from its `guidance`, else its
+The Architect's index shows each dataset in one line, with all of its `guidance`, else its
 `description`. `describe_catalog` gives the fields, with the same fallback.
 
 - **Dataset guidance:** what one row is, when to choose the dataset over its siblings, and its
-  cost. Lead with the choice, since the first sentence reaches the index.
+  cost. Keep it short: the index puts all of it in every prompt.
 - **Field guidance:** on every measure that is easy to confuse with another, such as market value
   and gross exposure. Say what a value means and its units, such as "Always zero or less".
 - **Description** is for people. Write `guidance` where a model would choose wrongly from the
@@ -115,7 +121,8 @@ The Architect's index shows each dataset in one line, from its `guidance`, else 
 
 ## Check your work
 
-- **Build the catalog in a unit test.** `new DataCatalog(json)` throws on an unknown kind. Load
+- **Build the catalog in a unit test.** `new DataCatalog(json)` throws on an unknown kind or a
+  key field the dataset lacks. Also check that each dataset a blueprint may join has a `key`. Load
   each seeded blueprint with `validateBlueprint` against it, as blueprint-architect says.
 - **Spec the server:** each dataset's row id matches its `key`, a bad parameter returns a 400,
   and a `"server"` field's totals match the rows they cover.
