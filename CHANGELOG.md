@@ -12,6 +12,8 @@
   3. Plain ASCII punctuation only. Use " - " for in-sentence breaks, never an em dash.
 -->
 
+## 4.0.0-SNAPSHOT - unreleased
+
 ## 3.0.0 - 2026-11-21
 
 Requires `@xh/hoist` 91 or later.
