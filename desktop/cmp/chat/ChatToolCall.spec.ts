@@ -50,6 +50,30 @@ describe('ChatToolCall approval', () => {
         expect(chatModel.approveToolCallAsync).toHaveBeenLastCalledWith('c1', 'Checked the rows');
     });
 
+    it('offers to allow a tool that opts in for the rest of the conversation', () => {
+        const chatModel = createChat({
+            tools: [
+                {
+                    name: 'insert_rows',
+                    execute: () => 'ok',
+                    needsApproval: true,
+                    canAllowForConversation: true
+                }
+            ]
+        });
+        renderList(chatModel);
+
+        const bar = document.querySelector('.xh-chat-tool-call__approval-bar'),
+            labels = Array.from(bar.querySelectorAll('button')).map(it => it.textContent);
+        expect(labels).toEqual(['Allow', 'Allow for this conversation', 'Deny']);
+
+        typeReason('Fine for today');
+        fireEvent.click(screen.getByRole('button', {name: 'Allow for this conversation'}));
+        expect(chatModel.approveToolCallAsync).toHaveBeenCalledWith('c1', 'Fine for today', {
+            forConversation: true
+        });
+    });
+
     it('decides nothing on Enter in the reason, nor on any shortcut', () => {
         const chatModel = createChat();
         renderList(chatModel);

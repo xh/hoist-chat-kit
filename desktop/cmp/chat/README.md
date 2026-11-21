@@ -895,6 +895,10 @@ panel: the prompt, from the tool's `approvalPrompt`, and any `preview`. Below th
 Deny and an optional reason, which goes to the agent with either decision. Allow comes first, as
 in a form. Enter in the reason sends nothing, and no shortcut ever allows a call.
 
+A tool that sets `canAllowForConversation` also offers Allow for this conversation, between Allow
+and Deny. Later calls of the tool then run with no approval, until the conversation is cleared or
+another thread loads. See [`/core/`](../../../core/README.md#let-the-user-allow-a-tool-for-the-conversation).
+
 When a request arrives, focus moves to Allow only if focus was in the conversation and the
 composer is empty. A user who is typing keeps the keyboard. Allow and Deny move focus to the
 reply, as the panel goes once the call is decided.
@@ -1034,6 +1038,19 @@ new ChatModel({
     }
 });
 ```
+
+A renderer that returns null takes no space in the reply. For a type that never shows, such as
+state a codec reads back on the next request, give it an activity spec with `display: 'hidden'`
+in place of a renderer. The part then stays in the conversation and never renders:
+
+```typescript
+new ChatModel({
+    transport,
+    activities: [{dataType: 'app.state', display: 'hidden'}]
+});
+```
+
+See [`/core/`](../../../core/README.md#show-an-agents-activities) for activity specs.
 
 ### Render reply text yourself
 

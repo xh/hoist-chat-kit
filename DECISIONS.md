@@ -152,6 +152,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Amended by D132 |
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
 | [D132](#d132-a-spec-takes-the-name-of-the-hoist-component-it-renders) | A spec takes the name of the Hoist component it renders | Accepted |
+| [D133](#d133-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2462,8 +2463,8 @@ before the request.
 **Why.** An app asked for model-written titles. It could build them from `isNew` and
 `showThreadTitle()`, but each app would rebuild the same parts: when the backend first has the
 thread, which only the kit tracks for a `ChatModel`, a rename made while the title was on its way,
-and a single call per thread. The title starts while the first reply streams, so a long run does
-not delay it.
+and a single call per thread. The title starts once the first reply records its run id or starts
+to stream, so a long run does not delay it, nor does a backend that plans before it answers.
 
 **Alternatives.** Call it when the first turn ends. Simpler, but a long agent run would show the
 provisional title for its whole length. Let the app's function save the title, and only show it.
@@ -2977,7 +2978,7 @@ variables. The badges, tabs, treemap and input specs already match. A tool name 
 as `show_stat_cards`, where the catalog name is in camel case.
 
 One spec waits. `section` renders `Card`, but `card` still names the record card. The record card
-will become a Hoist `Card` that holds a `KeyValueList`, with its actions in the card's footer, and
+will become a Hoist `Card` that holds a `PropertyTable`, with its actions in the card's footer, and
 `section` becomes `card` in that change. `callout` rendered `Banner` until Hoist 91 shipped its own
 `Callout`, and then moved onto it with no rename.
 
@@ -2988,3 +2989,24 @@ the two drift apart as Hoist grows.
 **Alternatives.** Keep names that say what a component is for, as D124 and D128 had it. Each name
 then needs a map to its Hoist component. Keep `metrics` as an alias of `statCards`. Two names for
 one spec double the docs and the prompt.
+
+## D133. A tool opts in to being allowed for the conversation
+
+**Status.** Accepted.
+
+**Decision.** `ChatToolSpec.canAllowForConversation` lets the user allow a tool for the rest of
+the conversation, from its approval card. It is off by default. `ChatModel.allowedTools` holds the
+choice, `resetAllowedTools()` forgets it, and clearing the chat or loading another thread empties
+it. A reload of the same thread keeps it. Allowing a tool also approves its other calls that wait
+in the same step. Server approvals, through interrupts, still ask call by call.
+
+**Why.** An app asked for it, so that frequent changes that are easy to undo need no click each
+time. The kit cannot tell such a tool from one that places an order. An app that adds approval
+today expects every call to ask, and a tool that asks only for some inputs, such as orders over a
+limit, would lose that check for the rest of the conversation after one click. So the app opts
+each tool in. A server agent decides its own approvals, and the chat cannot answer its interrupts
+on the user's behalf.
+
+**Alternatives.** On by default, with a setting to keep a tool asking. Less setup for an app with
+many tools, but every existing approval would gain the choice at once. Persist the choice with the
+thread. A reloaded conversation would then run calls the user may no longer remember allowing.

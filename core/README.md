@@ -63,6 +63,7 @@ ChatModel (HoistModel)
 │   ├── isAwaitingUser                # True while a turn waits on the user
 │   ├── waitingToolCalls              # Calls the paused turn waits on
 │   ├── pendingApprovals              # The subset that waits for approve or deny
+│   ├── allowedTools                  # Tools the user allowed for the conversation
 │   └── canSubmitFeedback             # True if a feedback submitter is set
 └── Methods:
     ├── sendAsync()                   # Send a message and stream the reply
@@ -73,6 +74,7 @@ ChatModel (HoistModel)
     ├── editMessageAsync()            # Change a user message and re-run from it
     ├── approveToolCallAsync()        # Approve a waiting call
     ├── denyToolCallAsync()           # Deny a waiting call
+    ├── resetAllowedTools()           # Ask again for tools allowed for the conversation
     ├── addToolOutputAsync()          # Answer a call to an interactive tool
     ├── submitFeedbackAsync()         # Rate a reply, or clear its rating
     ├── setAgentState()               # Replace the agent's shared state, while no turn runs
@@ -550,6 +552,36 @@ the prompt, such as "Will remove 3 widgets: Map, News and Chart." For a tool wit
 `display: 'inline'`, `preview: true` renders the call's own output while it waits.
 
 The time a turn waits for the user does not count toward the reply's `metadata.elapsedMs`.
+
+#### Let the user allow a tool for the conversation
+
+For a tool whose calls are frequent and easy to undo, set `canAllowForConversation`. Its approval
+card then offers Allow for this conversation beside Allow. That approves the call, and every
+other call of the tool waiting in the same step. Later calls of the tool run with no approval.
+
+```typescript
+{
+    name: 'move_widget',
+    description: 'Move a widget on the dashboard.',
+    parameters: MOVE_SCHEMA,
+    needsApproval: true,
+    canAllowForConversation: true,
+    execute: input => this.dashModel.moveWidget(input)
+}
+```
+
+The choice lasts until the chat clears or loads another thread, so a conversation loaded again
+asks again. A reload of the same thread id, as the thread layer makes, keeps it.
+`ChatModel.allowedTools` names the tools the user allowed, and `resetAllowedTools()` forgets them,
+all or one by name. A tool without the setting asks on every call, so leave it off any tool whose
+calls must always ask. Removing the setting from a spec makes its calls ask again at once.
+
+An allowed tool skips `needsApproval` entirely, a function included. A tool that asks only for some
+inputs, such as orders over a limit, would stop asking for those too. Leave the setting off such a
+tool. A call that runs under the allowance carries no `approvalReason`.
+
+The choice is the chat's alone. A server agent's approvals, through interrupts, ask call by call.
+In code, `approveToolCallAsync(id, reason, {forConversation: true})` does what the button does.
 
 ### Send live context with every step
 
@@ -1237,6 +1269,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `pendingInterrupts` | `ChatInterrupt[]` | The interrupts the paused reply waits on, answered or not, until the user submits them. Empty unless paused on them. |
 | `openInterrupts` | `ChatInterrupt[]` | The pending interrupts with no response and not expired. |
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
+| `allowedTools` | `string[]` | Names of the tools the user allowed for the rest of the conversation. Their calls run with no approval. Empties when the chat clears or loads another thread. Observable. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
 | `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers`, `textRenderer`, `getCopyText`, `activities` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
@@ -1251,7 +1284,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
 | `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it, and while `allowRegenerate` is false. |
 | `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. Ignored while `allowEdit` is false. |
-| `approveToolCallAsync(toolCallId, reason?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. For a server call an interrupt asks to approve, it answers the interrupt, and resumes the run if that interrupt is the only one. |
+| `approveToolCallAsync(toolCallId, reason?, opts?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. With `{forConversation: true}`, also allow the call's tool for the rest of the conversation, if its spec sets `canAllowForConversation`. For a server call an interrupt asks to approve, it answers the interrupt, and resumes the run if that interrupt is the only one. |
+| `resetAllowedTools(toolName?)` | Forget the tools in `allowedTools`, or the one named. Their calls ask for approval again. |
 | `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. For a server call, it answers the interrupt as for approve. |
 | `answerInterrupt(interruptId, payload?)` | Answer a pending interrupt, or change the answer. |
 | `declineInterrupt(interruptId)` | Decline a pending interrupt, which abandons it. |
@@ -1392,6 +1426,7 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 | `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. Return `chatToolResult(output, {artifacts})` to pass result sets for generative UI. |
 | `interactive` | `boolean` | True for a tool the user answers. Ignored if `execute` is set. Default false. |
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
+| `canAllowForConversation` | `boolean` | True to let the user allow the tool for the rest of the conversation, from its approval card. Default false. |
 | `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |
 | `preview` | `boolean \| (input) => ReactNode` | What a call will change, shown under its approval prompt. True renders an inline call's own output while it waits. Default none. |
 | `sendToModel` | `boolean` | True to send the tool to the model. Default true for client and interactive tools, false for backend tools. |

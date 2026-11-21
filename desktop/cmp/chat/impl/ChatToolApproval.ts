@@ -21,8 +21,9 @@ export interface ChatToolApprovalProps extends HoistProps {
 
 /**
  * The decision a call waits for: the prompt and any preview, then Allow, Deny and an optional
- * reason sent with either. Allow comes first, left-aligned, as in a form. Neither is a default -
- * Enter in the reason sends nothing - and no shortcut ever allows.
+ * reason sent with either. A tool that opts in also offers Allow for this conversation. Allow
+ * comes first, left-aligned, as in a form. Neither is a default - Enter in the reason sends
+ * nothing - and no shortcut ever allows.
  *
  * Focus moves to Allow only if focus was already in the conversation and the composer is empty,
  * so that a request never takes the keyboard from someone typing. Allow and Deny move focus to the
@@ -46,6 +47,8 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
                     ? approvalPrompt(input)
                     : (approvalPrompt ?? 'Allow this action to run?')),
             previewContent = isFunction(preview) ? preview(input) : null,
+            // A server agent's call is the server's to allow, call by call.
+            canAllowForConversation = !!spec?.canAllowForConversation && !part.awaitsResume,
             reasonOf = () => impl.reason.trim() || undefined;
         impl.chatModel = chatModel;
 
@@ -81,6 +84,25 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
                                 chatModel.approveToolCallAsync(part.id, reasonOf()).catchDefault();
                             }
                         }),
+                        canAllowForConversation
+                            ? button({
+                                  className: 'xh-chat-tool-call__allow-conversation',
+                                  text: 'Allow for this conversation',
+                                  tooltip:
+                                      'Allow this and later calls of this tool, without asking, ' +
+                                      'for the rest of this conversation',
+                                  outlined: true,
+                                  minimal: false,
+                                  onClick: e => {
+                                      focusReplyOf(e.currentTarget);
+                                      chatModel
+                                          .approveToolCallAsync(part.id, reasonOf(), {
+                                              forConversation: true
+                                          })
+                                          .catchDefault();
+                                  }
+                              })
+                            : null,
                         button({
                             className: 'xh-chat-tool-call__deny',
                             text: 'Deny',
