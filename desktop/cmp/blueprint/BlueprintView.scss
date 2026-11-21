@@ -41,10 +41,30 @@
   padding-bottom: var(--xh-spacing);
 }
 
-// A narrow tile clips a card, rather than let it run into its neighbor.
+// A narrow tile clips a card, rather than let it run into its neighbor. Its text shrinks with its
+// width first, down from Hoist's sizes, so a row of cards in a narrow cell stays readable.
 .xh-blueprint-stat-card {
   min-width: 0;
   overflow: hidden;
+  container-type: inline-size;
+
+  .xh-stat-card__value {
+    font-size: min(var(--xh-stat-card-value-font-size), 16cqi);
+  }
+
+  .xh-stat-card__header {
+    font-size: min(var(--xh-stat-card-title-font-size), 9cqi);
+  }
+}
+
+// A drill-in dialog fits the window, and refits as it resizes.
+.xh-blueprint-drill-in-dialog {
+  width: min(1100px, 90vw);
+
+  .xh-blueprint-drill-in {
+    width: 100%;
+    height: min(800px, 80vh);
+  }
 }
 
 // In a toolbar, a child takes its own width, but a spacer with no size fills the room left.

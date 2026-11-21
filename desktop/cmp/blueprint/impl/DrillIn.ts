@@ -67,21 +67,15 @@ export const drillInDialog = hoistCmp.factory<DrillInProps>({
     model: false,
     render({host, drillIn}) {
         const impl = useLocalModel(() => new DrillInModel(host, drillIn));
-        const width = Math.min(1100, window.innerWidth * 0.9);
         return dialog({
+            // Sized in CSS, so it refits as the window resizes.
             className: 'xh-blueprint-drill-in-dialog',
-            // Blueprint's dialog is 500px wide unless told otherwise.
-            style: {width},
             title: impl.titleFor(drillIn),
             icon: Icon.openExternal(),
             isOpen: true,
             canOutsideClickClose: true,
             onClose: () => host.closeDrillIn(),
-            children: drillInBody({
-                impl,
-                width: '100%',
-                height: Math.min(800, window.innerHeight * 0.8)
-            })
+            children: drillInBody({impl})
         });
     }
 });
@@ -100,7 +94,7 @@ export const drillInPopoverContent = hoistCmp.factory<DrillInProps>({
 // Implementation
 //------------------
 const drillInBody = hoistCmp.factory<
-    HoistProps & {impl: DrillInModel; width: number | string; height: number}
+    HoistProps & {impl: DrillInModel; width?: number; height?: number}
 >({
     displayName: 'BlueprintDrillInBody',
     model: false,
