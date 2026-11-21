@@ -4,6 +4,7 @@ import {isArray, isEqual, isFinite, isPlainObject, isString} from 'lodash';
 import type {Blueprint, VariableDecl} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import {checkVariableValue} from './impl/variableValues';
+import {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
 import {getOwn} from './impl/pointer';
 import type {BlueprintOpenOptions} from './repository/BlueprintRepository';
 import type {BlueprintDocumentModel} from './repository/BlueprintDocumentModel';
@@ -24,11 +25,7 @@ export interface BlueprintLinkState {
     problems: string[];
 }
 
-/**
- * Params a link reserves. A variable may not take one of these names. `id` is the host route's
- * path param, which the router merges with the query params.
- */
-export const BLUEPRINT_LINK_RESERVED = ['id', 'version', 'draft', 'preset'];
+export {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
 
 /**
  * Read a link to a blueprint from its route's params: which version to open, and, given the

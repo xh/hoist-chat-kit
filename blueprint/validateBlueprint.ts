@@ -7,7 +7,7 @@ import {
     type JoinDecl,
     type VariableDecl
 } from './Blueprint';
-import {BLUEPRINT_LINK_RESERVED} from './BlueprintLink';
+import {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
 import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
