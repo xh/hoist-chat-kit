@@ -276,6 +276,19 @@ describe('BlueprintDesignModel', () => {
             expect(model.blueprint.sources.positions.dataset).toBe('positions');
         });
 
+        it('renames a source named for its old dataset after the new one, and keeps a name a user gave', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
+            design.addSource('positions');
+            expect(errors(design.changeSourceDataset('positions1', 'orders'))).toEqual([]);
+            expect(model.blueprint.sources).not.toHaveProperty('positions1');
+            expect(model.blueprint.sources.orders1.dataset).toBe('orders');
+            expect(design.selection).toEqual({kind: 'source', id: 'orders1'});
+
+            design.renameId('source', 'orders1', 'myOrders');
+            expect(errors(design.changeSourceDataset('myOrders', 'positions'))).toEqual([]);
+            expect(model.blueprint.sources.myOrders.dataset).toBe('positions');
+        });
+
         it('sets keys of a declaration together, and removes a source nothing reads', () => {
             const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
             design.addSource('positions');

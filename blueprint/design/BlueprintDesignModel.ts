@@ -293,12 +293,22 @@ export class BlueprintDesignModel extends HoistModel {
         if (!getOwn(this.blueprintModel.blueprint?.sources, name)) {
             return refused(`There is no source '${name}'.`);
         }
-        const breaks = opts.removeBreaking ? this.describeDatasetChange(name, dataset).breaks : [],
-            removals = breaks.length ? this.removalOps(breaks) : [];
-        return this.edit(`Source ${name}: dataset`, [
-            ...removals,
-            ...this.datasetOps(name, dataset, bound.params)
-        ]);
+        const sources = this.blueprintModel.blueprint.sources,
+            breaks = opts.removeBreaking ? this.describeDatasetChange(name, dataset).breaks : [],
+            removals = breaks.length ? this.removalOps(breaks) : [],
+            // A name addSource gave for the old dataset follows the new one.
+            renamed = isGeneratedName(name, sources[name].dataset)
+                ? freeKey(sources, dataset)
+                : null,
+            ret = this.edit(`Source ${name}: dataset`, [
+                ...removals,
+                ...this.datasetOps(name, dataset, bound.params),
+                ...(renamed
+                    ? [{op: 'renameId', kind: 'source', from: name, to: renamed} as BlueprintOp]
+                    : [])
+            ]);
+        if (renamed && !ret.issues.some(isError)) this.select({kind: 'source', id: renamed});
+        return ret;
     }
 
     /** Set one key of a source's declaration, or remove it with `undefined`, as one edit. */
@@ -740,6 +750,11 @@ function firstFreePlace(
 }
 
 // The first key of the form prefix1, prefix2... that an object does not hold.
+// True for a name freeKey gives a dataset's source, such as positions1.
+function isGeneratedName(name: string, dataset: string): boolean {
+    return name.startsWith(dataset) && /^\d+$/.test(name.slice(dataset.length));
+}
+
 function freeKey(taken: PlainObject, prefix: string): string {
     let n = 1;
     while (Object.hasOwn(taken ?? {}, `${prefix}${n}`)) n++;

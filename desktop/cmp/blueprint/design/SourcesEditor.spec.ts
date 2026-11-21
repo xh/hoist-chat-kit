@@ -116,7 +116,8 @@ describe('SourcesEditor', () => {
 
         editor.add();
         await editor.setDatasetAsync('orders');
-        expect(model.blueprint.sources.positions1).toEqual({
+        expect(model.blueprint.sources).not.toHaveProperty('positions1');
+        expect(model.blueprint.sources.orders1).toEqual({
             dataset: 'orders',
             params: {asOf: {$var: 'asOf'}}
         });
