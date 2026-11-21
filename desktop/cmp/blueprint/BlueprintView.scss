@@ -23,10 +23,12 @@
   }
 }
 
-// A card panel's content fills it, below its legend.
+// A card panel's content fills it, below its legend. It may shrink below its content, as Hoist's
+// card holds its min-content width, so a toolbar in it overflows to its menu.
 .xh-blueprint-panel.xh-card {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 
   > .xh-card__content {
     flex: 1 1 auto;
