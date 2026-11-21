@@ -88,6 +88,10 @@ A source is one of three kinds. Widgets do not know which kind they read.
 A source loads its rows into a Hoist `Cube`. Each widget reads its source through a Cube `View`,
 grouped and filtered for that widget.
 
+[Blueprint Format](../docs/blueprint-format.md) is the reference for every key, rule and value
+form. [Blueprint Security](../docs/blueprint-security.md) covers what a blueprint, an answer and a
+link can reach.
+
 ## Configuration Pattern
 
 Build the catalog and registry once, at app start. Open a model per blueprint.
@@ -129,6 +133,42 @@ const {version, issues} = model.applyEdit({
 The operations are `set`, `remove`, `addElement`, `removeElement`, `moveElement` and `renameId`.
 A path never indexes into an array: set the whole array. `validateBlueprint()` checks a blueprint
 without a model, and returns its issues, each with a stable `code` and a `path`.
+
+### Share values between widgets
+
+A variable holds a value that widgets read with `{"$var": name}`: an as-of date from a prompt, a
+fund from a `select`, or a grid's selection as a filter. Its `setBy` names every writer, so a
+widget's config never names the variable it writes. A source param always binds a variable. See
+[Share Values with Variables](../docs/blueprint-format.md#share-values-with-variables).
+
+### Read and join data
+
+A source names a dataset and binds its params, and every widget on it shares one request. A
+source's `filter` runs on the server, and a widget's in the browser. A source can `join` fields
+from other sources on a shared key, and each dataset's `key` sets how each joined field rolls up.
+See [Read Data from Sources](../docs/blueprint-format.md#read-data-from-sources) and
+[Join Sources](../docs/blueprint-format.md#join-sources).
+
+### Place toolbars and header items in slots
+
+A container holds named slot lists beside `children`: a `panel`'s `tbar`, `bbar` and
+`headerItems`, and a `dashCanvas` cell's `headerItems`. An element sits in exactly one slot list
+of one parent. `addElement` and `moveElement` take a `slot`, and `of` for a slot on a child
+reference. See [Lay Out Elements](../docs/blueprint-format.md#lay-out-elements).
+
+### Let users switch views with presets
+
+A preset group holds named sets of values for paths that widgets declare, such as a grid's
+columns. A `presetSelector` shows the group in the header of the widget it controls, and switches
+the active preset. A group with no selector stays at its default. See
+[Switch Views with Presets](../docs/blueprint-format.md#switch-views-with-presets).
+
+### Run actions from buttons
+
+A `buttonGroup` button runs an action, or up to 8 as steps: `setVariable`, `resetVariable`,
+`refresh`, `navigate`, `openUrl`, or an app's own. The runner checks every step before the first
+runs, and an action with side effects asks first. `openUrl` opens only URLs on the model's
+`urlAllowList`. See [Run Actions](../docs/blueprint-format.md#run-actions).
 
 ### Let the Architect edit a blueprint in a chat
 
@@ -420,6 +460,7 @@ reads the same function, so a panel and the Architect agree.
 
 An app names each entry it registers with a dotted prefix, such as `acme.fund`, so it cannot
 clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
+[Extending Blueprints](../docs/blueprint-extensions.md) gives each entry's contract in full.
 
 - **Widgets.** Register a `WidgetSpec` with a config schema, guidance for the Architect, and a
   desktop component. The Architect's prompt lists each widget by its `category` with its
@@ -482,6 +523,9 @@ against the action's schema, but an app action's `run` must still treat them as 
 
 ## Related Packages
 
+- [Blueprint Format](../docs/blueprint-format.md),
+  [Extending Blueprints](../docs/blueprint-extensions.md) and
+  [Blueprint Security](../docs/blueprint-security.md) - the reference docs for this package.
 - [`/genui/`](../genui/README.md) - chat kit's catalog, which renders chat answers as blueprints.
 - [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the components that answers draw with.
 - [`/core/`](../core/README.md) - `ChatModel`, which runs the Architect's tools.

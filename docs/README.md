@@ -79,6 +79,9 @@ its tools.
 | Write a custom transport or codec | [`/transport/`](../transport/README.md#extension-points) |
 | Look up a `ChatEvent` or an `xh.chat.*` event | [`/transport/`](../transport/README.md#chatevent) |
 | Define a dashboard or report as a blueprint | [`/blueprint/`](../blueprint/README.md) |
+| Look up a blueprint key, rule or value form | [Blueprint Format](./blueprint-format.md) |
+| Add a widget, action, resolver, renderer or variable type to blueprints | [Extending Blueprints](./blueprint-extensions.md) |
+| Check what a blueprint, an answer or a link can reach | [Blueprint Security](./blueprint-security.md) |
 | Let the Architect build and edit a blueprint in a chat | [`/blueprint/`](../blueprint/README.md#let-the-architect-edit-a-blueprint-in-a-chat) |
 | Add a chat answer to a dashboard | [`/blueprint/`](../blueprint/README.md#add-a-chat-answer-to-a-blueprint) |
 | Let people design a blueprint | [`/blueprint/`](../blueprint/README.md#build-a-designer-for-people) |
@@ -108,7 +111,10 @@ its tools.
 | Let the model show grids, charts, stat cards and cards | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
 | Let the model show tabs, sections, callouts, badges and treemaps | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md#group-tab-and-call-out-parts-of-an-answer) |
 | Render streaming markdown | [`/cmp/markdown/`](../cmp/markdown/README.md) |
-| Ask the kit's maintainers for a feature, an API change or a bug fix | [Request a Change](./requesting-changes.md) |
+| Ask the kit's maintainers for a feature, an API change or a bug fix | [Blueprint Format](./blueprint-format.md) | The reference for a blueprint's JSON: elements and slots, variables, sources and joins, filters, formats, presets, actions, edits and validation issues | blueprint JSON, elements, slot lists, child references, variables, setBy, resolvers, $var, sources, joins, FilterSpec, formats, renderers, templates, presets, presetSelector, actions, edits, JSON Pointer, validation issues, built-in widgets |
+| [Extending Blueprints](./blueprint-extensions.md) | How to add widgets, variable types, resolvers, actions, renderers and date range presets to a `BlueprintRegistry`, built in or an app's | WidgetSpec, config schema, x-binding, x-field, x-template, slots, demand, outputs, modules, BlueprintWidgetModel, widget rules, VariableTypeSpec, urlCodec, ResolverSpec, ActionSpec, RendererSpec, dateRangePresets, dotted names |
+| [Blueprint Security](./blueprint-security.md) | What a blueprint, a chat answer and a link can reach: the server as boundary, bindings, escaped text, a chart's Highcharts options, actions and the URL allow list | security, untrusted input, server boundary, entitlement, bindings, markup, escaping, highchartsConfig, openUrl, urlAllowList, sideEffects, chat answer bounds, link limits, blueprint types |
+| [Request a Change](./requesting-changes.md) |
 
 ## Package Documentation
 

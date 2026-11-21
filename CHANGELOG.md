@@ -48,7 +48,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 * Added Hoist Blueprints, in `@xh/hoist-chat-kit/blueprint`: JSON definitions of dashboards and
   reports over an app's `DataCatalog`, opened by a `BlueprintModel` and drawn with the widgets in
-  `@xh/hoist-chat-kit/desktop/cmp/blueprint`. See [`/blueprint/`](blueprint/README.md).
+  `@xh/hoist-chat-kit/desktop/cmp/blueprint`. See [`/blueprint/`](blueprint/README.md), and the
+  references [Blueprint Format](docs/blueprint-format.md),
+  [Extending Blueprints](docs/blueprint-extensions.md) and
+  [Blueprint Security](docs/blueprint-security.md).
 * Answers now render as blueprint answers, with the same look, once the desktop components load.
   `show_ui` takes an answer blueprint and still reads input written as a document.
 * Added `ChatUiCatalogConfig.answers`, so that answers can read the app's datasets through its
