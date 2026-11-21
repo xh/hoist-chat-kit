@@ -30,7 +30,7 @@
 | 3 | A grid or chart from the palette with no source offers "Add a source" in place, with a dataset picker, then adds the widget over it | Kit |
 | 4 | New widgets show a "configure me" notice, not fake content such as "Label 1" | Kit |
 | 5 | Typed value inputs for literals, such as a step's value or a variable default: date, number, bool, options, and an app type's own input | Kit |
-| 6 | Unset numbers show blank with their default as a placeholder, not 0, and enum pickers show their default | Kit |
+| 6 | Dropped: the 0s were the number input's ARIA defaults in browser automation, not what a user sees | - |
 | 7 | A source named after its old dataset (`positions1`) offers a rename when its dataset changes | Kit |
 | 8 | Re-picking a resolver keeps the args the new one takes | Kit |
 | 9 | A box whose `align` is not stretch, holding a grid or chart, gets a validator warning and an inline hint | Kit |
@@ -39,7 +39,7 @@
 | 12 | A preset badge links to its group, through the new prop | Kit and Toolbox |
 | 13 | A one-line description under each section of the Variables, Sources and Presets editors | Kit |
 | 14 | A toolbar with one child never overflows into its menu | Kit |
-| 15 | Larger click targets on the toolbar's selects | Kit |
+| 15 | Dropped: the 3px target was react-select's empty inner input, which a user never clicks | - |
 | 16 | The editors follow Toolbox's styling (John: the old Inspector was "pretty bad") | Kit |
 | 23 | A tileFrame shows how many tiles fit, and warns past it | Kit |
 | 24 | A propertyTable's fields use the grid's column picker | Kit |
@@ -54,7 +54,7 @@
 
 ## Order
 
-1. Quick fixes: items 6, 7, 8, 14 and 15. No decisions are needed.
+1. Quick fixes: items 7, 8 and 14. No decisions are needed.
 2. Ease of use: items 2 to 5, 9, 10, 13, 23 and 24.
 3. After John's choices: drag (1), the grid inspector (11), preset badges (12), the toolbar
    menu (22) and the Toolbox layout (17 and 18).
