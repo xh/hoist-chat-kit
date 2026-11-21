@@ -402,7 +402,7 @@ beside these under dotted names.
 | `cubeGrid` | data | A flat or grouped grid. Its selection is an output |
 | `chart` | data | A Hoist chart, grouped by a dimension or over time. Its selection is an output |
 | `statCard` | data | One headline number, with an optional change and trend |
-| `gauge` | data | One number on an arc from `min` to `max`, such as usage against a limit |
+| `gauge` | data | One reading on an arc from `min` to `max`, such as humidity or usage against a limit |
 | `propertyTable` | data | Labeled values: the totals of some rows, or one row's values |
 | `heatmap` | data | Cells colored by a value over two dimensions. Its selection is an output |
 | `treemap` | data | Nested boxes sized by a value and colored by heat. Its selection is an output |

@@ -440,6 +440,17 @@ export const SCENARIOS: Scenario[] = [
         ]
     },
     {
+        id: 'W5',
+        title: 'Current conditions, with a reading on a scale',
+        context: BUILD,
+        steps: [{prompt: "What's it like outside in London right now? I want to see how warm it is, how humid, and the wind."}],
+        checks: [
+            ['humidity on a gauge over current weather, from 0 to 100', o => cfg(o.blueprint, 'gauge', c => c.value === 'humidity' && dataset(o.blueprint, c) === 'currentWeather' && (c.min ?? 0) === 0 && c.max === 100).length],
+            ['temperature on a stat card, not a gauge', o => cfg(o.blueprint, 'statCard', c => c.field === 'temp').length && !cfg(o.blueprint, 'gauge', c => c.value === 'temp').length],
+            ['London is a city variable', o => vars(o.blueprint, v => v.default?.value === 'London').length]
+        ]
+    },
+    {
         id: 'W4',
         title: "One city's day on two axes",
         context: BUILD,

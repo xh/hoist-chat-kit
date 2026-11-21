@@ -78,6 +78,7 @@ const expected_: Record<string, any> = {
     P10: {blueprint: applied['p10-edit.json applied to p3'].result, segments: [], replies: ['']},
     P11: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W4: {blueprint: loadBlueprint('w4-day-two-axes.json'), segments: [], replies: ['']},
+    W5: {blueprint: loadBlueprint('w5-current-conditions.json'), segments: [], replies: ['']},
     P13: {blueprint: applied['p13-edit.json applied to p2'].result, segments: [], replies: ['']},
     P14: {blueprint: applied['p14-edit.json applied to p2'].result, segments: [], replies: ['']},
     P12: {blueprint: applied['p12-edit.json applied to p12-host'].result, segments: [], replies: ['']},

@@ -1,0 +1,24 @@
+{
+    "schema": {"blueprint": 1, "widgets": {"dashCanvas": 1, "statCard": 1, "gauge": 1}},
+    "variables": {
+        "city": {"type": "string", "label": "City", "default": {"value": "London"}},
+        "units": {"type": "string", "label": "Units", "default": {"value": "metric"}}
+    },
+    "sources": {
+        "current": {"dataset": "currentWeather", "params": {"city": {"$var": "city"}, "units": {"$var": "units"}}}
+    },
+    "root": "dashboard",
+    "elements": {
+        "dashboard": {
+            "component": "dashCanvas",
+            "children": [
+                {"id": "nowTemp", "x": 0, "y": 0, "w": 4, "h": 4},
+                {"id": "nowHumidity", "x": 4, "y": 0, "w": 4, "h": 4},
+                {"id": "nowWind", "x": 8, "y": 0, "w": 4, "h": 4}
+            ]
+        },
+        "nowTemp": {"component": "statCard", "config": {"source": "current", "field": "temp", "label": "Temperature in {city}"}},
+        "nowHumidity": {"component": "gauge", "config": {"source": "current", "title": "Humidity", "value": "humidity", "min": 0, "max": 100}},
+        "nowWind": {"component": "statCard", "config": {"source": "current", "field": "windSpeed"}}
+    }
+}

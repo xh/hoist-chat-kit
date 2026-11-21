@@ -1752,12 +1752,12 @@ const statCard: WidgetSpec = {
 
 const gauge: WidgetSpec = {
     name: 'gauge',
-    summary: 'One number on an arc from min to max, such as usage against a limit.',
+    summary: 'One reading on an arc from min to max, such as humidity or usage against a limit.',
     version: 1,
     label: 'Gauge',
-    terms: ['gauge', 'dial', 'speedometer', 'meter', 'against a limit', 'utilization'],
+    terms: ['gauge', 'dial', 'speedometer', 'meter', 'reading', 'against a limit', 'utilization'],
     guidance:
-        "One number, the total of value over the source, on an arc from min to max. Use it where the number means most against a range, such as gross exposure against its limit or a fund's cash as a share of NAV. Otherwise use a statCard. stops color the arc by how far along it the value sits. Set max to the limit, never a guess.",
+        "One reading, the total of value over the source, on an arc from min to max. Use it for a current reading on a known scale, such as humidity, a UV index or wind speed in a weather dashboard's current conditions, or for a figure against a limit, such as gross exposure against its limit. Use a statCard for a figure with no natural range, such as temperature or P&L. stops color the arc by how far along it the value sits. Set min and max to the scale's ends or the limit, never a guess.",
     category: 'data',
     config: GAUGE_SCHEMA,
     modules: ['highcharts-more', 'solid-gauge'],
