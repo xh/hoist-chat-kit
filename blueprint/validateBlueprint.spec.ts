@@ -942,9 +942,7 @@ describe('validateBlueprint', () => {
     it('warns of a preset group with no selector, which stays at its default', () => {
         const bp = loadBlueprint('p3-morning-report.json');
         delete bp.elements.posViewsSelector;
-        bp.elements.positions.children = bp.elements.positions.children.filter(
-            it => it.id !== 'posViewsSelector'
-        );
+        delete bp.elements.positions.children.find(it => it.id === 'posGrid').headerItems;
         expect(validate(bp).map(it => [it.code, it.path])).toEqual([
             ['preset.noSelector', '/presets/posViews']
         ]);

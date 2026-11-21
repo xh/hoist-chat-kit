@@ -35,6 +35,17 @@ def walk(o, fn, path=''):
             walk(v, fn, f'{path}/{i}')
 
 
+def is_ref_list(v):
+    return isinstance(v, list) and v and all(isinstance(it, dict) and isinstance(it.get('id'), str) for it in v)
+
+
+def slot_refs(el):
+    """Every child reference in an element's slot lists, and in its child references' own."""
+    own = [refs for k, refs in el.items() if k not in ('component', 'config', 'personalizable') and is_ref_list(refs)]
+    nested = [refs for ch in el.get('children', []) for k, refs in ch.items() if k != 'id' and is_ref_list(refs)]
+    return [ref for refs in own + nested for ref in refs]
+
+
 def check(f, bp, artifacts):
     variables = bp.get('variables', {})
     sources = bp.get('sources', {})
@@ -47,7 +58,7 @@ def check(f, bp, artifacts):
     for eid, el in elements.items():
         if el['component'] not in WIDGETS:
             issue(f, f'{eid}: unknown component {el["component"]}')
-        for ch in el.get('children', []):
+        for ch in slot_refs(el):
             if ch['id'] not in elements:
                 issue(f, f'{eid}: child {ch["id"]} missing')
             if ch['id'] in parent:

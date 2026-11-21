@@ -104,18 +104,21 @@ describe('ElementInspector', () => {
     });
 
     it("moves an element between its container's slots that take it", () => {
-        const {model, inspector} = open('p3-morning-report.json', 'posViewsSelector');
-        expect(inspector.slot).toBe('children');
-        expect(inspector.slotOptions.map(it => it.value)).toEqual(
-            expect.arrayContaining(['children', 'headerItems:posGrid', 'headerItems:priceChart'])
-        );
-        inspector.moveToSlot('headerItems:posGrid');
-        const cell = model.blueprint.elements.positions.children.find(it => it.id === 'posGrid');
-        expect(cell.headerItems).toEqual([{id: 'posViewsSelector'}]);
+        const {model, inspector} = open('p3-morning-report.json', 'posViewsSelector'),
+            cell = (id: string) =>
+                model.blueprint.elements.positions.children.find(it => it.id === id);
         expect(inspector.slot).toBe('headerItems:posGrid');
+        expect(inspector.slotOptions.map(it => it.value)).toEqual(
+            expect.arrayContaining(['children', 'headerItems:priceChart'])
+        );
         expect(inspector.placementNodes).toEqual([]);
 
+        inspector.moveToSlot('headerItems:priceChart');
+        expect(cell('priceChart').headerItems).toEqual([{id: 'posViewsSelector'}]);
+        expect(cell('posGrid')).not.toHaveProperty('headerItems');
+
         inspector.moveToSlot('children');
+        expect(inspector.slot).toBe('children');
         expect(inspector.placementValues).toMatchObject({w: expect.any(Number)});
     });
 
@@ -125,8 +128,9 @@ describe('ElementInspector', () => {
         expect(inspector.placementValues).toMatchObject({x: 0, y: 1, w: 8, h: 9});
 
         inspector.commitPlacement('w', 6);
+        // A change of placement keeps the cell's header items.
         expect(model.blueprint.elements.positions.children.find(it => it.id === 'posGrid')).toEqual(
-            {id: 'posGrid', x: 0, y: 1, w: 6, h: 9}
+            {id: 'posGrid', x: 0, y: 1, w: 6, h: 9, headerItems: [{id: 'posViewsSelector'}]}
         );
         expect(model.history.at(-1).description).toMatch(/posGrid: placement/);
 
