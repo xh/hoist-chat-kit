@@ -2,6 +2,7 @@ export * from './applyOps';
 export * from './diffOps';
 export * from './Blueprint';
 export type * from './BlueprintDataProvider';
+export * from './BlueprintLink';
 export * from './BlueprintModel';
 export * from './BlueprintRegistry';
 export * from './BlueprintSource';

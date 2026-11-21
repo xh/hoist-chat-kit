@@ -329,6 +329,42 @@ Implement `BlueprintRepository`. Its doc comment states the contract in full. Th
   takes in `sharingModes`, and set `canShareGlobally` on a record whose user may share it with
   everyone. `isGlobal(summary)` says whether everyone may read a blueprint.
 
+### Open a blueprint from a link
+
+A link names a blueprint by id in its path, and takes its version, presets and variable values as
+query params:
+
+```
+/blueprints/:id?version=3&preset=view:byStrategy&asOf=2026-11-20&fund=A&fund=B
+```
+
+- `version=N` opens publish N, and `draft` opens the draft. With neither, a link opens the latest
+  publish. `preset=group:item` repeats once per group. `id`, `version`, `draft` and `preset` are
+  reserved, so no variable may take those names (`variable.reservedName`).
+- Every other param that names a variable a link may set (`setBy` `prompt`, `action`, or a widget
+  without `output`) sets it. A value takes its type's text form: `2026-11-20`, `3M`, `true`, a
+  date range preset token or `from..to`, and a list as the param repeated. A link cannot set a
+  `filter`, or an app type with no field type unless the type gives a `urlCodec`. Other params
+  are left to the host.
+
+```typescript
+// The app's route: {name: 'blueprint', path: '/blueprints/:id'}
+const {issues} = await documentModel.openLinkAsync(XH.routerState.params);
+
+// A toolbar button that copies a link to the blueprint as it is now.
+blueprintLinkButton({documentModel, route: 'default.blueprint'});
+```
+
+`openLinkAsync()` opens the version the link names, then applies its presets and values before the
+blueprint's sources start, so each loads once. A reader given a link to the draft or an older
+publish gets the latest publish. A value that does not fit is dropped, and one notice names what
+was ignored. Its values are transient: never saved, and never a user action.
+
+A link is untrusted input. Its values reach config only at bindable paths, and the dataset server
+still checks the user's access to every param. Hoist's router keeps only declared params when it
+builds a URL, so `blueprintLinkUrl()` writes the query itself, and `XH.navigate()` to a blueprint
+route leaves the values out of the address bar.
+
 ### Mark the fields and entries a blueprint uses
 
 `fieldUsages(blueprint, catalog)` returns each field a blueprint uses, by dataset, with each path

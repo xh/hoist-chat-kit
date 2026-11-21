@@ -156,6 +156,13 @@ export interface VariableTypeSpec {
      * `matches` type. The input shows `value` and calls `onCommit` with a new one.
      */
     input?: (props: VariableInputProps) => ReactNode;
+    /**
+     * The text form of a value in a link, for a type whose `matches` has none, such as a
+     * portfolio. Without it, a link cannot set a variable of this type. `parse` reads untrusted
+     * text: it throws or returns null for text it cannot read, and the value it returns is still
+     * checked as the type's.
+     */
+    urlCodec?: {parse: (text: string) => unknown; format: (value: unknown) => string};
 }
 
 /** What a variable type's prompt input receives. */
