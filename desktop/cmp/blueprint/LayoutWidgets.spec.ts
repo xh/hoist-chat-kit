@@ -114,6 +114,33 @@ describe('layout and container widgets', () => {
             expect(check('stretch')).toEqual([]);
         });
 
+        it('gives inputs, buttons and toolbars their own size along it, and a share to the rest', () => {
+            const {container} = show('col', {
+                    col: {
+                        component: 'box',
+                        config: {direction: 'column'},
+                        children: [{id: 'buttons'}, {id: 'body'}, {id: 'stretched', flex: 2}]
+                    },
+                    buttons: {
+                        component: 'buttonGroup',
+                        config: {buttons: [{label: 'Refresh', action: {type: 'refresh'}}]}
+                    },
+                    body: emptyPanel('Body'),
+                    stretched: {
+                        component: 'buttonGroup',
+                        config: {buttons: [{label: 'Go', action: {type: 'refresh'}}]}
+                    }
+                }),
+                items = [
+                    ...container.querySelectorAll('.xh-blueprint-box > .xh-blueprint-box__item')
+                ] as HTMLElement[];
+            expect(items.map(it => it.style.flex)).toEqual([
+                expect.stringMatching(/^(none|0 0 auto)$/),
+                expect.stringMatching(/^1/),
+                expect.stringMatching(/^2/)
+            ]);
+        });
+
         it('fills its parent as a frame by default, or sizes to its content as a box', () => {
             const filled = show('col', {
                     col: {component: 'box', config: {}, children: [{id: 'a'}]},
