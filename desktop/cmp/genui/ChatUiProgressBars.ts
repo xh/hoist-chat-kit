@@ -112,7 +112,7 @@ export function chatUiProgressBarsSpec(
             return withMoreNote(
                 vbox({
                     className: 'xh-chat-ui-progress-bars',
-                    items: shown.map((bar, idx) => {
+                    children: shown.map((bar, idx) => {
                         const max = toMax(bar);
                         return progressBar({
                             key: idx,
