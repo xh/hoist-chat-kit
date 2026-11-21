@@ -77,6 +77,7 @@ async function runScenario(model: string, s: Scenario) {
     const started = Date.now();
 
     for (const [i, step] of s.steps.entries()) {
+        session.userMessages.push(step.prompt);
         messages.push({role: 'user', content: i === 0 ? firstMessage(s, step.prompt) : step.prompt});
         for (let n = 0; ; n++) {
             if (n >= MAX_CALLS_PER_STEP) {
@@ -121,7 +122,7 @@ async function runScenario(model: string, s: Scenario) {
         }
     }
 
-    const outcome = {blueprint: session.blueprint, segments: session.segments, replies, calls: session.calls},
+    const outcome = {blueprint: session.blueprint, segments: session.segments, replies, calls: session.calls, featureRequests: session.featureRequests},
         finalIssues = s.steps.length && Object.keys(session.blueprint.elements ?? {}).length ? validate(session.blueprint, {artifacts: session.artifacts}) : [],
         checks = s.checks.map(([name, fn]) => {
             let ok = false;

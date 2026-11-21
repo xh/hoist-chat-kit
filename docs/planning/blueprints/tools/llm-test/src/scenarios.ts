@@ -10,6 +10,8 @@ export interface Outcome {
     replies: string[];
     /** The tools the model called, in order. */
     calls: string[];
+    /** The feature requests sent, each as the model wrote it. */
+    featureRequests?: any[];
 }
 
 const OFFERS_PROMPT = /\b(prompts?|pickers?|inputs?|let (users|you|them) (choose|change|pick|switch))\b/i;
@@ -459,6 +461,30 @@ export const SCENARIOS: Scenario[] = [
             ['stat cards over current weather', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'currentWeather').length],
             ['a chart over time with temperature on y and chance of rain on y2', o => cfg(o.blueprint, 'chart', c => c.x === 'time' && [c.y].flat().includes('temp') && [c.y2].flat().includes('precipProbability')).length],
             ['London is a city variable', o => vars(o.blueprint, v => v.default?.value === 'London').length]
+        ]
+    },
+    {
+        id: 'F1',
+        title: 'A capability the registry lacks, built the closest way and requested',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. The host blueprint below is open.',
+        steps: [{prompt: 'Show my positions on a world map, each country shaded by its day P&L.'}],
+        checks: [
+            ['sends one feature request', o => o.featureRequests?.length === 1],
+            ["quotes the user's own words", o => o.featureRequests?.every(r => 'Show my positions on a world map, each country shaded by its day P&L.'.includes(r.userWords))],
+            ['asks for a widget', o => o.featureRequests?.[0]?.category === 'widget'],
+            ['builds the closest supported view over positions', o => [...cfg(o.blueprint, 'chart'), ...cfg(o.blueprint, 'heatmap'), ...cfg(o.blueprint, 'treemap')].some(c => c.source === 'positions' && [c.x, c.groupBy].flat().some(f => ['region', 'country'].includes(f)))]
+        ]
+    },
+    {
+        id: 'F2',
+        title: 'A capability the registry has, built with no request',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. The host blueprint below is open.',
+        steps: [{prompt: "Add a heatmap of today's P&L by sector and strategy."}],
+        checks: [
+            ['sends no feature request', o => !o.featureRequests?.length && !o.calls.includes('request_feature')],
+            ['adds a heatmap over positions', o => cfg(o.blueprint, 'heatmap', c => c.source === 'positions').length]
         ]
     }
 ];

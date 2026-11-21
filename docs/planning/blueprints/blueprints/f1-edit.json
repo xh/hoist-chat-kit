@@ -1,0 +1,13 @@
+{
+    "base": 12,
+    "description": "Add day P&L by region, the closest a dashboard comes to a world map",
+    "ops": [
+        {
+            "op": "addElement",
+            "id": "regionChart",
+            "element": {"component": "chart", "config": {"source": "positions", "type": "column", "x": "region", "y": ["pnlDay"], "title": "Day P&L by Region"}},
+            "parent": "dashboard",
+            "child": {"x": 0, "y": 14, "w": 12, "h": 5}
+        }
+    ]
+}

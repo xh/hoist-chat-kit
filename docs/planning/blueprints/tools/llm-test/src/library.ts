@@ -22,7 +22,8 @@ export {
 } from '../../../../../../blueprint/architect/ArchitectTools.ts';
 export {answerBlueprintSchema, answerToolDescription} from '../../../../../../genui/impl/answerTool.ts';
 export {hostSourceFor} from '../../../../../../blueprint/architect/hostSource.ts';
-export {READ_ANSWER_SPEC, REQUEST_DESIGN_MODE_SPEC} from '../../../../../../genui/architect/toolSpecs.ts';
+export {READ_ANSWER_SPEC, REQUEST_DESIGN_MODE_SPEC, REQUEST_FEATURE_SPEC} from '../../../../../../genui/architect/toolSpecs.ts';
+export {checkFeatureRequest} from '../../../../../../genui/architect/featureRequestCheck.ts';
 export type Issue = BlueprintIssue;
 
 export const libraryCatalogs = Object.values(catalogs).map(it => new DataCatalog(it));

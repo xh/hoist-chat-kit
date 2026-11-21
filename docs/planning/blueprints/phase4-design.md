@@ -65,9 +65,8 @@ A style is a closed object. Every value comes from a list or a strict pattern, n
   says to prefer intents, and to use a hex only for a brand color.
 - **Rendering:** each column compiles its rules into one `cellStyle` function, and the grid into
   one `rowStyle` function, built again only when the resolved config changes. Each `Filter` is
-  parsed once per build. Every call returns every property its rules manage, set to null where
-  no rule matches. Hoist's React grid clears an omitted property anyway, but a full object keeps
-  the output the same if a grid ever renders without React.
+  parsed once per build. A call returns only the properties its matching rules set: Hoist's grid
+  clears a property a later call leaves out or sets to null (hoist-react 6cf46519e).
 - **Accessibility:** color must not be the only signal. The guidance pairs a color with bold, or
   with a border on rows.
 
@@ -91,7 +90,7 @@ A style is a closed object. Every value comes from a list or a strict pattern, n
   - put a column's rules in `columns`;
   - pair color with weight;
   - don't restyle what a renderer already shows, such as a `delta` arrow's color.
-- **New scenario, P13:** "In my positions grid, show today's P&L in red when it's below minus
+- **New scenario, P15:** "In my positions grid, show today's P&L in red when it's below minus
   100k and green above 100k, and shade the Energy rows." The checks:
   - two `pnlDay` rules using `danger` and `success`;
   - an Energy row rule;
@@ -108,7 +107,7 @@ A style is a closed object. Every value comes from a list or a strict pattern, n
     `CubeGridWidgetModel`;
   - specs: each key maps to its CSS, later rules win, a group row tests its aggregates, a bound
     threshold moves the style without a reload, and hostile values are refused;
-  - the guidance, and P13.
+  - the guidance, and P15.
 - **hr:** reviews the result. Nothing more is needed in hoist-react.
 
 ## Step 17: `request_feature`
@@ -146,8 +145,9 @@ request. It sends it only after the user approves the exact payload.
 | `workaround` | Up to 500 characters: what the Architect did instead, or `null` |
 | `fragment` | Optional: one element or config object, at most 5,000 characters of JSON. It must not hold `inline` rows or artifact references, so no data leaves with the request |
 
-The kit adds context the model can't set: app code, blueprint type and id, kit version, model,
-the user, and a timestamp.
+The kit adds `context` the model can't set: the app, its version, the user and the time. The
+sink adds what the host knows, such as the blueprint open. Pass `withFeatureRequests` to
+`architectPrompt()` with the sink, and the prompt gains its rules.
 
 ### The sink
 
@@ -226,8 +226,8 @@ in, such as clicking a position to open its symbol's detail.
 - **The validator** is synchronous and has no repository, so it checks only the shape. A missing
   or forbidden target is found when the action runs.
 - **The Architect** needs the library to write the action. A new tool, `list_blueprints`, returns
-  each summary's id, name and description, and the variables a link may set, read from the
-  target's latest publish.
+  each summary's id, name and description, and the names and types of the variables a link may
+  set, read from the target's latest publish (decision 167).
 
 **John - D18-1:**
 - The `openBlueprint` params and `cubeGrid.rowActions`, which are format changes.

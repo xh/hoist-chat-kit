@@ -13,6 +13,8 @@ import {
     libraryRegistry,
     READ_ANSWER_SPEC,
     REQUEST_DESIGN_MODE_SPEC,
+    REQUEST_FEATURE_SPEC,
+    checkFeatureRequest,
     validate
 } from './library.ts';
 import {Blueprint, clone} from './load.ts';
@@ -48,6 +50,10 @@ export class Session implements ArchitectTarget {
     readonly queried: Record<string, any> = {};
     // The tools the model called, in order.
     readonly calls: string[] = [];
+    // The feature requests the harness's user approved and the check passed.
+    readonly featureRequests: any[] = [];
+    // The user's messages so far, which a feature request must quote.
+    readonly userMessages: string[] = [];
     mode: 'run' | 'design';
     readonly access = 'write' as const;
     readonly stats: Stats = {toolCalls: {}, edits: 0, editsRejected: 0, issueCodes: {}, segments: 0, segmentsRejected: 0};
@@ -96,6 +102,16 @@ export class Session implements ArchitectTarget {
         if (name === 'show_ui') return this.showUi(input);
         if (name === READ_ANSWER_SPEC.name) return this.readAnswer(input);
         // The harness's user approves every request.
+        // As the kit's request_feature, with one request a turn, to a sink that keeps it.
+        if (name === REQUEST_FEATURE_SPEC.name) {
+            const problem = checkFeatureRequest(input, this.userMessages);
+            if (problem) return {content: json({submitted: false, refused: problem})};
+            if (this.featureRequests.some(it => it.turn === this.userMessages.length)) {
+                return {content: json({submitted: false, refused: 'Send at most one feature request a turn.'})};
+            }
+            this.featureRequests.push({...input, turn: this.userMessages.length});
+            return {content: json({submitted: true, id: `FR-${this.featureRequests.length}`})};
+        }
         if (name === REQUEST_DESIGN_MODE_SPEC.name) {
             this.setMode('design');
             return {content: json({mode: this.mode})};
@@ -157,7 +173,7 @@ export const TOOLS: Anthropic.Tool[] = [
         description,
         input_schema: parameters as Anthropic.Tool.InputSchema
     })),
-    ...[READ_ANSWER_SPEC, REQUEST_DESIGN_MODE_SPEC].map(({name, description, parameters}) => ({
+    ...[READ_ANSWER_SPEC, REQUEST_DESIGN_MODE_SPEC, REQUEST_FEATURE_SPEC].map(({name, description, parameters}) => ({
         name,
         description,
         input_schema: parameters as Anthropic.Tool.InputSchema

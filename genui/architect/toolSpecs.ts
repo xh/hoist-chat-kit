@@ -1,5 +1,13 @@
+import {
+    FEATURE_REQUEST_CATEGORIES,
+    MAX_FRAGMENT_LENGTH,
+    MAX_SUMMARY_LENGTH,
+    MAX_USER_WORDS_LENGTH,
+    MAX_WORKAROUND_LENGTH
+} from './featureRequestCheck';
+
 /**
- * The names, descriptions and input schemas of the Architect's chat tools, with no imports, so
+ * The names, descriptions and input schemas of the Architect's chat tools, with no Hoist imports, so
  * that the Node harness that tests the Architect offers the model the same tools.
  * @internal
  */
@@ -24,6 +32,44 @@ export const REQUEST_DESIGN_MODE_SPEC = {
         type: 'object',
         properties: {
             reason: {type: 'string', description: 'One sentence on what you will change.'}
+        }
+    }
+};
+
+/** @internal */
+export const REQUEST_FEATURE_SPEC = {
+    name: 'request_feature',
+    description:
+        "Send the app's team a request for a capability that no widget, renderer, variable type, resolver or action gives, after you have built the closest supported way. Call it at most once a turn, and only for something the user asked for. The user sees the whole request on a card and approves or declines it. Returns whether it was sent: never say it was sent unless it was.",
+    parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['summary', 'category', 'userWords'],
+        properties: {
+            summary: {
+                type: 'string',
+                maxLength: MAX_SUMMARY_LENGTH,
+                description: 'What is missing, in one line.'
+            },
+            category: {
+                type: 'string',
+                enum: [...FEATURE_REQUEST_CATEGORIES]
+            },
+            userWords: {
+                type: 'string',
+                maxLength: MAX_USER_WORDS_LENGTH,
+                description:
+                    "The user's own words that ask for it, copied exactly from one of their messages."
+            },
+            workaround: {
+                type: ['string', 'null'],
+                maxLength: MAX_WORKAROUND_LENGTH,
+                description: 'What you built instead, or null.'
+            },
+            fragment: {
+                type: 'object',
+                description: `Optional: the element or config the capability would change, at most ${MAX_FRAGMENT_LENGTH} characters of JSON. Never include inline rows or artifacts.`
+            }
         }
     }
 };

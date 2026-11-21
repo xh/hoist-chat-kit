@@ -393,5 +393,13 @@ describe('Architect tools', () => {
                 withAnswers: true
             })
         ).toMatch(/show_ui/);
+        expect(prompt).not.toMatch(/request_feature/);
+        expect(
+            architectPrompt({
+                catalogs: model.catalogs,
+                registry: model.registry,
+                withFeatureRequests: true
+            })
+        ).toMatch(/# Feature requests[\s\S]*call request_feature once/);
     });
 });
