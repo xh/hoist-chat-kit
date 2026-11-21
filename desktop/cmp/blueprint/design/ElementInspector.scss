@@ -172,5 +172,13 @@
     font-size: var(--xh-font-size-small);
     color: var(--xh-intent-primary);
     background-color: var(--xh-intent-primary-trans1);
+
+    &--link {
+      cursor: pointer;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
 }

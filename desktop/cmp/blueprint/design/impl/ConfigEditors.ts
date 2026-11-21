@@ -14,6 +14,7 @@ import {
 import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {castArray, isEmpty, isEqual, isNumber, isString, omit, uniq} from 'lodash';
+import classNames from 'classnames';
 import type {ReactElement} from 'react';
 import {
     type BlueprintIssue,
@@ -95,7 +96,17 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                 title: node.description,
                 children: node.required ? `${node.label} *` : node.label
             }),
-            badge ? div({className: `${CLS}__badge`, children: badge}) : null,
+            badge
+                ? div({
+                      className: classNames(
+                          `${CLS}__badge`,
+                          ctx.impl.canShowPresetGroups && `${CLS}__badge--link`
+                      ),
+                      title: ctx.impl.canShowPresetGroups ? 'Show the preset group' : null,
+                      onClick: () => ctx.impl.showPresetGroupFor(ctx.key),
+                      children: badge
+                  })
+                : null,
             editorFor(node, value, commit, ctx),
             ...issues.map((it, idx) =>
                 div({key: idx, className: `${CLS}__issue`, children: it.message})

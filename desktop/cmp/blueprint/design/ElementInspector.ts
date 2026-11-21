@@ -17,6 +17,11 @@ import {CLS, listOf, propertyRow} from './impl/ConfigEditors';
 
 export interface ElementInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
+    /**
+     * Called with a preset group's name when the user opens it from a property's badge, after the
+     * group is selected. A host shows its presets editor. Without it, badges only label.
+     */
+    onShowPresetGroup?: (name: string) => void;
 }
 
 /**
@@ -29,8 +34,9 @@ export const [ElementInspector, elementInspector] = hoistCmp.withFactory<Element
     displayName: 'BlueprintElementInspector',
     className: 'xh-blueprint-element-inspector',
     model: false,
-    render({designModel, className}) {
+    render({designModel, onShowPresetGroup, className}) {
         const impl = useLocalModel(() => new ElementInspectorModel(designModel));
+        impl.onShowPresetGroup = onShowPresetGroup ?? null;
         return inspectorBody({model: impl, className});
     }
 });

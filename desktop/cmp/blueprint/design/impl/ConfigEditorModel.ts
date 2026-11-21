@@ -92,6 +92,21 @@ export abstract class ConfigEditorModel extends HoistModel {
      * A badge for a property that presets control, naming the group and the active preset, which
      * an edit of it changes. Null for any other property.
      */
+    /** Called with a preset group's name when a badge opens it, for the host to show the group. */
+    onShowPresetGroup: (name: string) => void = null;
+
+    get canShowPresetGroups(): boolean {
+        return !!this.onShowPresetGroup;
+    }
+
+    /** Select the preset group that controls a property, and ask the host to show it. */
+    showPresetGroupFor(key: string) {
+        const group = this.designModel.blueprintModel.getPresetControl(this.pathOf(key))?.group;
+        if (!group || !this.onShowPresetGroup) return;
+        this.designModel.select({kind: 'preset', id: group});
+        this.onShowPresetGroup(group);
+    }
+
     badgeFor(key: string): string {
         const {blueprintModel} = this.designModel,
             control = blueprintModel.getPresetControl(this.pathOf(key));

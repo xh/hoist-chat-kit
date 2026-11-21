@@ -58,6 +58,17 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
     });
 
+    it("opens a property's preset group from its badge, for the host to show", () => {
+        const {design, inspector} = open('p3-morning-report.json', 'posGrid'),
+            shown: string[] = [];
+        expect(inspector.canShowPresetGroups).toBe(false);
+        inspector.onShowPresetGroup = name => shown.push(name);
+        expect(inspector.canShowPresetGroups).toBe(true);
+        inspector.showPresetGroupFor('columnState');
+        expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
+        expect(shown).toEqual(['posViews']);
+    });
+
     it('renames the selected element, keeping it selected, or says why not', () => {
         const {model, design, inspector} = open('p3-morning-report.json', 'posGrid');
         inspector.rename('positionsGrid');

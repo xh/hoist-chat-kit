@@ -233,9 +233,9 @@ hframe(
 
 | Component | What a designer does with it |
 |-----------|------------------------------|
-| `elementOutline` | See the element tree, and select an element |
-| `elementInspector` | Edit the selected element's config, remove the element, and edit a tab container's tabs |
-| `widgetPalette` | Add a widget, into the selected container or the root |
+| `elementOutline` | See the element tree, select an element, and drag one into a container or before or after another |
+| `elementInspector` | Edit the selected element's config, its place in its container and the variable an input sets, rename or remove it, and edit a tab container's tabs |
+| `widgetPalette` | Add a widget into the selected container or the root, or drag one onto a canvas cell |
 | `variablesEditor` | Add, rename and remove variables, and set each one's type, writers, default and options |
 | `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
 | `presetsEditor` | Make groups of presets over widgets' preset paths and variables' defaults, and edit their presets |
@@ -243,7 +243,9 @@ hframe(
 Each change is one edit by the user, with a description, so undo, redo and history apply. Text
 commits on blur or Enter. A refused edit leaves the blueprint as it was, and shows its issues at
 the property. A property that presets control shows a badge, and an edit of it changes the active
-preset. Design mode needs write access, and a chat answer has none.
+preset. Give `elementInspector` an `onShowPresetGroup(name)` and the badge opens its group: the
+group is selected, and the host shows its `presetsEditor`. Design mode needs write access, and a
+chat answer has none.
 
 ### Generate a config editor from a schema
 
