@@ -211,6 +211,15 @@ mode and access, and each variable's current value.
 `architectChatTools()` adds `read_answer` only with the chat's `catalog`, and
 `request_design_mode` only for a target that can change its mode.
 
+### Choose the Architect's model
+
+Sonnet 5.5 at medium effort is the default, and the model the kit tests most. In the Architect
+harness's full round of step 12, on Nov 20, 2026, with 16 scenarios on each model, Sonnet passed
+77 of 87 checks for $1.13, and Opus 5.5 passed 84 of 87 for $2.32. After that round's fixes,
+Sonnet passed every run of the scenarios that need the most planning. Opus is worth twice the
+cost where a miss costs more: it took fewer refused edits, and answered with UI more often where
+Sonnet answered in text. Low effort on Sonnet saved 11% with the same checks over one round.
+
 ### Answer questions with blueprints in a chat
 
 Give the chat kit catalog the app's data, and `show_ui` takes an answer blueprint. See
