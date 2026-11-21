@@ -317,6 +317,25 @@ describe('input widgets', () => {
         expect(screen.getByText('Region')).toBeTruthy();
     });
 
+    it('says what to do in place of an input that sets no variable yet', () => {
+        const model = new BlueprintModel({
+            blueprint: {
+                schema: {blueprint: 1},
+                root: 'pick',
+                elements: {pick: {component: 'select', config: {}}}
+            },
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: null,
+            mode: 'run'
+        });
+        onTestFinished(() => model.destroy());
+        render(blueprintView({model}));
+        expect(screen.getByRole('note').textContent).toMatch(
+            /This Select sets no variable yet\. Pick one under Sets in the inspector\./
+        );
+    });
+
     describe('toolbar', () => {
         function show(elements: Record<string, BlueprintElement>, variables = {}, sources = {}) {
             const model = new BlueprintModel({
@@ -410,20 +429,23 @@ describe('input widgets', () => {
         });
 
         it("draws in a panel's top or bottom bar, and only a toolbar may", () => {
-            show({
-                bar: {
-                    component: 'panel',
-                    config: {title: 'Page'},
-                    children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
+            show(
+                {
+                    bar: {
+                        component: 'panel',
+                        config: {title: 'Page'},
+                        children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
+                    },
+                    top: {
+                        component: 'toolbar',
+                        config: {overflowMenu: false},
+                        children: [{id: 'flag'}]
+                    },
+                    flag: {component: 'switchInput', config: {label: 'Live'}},
+                    body: {component: 'markdown', config: {text: 'Body'}}
                 },
-                top: {
-                    component: 'toolbar',
-                    config: {overflowMenu: false},
-                    children: [{id: 'flag'}]
-                },
-                flag: {component: 'switchInput', config: {label: 'Live'}},
-                body: {component: 'markdown', config: {text: 'Body'}}
-            });
+                {live: {type: 'bool', setBy: {element: 'flag'}}}
+            );
             const tbar = document.querySelector('.xh-panel .xh-toolbar');
             expect(tbar?.textContent).toContain('Live');
             expect(screen.getByText('Body')).toBeTruthy();

@@ -9,8 +9,8 @@ import type {DataCatalog, FieldDef} from '../DataCatalog';
  * filled from the blueprint. A source is the blueprint's first dataset source. A field is the
  * first of the source's fields with the role the schema asks for that the config does not use yet,
  * with measures that total first, and measures first for a list of any fields, such as columns.
- * An enum takes its first value, an action refreshes the data, and a text takes the key's name,
- * numbered in a list. Null if the widget needs a source and the blueprint has none.
+ * An enum takes its first value, an action refreshes the data, a number its default, and a text
+ * its first example, else the key's name, numbered in a list. Null if the widget needs a source and the blueprint has none.
  */
 export function starterConfig(
     spec: WidgetSpec,
@@ -116,10 +116,10 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
                 fill(schema.items ?? {}, key, {...ctx, suffix: ` ${i + 1}`})
             );
         case 'string':
-            return startCase(key) + ctx.suffix;
+            return schema.examples?.[0] ?? startCase(key) + ctx.suffix;
         case 'number':
         case 'integer':
-            return schema.minimum ?? 0;
+            return schema.default ?? schema.minimum ?? 0;
         case 'boolean':
             return false;
         default:

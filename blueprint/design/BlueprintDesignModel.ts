@@ -1,7 +1,16 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {castArray, cloneDeep, isEmpty, isPlainObject, mapValues, startCase, uniq} from 'lodash';
+import {
+    castArray,
+    cloneDeep,
+    isEmpty,
+    isEqual,
+    isPlainObject,
+    mapValues,
+    startCase,
+    uniq
+} from 'lodash';
 import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blueprint';
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
@@ -103,6 +112,55 @@ export class BlueprintDesignModel extends HoistModel {
             ]),
             id
         };
+    }
+
+    /**
+     * The variables an input element can show and set: those of a type its widget takes, that no
+     * resolver, widget output or other element sets.
+     */
+    inputVariableOptions(elementId: string): string[] {
+        const {blueprint, registry} = this.blueprintModel,
+            types = castArray(this.elementSpec(elementId)?.value?.type ?? []);
+        return Object.entries(blueprint?.variables ?? {})
+            .filter(([, v]) => {
+                const writers = castArray(v.setBy ?? []) as PlainObject[];
+                return (
+                    v.setBy !== 'resolver' &&
+                    writers.every(
+                        w => !isPlainObject(w) || (w.element === elementId && !w.output)
+                    ) &&
+                    types.some(t => variableTypeMatches(registry, v.type, t))
+                );
+            })
+            .map(([name]) => name);
+    }
+
+    /**
+     * Make an input element show and set a variable, in one edit: an existing one, or a new one of
+     * the widget's first value type. The variable it set before keeps its value, set by no one.
+     * Null unsets it.
+     */
+    setInputVariable(elementId: string, name: string): BlueprintEditResult {
+        const variables = this.blueprintModel.blueprint?.variables ?? {},
+            writer = {element: elementId},
+            previous = Object.entries(variables)
+                .filter(([vn, v]) => vn !== name && isEqual(v.setBy, writer))
+                .map(([vn]): BlueprintOp => ({op: 'remove', path: `/variables/${vn}/setBy`}));
+        let set: BlueprintOp[] = [];
+        if (name && getOwn(variables, name)) {
+            set = [{op: 'set', path: `/variables/${name}/setBy`, value: writer}];
+        } else if (name) {
+            const type = castArray(this.elementSpec(elementId)?.value?.type ?? [])[0];
+            if (!type) return refused(`${elementId} sets no variable.`);
+            set = [
+                {
+                    op: 'set',
+                    path: `/variables/${name}`,
+                    value: {type, label: startCase(name), setBy: writer}
+                }
+            ];
+        }
+        return this.edit(`${elementId}: sets ${name ?? 'no variable'}`, [...previous, ...set]);
     }
 
     /**

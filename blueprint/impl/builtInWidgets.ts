@@ -150,7 +150,12 @@ const MARKDOWN_SCHEMA = {
             'x-source': true,
             description: 'The source an undotted reference reads a field of.'
         },
-        text: {type: 'string', maxLength: 10000, 'x-template': true}
+        text: {
+            type: 'string',
+            maxLength: 10000,
+            'x-template': true,
+            examples: ['Write this text in the inspector.']
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -226,8 +231,8 @@ const SLIDER_SCHEMA = {
     required: ['min', 'max'],
     properties: {
         label: LABEL,
-        min: {type: 'number'},
-        max: {type: 'number'},
+        min: {type: 'number', default: 0},
+        max: {type: 'number', default: 100},
         step: {type: 'number', minimum: 0.000001, default: 1}
     }
 } as const satisfies BlueprintSchema;
@@ -625,6 +630,7 @@ const CHART_SCHEMA = {
         groupBy: {
             type: 'string',
             'x-field': 'dimension',
+            'x-starter': false,
             description: 'A dimension that splits the first y into one series per value.'
         },
         stacking: {
@@ -729,6 +735,7 @@ const TREEMAP_SCHEMA = {
         heat: {
             type: 'string',
             'x-field': 'measure',
+            'x-starter': false,
             description: 'Colors each node: green above zero, red below. Default value.'
         },
         colorMode: {enum: ['linear', 'wash', 'none'], default: 'linear'},
@@ -757,7 +764,7 @@ const STAT_CARD_SCHEMA = {
         label: {type: 'string', maxLength: 40},
         format: FORMAT_PROP,
         agg: {enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE']},
-        deltaField: {type: 'string', 'x-field': 'measure'},
+        deltaField: {type: 'string', 'x-field': 'measure', 'x-starter': false},
         deltaFormat: FORMAT_PROP,
         deltaLabel: {type: 'string', maxLength: 40},
         invert: {type: 'boolean'},
@@ -765,6 +772,7 @@ const STAT_CARD_SCHEMA = {
         trend: {
             type: 'string',
             'x-field': 'any',
+            'x-starter': false,
             description:
                 "A series field to draw as a sparkline under the figure: the source's one row, or the sum of its rows where the series sums."
         }
@@ -825,7 +833,9 @@ const BUTTON_GROUP_SCHEMA = {
                 properties: {
                     label: {
                         type: 'string',
-                        maxLength: 40
+                        maxLength: 40,
+                        // A new button refreshes, so its label says so.
+                        examples: ['Refresh']
                     },
                     icon: {
                         type: 'string',

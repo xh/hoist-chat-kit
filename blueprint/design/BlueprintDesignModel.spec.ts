@@ -94,10 +94,45 @@ describe('BlueprintDesignModel', () => {
         });
 
         const chart = config('chart');
-        expect(chart.groupBy).not.toBe(chart.x);
         expect(totals(chart.y[0])).toBe(true);
 
         expect(totals(config('statCard').field)).toBe(true);
+    });
+
+    it('starts a widget with no optional extras, numbers at their defaults, and text that says what to write', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            config = (component: string) => {
+                const {id} = design.addWidget(component);
+                return model.blueprint.elements[id].config;
+            };
+        const card = config('statCard');
+        expect(card).not.toHaveProperty('deltaField');
+        expect(card).not.toHaveProperty('trend');
+        expect(config('chart')).not.toHaveProperty('groupBy');
+        expect(config('treemap')).not.toHaveProperty('heat');
+        expect(config('slider')).toMatchObject({min: 0, max: 100});
+        expect(config('markdown').text).toMatch(/inspector/);
+        expect(config('callout').text).toMatch(/inspector/);
+        expect(config('buttonGroup').buttons[0].label).toBe('Refresh');
+    });
+
+    it('sets the variable an input shows, an existing one of its type or a new one, in one edit', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            {id} = design.addWidget('dateInput');
+        expect(design.inputVariableOptions(id)).toEqual(['asOf']);
+
+        design.setInputVariable(id, 'asOf');
+        expect(model.blueprint.variables.asOf.setBy).toEqual({element: id});
+
+        design.setInputVariable(id, 'tradeDate');
+        expect(model.blueprint.variables.tradeDate).toEqual({
+            type: 'localDate',
+            label: 'Trade Date',
+            setBy: {element: id}
+        });
+        expect(model.blueprint.variables.asOf).not.toHaveProperty('setBy');
+        model.undo();
+        expect(model.blueprint.variables.asOf.setBy).toEqual({element: id});
     });
 
     it('places a widget where it fits, and names it after its widget', () => {

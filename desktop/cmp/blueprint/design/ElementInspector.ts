@@ -1,8 +1,9 @@
 import {div, filler, hbox, placeholder} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
-import {textInput} from '@xh/hoist/desktop/cmp/input';
+import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {isEqual} from 'lodash';
 import {
     type BlueprintDesignModel,
     type BlueprintRemoval,
@@ -76,6 +77,42 @@ export class ElementInspectorModel extends ConfigEditorModel {
         if (errors.length) this.refuseWith(ELEMENT_KEY, errors);
     }
 
+    /** The variable an input element shows and sets, or null. */
+    get setsVariable(): string {
+        const writer = {element: this.elementId};
+        return (
+            Object.entries(this.designModel.blueprintModel.blueprint?.variables ?? {}).find(
+                ([, v]) => isEqual(v.setBy, writer)
+            )?.[0] ?? null
+        );
+    }
+
+    /** The variables an input element can set, and a new one. Null for any other element. */
+    get setsOptions(): {value: string; label: string}[] {
+        if (!this.widgetSpec?.value) return null;
+        return [
+            ...this.designModel
+                .inputVariableOptions(this.elementId)
+                .map(it => ({value: it, label: it})),
+            {value: NEW_VARIABLE, label: 'New variable'}
+        ];
+    }
+
+    /** Make the element set a variable, or a new one named for it. */
+    setSets(name: string) {
+        const variables = this.designModel.blueprintModel.blueprint?.variables ?? {},
+            {elementId} = this,
+            target =
+                name === NEW_VARIABLE
+                    ? Object.hasOwn(variables, elementId)
+                        ? `${elementId}Value`
+                        : elementId
+                    : name,
+            {issues} = this.designModel.setInputVariable(elementId, target),
+            errors = issues.filter(it => it.severity === 'error');
+        if (errors.length) this.refuseWith(SETS_KEY, errors);
+    }
+
     /** The tabs of a container whose children take titles, or null for any other element. */
     get tabs(): {id: string; title: string}[] {
         const required: string[] = this.widgetSpec?.children?.schema?.required ?? [];
@@ -122,6 +159,12 @@ export class ElementInspectorModel extends ConfigEditorModel {
 // The key a refusal of the element itself, such as its removal, goes under.
 const ELEMENT_KEY = '';
 
+// The key the Sets row's refusals go under.
+const SETS_KEY = '$sets';
+
+/** The Sets option that makes a new variable for the input. */
+export const NEW_VARIABLE = '$new';
+
 // Publishes the inspector's model, as Hoist inputs look one up even when controlled.
 const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
     model: uses(ElementInspectorModel),
@@ -151,6 +194,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                         div({key: idx, className: `${CLS}__issue`, children: it.message})
                     ),
                 impl.tabs ? tabsEditor(impl) : null,
+                impl.setsOptions ? setsEditor(impl) : null,
                 ...impl.nodes.map(node =>
                     propertyRow({
                         node,
@@ -166,6 +210,27 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
         });
     }
 });
+
+// The variable an input shows and sets.
+function setsEditor(impl: ElementInspectorModel) {
+    return div({
+        className: `${CLS}__row`,
+        children: [
+            div({className: `${CLS}__label`, children: 'Sets'}),
+            select({
+                value: impl.setsVariable,
+                options: impl.setsOptions,
+                placeholder: 'Pick a variable…',
+                disabled: impl.readOnly,
+                width: '100%',
+                onCommit: (it: string) => it && it !== impl.setsVariable && impl.setSets(it)
+            }),
+            ...impl
+                .issuesFor(SETS_KEY)
+                .map((it, idx) => div({key: idx, className: `${CLS}__issue`, children: it.message}))
+        ]
+    });
+}
 
 // A container's tabs: each title, its order, a way to select or remove it, and a way to add one.
 function tabsEditor(impl: ElementInspectorModel) {

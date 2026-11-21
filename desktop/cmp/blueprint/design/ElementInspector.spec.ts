@@ -13,7 +13,7 @@ import {
     portfolioCatalog,
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
-import {elementInspector, ElementInspectorModel} from './ElementInspector';
+import {elementInspector, ElementInspectorModel, NEW_VARIABLE} from './ElementInspector';
 
 /**
  * The selected element's config, an editor per property of its widget's schema. Each commit is
@@ -56,6 +56,25 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('title');
         model.undo();
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
+    });
+
+    it('picks the variable an input sets, or makes a new one named for it', () => {
+        const {model, design, inspector} = open();
+        expect(inspector.setsOptions).toBeNull();
+
+        const {id} = design.addWidget('dateInput', 'positions');
+        design.select({kind: 'element', id});
+        expect(inspector.setsVariable).toBeNull();
+        expect(inspector.setsOptions.map(it => it.value)).toEqual(
+            expect.arrayContaining(['asOf', NEW_VARIABLE])
+        );
+
+        inspector.setSets(NEW_VARIABLE);
+        expect(model.blueprint.variables[id]).toMatchObject({
+            type: 'localDate',
+            setBy: {element: id}
+        });
+        expect(inspector.setsVariable).toBe(id);
     });
 
     it('badges a property that presets control with its group and active preset', () => {
