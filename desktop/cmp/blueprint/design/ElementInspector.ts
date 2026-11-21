@@ -129,6 +129,14 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return ret;
     }
 
+    /** Rename the element, everything that names it following, as one edit. */
+    rename(to: string) {
+        if (!to || to === this.elementId) return;
+        const {issues} = this.designModel.renameId('element', this.elementId, to),
+            errors = issues.filter(it => it.severity === 'error');
+        if (errors.length) this.refuseWith(ID_KEY, errors);
+    }
+
     commitPlacement(key: string, value: unknown) {
         const {issues} = this.designModel.setChildPlacement(this.elementId, {[key]: value}),
             errors = issues.filter(it => it.severity === 'error');
@@ -194,6 +202,9 @@ const ELEMENT_KEY = '';
 // The key a placement property's refusals go under, apart from the config's own.
 const placementKey = (key: string) => `$placement.${key}`;
 
+// The key a rename's refusals go under.
+const ID_KEY = '$id';
+
 // The key the Sets row's refusals go under.
 const SETS_KEY = '$sets';
 
@@ -211,7 +222,13 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 hbox({
                     className: `${CLS}__header`,
                     children: [
-                        impl.elementId,
+                        textInput({
+                            key: `${impl.elementId}:${impl.resets[ID_KEY] ?? 0}`,
+                            value: impl.elementId,
+                            disabled: impl.readOnly,
+                            width: 160,
+                            onCommit: (to: string) => impl.rename(to)
+                        }),
                         div({className: `${CLS}__widget`, children: impl.label}),
                         filler(),
                         button({
@@ -223,11 +240,9 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                         })
                     ]
                 }),
-                ...impl
-                    .issuesFor(ELEMENT_KEY)
-                    .map((it, idx) =>
-                        div({key: idx, className: `${CLS}__issue`, children: it.message})
-                    ),
+                ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
+                    div({key: idx, className: `${CLS}__issue`, children: it.message})
+                ),
                 impl.tabs ? tabsEditor(impl) : null,
                 impl.setsOptions ? setsEditor(impl) : null,
                 impl.placementNodes.length

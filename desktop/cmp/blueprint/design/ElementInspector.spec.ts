@@ -58,6 +58,15 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
     });
 
+    it('renames the selected element, keeping it selected, or says why not', () => {
+        const {model, design, inspector} = open('p3-morning-report.json', 'posGrid');
+        inspector.rename('positionsGrid');
+        expect(model.blueprint.elements).toHaveProperty('positionsGrid');
+        expect(design.selectedElementId).toBe('positionsGrid');
+        inspector.rename('priceChart');
+        expect(inspector.issuesFor('$id')[0].message).toMatch(/priceChart/);
+    });
+
     it("edits where an element sits in its container, from the container's child schema", () => {
         const {model, inspector} = open('p3-morning-report.json', 'posGrid');
         expect(inspector.placementNodes.map(it => it.key)).toEqual(['x', 'y', 'w', 'h']);
