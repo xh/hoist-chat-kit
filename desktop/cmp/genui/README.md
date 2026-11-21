@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, stat cards, cards, nested answers, tabs, sections, callouts, forms and inputs, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, stat cards, cards, nested answers, tabs, sections, callouts, labeled values, forms and inputs, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -20,8 +20,8 @@
 The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
-separators and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
-a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
+separators and a treemap add structure and emphasis, and a property table shows labeled values.
+Each is a spec over a Hoist component. Add them to a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
 place of long tables of text.
 
 Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
@@ -36,6 +36,8 @@ Key features:
 - **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
   `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiSeparatorSpec()` and `chatUiTreeMapSpec()` map
   plain props to Hoist's `TabContainer`, `Card`, `Callout`, `Badge`, `Separator` and `TreeMap`.
+- **Hoist components for one thing** - `chatUiPropertyTableSpec()` maps plain props to Hoist's
+  `PropertyTable`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -74,6 +76,7 @@ chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Call
 chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
 chatUiSeparatorSpec(opts) → ChatUiComponentSpec<ChatUiSeparatorSpecProps> → Separator (Hoist)
 chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
+chatUiPropertyTableSpec(opts) → ChatUiComponentSpec<ChatUiPropertyTableSpecProps> → PropertyTable (Hoist)
 ```
 
 Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec into a tool named
@@ -82,8 +85,8 @@ Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec in
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
 
-The stack, text, tabs, section, badges and separator components set `standalone: false`, so they
-have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an
+The stack, text, tabs, section, badges, separator and property table components set
+`standalone: false`, so they have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an
 `xh.chat.ui` data part, or a text format that writes documents.
 
 While the model writes the props, `render` runs with `isPartial: true` and props that may be cut
@@ -107,6 +110,7 @@ short. The components handle this:
   arrives after the title, as a `CardModel` reads its config once.
 - The callout spec takes its intent and title before its text, so a warning shows as one from its
   first word. The badges spec shows complete badges only.
+- The property table spec shows each labeled value once it is complete.
 - `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
@@ -434,6 +438,35 @@ Hoist's `TreeMap` draws nested boxes only with a tree grid bound to it.
 The treemap needs two Highcharts modules, heatmap then treemap. See
 [Expecting a treemap without its Highcharts modules](#expecting-a-treemap-without-its-highcharts-modules).
 
+### Show labeled values
+
+A property table shows the fields of one record. It nests in a document:
+
+```json
+{
+    "root": "answer",
+    "elements": {
+        "answer": {"component": "stack", "props": {}, "children": ["facts"]},
+        "facts": {"component": "propertyTable", "props": {"columns": 2, "entries": [
+            {"label": "Counterparty", "value": "Acme Corp"},
+            {"label": "Exposure", "value": 4200000, "format": "currency", "decimals": 0},
+            {"label": "Status", "value": "Under review", "intent": "warning"}
+        ]}}
+    }
+}
+```
+
+The spec renders Hoist's `PropertyTable`: a label beside each value, in as many columns as fit.
+`columns` sets the most columns, and a narrow chat shows fewer. A number takes a `format` and
+`decimals`. Text shows as is, and a boolean as `true` or `false`. A missing or blank value shows as
+`-`. An `intent` colors a value to flag a status. Use the card spec for a record with a frame, a
+title and actions.
+
+The spec shows at most `maxItems` entries, and a muted count of the rest, such as
+`4 more not shown`, rather than fail as a whole. A model that writes a few too many gets no retry.
+The prompt states the maximum. Style the table through Hoist's `--xh-property-table-*` variables,
+under `.xh-chat-ui-property-table`.
+
 ### Ask the user for input
 
 `chatUiInputSpecs()` returns the form components: a form, a button, and an input of each kind.
@@ -604,6 +637,7 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
 | `chatUiBadgesSpec` | `maxItems` | `number` | Most badges. Default 12. |
 | `chatUiSeparatorSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiPropertyTableSpec` | `maxItems` | `number` | Most labeled values shown. Default 24. |
 | `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
 | | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 
@@ -639,8 +673,8 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiTabs` | `titles` | `children`, `isPartial` |
 | `ChatUiTreeMap` | `title`, `nodes`, `format`, `decimals`, `heatLabel`, `heatFormat` | `height`, `isPartial` |
 
-The section, callout, badges and separator specs render Hoist components, and have no component of
-their own. Their props from the model:
+The section, callout, badges, separator and property table specs render Hoist components, and
+have no component of their own. Their props from the model:
 
 | Spec | Props from the model |
 |------|----------------------|
@@ -648,6 +682,7 @@ their own. Their props from the model:
 | `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
 | `chatUiSeparatorSpec` | `label` |
+| `chatUiPropertyTableSpec` | `entries`, each a `label` and an optional `value`, `format`, `decimals` and `intent`, then `columns` |
 
 See the TSDoc in each source file for the full shape of the props.
 

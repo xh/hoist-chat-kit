@@ -18,6 +18,7 @@ import {
     chatUiSeparatorSpec,
     chatUiGridSpec,
     chatUiInputSpecs,
+    chatUiPropertyTableSpec,
     chatUiStatCardsSpec,
     chatUiSectionSpec,
     chatUiStackSpec,
@@ -355,7 +356,7 @@ const SALES_TOOL = {
         .map(it => it.name),
     DISPLAY_NAMES = [
         ...['text', 'statCards', 'grid', 'chart', 'card', 'tabs', 'section', 'callout'],
-        ...['badges', 'separator', 'treemap']
+        ...['badges', 'separator', 'treemap', 'propertyTable']
     ],
     CONTEXT = {
         chatModel: null as null,
@@ -392,6 +393,7 @@ function createCatalog(
         chatUiBadgesSpec(),
         chatUiSeparatorSpec(),
         chatUiTreeMapSpec(),
+        chatUiPropertyTableSpec(),
         // The form, the button and each input.
         ...chatUiInputSpecs()
     ];
