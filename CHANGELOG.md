@@ -73,6 +73,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiPropertyTableSpec()`, a list of labeled values over Hoist's `PropertyTable`. It
   formats each number, and shows its first `maxItems` entries with a count of the rest. A compact
   chat gives it Hoist's compact size. It is not standalone.
+* Added `chatUiProgressBarsSpec()`, a column of Hoist `ProgressBar`s, each a value against a
+  maximum with an optional target. It formats the figure over each bar, and shows its first
+  `maxItems` bars with a count of the rest. Hoist's `ProgressBar` has no compact size, so the bars
+  look the same in a compact chat. It is not standalone.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,
