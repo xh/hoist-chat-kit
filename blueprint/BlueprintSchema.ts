@@ -19,6 +19,8 @@ export type BlueprintSchemaExtension = {
     'x-renderer'?: boolean;
     'x-action'?: boolean;
     'x-variable'?: boolean;
+    /** Names a stored blueprint of the same type, which design mode picks from its repository. */
+    'x-blueprint'?: boolean;
     /** Names a preset group of the blueprint, which the validator checks. */
     'x-preset'?: boolean;
     'x-template'?: boolean | 'variables';

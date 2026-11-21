@@ -264,6 +264,30 @@ function readDateRange(text: string, registry: BlueprintRegistry): unknown {
     return getOwn(registry?.dateRangePresets, text) ? text : undefined;
 }
 
+/**
+ * A value in its link form, its type read from the value itself, as an `openBlueprint` passes it:
+ * text, a number, a boolean, a custom date range, or a list of these. Null for one with none.
+ */
+export function linkTextOf(value: unknown, registry: BlueprintRegistry): string | string[] {
+    const typeOf = (v: unknown): string =>
+        isString(v)
+            ? 'string'
+            : isFinite(v)
+              ? 'number'
+              : typeof v === 'boolean'
+                ? 'bool'
+                : isPlainObject(v)
+                  ? 'dateRange'
+                  : null;
+    if (value == null) return null;
+    if (Array.isArray(value)) {
+        const texts = value.map(it => (typeOf(it) ? formatItem(typeOf(it), it, registry) : null));
+        return texts.some(it => it == null) ? null : texts;
+    }
+    const type = typeOf(value);
+    return type ? formatItem(type, value, registry) : null;
+}
+
 // A value in its link form, or null for one with none.
 function formatValue(
     decl: VariableDecl,

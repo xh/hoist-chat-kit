@@ -68,6 +68,12 @@ describe('BlueprintDocumentModel', () => {
     const title = (m: BlueprintModel, t: string) =>
         m.applyEdit({ops: [{op: 'set', path: '/elements/posGrid/config/title', value: t}]});
 
+    it('lets the blueprint it holds open others through its repository', async () => {
+        const {repository} = await created(),
+            {blueprintModel} = session(repository);
+        expect(blueprintModel.drillInRepository).toBe(repository);
+    });
+
     it('needs a repository', () => {
         expect(() => new BlueprintDocumentModel({blueprintModel: null, repository: null})).toThrow(
             /needs a repository/

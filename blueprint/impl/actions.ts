@@ -3,6 +3,8 @@ import {castArray, isArray, isPlainObject, isString, mapValues, omit} from 'loda
 import {findSchemaErrors} from '../../impl/SchemaUtils';
 import {isAllowedUrl} from '../../impl/UrlUtils';
 import type {BlueprintModel} from '../BlueprintModel';
+import {linkTextOf} from '../BlueprintLink';
+import {BLUEPRINT_LINK_RESERVED} from './linkParams';
 import {checkVariableValue} from './variableValues';
 
 /** The most steps a list of actions can hold. */
@@ -132,6 +134,11 @@ function checkAction(model: BlueprintModel, step: PlainObject): string {
             const unknown = castArray(step.sources ?? []).find(it => !model.getSource(it));
             return unknown ? `Unknown source '${unknown}'.` : null;
         }
+        case 'openBlueprint':
+            if (model.isDrillIn) return 'A drill-in cannot open another blueprint.';
+            return model.drillInRepository
+                ? null
+                : 'This blueprint opens no other blueprints here.';
         default:
             return spec.run ? null : `The app cannot run '${step.type}'.`;
     }
@@ -158,6 +165,21 @@ async function runAction(model: BlueprintModel, step: PlainObject, ctx: ActionRu
         case 'openUrl':
             window.open(step.url, '_blank', 'noopener');
             return;
+        case 'openBlueprint': {
+            const params: Record<string, string | string[]> = {id: step.blueprint};
+            // As a link carries them, so the target's link parser takes them on its own terms.
+            Object.entries<unknown>(step.variables ?? {}).forEach(([name, value]) => {
+                const text = linkTextOf(value, model.registry);
+                if (text != null && !BLUEPRINT_LINK_RESERVED.includes(name)) params[name] = text;
+            });
+            model.openDrillIn({
+                id: step.blueprint,
+                as: step.as ?? 'dialog',
+                title: step.title ?? null,
+                params
+            });
+            return;
+        }
         default:
             await model.registry.actions[step.type].run(paramsOf(step), {
                 blueprintModel: model,

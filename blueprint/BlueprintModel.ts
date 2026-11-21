@@ -17,6 +17,7 @@ import {BlueprintVariable} from './BlueprintVariable';
 import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
 import type {BlueprintLinkState} from './BlueprintLink';
+import type {BlueprintRepository} from './repository/BlueprintRepository';
 import {diffOps} from './diffOps';
 import {parseWebUrl} from '../impl/UrlUtils';
 import {
@@ -54,6 +55,8 @@ export interface BlueprintModelConfig {
     defaultPresentation?: string;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
     isAnswer?: boolean;
+    /** True for a blueprint opened by another's `openBlueprint`, which cannot open one in turn. */
+    isDrillIn?: boolean;
     /** The user's mode. Default run. Design mode takes effect only with write access. */
     mode?: BlueprintMode;
     /** The user's access to the blueprint. Default read. */
@@ -63,6 +66,16 @@ export interface BlueprintModelConfig {
      * as `https://reports.example.com/daily`. Default none, so no URL opens.
      */
     urlAllowList?: string[];
+}
+
+/** A blueprint an `openBlueprint` action asked to open, with its values as link params. */
+export interface BlueprintDrillIn {
+    id: string;
+    as: 'dialog' | 'popover';
+    /** The title to show, or null for the target's name. */
+    title: string;
+    /** The target's id and values, as a link to it carries them. */
+    params: Record<string, string | string[]>;
 }
 
 /** The result of an edit: the new version, or the issues that refused it. */
@@ -86,7 +99,17 @@ export class BlueprintModel extends HoistModel {
     readonly hostContext: unknown;
     readonly defaultPresentation: string;
     readonly isAnswer: boolean;
+    readonly isDrillIn: boolean;
     readonly urlAllowList: string[];
+
+    /**
+     * Where `openBlueprint` opens its targets: the repository of the document open, which a
+     * `BlueprintDocumentModel` sets. Null, and the action cannot run.
+     */
+    drillInRepository: BlueprintRepository = null;
+
+    /** The blueprint an `openBlueprint` action asked to open, which the view draws, or null. */
+    @observableRef accessor drillIn: BlueprintDrillIn = null;
 
     /** The current blueprint. Always valid: it has no errors. */
     @observableRef accessor blueprint: Blueprint = null;
@@ -186,6 +209,7 @@ export class BlueprintModel extends HoistModel {
         hostContext = null,
         defaultPresentation = null,
         isAnswer = false,
+        isDrillIn = false,
         urlAllowList = [],
         mode = 'run',
         access = 'read'
@@ -198,6 +222,7 @@ export class BlueprintModel extends HoistModel {
         this.artifactProvider = artifactProvider;
         this.hostContext = hostContext;
         this.defaultPresentation = defaultPresentation;
+        this.isDrillIn = isDrillIn;
         this.isAnswer = isAnswer;
         const badUrl = urlAllowList.find(it => !parseWebUrl(it));
         throwIf(badUrl, `urlAllowList entries must be http or https URLs: '${badUrl}'`);
@@ -554,6 +579,18 @@ export class BlueprintModel extends HoistModel {
     /** An action's description, with its values as it would run now - for its tooltip. */
     describeAction(action: PlainObject, ctx: ActionRunContext = {}): string {
         return describeAction(this, action, ctx);
+    }
+
+    /** Ask the view to open a blueprint as a drill-in, as `openBlueprint` does. */
+    @action
+    openDrillIn(drillIn: BlueprintDrillIn) {
+        this.drillIn = drillIn;
+    }
+
+    /** Close the drill-in open, if any. */
+    @action
+    closeDrillIn() {
+        this.drillIn = null;
     }
 
     /** A copy of a value with each binding replaced by its variable's current value. */

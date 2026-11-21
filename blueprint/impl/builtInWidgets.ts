@@ -2464,6 +2464,40 @@ export const BUILT_IN_ACTIONS: ActionSpec[] = [
             }
         },
         describe: ({url}) => `Open ${url}`
+    },
+    {
+        name: 'openBlueprint',
+        params: {
+            type: 'object',
+            required: ['blueprint'],
+            properties: {
+                blueprint: {
+                    type: 'string',
+                    'x-blueprint': true,
+                    description: 'The id of a blueprint of the same type, from list_blueprints.'
+                },
+                as: {
+                    enum: ['dialog', 'popover'],
+                    default: 'dialog',
+                    description: 'popover only for a small target, anchored to its button.'
+                },
+                title: {type: 'string', maxLength: 100, description: "Default the target's name."},
+                variables: {
+                    type: 'object',
+                    description:
+                        'Values for the variables of the target a link may set, by name: a literal, {"$var": name} or {"$row": field}.'
+                }
+            }
+        },
+        guidance:
+            "Opens another blueprint over this one, such as a symbol's detail from a row of positions, passing values for the target's variables. Only in dashboards, and never from a blueprint it opened.",
+        allowedIn: ['dashboards'],
+        describe: ({blueprint, title, variables}) => {
+            const values = Object.entries(variables ?? {}).map(
+                ([name, v]) => `${name} = ${describeValue(v)}`
+            );
+            return `Open ${title ?? blueprint}${values.length ? ` with ${values.join(', ')}` : ''}`;
+        }
     }
 ];
 

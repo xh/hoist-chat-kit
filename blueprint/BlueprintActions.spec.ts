@@ -11,6 +11,7 @@ import type {Blueprint} from './Blueprint';
 import type {BlueprintDataProvider} from './BlueprintDataProvider';
 import {BlueprintModel, type BlueprintModelConfig} from './BlueprintModel';
 import {isAllowedUrl} from '../impl/UrlUtils';
+import type {BlueprintRepository} from './repository/BlueprintRepository';
 
 /**
  * Actions are typed and checked. A list runs as steps, all checked before the first runs, each
@@ -287,5 +288,81 @@ describe('BlueprintModel actions', () => {
                 model.registry.addActions({name: 'acme.bad', params: null} as any)
             ).toThrow(/schema/);
         });
+    });
+});
+
+/**
+ * `openBlueprint` opens another blueprint of the same type as a drill-in, with values passed in as
+ * a link would pass them. The model holds the request, and the desktop view draws it.
+ */
+describe('openBlueprint', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    const repository = {type: 'acme.dashboard'} as BlueprintRepository,
+        drill = (variables: object) => ({
+            type: 'openBlueprint',
+            blueprint: 'symbol-detail',
+            title: 'Symbol detail',
+            variables
+        });
+
+    function open(config: Partial<BlueprintModelConfig> = {}) {
+        const ret = new BlueprintModel({
+            blueprint: loadBlueprint('p3-morning-report.json'),
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: null,
+            ...config
+        });
+        ret.drillInRepository = repository;
+        onTestFinished(() => ret.destroy());
+        return ret;
+    }
+
+    it('asks to open the target with each value in its link form, from literals, variables and the row', async () => {
+        const model = open(),
+            action = drill({
+                symbol: {$row: 'symbol'},
+                asOf: {$var: 'asOf'},
+                top: 10,
+                live: true,
+                funds: ['A', 'B']
+            });
+        model.setVariable('asOf', '2026-11-20');
+        expect(model.describeAction(action, {row: {symbol: 'AAPL'}})).toBe(
+            'Open Symbol detail with symbol = AAPL, asOf = 2026-11-20, top = 10, live = true, funds = A, B'
+        );
+        expect(await model.runActionsAsync(action, {row: {symbol: 'AAPL'}})).toBe(true);
+        expect(model.drillIn).toEqual({
+            id: 'symbol-detail',
+            as: 'dialog',
+            title: 'Symbol detail',
+            params: {
+                id: 'symbol-detail',
+                symbol: 'AAPL',
+                asOf: '2026-11-20',
+                top: '10',
+                live: 'true',
+                funds: ['A', 'B']
+            }
+        });
+        model.closeDrillIn();
+        expect(model.drillIn).toBeNull();
+    });
+
+    it('leaves out a value with no link form, which the target then names as ignored', async () => {
+        const model = open();
+        await model.runActionsAsync(drill({portfolio: {holdings: [{symbol: 'X'}]}, top: 3}));
+        expect(model.drillIn.params).toEqual({id: 'symbol-detail', top: '3'});
+    });
+
+    it('refuses to open from a drill-in, or with no repository to open from', () => {
+        const nested = open({isDrillIn: true});
+        expect(nested.actionBlockedReason(drill({}))).toMatch(/drill-in cannot open/);
+        const loose = open();
+        loose.drillInRepository = null;
+        expect(loose.actionBlockedReason(drill({}))).toMatch(/opens no other blueprint/);
     });
 });

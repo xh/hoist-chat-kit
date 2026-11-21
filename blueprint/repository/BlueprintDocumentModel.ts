@@ -80,6 +80,8 @@ export class BlueprintDocumentModel extends HoistModel {
         this.blueprintModel = blueprintModel;
         this.repository = repository;
         this.migrate = migrate;
+        // An openBlueprint action opens its targets through this repository, as the user.
+        if (blueprintModel) blueprintModel.drillInRepository = repository;
     }
 
     /** True if the user may publish the blueprint open, as its repository says. */
