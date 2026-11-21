@@ -135,6 +135,24 @@ describe('BlueprintDesignModel', () => {
         expect(model.blueprint.variables.asOf.setBy).toEqual({element: id});
     });
 
+    it('adds a widget at a place given, moving its siblings in the same edit', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            siblings = model.blueprint.elements.dashboard.children.map(it =>
+                it.id === 'ordersGrid' ? {...it, y: 20} : it
+            ),
+            {id} = design.addWidget('chart', 'dashboard', {
+                child: {x: 0, y: 14, w: 4, h: 6},
+                siblings
+            });
+        const {children} = model.blueprint.elements.dashboard;
+        expect(children.find(it => it.id === id)).toEqual({id, x: 0, y: 14, w: 4, h: 6});
+        expect(children.find(it => it.id === 'ordersGrid').y).toBe(20);
+        model.undo();
+        expect(
+            model.blueprint.elements.dashboard.children.find(it => it.id === 'ordersGrid').y
+        ).toBe(9);
+    });
+
     it('places a widget where it fits, and names it after its widget', () => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             first = design.addWidget('chart'),

@@ -19,7 +19,8 @@ import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroupInputWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {CubeGridWidgetModel} from './CubeGridWidget';
-import {DashCanvasWidgetModel} from './DashCanvasWidget';
+import {DashCanvasWidgetModel, DROP_VIEW_ID} from './DashCanvasWidget';
+import {paletteDrag} from './impl/paletteDrag';
 import {GroupingChooserWidgetModel} from './GroupingChooserWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from './TabContainerWidget';
 import {tabContainer} from '@xh/hoist/cmp/tab';
@@ -764,6 +765,43 @@ describe('blueprint desktop widgets', () => {
                 )
             );
             expect(model.version).toBe(1);
+        });
+
+        it('takes a widget dragged from the palette only in design mode, sized as it starts', () => {
+            const model = open(loadBlueprint('p2-linked-dashboard.json')),
+                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                drops: unknown[] = [];
+            expect(canvas.onDragOver()).toBe(false);
+
+            paletteDrag.start({
+                component: 'chart',
+                size: {w: 4, h: 6},
+                drop: (...args) => drops.push(args)
+            });
+            onTestFinished(() => paletteDrag.end());
+            expect(canvas.onDragOver()).toEqual({w: 4, h: 6});
+
+            // As the canvas's drop does: a view of the drop's spec where it fell.
+            const view = (canvas.canvasModel as any).addViewInternal(DROP_VIEW_ID, {
+                layout: {x: 0, y: 14, w: 4, h: 6}
+            });
+            canvas.onDropDone(view);
+            expect(canvas.canvasModel.viewModels.map(it => it.viewSpec.id)).not.toContain(
+                DROP_VIEW_ID
+            );
+            const [[canvasId, child, siblings]] = drops as any[];
+            expect([canvasId, child]).toEqual(['dashboard', {x: 0, y: 14, w: 4, h: 6}]);
+            expect(siblings.map(it => it.id).sort()).toEqual([
+                'headline',
+                'ordersGrid',
+                'posGrid',
+                'sectorChart'
+            ]);
+            expect(model.version).toBe(1);
+            expect(canvas.canvasModel.viewSpecs.map(it => it.id)).not.toContain(DROP_VIEW_ID);
+
+            model.setMode('run');
+            expect(canvas.onDragOver()).toBe(false);
         });
 
         it('turns a move into one edit of its children, in reading order', () => {

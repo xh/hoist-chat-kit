@@ -82,6 +82,20 @@ describe('WidgetPalette', () => {
         expect(palette.message).toBeNull();
     });
 
+    it('adds a widget dropped on a canvas where it fell, and selects it', () => {
+        const {model, design, palette} = open(loadBlueprint('p2-linked-dashboard.json'));
+        palette.drop('chart', 'dashboard', {x: 0, y: 14, w: 4, h: 6}, []);
+        const id = design.selectedElementId;
+        expect(model.blueprint.elements[id].component).toBe('chart');
+        expect(model.blueprint.elements.dashboard.children.at(-1)).toEqual({
+            id,
+            x: 0,
+            y: 14,
+            w: 4,
+            h: 6
+        });
+    });
+
     it('says where a click adds a widget', () => {
         const {design, palette} = open(loadBlueprint('p3-morning-report.json'));
         expect(palette.target).toBe('Adds into tabs');

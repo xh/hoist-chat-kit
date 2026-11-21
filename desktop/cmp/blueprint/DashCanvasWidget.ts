@@ -3,6 +3,7 @@ import {
     dashCanvas,
     DashCanvasModel,
     type DashCanvasItemState,
+    type DashCanvasViewModel,
     type DashCanvasViewSpec
 } from '@xh/hoist/desktop/cmp/dash';
 import {isEqual, pick, sortBy} from 'lodash';
@@ -13,6 +14,10 @@ import {
     type ChildRef
 } from '../../../blueprint';
 import {emptyContent} from './impl/layout';
+import {paletteDrag} from './impl/paletteDrag';
+
+/** The view a palette drag places on a canvas until the widget it carries is added. */
+export const DROP_VIEW_ID = '$drop';
 
 /**
  * The `dashCanvas` widget: a Hoist `DashCanvas` that places each child at the `x`, `y`, `w` and `h`
@@ -30,14 +35,18 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             columns,
             rowHeight,
             compact: false,
-            contentLocked: true,
+            // Unlocked for palette drops only: every view spec still refuses add and remove.
+            contentLocked: false,
+            allowsDrop: true,
+            onDropDragOver: () => this.onDragOver(),
+            onDropDone: view => this.onDropDone(view),
             renameLocked: true,
             showAddViewButtonWhenEmpty: false
         });
 
         this.addReaction(
             {
-                track: () => [this.children, this.titles],
+                track: () => [this.children, this.titles, this.takesDrop],
                 run: () => this.loadChildren(),
                 equals: 'structural',
                 fireImmediately: true
@@ -58,6 +67,48 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
                 equals: 'structural'
             }
         );
+    }
+
+    /** True while a palette drag is in progress and the blueprint is open for design. */
+    get takesDrop(): boolean {
+        const {mode, access} = this.blueprintModel;
+        return !!paletteDrag.current && mode === 'design' && access === 'write';
+    }
+
+    /**
+     * The size of the placeholder for a widget dragged from the palette, or false to refuse the
+     * drop: outside design mode, or for any other drag.
+     */
+    onDragOver(): {w: number; h: number} | false {
+        const drag = paletteDrag.current;
+        if (!drag || !this.takesDrop) return false;
+        if (!this.canvasModel.draggedInView) {
+            this.canvasModel.setDraggedInView({
+                viewSpecId: DROP_VIEW_ID,
+                layout: {x: 0, y: 0, ...drag.size}
+            });
+        }
+        return drag.size;
+    }
+
+    /** Swap the placeholder a drop made for the widget the palette drag carries, in one edit. */
+    onDropDone(view: DashCanvasViewModel) {
+        const {canvasModel} = this,
+            place = (id: string, layout: PlainObject) => ({
+                id,
+                ...pick(layout, 'x', 'y', 'w', 'h')
+            }),
+            dropped = canvasModel.state.find(it => it.viewSpecId === DROP_VIEW_ID),
+            siblings = canvasModel.state
+                .filter(it => it.viewSpecId !== DROP_VIEW_ID)
+                .map(it => place(it.viewSpecId, it.layout)),
+            drag = paletteDrag.current;
+        canvasModel.removeView(view.id);
+        paletteDrag.end();
+        if (drag && dropped) {
+            const {id: _id, ...child} = place(DROP_VIEW_ID, dropped.layout);
+            drag.drop(this.id, child, siblings);
+        }
     }
 
     /** Each child's title, by ID, with bindings resolved. Null for a child with none. */
@@ -87,7 +138,12 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
                 it => !it.viewSpec.hidePanelHeader !== hasHeader(it.viewSpec.id)
             );
         if (headerChanged) canvasModel.clear();
-        canvasModel.setViewSpecs(children.map(it => this.viewSpecFor(it.id, hasHeader(it.id))));
+        // The drop's spec exists only during a drag, as an addable spec shows in the Add menus.
+        canvasModel.setViewSpecs([
+            ...children.map(it => this.viewSpecFor(it.id, hasHeader(it.id))),
+            ...(this.takesDrop ? [DROP_VIEW_SPEC] : [])
+        ]);
+        if (!this.takesDrop) canvasModel.setDraggedInView(null);
 
         const state = fromChildren(children, titles),
             titlesMatch = canvasModel.viewModels.every(
@@ -100,6 +156,8 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     /** Model to doc: a drag or resize becomes one edit, with children in reading order. */
     private writeChildren(state: DashCanvasItemState[]) {
         const {children} = this;
+        // A drop in progress writes its siblings with the widget it adds.
+        if (state.some(it => it.viewSpecId === DROP_VIEW_ID)) return;
         if (state.length !== children.length) return;
         if (isEqual(toPlacement(state), toPlacement(fromChildren(children)))) return;
         const next = sortBy(
@@ -141,6 +199,16 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
 //------------------
 // Implementation
 //------------------
+const DROP_VIEW_SPEC: DashCanvasViewSpec = {
+    id: DROP_VIEW_ID,
+    content: () => null,
+    hidePanelHeader: true,
+    unique: true,
+    allowAdd: true,
+    allowRemove: false,
+    allowRename: false
+};
+
 function fromChildren(
     children: ChildRef[],
     titles: Record<string, string> = {}

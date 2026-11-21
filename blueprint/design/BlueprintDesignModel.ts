@@ -92,6 +92,10 @@ export class BlueprintDesignModel extends HoistModel {
             config?: PlainObject;
             /** An element to add the widget right after, in its container. */
             after?: string;
+            /** Its child reference in the container, in place of the place it would find. */
+            child?: PlainObject;
+            /** The container's other children, placed again in the same edit, as a drop leaves them. */
+            siblings?: PlainObject[];
         } = {}
     ): BlueprintEditResult & {id?: string} {
         const {blueprint} = this.blueprintModel,
@@ -109,7 +113,7 @@ export class BlueprintDesignModel extends HoistModel {
             if (blueprint?.root) return refused('Select a container to add the widget to.');
             return {...this.edit(`Add ${spec.label}`, [{op: 'addElement', id, element}]), id};
         }
-        const child = this.placeChild(parent, spec),
+        const child = opts.child ?? this.placeChild(parent, spec),
             index = afterParent
                 ? this.indexAfter(parent, opts.after)
                 : parentId
@@ -117,6 +121,7 @@ export class BlueprintDesignModel extends HoistModel {
                   : this.indexAfter(parent, this.selectedElementId);
         return {
             ...this.edit(`Add ${spec.label}`, [
+                ...(opts.siblings ? [this.replaceSiblingsOp(parent, opts.siblings)] : []),
                 {
                     op: 'addElement',
                     id,
@@ -781,6 +786,16 @@ export class BlueprintDesignModel extends HoistModel {
         const parent = selected ? parentOf(blueprint?.elements, selected) : null;
         if (parent) return parent;
         return blueprint?.root && isContainer(blueprint.root) ? blueprint.root : null;
+    }
+
+    // An op that places a container's children again, keeping each reference's other keys.
+    private replaceSiblingsOp(parentId: string, siblings: PlainObject[]): BlueprintOp {
+        const children = getOwn(this.blueprintModel.blueprint?.elements, parentId)?.children ?? [];
+        return {
+            op: 'set',
+            path: `/elements/${parentId}/children`,
+            value: children.map(ref => ({...ref, ...siblings.find(it => it.id === ref.id)}))
+        };
     }
 
     // The place right after an element among its parent's children, or null.

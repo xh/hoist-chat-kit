@@ -1,11 +1,19 @@
 import {div} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {
+    hoistCmp,
+    HoistModel,
+    type HoistProps,
+    type PlainObject,
+    useLocalModel
+} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select} from '@xh/hoist/desktop/cmp/input';
 import {action, observable} from '@xh/hoist/mobx';
+import type React from 'react';
 import {groupBy, isString, upperFirst} from 'lodash';
-import type {BlueprintDesignModel} from '../../../../blueprint';
+import type {BlueprintDesignModel, BlueprintIssue} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
+import {paletteDrag} from '../impl/paletteDrag';
 import './WidgetPalette.scss';
 
 export interface WidgetPaletteProps extends HoistProps {
@@ -35,13 +43,21 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                         children: [
                             div({className: `${CLS}__category`, children: upperFirst(category)}),
                             ...widgets.map(it =>
-                                button({
+                                div({
                                     key: it.name,
-                                    text: it.label,
-                                    title: it.title,
-                                    minimal: true,
-                                    disabled: impl.readOnly,
-                                    onClick: () => impl.add(it.name)
+                                    draggable: !impl.readOnly,
+                                    onDragStart: (e: React.DragEvent) => {
+                                        e.dataTransfer.setData('text/plain', it.name);
+                                        impl.dragStart(it.name);
+                                    },
+                                    onDragEnd: () => impl.dragEnd(),
+                                    children: button({
+                                        text: it.label,
+                                        title: it.title,
+                                        minimal: true,
+                                        disabled: impl.readOnly,
+                                        onClick: () => impl.add(it.name)
+                                    })
                                 })
                             )
                         ]
@@ -131,8 +147,31 @@ export class WidgetPaletteModel extends HoistModel {
 
     @action
     add(component: string) {
+        this.done(component, this.designModel.addWidget(component));
+    }
+
+    /** Add a widget dropped on a canvas, where it fell, with its siblings as the drop left them. */
+    @action
+    drop(component: string, canvasId: string, child: PlainObject, siblings: PlainObject[]) {
+        this.done(component, this.designModel.addWidget(component, canvasId, {child, siblings}));
+    }
+
+    /** Start dragging a widget, for a canvas to take. */
+    dragStart(component: string) {
+        const size = this.designModel.blueprintModel.registry.widgets[component]?.size?.default;
+        paletteDrag.start({
+            component,
+            size: {w: size?.w ?? 4, h: size?.h ?? 2},
+            drop: (canvasId, child, siblings) => this.drop(component, canvasId, child, siblings)
+        });
+    }
+
+    dragEnd() {
+        paletteDrag.end();
+    }
+
+    private done(component: string, {id, issues}: {id?: string; issues: BlueprintIssue[]}) {
         const {designModel} = this,
-            {id, issues} = designModel.addWidget(component),
             error = issues.find(it => it.severity === 'error');
         this.needsSource = error && designModel.needsSource(component) ? component : null;
         this.message = this.needsSource ? null : (error?.message ?? null);
