@@ -153,6 +153,36 @@ describe('BlueprintDesignModel', () => {
         ).toBe(9);
     });
 
+    it('moves an element into a container, or before or after another, as one edit', () => {
+        const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+            ids = (parent: string) => model.blueprint.elements[parent].children.map(it => it.id);
+
+        expect(design.moveTo('priceChart', 'groupChooser', 'before').issues).toEqual([]);
+        expect(ids('positions').indexOf('priceChart')).toBe(
+            ids('positions').indexOf('groupChooser') - 1
+        );
+        expect(
+            model.blueprint.elements.positions.children.find(it => it.id === 'priceChart')
+        ).toMatchObject({
+            x: 8,
+            y: 1,
+            w: 4,
+            h: 9
+        });
+
+        expect(design.moveTo('sectorChart', 'positions', 'into').issues).toEqual([]);
+        const moved = model.blueprint.elements.positions.children.find(
+            it => it.id === 'sectorChart'
+        );
+        expect(moved).toMatchObject({w: expect.any(Number), h: expect.any(Number)});
+        expect(ids('overview')).not.toContain('sectorChart');
+
+        expect(design.moveTo('positions', 'posGrid', 'into').issues[0].message).toMatch(/inside/);
+        expect(design.moveTo('posGrid', 'priceChart', 'into').issues[0].message).toMatch(
+            /holds no/
+        );
+    });
+
     it('places a widget where it fits, and names it after its widget', () => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             first = design.addWidget('chart'),

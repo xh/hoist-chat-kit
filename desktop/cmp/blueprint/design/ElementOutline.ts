@@ -1,4 +1,5 @@
 import {grid, GridModel} from '@xh/hoist/cmp/grid';
+import {div, vframe} from '@xh/hoist/cmp/layout';
 import {
     hoistCmp,
     HoistModel,
@@ -7,7 +8,10 @@ import {
     type PlainObject,
     useLocalModel
 } from '@xh/hoist/core';
+import {observable, runInAction} from '@xh/hoist/mobx';
+import type React from 'react';
 import type {BlueprintDesignModel} from '../../../../blueprint';
+import './ElementOutline.scss';
 
 export interface ElementOutlineProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -15,7 +19,8 @@ export interface ElementOutlineProps extends HoistProps {
 
 /**
  * The tree of a blueprint's elements, each with its widget, for a designer to see the layout and
- * select an element. Its selection is the design model's.
+ * select an element. Its selection is the design model's. In design mode, a row drags: onto a
+ * container to move into it, or onto the top or bottom of any row to move before or after it.
  */
 export const [ElementOutline, elementOutline] = hoistCmp.withFactory<ElementOutlineProps>({
     displayName: 'BlueprintElementOutline',
@@ -23,12 +28,23 @@ export const [ElementOutline, elementOutline] = hoistCmp.withFactory<ElementOutl
     model: false,
     render({designModel, className}) {
         const impl = useLocalModel(() => new ElementOutlineModel(designModel));
-        return grid({model: impl.gridModel, className});
+        return vframe({
+            className,
+            children: [
+                grid({model: impl.gridModel}),
+                impl.message
+                    ? div({className: `${className}__message`, children: impl.message})
+                    : null
+            ]
+        });
     }
 });
 
 /** @internal */
 export class ElementOutlineModel extends HoistModel {
+    /** Why the last move was refused, until the next one. */
+    @observable accessor message: string = null;
+
     @managed readonly gridModel = new GridModel({
         treeMode: true,
         hideHeaders: true,
@@ -36,7 +52,13 @@ export class ElementOutlineModel extends HoistModel {
         emptyText: 'No elements yet.',
         store: {fields: ['widget']},
         columns: [
-            {field: 'id', headerName: 'Element', isTreeColumn: true, flex: 1},
+            {
+                field: 'id',
+                headerName: 'Element',
+                isTreeColumn: true,
+                flex: 1,
+                renderer: (id: string) => this.renderRow(id)
+            },
             {field: 'widget', headerName: 'Widget', width: 110}
         ]
     });
@@ -72,6 +94,65 @@ export class ElementOutlineModel extends HoistModel {
         );
     }
 
+    /** Where a drop on a row goes, from how far down the row it falls, from 0 to 1. */
+    whereFor(targetId: string, fraction: number): 'into' | 'before' | 'after' {
+        const isContainer =
+            !!this.designModel.blueprintModel.registry.widgets[
+                this.designModel.blueprintModel.blueprint?.elements?.[targetId]?.component
+            ]?.children;
+        if (isContainer && fraction > 0.25 && fraction < 0.75) return 'into';
+        return fraction < 0.5 ? 'before' : 'after';
+    }
+
+    /** Move a dragged element onto a row, as one edit, or say why it cannot go there. */
+    drop(id: string, targetId: string, where: 'into' | 'before' | 'after') {
+        if (!id || id === targetId) return;
+        const error = this.designModel
+            .moveTo(id, targetId, where)
+            .issues.find(it => it.severity === 'error');
+        runInAction(() => (this.message = error?.message ?? null));
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private dragging: string = null;
+
+    private get canMove(): boolean {
+        const {mode, access} = this.designModel.blueprintModel;
+        return mode === 'design' && access === 'write';
+    }
+
+    private renderRow(id: string) {
+        const where = (e: React.DragEvent) => {
+            const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            return this.whereFor(id, box.height ? (e.clientY - box.top) / box.height : 0.5);
+        };
+        return div({
+            className: ROW,
+            draggable: this.canMove,
+            onDragStart: (e: React.DragEvent) => {
+                this.dragging = id;
+                e.dataTransfer.setData('text/plain', id);
+            },
+            onDragEnd: () => (this.dragging = null),
+            onDragOver: (e: React.DragEvent) => {
+                if (!this.dragging || this.dragging === id) return;
+                e.preventDefault();
+                (e.currentTarget as HTMLElement).dataset.drop = where(e);
+            },
+            onDragLeave: (e: React.DragEvent) =>
+                delete (e.currentTarget as HTMLElement).dataset.drop,
+            onDrop: (e: React.DragEvent) => {
+                e.preventDefault();
+                delete (e.currentTarget as HTMLElement).dataset.drop;
+                this.drop(this.dragging, id, where(e));
+                this.dragging = null;
+            },
+            children: id
+        });
+    }
+
     private loadRows() {
         const {blueprintModel} = this.designModel,
             {blueprint, registry} = blueprintModel,
@@ -95,3 +176,5 @@ export class ElementOutlineModel extends HoistModel {
         this.gridModel.loadData(roots);
     }
 }
+
+const ROW = 'xh-blueprint-element-outline__row';

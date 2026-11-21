@@ -309,6 +309,39 @@ export class BlueprintDesignModel extends HoistModel {
         ]);
     }
 
+    /**
+     * Move an element by hand, as one edit: into a container, at its end, or before or after
+     * another element, in that one's container. It keeps its placement within its own container,
+     * and takes a free one in another, as {@link addWidget} would give it.
+     */
+    moveTo(id: string, targetId: string, where: 'into' | 'before' | 'after'): BlueprintEditResult {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            spec = this.elementSpec(id);
+        if (!spec || !getOwn(elements, targetId))
+            return refused(`There is no element '${targetId}'.`);
+        if (this.subtree(id).includes(targetId)) {
+            return refused(`${id} cannot move inside itself.`);
+        }
+        const parent = where === 'into' ? targetId : parentOf(elements, targetId);
+        if (!parent || !this.elementSpec(parent)?.children) {
+            return refused(`${where === 'into' ? targetId : 'Its container'} holds no elements.`);
+        }
+        const siblings = (elements[parent].children ?? []).filter(it => it.id !== id),
+            at = siblings.findIndex(it => it.id === targetId),
+            index = where === 'into' ? null : where === 'before' ? at : at + 1,
+            sameParent = parentOf(elements, id) === parent,
+            child = sameParent ? null : this.placeChild(parent, spec);
+        return this.edit(`Move ${spec.label}`, [
+            {
+                op: 'moveElement',
+                id,
+                parent,
+                ...(child ? {child} : {}),
+                ...(index != null ? {index} : {})
+            }
+        ]);
+    }
+
     /** Set the title an element has in its container, such as a tab's, as one edit. */
     setChildTitle(id: string, title: string): BlueprintEditResult {
         return this.setChildPlacement(id, {title}, `Retitle ${this.elementSpec(id)?.label ?? id}`);

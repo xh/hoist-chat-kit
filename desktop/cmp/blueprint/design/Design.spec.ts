@@ -60,6 +60,24 @@ describe('design mode selection', () => {
         await vi.waitFor(() => expect(gridModel.selectedId).toBe('sectorChart'));
     });
 
+    it('moves an element dropped on another, into it or beside it by where the drop falls', () => {
+        const {design, model} = open('p3-morning-report.json'),
+            outline = new ElementOutlineModel(design);
+        onTestFinished(() => outline.destroy());
+        expect(outline.whereFor('positions', 0.5)).toBe('into');
+        expect(outline.whereFor('posGrid', 0.2)).toBe('before');
+        expect(outline.whereFor('posGrid', 0.8)).toBe('after');
+        expect(outline.whereFor('positions', 0.1)).toBe('before');
+
+        outline.drop('priceChart', 'groupChooser', 'before');
+        const ids = model.blueprint.elements.positions.children.map(it => it.id);
+        expect(ids.indexOf('priceChart')).toBe(ids.indexOf('groupChooser') - 1);
+        expect(outline.message).toBeNull();
+
+        outline.drop('positions', 'posGrid', 'into');
+        expect(outline.message).toMatch(/inside/);
+    });
+
     it('selects the innermost element a click lands on, and outlines it, in design mode only', () => {
         // A tab container draws its first tab, the overview canvas, inside it.
         const {design, model} = open('p3-morning-report.json'),
