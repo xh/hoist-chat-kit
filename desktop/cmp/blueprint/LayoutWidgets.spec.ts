@@ -394,8 +394,12 @@ describe('layout and container widgets', () => {
                         },
                         canvas: {
                             component: 'dashCanvas',
-                            children: [{id: 'pnl', x: 0, y: 0, w: 6, h: 4}]
+                            children: [
+                                {id: 'tiles', x: 0, y: 0, w: 6, h: 4},
+                                {id: 'pnl', x: 6, y: 0, w: 6, h: 4}
+                            ]
                         },
+                        tiles: {component: 'tileFrame', config: {title: 'Tiles for {fund}'}},
                         pnl: {component: 'panel', config: {title: 'P&L for {fund}', emptyText: 'x'}}
                     }
                 },
@@ -414,12 +418,12 @@ describe('layout and container widgets', () => {
             const canvas = of(DashCanvasWidgetModel, 'canvas'),
                 panel = of(PanelWidgetModel, 'pnl');
             expect(await screen.findByText('Funds: Oak Mount')).toBeTruthy();
-            expect(canvas.titles.pnl).toBe('P&L for Oak Mount');
+            expect(canvas.titles.tiles).toBe('Tiles for Oak Mount');
             expect(panel.resolvedConfig.title).toBe('P&L for Oak Mount');
 
             model.setVariable('fund', 'Elm Street');
             expect(await screen.findByText('Funds: Elm Street')).toBeTruthy();
-            expect(canvas.titles.pnl).toBe('P&L for Elm Street');
+            expect(canvas.titles.tiles).toBe('Tiles for Elm Street');
             expect(panel.resolvedConfig.title).toBe('P&L for Elm Street');
         });
 
@@ -457,6 +461,23 @@ describe('layout and container widgets', () => {
                 'B Oak Mount'
             ]);
         });
+    });
+
+    it("leaves a panel's title to the panel, so a canvas cell does not repeat it", () => {
+        const {model} = show('canvas', {
+                canvas: {
+                    component: 'dashCanvas',
+                    children: [{id: 'pnl', x: 0, y: 0, w: 6, h: 4}]
+                },
+                pnl: {component: 'panel', config: {title: 'Positions', emptyText: 'x'}}
+            }),
+            canvas = new DashCanvasWidgetModel({
+                blueprintModel: model,
+                id: 'canvas',
+                renderElement: () => null
+            });
+        onTestFinished(() => canvas.destroy());
+        expect(canvas.titles.pnl).toBeNull();
     });
 
     describe('emptyText', () => {

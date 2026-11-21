@@ -413,7 +413,7 @@ describe('blueprint data widgets', () => {
             return bp;
         };
 
-        it("draws its measure's total on a solid gauge, from min to max, colored by its stops", async () => {
+        it("draws its measure's total on a solid gauge, from min to max, colored by its stops, leaving its title to its container", async () => {
             const gauge = widget(
                 GaugeWidgetModel,
                 open(
@@ -430,7 +430,7 @@ describe('blueprint data widgets', () => {
             await vi.waitFor(() => expect(gauge.chartModel.series[0]?.data).toEqual([350]));
             const {chart, title, yAxis} = gauge.chartModel.highchartsConfig;
             expect(chart.type).toBe('solidgauge');
-            expect(title.text).toBe('Gross &lt;b&gt;exposure&lt;/b&gt;');
+            expect(title.text).toBeNull();
             expect(yAxis).toMatchObject({
                 min: 0,
                 max: 1000,

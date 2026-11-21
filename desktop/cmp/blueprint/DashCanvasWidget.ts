@@ -118,6 +118,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             elements = blueprintModel.blueprint?.elements ?? {};
         return Object.fromEntries(
             this.children.map(({id}) => {
+                if (OWN_TITLE.includes(elements[id]?.component)) return [id, null];
                 const title = blueprintModel.resolveTitle(elements[id]?.config?.title);
                 return [id, title == null || title === '' ? null : String(title)];
             })
@@ -243,3 +244,6 @@ function toPlacement(state: DashCanvasItemState[]): PlainObject[] {
         'id'
     );
 }
+
+// Widgets that draw their own title, so a cell does not repeat it in its header.
+const OWN_TITLE = ['panel'];

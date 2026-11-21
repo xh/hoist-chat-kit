@@ -56,7 +56,7 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
 
     private updateChart() {
         const {view, source, chartModel} = this,
-            {value, title, min = 0, max = 100, stops, format} = this.resolvedConfig,
+            {value, min = 0, max = 100, stops, format} = this.resolvedConfig,
             def = source?.fields[value];
         if (!view || !def) {
             chartModel.setSeries([]);
@@ -70,8 +70,8 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
             });
         chartModel.setHighchartsConfig({
             chart: {type: 'solidgauge'},
-            // Highcharts reads titles and labels as markup.
-            title: {text: title ? escape(title) : null},
+            // Its container draws its title, as a canvas cell's header does.
+            title: {text: null},
             pane: {
                 startAngle: -90,
                 endAngle: 90,
