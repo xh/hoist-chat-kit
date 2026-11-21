@@ -335,6 +335,24 @@ Clearing it shows every position.
 - The callout's text reads `{source.field}`, never a number the model computed.
 - Design mode is asked for before any edit.
 
+### P12. A button in a bottom toolbar and a view switch in a header
+
+**Who.** A designer, on a copy of P3 whose positions grid sits in a "Positions" panel. Its column
+views group has no selector yet.
+
+**Prompts.**
+
+1. "Add a refresh button along the bottom of the positions panel."
+2. "Put the switch between the column views up in the header, next to the title."
+
+**Sees.** A Refresh button under the grid, and a P&L/Risk switch in the panel's header.
+
+**Tests.**
+
+- A button in the panel's `bbar` slot list, read from "along the bottom".
+- A `presetSelector` for the group in the panel's `headerItems`, read from "in the header".
+- No new cell on the canvas.
+
 ## Weather
 
 ### W1. Weather for one city
