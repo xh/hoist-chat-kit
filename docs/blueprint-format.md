@@ -242,6 +242,11 @@ Anywhere a format goes, it can be a name, an object, or a name with changes:
 `{"name": "pnl", "precision": 2}`. A name resolves in the blueprint's `formats` first, then in
 the catalog's, so a blueprint that redefines `pnl` changes every column that uses it.
 
+A catalog format's `label` can follow a dataset param, as a wind speed reads in mph or m/s by its
+units: `{"label": {"param": "units", "values": {"imperial": " mph", "metric": " m/s"}}}`. Each
+source applies it from its own params, unless a more specific level names a label of its own. The
+catalog refuses a param its dataset does not take, and a value that is not text.
+
 Options merge one by one, and the more specific level wins: the field's kind, then the catalog
 field, then the source's display override, then the widget's own setting, then the active preset.
 

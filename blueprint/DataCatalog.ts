@@ -1,5 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isString, keyBy, pick, uniq} from 'lodash';
+import {isPlainObject, isString, keyBy, omit, pick, uniq} from 'lodash';
+import {paramLabel} from './impl/paramLabel';
 import {toLookup} from './impl/pointer';
 
 /** Kinds every catalog has, beside `currency:<code>`. */
@@ -118,6 +119,7 @@ export class DataCatalog {
                 );
             fields.forEach(f => {
                 checkKind(f.kind, `field '${f.name}' of dataset '${name}'`);
+                this.checkParamLabel(f, name, ds.params ?? {}, problems);
                 Object.entries(f.params ?? {}).forEach(([pn, pd]) =>
                     checkKind(pd.kind, `parameter '${pn}' of field '${f.name}'`)
                 );
@@ -135,6 +137,30 @@ export class DataCatalog {
 
     getDataset(name: string): DatasetDef {
         return this.datasets[name] ?? null;
+    }
+
+    // A format label a param chooses names a param of the dataset, and gives text for each value.
+    private checkParamLabel(
+        field: FieldDef,
+        dataset: string,
+        params: Record<string, ParamDef>,
+        problems: string[]
+    ) {
+        const expand = (f: unknown): PlainObject => {
+                if (f == null) return {};
+                if (isString(f)) return this.formats[f] ?? {};
+                const it = f as PlainObject;
+                return isString(it.name) ? {...expand(it.name), ...omit(it, 'name')} : it;
+            },
+            kind = this.kinds[field.kind],
+            label = paramLabel({...expand(kind?.format), ...expand(field.format)}.label),
+            what = `the format label of field '${field.name}' of dataset '${dataset}'`;
+        if (!label) return;
+        if (!params[label.param]) {
+            problems.push(`${what} reads param '${label.param}', which the dataset does not take`);
+        } else if (!isPlainObject(label.values) || !Object.values(label.values).every(isString)) {
+            problems.push(`${what} needs text for each value of '${label.param}'`);
+        }
     }
 
     private withKindDefaults(field: FieldDef): FieldDef {

@@ -9,8 +9,9 @@ import {
 import type {Blueprint} from './Blueprint';
 import {BlueprintModel} from './BlueprintModel';
 import {BlueprintSource} from './BlueprintSource';
+import {DataCatalog} from './DataCatalog';
 import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
-import {resolveFieldDisplay} from './impl/formats';
+import {formatValue, resolveFieldDisplay, resolveFormat} from './impl/formats';
 import {fieldUsages} from './usages';
 import {validateBlueprint} from './validateBlueprint';
 
@@ -164,5 +165,68 @@ describe('field display', () => {
                 )
             ).toContain('/sources/positions/fields/mktVal');
         });
+    });
+});
+
+/**
+ * A catalog format's label can follow a dataset param, as a wind speed reads in mph or m/s by the
+ * source's units. The source applies it, so every widget over the source shows it.
+ */
+describe('a format label chosen by a param', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    const catalog = new DataCatalog({
+        formats: {
+            speed: {
+                precision: 0,
+                label: {param: 'units', values: {imperial: ' mph', metric: ' m/s'}}
+            }
+        },
+        kinds: {speed: {base: 'number', format: 'speed', aggregator: 'AVG'}},
+        datasets: {
+            weather: {
+                params: {units: {type: 'string', options: {values: ['imperial', 'metric']}}},
+                fields: [{name: 'windSpeed', type: 'number', kind: 'speed'}]
+            }
+        }
+    });
+
+    it("labels values by the source's param, follows it, and yields to a widget's own label", () => {
+        const model = new BlueprintModel({
+            blueprint: {
+                variables: {units: {type: 'string', setBy: 'prompt', default: {value: 'metric'}}},
+                sources: {now: {dataset: 'weather', params: {units: {$var: 'units'}}}},
+                root: 'gauge',
+                elements: {
+                    gauge: {
+                        component: 'gauge',
+                        config: {source: 'now', value: 'windSpeed', max: 40}
+                    }
+                }
+            },
+            catalog,
+            registry: scenarioRegistry(),
+            dataProvider: new FakeBlueprintDataProvider({catalog})
+        });
+        onTestFinished(() => model.destroy());
+        const source = model.getSource('now'),
+            field = source.fields.windSpeed,
+            text = (...layers: object[]) => {
+                const opts = resolveFormat(
+                    field,
+                    source.displayOf('windSpeed', ...layers).formats,
+                    {
+                        catalog,
+                        blueprint: model.blueprint
+                    }
+                );
+                return formatValue(12, field, opts, catalog, true);
+            };
+        expect(text()).toBe('12 m/s');
+        model.setVariable('units', 'imperial');
+        expect(text()).toBe('12 mph');
+        expect(text({format: {label: ' knots'}})).toBe('12 knots');
     });
 });

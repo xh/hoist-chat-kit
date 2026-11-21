@@ -50,6 +50,7 @@ import {
     resolveFormat,
     type ResolvedFieldDisplay
 } from './impl/formats';
+import {paramLabel} from './impl/paramLabel';
 import {rendererFields} from './impl/builtInWidgets';
 import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
@@ -252,7 +253,16 @@ export class BlueprintSource extends HoistBase {
      * each layer given, such as a widget's own entry for it.
      */
     displayOf(name: string, ...layers: FieldDisplayLayer[]): ResolvedFieldDisplay {
-        return resolveFieldDisplay(this.fields[name], this.entryOf(name), ...layers);
+        const field = this.fields[name],
+            ret = resolveFieldDisplay(field, this.entryOf(name), ...layers);
+        if (!field) return ret;
+        // A label a dataset param chooses, unless a more specific layer names its own.
+        const {catalog, blueprint} = this.context,
+            chosen = paramLabel(resolveFormat(field, ret.formats, {catalog, blueprint}).label);
+        if (!chosen) return ret;
+        const value = this.context.resolve(this.decl.params?.[chosen.param]),
+            label = chosen.values[value as string];
+        return {...ret, formats: [...ret.formats, {label: isString(label) ? label : ''}]};
     }
 
     /** Load the source again, as on a refresh. */

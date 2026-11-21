@@ -107,6 +107,8 @@ export function formatValue(
 ): ReactNode {
     const {type} = field,
         base = catalog.kinds[field.kind]?.base ?? field.kind;
+    // A label a param chooses shows only once a source resolves it.
+    if (opts && !isString(opts.label ?? '')) opts = omit(opts, 'label');
 
     if (type === 'number' || type === 'int') {
         const v = value as number,

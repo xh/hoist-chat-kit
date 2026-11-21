@@ -73,6 +73,29 @@ describe('DataCatalog', () => {
         );
     });
 
+    it("takes a format label chosen by a dataset param, and refuses an unknown param or a value that isn't text", () => {
+        const wind = (label: object): DataCatalogJson => ({
+            formats: {speed: {precision: 0, label}},
+            kinds: {speed: {base: 'number', format: 'speed', aggregator: 'AVG'}},
+            datasets: {
+                weather: {
+                    params: {units: {type: 'string', options: {values: ['imperial', 'metric']}}},
+                    fields: [{name: 'windSpeed', type: 'number', kind: 'speed'}]
+                }
+            }
+        });
+        expect(
+            () =>
+                new DataCatalog(wind({param: 'units', values: {imperial: ' mph', metric: ' m/s'}}))
+        ).not.toThrow();
+        expect(() => new DataCatalog(wind({param: 'unit', values: {metric: ' m/s'}}))).toThrow(
+            /label of field 'windSpeed' of dataset 'weather' reads param 'unit'/
+        );
+        expect(() => new DataCatalog(wind({param: 'units', values: {metric: 3}}))).toThrow(
+            /label of field 'windSpeed' of dataset 'weather'.*text/
+        );
+    });
+
     it("refuses an unknown kind on a dataset's or a field's parameter", () => {
         expect(
             () => new DataCatalog(catalog([], {asOf: {type: 'localDate', kind: 'nope'}}))
