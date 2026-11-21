@@ -3,7 +3,8 @@ import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEmpty, isString, pickBy, sortBy, uniq} from 'lodash';
-import {isSettableFromOutside} from '../../../../../blueprint';
+import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
+import {getOwn} from '../../../../../blueprint/impl/pointer';
 import type {
     ActionSpec,
     BlueprintDesignModel,
@@ -212,6 +213,15 @@ export abstract class ConfigEditorModel extends HoistModel {
         );
     }
 
+    /** The editor of a literal value of a variable: its type, or one of its options. Null if none. */
+    valueNodeFor(name: string): EditorNode {
+        const decl = getOwn(this.designModel.blueprintModel.blueprint?.variables, name);
+        if (!decl) return null;
+        const options = (decl.options as PlainObject)?.values as unknown[],
+            schema = this.valueSchema(decl.type, options);
+        return toEditorSpec({type: 'object', properties: {value: schema}})[0];
+    }
+
     /**
      * A step of an action type to start from: each required parameter bound to a variable that
      * fits it, the one of the same name first, and no others. A parameter that names a variable
@@ -240,10 +250,11 @@ export abstract class ConfigEditorModel extends HoistModel {
         return !!this.actionSpec(type)?.sideEffects;
     }
 
-    /** The schema of a literal value of a variable or parameter type. */
-    valueSchema(type: string): PlainObject {
+    /** The schema of a literal value of a variable or parameter type, one of `options` if given. */
+    valueSchema(type: string, options?: unknown[]): PlainObject {
         if (type?.endsWith('[]'))
-            return {type: 'array', items: this.valueSchema(type.slice(0, -2))};
+            return {type: 'array', items: this.valueSchema(type.slice(0, -2), options)};
+        if (options?.length) return {enum: options};
         const base = this.designModel.blueprintModel.registry.variableTypes[type]?.matches ?? type;
         switch (base) {
             case 'number':
@@ -252,6 +263,8 @@ export abstract class ConfigEditorModel extends HoistModel {
                 return {type: 'integer'};
             case 'bool':
                 return {type: 'boolean'};
+            case 'localDate':
+                return {type: 'string', format: 'date'};
             case 'filter':
                 return {};
             case 'dateRange':

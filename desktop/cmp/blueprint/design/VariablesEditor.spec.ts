@@ -137,6 +137,29 @@ describe('VariablesEditor', () => {
         expect(editor.valueSchema('int')).toEqual({type: 'integer'});
         expect(editor.valueSchema('toolbox.fund')).toEqual({type: 'string'});
         expect(editor.valueSchema('string[]')).toEqual({type: 'array', items: {type: 'string'}});
+        expect(editor.valueSchema('localDate')).toEqual({type: 'string', format: 'date'});
+        expect(editor.valueSchema('string', ['EU', 'US'])).toEqual({enum: ['EU', 'US']});
+        expect(editor.valueSchema('string[]', ['EU', 'US'])).toEqual({
+            type: 'array',
+            items: {enum: ['EU', 'US']}
+        });
+    });
+
+    it("types a step's value, and a default, by the variable it sets", () => {
+        const {model, editor} = open();
+        model.setBlueprint({
+            ...model.blueprint,
+            variables: {
+                ...model.blueprint.variables,
+                region: {type: 'string', setBy: 'action', options: {values: ['EU', 'US']}}
+            }
+        });
+        expect(editor.valueNodeFor('asOf').kind).toBe('date');
+        expect(editor.valueNodeFor('region')).toMatchObject({
+            kind: 'choice',
+            options: ['EU', 'US']
+        });
+        expect(editor.valueNodeFor('nope')).toBeNull();
     });
 
     it("starts a literal default at the variable's first option, or with no value", () => {
@@ -164,5 +187,18 @@ describe('VariablesEditor', () => {
             expect.arrayContaining(['Name', 'Type *', 'Label', 'Set by', 'Compute', 'Default'])
         );
         expect(container.textContent).not.toContain('No model found');
+    });
+
+    it('draws a date picker for a date default', () => {
+        const {model, design} = open('asOf');
+        model.setBlueprint({
+            ...model.blueprint,
+            variables: {
+                ...model.blueprint.variables,
+                asOf: {type: 'localDate', setBy: 'prompt', default: {value: '2026-03-02'}}
+            }
+        });
+        const {container} = render(variablesEditor({designModel: design}) as ReactElement);
+        expect(container.querySelector('.xh-date-input')).toBeTruthy();
     });
 });

@@ -3,6 +3,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {
     buttonGroupInput,
+    dateInput,
     jsonInput,
     numberInput,
     select,
@@ -11,6 +12,7 @@ import {
     textInput
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {LocalDate} from '@xh/hoist/utils/datetime';
 import {castArray, isEmpty, isEqual, isNumber, isString, omit, uniq} from 'lodash';
 import type {ReactElement} from 'react';
 import {
@@ -125,6 +127,15 @@ function editorFor(
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))
+            });
+        case 'date':
+            return dateInput({
+                value: isString(value) && value ? LocalDate.get(value) : null,
+                valueType: 'localDate',
+                placeholder,
+                disabled,
+                width: '100%',
+                onCommit: (d: LocalDate) => commit(d?.isoString ?? undefined)
             });
         case 'number':
             return numberInput({
@@ -705,7 +716,10 @@ function actionEditor(
                         ...params.map(param =>
                             propertyRow({
                                 key: param.key,
-                                node: {...param, bindable: param.kind !== 'variable'},
+                                node: {
+                                    ...stepParamNode(step, param, impl),
+                                    bindable: param.kind !== 'variable'
+                                },
                                 value: step[param.key],
                                 commit: v =>
                                     replace(
@@ -737,6 +751,13 @@ function actionEditor(
             })
         ]
     });
+}
+
+// A setVariable step's value takes the editor of the variable it sets.
+function stepParamNode(step: PlainObject, param: EditorNode, impl: ConfigEditorModel): EditorNode {
+    if (step.type !== 'setVariable' || param.key !== 'value') return param;
+    const typed = impl.valueNodeFor(step.variable);
+    return typed ? {...typed, key: param.key, label: param.label, required: param.required} : param;
 }
 
 function jsonEditor(value: unknown, commit: (value: unknown) => void, ctx: EditorContext) {

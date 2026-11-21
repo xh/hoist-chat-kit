@@ -402,7 +402,10 @@ function defaultEditor(impl: VariableEditorModel) {
         kind = dflt == null ? 'none' : 'resolver' in dflt ? 'resolver' : 'value',
         personalizable = dflt?.personalizable ? {personalizable: true} : {},
         commit = (it: unknown) => impl.commit('default', it),
-        valueNode = nodeOf('value', impl.valueSchema(impl.values.type));
+        valueNode = nodeOf(
+            'value',
+            impl.valueSchema(impl.values.type, (impl.values.options as PlainObject)?.values)
+        );
     return div({
         className: `${CLS}__list`,
         children: [

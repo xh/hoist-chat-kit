@@ -8,6 +8,7 @@ import {isPlainObject} from 'lodash';
 export type EditorNode = EditorBase &
     (
         | {kind: 'text'; multiline: boolean; maxLength?: number}
+        | {kind: 'date'}
         | {kind: 'number'; integer: boolean; min?: number; max?: number}
         | {kind: 'boolean'}
         | {kind: 'choice'; options: unknown[]}
@@ -97,6 +98,7 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
     }
     switch (schema.type) {
         case 'string':
+            if (schema.format === 'date') return {...base, kind: 'date'};
             return {
                 ...base,
                 kind: 'text',

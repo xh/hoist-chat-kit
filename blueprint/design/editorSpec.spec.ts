@@ -79,4 +79,12 @@ describe('toEditorSpec', () => {
         });
         expect(nodes.map(it => it.kind)).toEqual(['oneOf', 'json', 'json']);
     });
+
+    it('edits a date string with a date picker', () => {
+        const [node] = toEditorSpec({
+            type: 'object',
+            properties: {on: {type: 'string', format: 'date'}}
+        });
+        expect(node.kind).toBe('date');
+    });
 });
