@@ -34,6 +34,7 @@ const p3 = loadBlueprint('p3-morning-report.json'),
         'p12-edit.json applied to p12-host': applyOps(loadBlueprint('p12-host.json'), loadBlueprint('p12-edit.json').ops),
         'p13-edit.json applied to p2': applyOps(p2, loadBlueprint('p13-edit.json').ops),
         'p14-edit.json applied to p2': applyOps(p2, loadBlueprint('p14-edit.json').ops),
+        'p15-edit.json applied to p2': applyOps(p2, loadBlueprint('p15-edit.json').ops),
         'f1-edit.json applied to p2': applyOps(p2, loadBlueprint('f1-edit.json').ops),
         'f2-edit.json applied to p2': applyOps(p2, loadBlueprint('f2-edit.json').ops)
     };
@@ -83,6 +84,7 @@ const expected_: Record<string, any> = {
     W5: {blueprint: loadBlueprint('w5-current-conditions.json'), segments: [], replies: ['']},
     P13: {blueprint: applied['p13-edit.json applied to p2'].result, segments: [], replies: ['']},
     P14: {blueprint: applied['p14-edit.json applied to p2'].result, segments: [], replies: ['']},
+    P15: {blueprint: applied['p15-edit.json applied to p2'].result, segments: [], replies: ['']},
     F1: {
         blueprint: applied['f1-edit.json applied to p2'].result,
         segments: [],

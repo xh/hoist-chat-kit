@@ -1,0 +1,23 @@
+{
+    "base": 12,
+    "description": "Color today's P&L by threshold, and shade the Energy rows",
+    "ops": [
+        {
+            "op": "set",
+            "path": "/elements/posGrid/config/columns",
+            "value": {
+                "pnlDay": {
+                    "styles": [
+                        {"when": {"field": "pnlDay", "op": "<", "value": -100000}, "style": {"color": "danger", "fontWeight": "bold"}},
+                        {"when": {"field": "pnlDay", "op": ">", "value": 100000}, "style": {"color": "success", "fontWeight": "bold"}}
+                    ]
+                }
+            }
+        },
+        {
+            "op": "set",
+            "path": "/elements/posGrid/config/rowStyles",
+            "value": [{"when": {"field": "sector", "op": "=", "value": "Energy"}, "style": {"background": "warning", "border": "warning"}, "rows": "leaves"}]
+        }
+    ]
+}

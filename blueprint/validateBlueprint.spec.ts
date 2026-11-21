@@ -11,6 +11,7 @@ import {
 import type {Blueprint} from './Blueprint';
 import {applyOps} from './applyOps';
 import {BlueprintRegistry} from './BlueprintRegistry';
+import {DataCatalog} from './DataCatalog';
 import {validateBlueprint} from './validateBlueprint';
 
 /**
@@ -807,6 +808,102 @@ describe('validateBlueprint', () => {
             expect(issues('Risk {as of}', 'tab')).toEqual([
                 ['template.badRef', '/elements/tabs/children/0/title']
             ]);
+        });
+    });
+
+    describe('grid styles', () => {
+        const styled = (styles: object[], rowStyles: object[] = []): Blueprint => {
+            const bp = p2();
+            Object.assign(bp.elements.posGrid.config, {
+                columns: {pnlDay: {styles}},
+                ...(rowStyles.length ? {rowStyles} : {})
+            });
+            return bp;
+        };
+        const issues = (bp: Blueprint) => validate(bp).map(it => [it.code, it.path]);
+        const rule = (style: object, when: object = {field: 'pnlDay', op: '<', value: 0}) => ({
+            when,
+            style
+        });
+
+        it('takes rules on a column and on rows, with bound thresholds', () => {
+            const bp = styled(
+                [rule({color: 'danger', fontWeight: 'bold'}), rule({color: '#aa0000'})],
+                [{...rule({background: 'warning', border: 'warning'}), rows: 'leaves'}]
+            );
+            bp.variables.lossLimit = {type: 'number', setBy: 'prompt', default: {value: 0}};
+            (bp.elements.posGrid.config.columns as any).pnlDay.styles[0].when.value = {
+                $var: 'lossLimit'
+            };
+            expect(codes(bp)).toEqual([]);
+        });
+
+        it('refuses a color that is no intent or hex, free CSS, and a binding in a style', () => {
+            const p = '/elements/posGrid/config/columns/pnlDay/styles/0/style';
+            expect(issues(styled([rule({color: 'url(x)'})]))).toEqual([
+                ['style.badColor', `${p}/color`]
+            ]);
+            expect(issues(styled([rule({background: 'var(--x)'})]))).toEqual([
+                ['style.badColor', `${p}/background`]
+            ]);
+            expect(issues(styled([rule({cursor: 'pointer'})])).map(it => it[0])).toEqual([
+                'schema.invalid'
+            ]);
+            expect(issues(styled([rule({fontWeight: {$var: 'asOf'}})])).map(it => it[0])).toEqual([
+                'schema.invalid'
+            ]);
+        });
+
+        it('refuses an unknown field in a rule, and more than 10 rules', () => {
+            expect(
+                issues(styled([rule({color: 'danger'}, {field: 'nope', op: '=', value: 1})]))
+            ).toEqual([
+                ['field.unknown', '/elements/posGrid/config/columns/pnlDay/styles/0/when/field']
+            ]);
+            expect(issues(styled(Array.from({length: 11}, () => rule({color: 'danger'}))))).toEqual(
+                [['style.tooManyRules', '/elements/posGrid/config/columns/pnlDay/styles']]
+            );
+        });
+
+        it('warns of a group rule over a measure that group rows show blank', () => {
+            const catalog = new DataCatalog({
+                    datasets: {
+                        trades: {
+                            params: {},
+                            fields: [
+                                {name: 'desk', type: 'string', isDimension: true},
+                                {name: 'price', type: 'number'}
+                            ]
+                        }
+                    }
+                }),
+                grid = (rows: string): Blueprint => ({
+                    sources: {t: {dataset: 'trades'}},
+                    root: 'grid',
+                    elements: {
+                        grid: {
+                            component: 'cubeGrid',
+                            config: {
+                                source: 't',
+                                groupBy: ['desk'],
+                                columnState: ['price'],
+                                rowStyles: [
+                                    {
+                                        when: {field: 'price', op: '>', value: 100},
+                                        style: {color: 'danger'},
+                                        rows
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }),
+                warnings = (bp: Blueprint) =>
+                    validateBlueprint(bp, {catalog, registry}).map(it => [it.code, it.path]);
+            expect(warnings(grid('groups'))).toEqual([
+                ['style.foldsNothing', '/elements/grid/config/rowStyles/0/when']
+            ]);
+            expect(warnings(grid('leaves'))).toEqual([]);
         });
     });
 

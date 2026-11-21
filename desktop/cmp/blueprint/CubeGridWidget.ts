@@ -2,16 +2,18 @@ import {AgGrid} from '@xh/hoist/cmp/ag-grid';
 import {CubeGridModel, cubeGrid} from '@xh/hoist/cmp/cubegrid';
 import type {ColumnSpec, ColumnState} from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
-import type {FilterSpec, StoreRecord} from '@xh/hoist/data';
-import {action, observable, observableRef, when} from '@xh/hoist/mobx';
+import {type FilterSpec, type FilterTestFn, parseFilter, type StoreRecord} from '@xh/hoist/data';
+import {action, computed, observable, observableRef, when} from '@xh/hoist/mobx';
 import {useEffect, useRef} from 'react';
 import {wait} from '@xh/hoist/promise';
 import {
     castArray,
+    isArray,
     isEmpty,
     isEqual,
     isFinite,
     isString,
+    mapValues,
     omitBy,
     pick,
     sortBy,
@@ -24,6 +26,7 @@ import {
 } from '../../../blueprint';
 import {CUBE_GRID_STYLES} from '../../../blueprint/impl/builtInWidgets';
 import type {FieldDisplayLayer} from '../../../blueprint/impl/formats';
+import {styleToCss} from '../../../blueprint/impl/gridStyles';
 import {getOwn} from '../../../blueprint/impl/pointer';
 import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers';
 
@@ -110,6 +113,15 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     this.columnLabels
                 ],
                 run: () => this.applyColumnStateAsync(),
+                equals: 'structural'
+            },
+            {
+                // A bound threshold moves a style: ag-Grid calls style functions again on a redraw.
+                track: () => [
+                    this.resolvedConfig.rowStyles,
+                    mapValues(this.resolvedConfig.columns ?? {}, it => it?.styles)
+                ],
+                run: () => this.gridModel?.agApi?.redrawRows(),
                 equals: 'structural'
             },
             {
@@ -214,6 +226,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 showSummary: !!cfg.summaryRow,
                 sortBy: toGridSort(cfg.sortBy),
                 autosizeOptions: {mode: 'managed'},
+                rowStyle: (record: StoreRecord) => applyRules(this.rowRules, record),
                 // Hoist restores the state it had at construction. The blueprint's config is the
                 // default, so apply it again, which then writes back as no edit.
                 restoreDefaultsFn: () => this.restoreConfigAsync()
@@ -306,6 +319,25 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         of: {}
     };
 
+    @computed
+    private get rowRules(): StyleRule[] {
+        return this.compileRules(this.element?.config?.rowStyles);
+    }
+
+    // Each rule's filter resolved and parsed once, and its style as CSS. A filter that resolves to
+    // none, as when every bound value is null, matches nothing.
+    private compileRules(rules: unknown): StyleRule[] {
+        if (!isArray(rules)) return [];
+        return rules.map((rule: PlainObject) => {
+            const spec = this.blueprintModel.resolveFilter(rule?.when);
+            return {
+                test: spec ? parseFilter(spec).getTestFn() : null,
+                css: styleToCss(rule?.style),
+                rows: rule?.rows ?? 'all'
+            };
+        });
+    }
+
     private buildColumns(): ColumnSpec[] {
         const {blueprintModel, source} = this,
             {catalog, blueprint, registry} = blueprintModel;
@@ -326,7 +358,10 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     isNum = def.type === 'number' || def.type === 'int',
                     // A series has no value to sort by or export.
                     isSeries = def.type === 'number[]',
-                    isAggregate = (record: StoreRecord) => isGroupRow(record);
+                    isAggregate = (record: StoreRecord) => isGroupRow(record),
+                    rules = this.compileRules(
+                        getOwn<PlainObject>(this.element?.config?.columns, field)?.styles
+                    );
                 return {
                     field: {
                         name: field,
@@ -342,6 +377,9 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     absSort: isNum,
                     align: shown.align ?? (isNum ? 'right' : null),
                     ...pick(column, COLUMN_KEYS),
+                    ...(rules.length
+                        ? {cellStyle: (v, {record}) => applyRules(rules, record)}
+                        : {}),
                     renderer: (v, {record}) => display.render(v, record?.data, isAggregate(record)),
                     exportValue: (v, {record}) =>
                         display.exportValue(v, record?.data, isAggregate(record))
@@ -556,6 +594,23 @@ function toQuery(dimensions: string[]) {
 
 function toGridSort(sortBy: unknown): string[] {
     return castArray(sortBy ?? []).map(it => String(it).replace(/^group\b/, LABEL_COL));
+}
+
+interface StyleRule {
+    test: FilterTestFn;
+    css: PlainObject;
+    rows: 'all' | 'leaves' | 'groups';
+}
+
+// The CSS of every rule a row matches, in order, a later match winning property by property. A
+// leaf tests its own values, and a group row its totals.
+function applyRules(rules: StyleRule[], record: StoreRecord): PlainObject {
+    if (!record || !rules.length) return {};
+    const isGroup = isGroupRow(record);
+    return rules.reduce((ret, {test, css, rows}) => {
+        if (!test || (rows === 'leaves' && isGroup) || (rows === 'groups' && !isGroup)) return ret;
+        return test(record.data) ? {...ret, ...css} : ret;
+    }, {});
 }
 
 // A row that sums the rows shown under it, or the summary row. A row of the deepest level shown is

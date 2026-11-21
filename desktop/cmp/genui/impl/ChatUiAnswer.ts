@@ -271,7 +271,14 @@ ChatUiCatalog.answerPresentations.push({
             'Draws the grid as a chat reply does: a preview of the first rows and columns, with the full grid on Expand.',
         component: gridCard,
         // It draws the source's rows flat, as they are.
-        ignores: [...CUBE_GRID_STYLES, 'groupBy', 'filter', 'expandLevel', 'summaryRow']
+        ignores: [
+            ...CUBE_GRID_STYLES,
+            'groupBy',
+            'filter',
+            'expandLevel',
+            'summaryRow',
+            'rowStyles'
+        ]
     }
 });
 

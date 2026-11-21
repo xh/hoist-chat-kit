@@ -264,6 +264,33 @@ from the kind, to the field, to the source, to the widget's column.
 | `progress` | A progress bar to `max` or a row's `maxField`, with an optional target |
 | `sparkline` | A sparkline of a series field |
 
+## Style Cells and Rows by Their Values
+
+A grid colors, bolds or flags cells and rows by their values. A column's rules sit in its
+`columns` entry, and row rules on the grid:
+
+```json
+"columns": {
+    "pnlDay": {"styles": [
+        {"when": {"field": "pnlDay", "op": "<", "value": {"$var": "lossLimit"}}, "style": {"color": "danger", "fontWeight": "bold"}}
+    ]}
+},
+"rowStyles": [
+    {"when": {"field": "sector", "op": "=", "value": "Energy"}, "style": {"background": "warning", "border": "warning"}, "rows": "leaves"}
+]
+```
+
+- `when` is a filter, tested on each row: a leaf's own values, or a group row's totals. Its
+  values can bind variables, so a threshold can be a prompt.
+- `rows` picks `all` rows (the default), `leaves` or `groups`.
+- Rules apply in order, and a later match wins property by property. A column and the grid hold
+  at most 10 rules each (`style.tooManyRules`).
+- A style takes `color` (an intent, `muted` or `#rrggbb`), `background` (an intent or `#rrggbb`),
+  `fontWeight`, `fontStyle`, `textDecoration`, `align`, and `border` (an intent). It takes no other
+  key, no free CSS, and no binding (`style.badColor` for a bad color).
+- A `groups` rule over a measure that group rows show blank never matches, and the validator warns
+  (`style.foldsNothing`).
+
 ## Write Text with Live Values
 
 A `markdown` or `callout` element's text, and other text marked `x-template`, reads values as it

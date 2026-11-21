@@ -73,6 +73,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added JSON Schema's `default` to widget config schemas. Design mode shows an unset property at
   its default, and `BlueprintWidgetModel.configDefault()` applies it.
 * Added `ActionSpec.allowedIn`. The validator refuses an action outside the blueprints it names.
+* Added conditional styles to `cubeGrid`: a column's `styles` and the grid's `rowStyles` color,
+  bold or flag cells and rows where a filter matches, from a closed set of style keys, on
+  hoist-react's `cellStyle` and `rowStyle`.
 * Blueprint titles read variables: a widget's `title`, a tab's title, a `statCard`'s `label` and a
   grid column's `headerName` take `{variable}`, such as `"P&L for {fund}"`. Mark a title prop of an
   app widget with `'x-template': 'variables'`.

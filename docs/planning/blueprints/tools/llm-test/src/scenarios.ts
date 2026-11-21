@@ -453,6 +453,23 @@ export const SCENARIOS: Scenario[] = [
         ]
     },
     {
+        id: 'P15',
+        title: 'Conditional styles in a grid',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [{prompt: "In my positions grid, show today's P&L in red when it's below minus 100k and green above 100k, and shade the Energy rows."}],
+        checks: [
+            ['two pnlDay rules, in danger and success', o => {
+                const rules = o.blueprint.elements?.posGrid?.config?.columns?.pnlDay?.styles ?? [],
+                    colors = rules.map((r: any) => r.style?.color);
+                return rules.length >= 2 && colors.includes('danger') && colors.includes('success');
+            }],
+            ['a row rule for Energy', o => (o.blueprint.elements?.posGrid?.config?.rowStyles ?? []).some((r: any) => JSON.stringify(r.when ?? {}).includes('"Energy"'))],
+            ['no hex color', o => !/#[0-9a-fA-F]{6}/.test(JSON.stringify(o.blueprint.elements?.posGrid?.config ?? {}))],
+            ['no binding in a style', o => !/"style":\{[^}]*\$var/.test(JSON.stringify(o.blueprint.elements?.posGrid?.config ?? {}))]
+        ]
+    },
+    {
         id: 'W4',
         title: "One city's day on two axes",
         context: BUILD,

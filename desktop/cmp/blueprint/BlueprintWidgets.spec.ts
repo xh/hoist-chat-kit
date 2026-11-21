@@ -124,6 +124,83 @@ describe('blueprint desktop widgets', () => {
             });
         });
 
+        describe('conditional styles', () => {
+            const styled = () => {
+                const bp = loadBlueprint('p1-one-grid.json');
+                bp.variables.lossLimit = {type: 'number', setBy: 'prompt', default: {value: 0}};
+                Object.assign(bp.elements.posGrid.config, {
+                    columns: {
+                        pnlDay: {
+                            styles: [
+                                {
+                                    when: {field: 'pnlDay', op: '<', value: {$var: 'lossLimit'}},
+                                    style: {color: 'danger', fontWeight: 'bold'}
+                                },
+                                {
+                                    when: {field: 'pnlDay', op: '<', value: -1},
+                                    style: {color: '#aa0000'}
+                                }
+                            ]
+                        }
+                    },
+                    rowStyles: [
+                        {
+                            when: {field: 'sector', op: '=', value: 'Energy'},
+                            style: {background: 'warning', border: 'warning'},
+                            rows: 'groups'
+                        }
+                    ]
+                });
+                return bp;
+            };
+
+            async function openStyled() {
+                const model = open(styled()),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
+                await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+                await columnsApplied(grid);
+                const record = (label: string) =>
+                        gridModel.store.allRecords.find(it => it.data.cubeLabelValue === label),
+                    cell = (label: string) => {
+                        const r = record(label);
+                        return (gridModel.getColumn('pnlDay').cellStyle as any)(r.data.pnlDay, {
+                            record: r
+                        });
+                    },
+                    row = (label: string) => (gridModel.rowStyle as any)(record(label));
+                return {model, cell, row};
+            }
+
+            it('styles a cell by its rules in order, a later match winning property by property', async () => {
+                const {cell} = await openStyled();
+                expect(cell('SHEL')).toEqual({color: '#aa0000', fontWeight: 'bold'});
+                expect(cell('XOM')).toEqual({});
+                // A group row tests its aggregates: Energy totals -1.
+                expect(cell('Energy')).toEqual({
+                    color: 'var(--xh-intent-danger-text-color)',
+                    fontWeight: 'bold'
+                });
+            });
+
+            it('moves a style with a bound threshold, with no reload', async () => {
+                const {model, cell} = await openStyled();
+                model.setVariable('lossLimit', -5);
+                await vi.waitFor(() => expect(cell('Energy')).toEqual({}));
+                expect(cell('SHEL')).toEqual({color: '#aa0000'});
+            });
+
+            it('styles rows by its row rules, on the rows they name', async () => {
+                const {row} = await openStyled();
+                expect(row('Energy')).toEqual({
+                    backgroundColor: 'var(--xh-intent-warning-trans1)',
+                    boxShadow: 'inset 3px 0 0 var(--xh-intent-warning)'
+                });
+                expect(row('XOM')).toEqual({});
+                expect(row('Technology')).toEqual({});
+            });
+        });
+
         describe('columns', () => {
             const withColumns = (columns: object, sourceFields?: object) => {
                 const bp = loadBlueprint('p2-linked-dashboard.json');

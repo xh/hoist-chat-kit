@@ -11,6 +11,7 @@ import {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
 import type {BlueprintRegistry, SlotAccepts, SlotSpec, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter, templateStrings, toPointer} from './impl/configSchema';
+import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
 import {slotLists} from './impl/elements';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
@@ -851,6 +852,54 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             if (isPlainObject(o) && 'field' in o && 'op' in o)
                 need(o.field, `${p}/filter${path}/field`);
         });
+        // A grid's style rules: fields in each rule, colors from the allowlist, and caps.
+        const checkStyles = (rules: unknown, at: string) => {
+            if (!isArray(rules)) return;
+            if (rules.length > MAX_STYLE_RULES) {
+                err(
+                    'style.tooManyRules',
+                    at,
+                    `holds ${rules.length} rules, past the cap of ${MAX_STYLE_RULES}`
+                );
+            }
+            rules.forEach((rule: PlainObject, i) => {
+                const ruleAt = `${at}/${i}`;
+                walk(rule?.when, (o, path) => {
+                    if (!isPlainObject(o) || !('field' in o) || !('op' in o)) return;
+                    need(o.field, `${ruleAt}/when${path}/field`);
+                    const f = fields?.[o.field];
+                    // A number with no aggregator shows blank on a group row.
+                    if (
+                        rule.rows === 'groups' &&
+                        f &&
+                        ['number', 'int'].includes(f.type) &&
+                        f.aggregator == null
+                    ) {
+                        warn(
+                            'style.foldsNothing',
+                            `${ruleAt}/when`,
+                            `'${o.field}' shows blank on group rows, so a groups rule on it never matches`
+                        );
+                    }
+                });
+                (['color', 'background'] as const).forEach(key => {
+                    const v = rule?.style?.[key];
+                    if (v != null && isString(v) && !isStyleColor(v, key === 'color')) {
+                        err(
+                            'style.badColor',
+                            `${ruleAt}/style/${key}`,
+                            `'${v}' is not ${key === 'color' ? 'an intent, muted' : 'an intent'} or a #rrggbb color`
+                        );
+                    }
+                });
+            });
+        };
+        if (isPlainObject(cfg.columns)) {
+            Object.entries<PlainObject>(cfg.columns).forEach(([f, col]) =>
+                checkStyles(col?.styles, `${p}/columns/${f}/styles`)
+            );
+        }
+        checkStyles(cfg.rowStyles, `${p}/rowStyles`);
         const shown = registry.widgets[el.component]?.demand?.(cfg)?.[cfg.source]?.fields ?? [];
         if (
             cfg.filter &&

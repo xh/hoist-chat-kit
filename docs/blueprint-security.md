@@ -69,6 +69,13 @@ validator allows only `title`, `subtitle`, `legend`, `tooltip`, `xAxis`, `yAxis`
 Each refusal is `chart.highchartsConfig`, at the path of the refused value. A binding also shows
 as `schema.invalid`, from the config's schema check.
 
+## A Grid's Styles
+
+A grid's conditional styles take a closed allowlist, stricter than `highchartsConfig`'s refusals.
+Each key takes a value from a list, or a color matching `^#[0-9a-fA-F]{6}$`, so no style can spell
+`url(`, `var(` or an expression. A binding goes only in a rule's `when`, never in its style. The
+widget maps each value to CSS itself, and drops anything outside the list.
+
 ## What an Action Can Do
 
 - **Typed and checked.** An action names a registered type. The runner checks every step's params

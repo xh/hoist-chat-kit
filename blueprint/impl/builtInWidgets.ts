@@ -295,6 +295,63 @@ const SPACER_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+/** A grid style: a closed set of keys, each value from a list or a strict pattern. */
+const GRID_STYLE = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        color: {
+            type: 'string',
+            description: 'An intent (primary, success, warning, danger), muted, or #rrggbb.'
+        },
+        background: {type: 'string', description: 'An intent, or #rrggbb.'},
+        fontWeight: {enum: ['bold', 'normal']},
+        fontStyle: {enum: ['italic', 'normal']},
+        textDecoration: {enum: ['underline', 'line-through', 'none']},
+        align: {enum: ['left', 'center', 'right']},
+        border: {
+            enum: ['primary', 'success', 'warning', 'danger'],
+            description: "A bar of the intent's color down the left edge."
+        }
+    }
+} as const satisfies BlueprintSchema;
+
+const STYLE_WHEN = {
+    type: 'object',
+    'x-filter': true,
+    'x-binding': true,
+    description:
+        "The rows the style applies to, as a filter tested on each row: a leaf's own values, or a group row's totals."
+} as const satisfies BlueprintSchema;
+
+const CELL_STYLE_RULES = {
+    type: 'array',
+    items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['when', 'style'],
+        properties: {when: STYLE_WHEN, style: GRID_STYLE}
+    },
+    description:
+        "Styles for the column's cells where a row matches, applied in order. A later match wins property by property. At most 10."
+} as const satisfies BlueprintSchema;
+
+const ROW_STYLE_RULES = {
+    type: 'array',
+    items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['when', 'style'],
+        properties: {
+            when: STYLE_WHEN,
+            style: GRID_STYLE,
+            rows: {enum: ['all', 'leaves', 'groups'], default: 'all'}
+        }
+    },
+    description:
+        'Styles for whole rows where a row matches, applied in order. rows picks leaf rows, group rows or both. At most 10.'
+} as const satisfies BlueprintSchema;
+
 const CUBE_GRID_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -350,6 +407,7 @@ const CUBE_GRID_SCHEMA = {
                 ]
             }
         },
+        rowStyles: ROW_STYLE_RULES,
         columns: {
             type: 'object',
             'x-field': 'any',
@@ -359,6 +417,7 @@ const CUBE_GRID_SCHEMA = {
                 type: 'object',
                 additionalProperties: false,
                 properties: {
+                    styles: CELL_STYLE_RULES,
                     headerName: {
                         type: 'string',
                         maxLength: 100,
@@ -1547,7 +1606,7 @@ const cubeGrid: WidgetSpec = {
     label: 'Grid',
     terms: ['grid', 'table', 'pivot', 'list of positions', 'blotter'],
     guidance:
-        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. A grid with groupBy is a tree: its dimensions become parent rows. treeStyle styles that tree, so a grid without groupBy shows no tree style. Keep the grid's default style unless the user asks for one, or it's a preview. Rename or align a column in columns, and rename a field across the whole blueprint on its source. Name it with its title, not a text element beside it.",
+        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. A grid with groupBy is a tree: its dimensions become parent rows. treeStyle styles that tree, so a grid without groupBy shows no tree style. Keep the grid's default style unless the user asks for one, or it's a preview. Rename or align a column in columns, and rename a field across the whole blueprint on its source. Name it with its title, not a text element beside it. Style cells by their values with a column's styles in columns, and whole rows with rowStyles: each rule a filter in when, and a style. Use them for a threshold the user names, and bind the threshold to a variable when the user might change it. Prefer intents to hex colors. Pair a color with bold, or a row background with a border, so color is never the only signal. Don't restyle what a renderer already shows, such as a delta's arrow.",
     category: 'data',
     config: CUBE_GRID_SCHEMA,
     sections: [
