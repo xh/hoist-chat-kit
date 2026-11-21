@@ -650,6 +650,28 @@ describe('blueprint data widgets', () => {
             expect(chart.chartModel.series.map(it => it.yAxis ?? 0)).toEqual([0, 1]);
         });
 
+        it("formats the second axis and its tooltips as y2's own field, with no fraction clamp", async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {
+                type: 'column',
+                y: ['yield'],
+                y2: ['mktVal']
+            });
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series).toHaveLength(2));
+            const [, second] = chart.chartModel.highchartsConfig.yAxis,
+                y2Series = chart.chartModel.series[1];
+            expect(second.min).toBeUndefined();
+            expect(second.max).toBeUndefined();
+            expect(second.labels.formatter.call({value: 2500000})).not.toContain('%');
+            const tip = y2Series.tooltip.pointFormatter.call({
+                y: 2500000,
+                color: '#000',
+                series: {name: 'Market Value'}
+            });
+            expect(tip).not.toContain('%');
+        });
+
         it('refuses y2 beside a groupBy, which splits its first y only', () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             Object.assign(bp.elements.sectorChart.config, {groupBy: 'strategy', y2: ['mktVal']});

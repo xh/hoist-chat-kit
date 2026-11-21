@@ -5,6 +5,7 @@ import {observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {mergeDeep} from '@xh/hoist/utils/js';
 import {castArray, compact, escape, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
+import type {ReactNode} from 'react';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -129,9 +130,17 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         const firstY2 = castArray(this.resolvedConfig.y ?? []).filter(
             it => this.source.fields[it]
         ).length;
+        const fmtY2 = this.y2Format,
+            y2Tooltip = {
+                // The series name reaches Highcharts escaped - see `toSeries()`.
+                pointFormatter: function (this: any) {
+                    const name = this.series?.name ? `${this.series.name}: ` : '';
+                    return `<span style="color:${this.color}">●</span> ${name}<b>${fmtY2(this.y)}</b><br/>`;
+                }
+            };
         chartModel.setSeries(
             toSeries(props, false).map((it, idx) =>
-                this.hasY2 && idx >= firstY2 ? {...it, yAxis: 1} : it
+                this.hasY2 && idx >= firstY2 ? {...it, yAxis: 1, tooltip: y2Tooltip} : it
             )
         );
     }
@@ -150,6 +159,12 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         return castArray(this.resolvedConfig.y2 ?? []).filter(it => this.source?.fields[it]);
     }
 
+    // Values of y2, formatted as its first field is.
+    private get y2Format(): (value: number, opts?: {compact?: boolean}) => ReactNode {
+        const format = this.isFraction(this.y2[0]) ? 'percent' : 'number';
+        return (value, opts = {}) => fmtChatUiNumber(value, format, null, {asHtml: true, ...opts});
+    }
+
     private get hasY2(): boolean {
         return !this.resolvedConfig.groupBy && this.y2.length > 0;
     }
@@ -159,13 +174,23 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         if (!this.hasY2) return config;
         const [first] = this.y2,
             {y2Title} = this.resolvedConfig,
+            fmtY2 = this.y2Format,
             title = y2Title ?? (this.y2.length === 1 ? this.source.fieldLabel(first) : null);
+        // Its own labels, as the primary's would format and clamp y2 as a fraction of y.
         return {
             ...config,
-            // Highcharts reads a title as markup.
             yAxis: [
                 config.yAxis,
-                {...config.yAxis, opposite: true, title: {text: title ? escape(title) : null}}
+                {
+                    opposite: true,
+                    // Highcharts reads a title as markup.
+                    title: {text: title ? escape(title) : null},
+                    labels: {
+                        formatter: function (this: any) {
+                            return fmtY2(this.value, {compact: true});
+                        }
+                    }
+                }
             ]
         };
     }
