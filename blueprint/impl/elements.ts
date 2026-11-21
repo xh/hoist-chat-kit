@@ -1,9 +1,100 @@
-import type {BlueprintElement} from '../Blueprint';
+import type {PlainObject} from '@xh/hoist/core';
+import type {BlueprintElement, ChildRef} from '../Blueprint';
+
+// Plain data and pure functions only, so a validator under plain Node can load these.
+
+/** Where a child sits: its parent, the slot list, the child reference that holds that list, if any. */
+export interface SlotPlace {
+    parent: string;
+    slot: string;
+    /** The child of the parent whose reference holds the slot, such as a canvas cell. */
+    of?: string;
+    index: number;
+}
+
+/** One slot list of an element: on the element, or on one of its child references. */
+export interface SlotList {
+    slot: string;
+    of?: string;
+    refs: ChildRef[];
+}
+
+/**
+ * An element's slot lists: `children` and its other slots, such as a panel's `tbar`, then those of
+ * its child references, such as a canvas cell's `headerItems`. A slot list is a key whose value is
+ * a list of child references, objects with an `id`.
+ */
+export function slotLists(el: BlueprintElement): SlotList[] {
+    if (!el) return [];
+    const own = Object.entries(el)
+            .filter(([key, value]) => !ELEMENT_KEYS.includes(key) && isRefList(value))
+            .map(([slot, refs]) => ({slot, refs: refs as ChildRef[]})),
+        nested = (el.children ?? []).flatMap(ref =>
+            Object.entries(ref)
+                .filter(([key, value]) => key !== 'id' && isRefList(value))
+                .map(([slot, refs]) => ({slot, of: ref.id, refs: refs as ChildRef[]}))
+        );
+    return [...own, ...nested];
+}
+
+/** The IDs of every child of an element, across its slot lists. */
+export function childIds(el: BlueprintElement): string[] {
+    return slotLists(el).flatMap(it => it.refs.map(ref => ref.id));
+}
 
 /** The ID of the container that holds an element, or null for the root or an unplaced element. */
 export function parentOf(elements: Record<string, BlueprintElement>, id: string): string {
+    return locate(elements, id)?.parent ?? null;
+}
+
+/** The parent and slot that hold an element, or null for the root or an unplaced element. */
+export function locate(elements: Record<string, BlueprintElement>, id: string): SlotPlace {
+    for (const [parent, el] of Object.entries(elements ?? {})) {
+        for (const {slot, of, refs} of slotLists(el)) {
+            const index = refs.findIndex(it => it.id === id);
+            if (index >= 0) return {parent, slot, ...(of ? {of} : {}), index};
+        }
+    }
+    return null;
+}
+
+/** Remove an element's reference from whichever slot of a parent holds it. Returns it, or null. */
+export function removeRef(el: BlueprintElement, id: string): ChildRef {
+    for (const {slot, of, refs} of slotLists(el)) {
+        const index = refs.findIndex(it => it.id === id);
+        if (index < 0) continue;
+        const [ref] = refs.splice(index, 1),
+            holder: PlainObject = of ? el.children.find(it => it.id === of) : el;
+        // An emptied slot other than children goes, so a blueprint keeps no empty lists.
+        if (!refs.length && (of || slot !== 'children')) delete holder[slot];
+        return ref;
+    }
+    return null;
+}
+
+/** Insert a reference into a slot of an element, at an index or at the end. */
+export function insertRef(
+    el: BlueprintElement,
+    ref: ChildRef,
+    {slot = 'children', of, index}: {slot?: string; of?: string; index?: number} = {}
+) {
+    const holder: PlainObject = of ? el.children?.find(it => it.id === of) : el;
+    if (!holder) throw new Error(`'${of}' is not a child of the element`);
+    const refs: ChildRef[] = (holder[slot] ??= []);
+    if (index == null || index >= refs.length) refs.push(ref);
+    else refs.splice(Math.max(0, index), 0, ref);
+}
+
+//------------------
+// Implementation
+//------------------
+// The keys of an element that are never slots.
+const ELEMENT_KEYS = ['component', 'config', 'personalizable'];
+
+function isRefList(value: unknown): boolean {
     return (
-        Object.entries(elements ?? {}).find(([, el]) => el.children?.some(c => c.id === id))?.[0] ??
-        null
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(it => it && typeof it === 'object' && typeof it.id === 'string')
     );
 }

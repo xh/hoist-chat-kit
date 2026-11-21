@@ -28,6 +28,8 @@ export interface BlueprintElement {
     config?: PlainObject;
     children?: ChildRef[];
     personalizable?: string[];
+    /** Its other slot lists, such as a panel's `tbar`, each a list of child references. */
+    [slot: string]: unknown;
 }
 
 /** A child's ID, plus whatever its container needs to place it, such as `x`, `y`, `w` and `h`. */
