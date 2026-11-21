@@ -21,7 +21,7 @@ export function withMoreNote(element: ReactElement, hidden: number): ReactElemen
     if (!(hidden > 0)) return element;
     return vbox({
         className: 'xh-chat-ui-more',
-        items: [
+        children: [
             element,
             div({className: 'xh-chat-ui-more__note', item: `${hidden} more not shown`})
         ]
