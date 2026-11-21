@@ -23,6 +23,7 @@
     "hoist-docs",
     "genui",
     "impl",
+    "skills",
     "styles",
     "threads",
     "transport",
