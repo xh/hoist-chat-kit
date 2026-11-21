@@ -17,20 +17,49 @@
     color: var(--xh-text-color-muted);
   }
 
-  &__section {
-    padding-top: var(--xh-spacing-half);
-    border-top: var(--xh-border-solid);
-    font-size: var(--xh-font-size-small);
-    font-weight: bold;
-    color: var(--xh-text-color-muted);
-    text-transform: uppercase;
+  // The element's ID, an identifier, as the app shell shows identifiers.
+  &__id input {
+    font-family: var(--xh-font-family-mono);
+    font-weight: 600;
   }
 
-  &__section--toggle {
+  &__section {
+    margin-top: var(--xh-spacing);
+    font-size: var(--xh-font-size-small);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--xh-text-color-muted);
+    text-transform: uppercase;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  &__card {
+    flex: none;
+    border: var(--xh-border-solid);
+    border-radius: 6px;
+    background-color: var(--xh-bg-alt);
+  }
+
+  &__card-header {
     display: flex;
     gap: var(--xh-spacing-half);
     align-items: center;
-    cursor: pointer;
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    font-weight: 600;
+
+    &--toggle {
+      cursor: pointer;
+    }
+  }
+
+  &__card-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing);
+    padding: var(--xh-spacing-half) var(--xh-spacing) var(--xh-spacing);
   }
 
   &__hint {
@@ -43,6 +72,25 @@
     display: flex;
     flex-direction: column;
     gap: var(--xh-spacing-half);
+  }
+
+  &__row-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+    min-width: 0;
+  }
+
+  // A one-line value beside its label, in a column of labels that line up.
+  &__row--inline {
+    display: grid;
+    grid-template-columns: minmax(88px, 34%) minmax(0, 1fr);
+    column-gap: var(--xh-spacing);
+    align-items: center;
+
+    > .xh-blueprint-element-inspector__label {
+      font-size: inherit;
+    }
   }
 
   &__label {

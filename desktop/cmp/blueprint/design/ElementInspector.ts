@@ -4,7 +4,9 @@ import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
+import classNames from 'classnames';
 import {isEqual} from 'lodash';
+import type {ReactNode} from 'react';
 import {
     type BlueprintDesignModel,
     type BlueprintRemoval,
@@ -293,6 +295,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                     children: [
                         textInput({
                             key: `${impl.elementId}:${impl.resets[ID_KEY] ?? 0}`,
+                            className: `${CLS}__id`,
                             value: impl.elementId,
                             disabled: impl.readOnly,
                             width: 160,
@@ -314,51 +317,90 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ),
                 impl.tabs ? tabsEditor(impl) : null,
                 impl.setsOptions ? setsEditor(impl) : null,
-                impl.placementNodes.length || impl.slotOptions.length > 1
-                    ? div({className: `${CLS}__section`, children: 'Placement'})
-                    : null,
-                impl.slotOptions.length > 1 ? slotEditor(impl) : null,
-                ...impl.placementNodes.map(node =>
-                    propertyRow({
-                        node,
-                        value: impl.placementValues[node.key],
-                        commit: v => impl.commitPlacement(node.key, v),
-                        ctx: {impl, key: placementKey(node.key)},
-                        issues: impl.issuesFor(placementKey(node.key)),
-                        key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
-                    })
+                ...(impl.sections.find(it => !it.label)?.nodes ?? []).map(node =>
+                    configRow(impl, node)
                 ),
-                impl.placementNodes.length
-                    ? div({className: `${CLS}__section`, children: 'Config'})
+                impl.placementNodes.length || impl.slotOptions.length > 1
+                    ? sectionCard({
+                          key: 'placement',
+                          title: 'Placement',
+                          children: [
+                              impl.slotOptions.length > 1 ? slotEditor(impl) : null,
+                              ...impl.placementNodes.map(node =>
+                                  propertyRow({
+                                      node,
+                                      value: impl.placementValues[node.key],
+                                      commit: v => impl.commitPlacement(node.key, v),
+                                      ctx: {impl, key: placementKey(node.key)},
+                                      issues: impl.issuesFor(placementKey(node.key)),
+                                      key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
+                                  })
+                              )
+                          ]
+                      })
                     : null,
-                ...impl.sections.flatMap(section => [
-                    section.label
-                        ? div({
-                              key: `section:${section.label}`,
-                              className: `${CLS}__section ${CLS}__section--toggle`,
-                              onClick: () => impl.toggleSection(section.label),
-                              children: [
-                                  section.collapsed ? Icon.chevronRight() : Icon.chevronDown(),
-                                  section.label
-                              ]
-                          })
-                        : null,
-                    ...(section.collapsed ? [] : section.nodes).map(node =>
-                        propertyRow({
-                            node,
-                            value: impl.values[node.key],
-                            commit: v => impl.commit(node.key, v),
-                            ctx: {impl, key: node.key},
-                            issues: impl.issuesFor(node.key),
-                            badge: impl.badgeFor(node.key),
-                            key: `${node.key}:${impl.resets[node.key] ?? 0}`
+                ...impl.sections
+                    .filter(it => it.label)
+                    .map(section =>
+                        sectionCard({
+                            key: `section:${section.label}`,
+                            title: `${section.label} (${section.nodes.length})`,
+                            collapsed: section.collapsed,
+                            onToggle: () => impl.toggleSection(section.label),
+                            children: section.nodes.map(node => configRow(impl, node))
                         })
                     )
-                ])
             ]
         });
     }
 });
+
+// One config property's row, with its issues and preset badge.
+function configRow(impl: ElementInspectorModel, node: EditorNode) {
+    return propertyRow({
+        node,
+        value: impl.values[node.key],
+        commit: v => impl.commit(node.key, v),
+        ctx: {impl, key: node.key},
+        issues: impl.issuesFor(node.key),
+        badge: impl.badgeFor(node.key),
+        key: `${node.key}:${impl.resets[node.key] ?? 0}`
+    });
+}
+
+// A titled group of rows, drawn as a card, which folds where it can.
+function sectionCard({
+    key,
+    title,
+    collapsed = false,
+    onToggle,
+    children
+}: {
+    key: string;
+    title: string;
+    collapsed?: boolean;
+    onToggle?: () => void;
+    children: ReactNode[];
+}) {
+    return div({
+        key,
+        className: `${CLS}__card`,
+        children: [
+            div({
+                className: classNames(
+                    `${CLS}__card-header`,
+                    onToggle && `${CLS}__card-header--toggle`
+                ),
+                onClick: onToggle,
+                children: [
+                    onToggle ? (collapsed ? Icon.chevronRight() : Icon.chevronDown()) : null,
+                    title
+                ]
+            }),
+            collapsed ? null : div({className: `${CLS}__card-body`, children})
+        ]
+    });
+}
 
 // The slot of its container that holds the element.
 function slotEditor(impl: ElementInspectorModel) {

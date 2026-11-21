@@ -1,18 +1,25 @@
+// Wrapping rows, each a category's label then its widgets, to fit a short strip.
 .xh-blueprint-widget-palette {
   display: flex;
-  flex-direction: column;
-  gap: var(--xh-spacing);
+  flex-flow: row wrap;
+  gap: var(--xh-spacing) calc(var(--xh-spacing) * 2);
   padding: var(--xh-spacing);
   overflow-y: auto;
 
+  &__target,
+  &__source,
+  &__message {
+    flex: 1 0 100%;
+  }
+
   &__group {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-flow: row wrap;
+    align-items: center;
   }
 
   &__category {
-    margin-bottom: var(--xh-spacing-half);
+    margin-right: var(--xh-spacing-half);
     font-size: var(--xh-font-size-small);
     color: var(--xh-text-color-muted);
   }

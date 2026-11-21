@@ -89,30 +89,55 @@ export interface RowProps {
 export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
     return div({
         key,
-        className: `${CLS}__row`,
+        // A one-line value sits beside its label. A structure takes the row's full width.
+        className: classNames(
+            `${CLS}__row`,
+            INLINE_KINDS.includes(node.kind) && !isMultiline(node) && `${CLS}__row--inline`
+        ),
         children: [
             div({
                 className: `${CLS}__label`,
                 title: node.description,
                 children: node.required ? `${node.label} *` : node.label
             }),
-            badge
-                ? div({
-                      className: classNames(
-                          `${CLS}__badge`,
-                          ctx.impl.canShowPresetGroups && `${CLS}__badge--link`
-                      ),
-                      title: ctx.impl.canShowPresetGroups ? 'Show the preset group' : null,
-                      onClick: () => ctx.impl.showPresetGroupFor(ctx.key),
-                      children: badge
-                  })
-                : null,
-            editorFor(node, value, commit, ctx),
-            ...issues.map((it, idx) =>
-                div({key: idx, className: `${CLS}__issue`, children: it.message})
-            )
+            div({
+                className: `${CLS}__row-body`,
+                children: [
+                    badge
+                        ? div({
+                              className: classNames(
+                                  `${CLS}__badge`,
+                                  ctx.impl.canShowPresetGroups && `${CLS}__badge--link`
+                              ),
+                              title: ctx.impl.canShowPresetGroups ? 'Show the preset group' : null,
+                              onClick: () => ctx.impl.showPresetGroupFor(ctx.key),
+                              children: badge
+                          })
+                        : null,
+                    editorFor(node, value, commit, ctx),
+                    ...issues.map((it, idx) =>
+                        div({key: idx, className: `${CLS}__issue`, children: it.message})
+                    )
+                ]
+            })
         ]
     });
+}
+
+const INLINE_KINDS = [
+    'text',
+    'date',
+    'number',
+    'boolean',
+    'choice',
+    'variable',
+    'preset',
+    'source',
+    'field'
+];
+
+function isMultiline(node: EditorNode): boolean {
+    return (node.kind === 'text' && node.multiline) || (node.kind === 'field' && node.multiple);
 }
 
 function editorFor(

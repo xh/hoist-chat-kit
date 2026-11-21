@@ -469,13 +469,29 @@ describe('ElementInspector', () => {
                     it => it.firstElementChild?.textContent === label
                 );
         expect(row('Stripe rows')).toBeUndefined();
-        fireEvent.click(screen.getByText('Style'));
+        fireEvent.click(screen.getByText(/^Style \(\d+\)$/));
         expect(row('Stripe rows').querySelector('input').checked).toBe(true);
         expect(row('Show hover').querySelector('input').checked).toBe(false);
         expect(row('Tree style').textContent).toContain('Default (highlights)');
         expect(row('Sizing mode').textContent).toContain('Default');
         expect(row('Sizing mode').textContent).not.toContain('Select');
         expect(model.blueprint).toBe(before);
+    });
+
+    it('draws sections as cards with counts, and a one-line value beside its label', () => {
+        const {design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (label: string) =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
+                    it => it.firstElementChild?.textContent === label
+                );
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
+                it => it.textContent
+            )
+        ).toEqual(['Placement', 'Data (6)', 'Columns (2)', 'Style (9)']);
+        expect(row('Title').className).toContain('__row--inline');
+        expect(row('Column state').className).not.toContain('__row--inline');
     });
 
     it('draws a labelled editor per property', () => {
