@@ -59,8 +59,10 @@ container also lists its children.
 
 - **Child references.** A container's `children` is a list of references: the child's ID, plus
   what the container needs to place it. A `dashCanvas` takes `x`, `y`, `w` and `h` on a grid of
-  its `columns`, 12 by default. A `tabContainer` takes `title` and `icon`. A `box` takes `flex`, `width` and
-  `height`.
+  its `columns`, 12 by default. A `tabContainer` takes `title` and `icon`. A `box` takes `flex`,
+  `width` and `height`. A child with none of these takes an equal share of the box, except an
+  input, a button row, a toolbar or a separator, which keep their own size, and `markdown` or a
+  `callout` in a column, which keep their own height. Give text a `flex` for a share it scrolls in.
 - **Slot lists.** A container can hold named lists beside `children`, each named for the
   component prop it fills. A `panel` has `tbar` and `bbar`, toolbars above and below its
   content, and `headerItems`, inputs in its header. A child reference can hold a slot list too,

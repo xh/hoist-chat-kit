@@ -141,6 +141,47 @@ describe('layout and container widgets', () => {
             ]);
         });
 
+        it('gives text its own height in a column, a share across a row, and a share where flex says', () => {
+            const text = (t: string) => ({component: 'markdown', config: {text: t}}),
+                flexOf = (root: string, elements: Record<string, BlueprintElement>) =>
+                    (
+                        [
+                            ...show(root, elements).container.querySelectorAll(
+                                `.xh-blueprint-box > .xh-blueprint-box__item`
+                            )
+                        ] as HTMLElement[]
+                    ).map(it => it.style.flex);
+            expect(
+                flexOf('col', {
+                    col: {
+                        component: 'box',
+                        config: {direction: 'column'},
+                        children: [{id: 'head'}, {id: 'note'}, {id: 'body'}, {id: 'long', flex: 1}]
+                    },
+                    head: text('A heading'),
+                    note: {component: 'callout', config: {text: 'A caveat'}},
+                    body: emptyPanel('Body'),
+                    long: text('Scrolls in its share')
+                })
+            ).toEqual([
+                expect.stringMatching(/^(none|0 0 auto)$/),
+                expect.stringMatching(/^(none|0 0 auto)$/),
+                expect.stringMatching(/^1/),
+                expect.stringMatching(/^1/)
+            ]);
+            expect(
+                flexOf('row', {
+                    row: {
+                        component: 'box',
+                        config: {direction: 'row'},
+                        children: [{id: 'a'}, {id: 'b'}]
+                    },
+                    a: text('Left'),
+                    b: text('Right')
+                })
+            ).toEqual([expect.stringMatching(/^1/), expect.stringMatching(/^1/)]);
+        });
+
         it('fills its parent as a frame by default, or sizes to its content as a box', () => {
             const filled = show('col', {
                     col: {component: 'box', config: {}, children: [{id: 'a'}]},
