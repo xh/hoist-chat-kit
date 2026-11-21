@@ -293,7 +293,8 @@ from the artifact. A change of type updates the series in place, so a zoom survi
 ```json
 {"cards": [
     {"label": "Revenue", "value": 1250000, "format": "currency", "decimals": 0},
-    {"label": "Margin", "value": 0.184, "format": "percent", "delta": 0.012, "deltaLabel": "vs Q2"},
+    {"label": "Margin", "value": 0.184, "format": "percent", "delta": 0.012, "deltaLabel": "vs Q2",
+        "trend": [0.162, 0.171, 0.168, 0.184]},
     {"label": "Open issues", "value": 7, "intent": "warning"}
 ]}
 ```
@@ -306,9 +307,13 @@ A screen reader hears the delta in words, such as "up 1.2%", as the arrow alone 
 way the value moved.
 With `invert`, for a figure where up is bad, a rise shows in the negative color. It takes the
 format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
-under the value. An `intent` colors the card's outline. A large `number` or `currency` value, from
-100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
-shows the full value. The model sends the full number.
+under the value. A `trend`, the past values of that same figure with the oldest first, shows on
+the same line as a Hoist `Sparkline`. The model takes it from tool data, and leaves it out when no
+tool gives that history. The trend has no color of its own, and needs at least two numbers. Its
+accessible name gives the figure and its first and last values. An `intent` colors the card's
+outline. A large `number` or `currency` value, from 100,000 up, shows to three significant digits
+with a `K`, `M`, `B` or `T` suffix. Its tooltip shows the full value. The model sends the full
+number.
 
 A card shows one record, with its title and subtitle in the header strip. Each action is a typed
 `ChatUiAction` with a `label`, shown as an outlined chip after the card. A click runs it through
@@ -670,6 +675,7 @@ and `description`, the text that tells the model when to use the component.
 | | `height` | `number` | Chart body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 | | `byReference` | `boolean` | Take an artifact and a chart view, not series. Default false. |
 | `chatUiStatCardsSpec` | `maxItems` | `number` | Most figures. Default 4. |
+| | `maxTrendPoints` | `number` | Most values in the trend of a figure. Default 60. |
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |

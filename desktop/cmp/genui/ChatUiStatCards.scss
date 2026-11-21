@@ -9,6 +9,14 @@
   line-height: normal;
 }
 
+// The line under a value that has a trend: the label of the delta, then a Hoist Sparkline that
+// takes the rest of the line.
+.xh-chat-ui-stat-cards__trend {
+  align-items: center;
+  display: flex;
+  gap: var(--xh-spacing-half);
+}
+
 // In a row of a stack, the strip keeps the height of its cards. A row stretches each child to its
 // tallest, such as a chart, and a stretched strip stretches its cards with it.
 .xh-chat-ui-stack.xh-hbox > .xh-chat-ui-stat-cards {
