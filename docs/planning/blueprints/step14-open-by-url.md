@@ -116,6 +116,10 @@ not as silent drops. I recommend the notice, as silent drops hide a broken link.
 
 - **Open.** `repository.openAsync(id, opts)` already returns null for both "missing" and "not
   yours", so a link reveals nothing about a blueprint the viewer cannot read.
+- **Ids and types.** The id in a link is the blueprint's stable token, the same in every
+  environment (decision 160). A repository holds one type and scopes every read to it, and
+  `BlueprintDocumentModel` also refuses a record of another type, so a link to another app's
+  blueprint shows the denied view (decision 159).
 - **Denied.** One view: "This blueprint doesn't exist, or isn't shared with you." It offers
   nothing to retry.
 - **A draft or old version a reader can't open.** The kit falls back to the latest publish when

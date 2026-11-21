@@ -279,7 +279,7 @@ import {BlueprintDocumentModel, HoistCoreBlueprintRepository} from '@xh/hoist-ch
 
 const doc = new BlueprintDocumentModel({
     blueprintModel: model,
-    repository: new HoistCoreBlueprintRepository()
+    repository: new HoistCoreBlueprintRepository({type: 'acme.dashboard'})
 });
 
 await doc.openAsync(id); // The latest publish, in run mode
@@ -288,6 +288,10 @@ await doc.saveDraftAsync();
 await doc.publishAsync('Adds the risk view');
 ```
 
+- **One type per repository.** A type, such as `acme.dashboard` or `acme.printReport`, is one use
+  of blueprints in an app, with its own widgets and datasets. Build a repository for each type, and
+  open its blueprints in a model with that type's registry and catalog. A repository scopes every
+  read and write to its type, so a blueprint of another type is missing to it, even by id.
 - **One shared draft, numbered publishes.** Writers edit the draft. A publish copies it as the
   next number and never changes. Readers open only the latest publish.
 - **The repository decides access.** Each record carries `access`, `canPublish` and `canShare`.
@@ -299,6 +303,9 @@ await doc.publishAsync('Adds the risk view');
   `createAsync(name)`, which saves them as a new blueprint that records the draft it copies. If
   the user has lost access to that draft, the new blueprint is created without the record, so the
   edits are not lost.
+- **Copies into another type.** `copyAsync(name, from, into)` copies into the type that `into`
+  names, with its repository, registry and catalog. The copy must pass that type's validation,
+  and records no source.
 - **Renames for personalizations.** The draft keeps the renames of elements, variables and sources
   since the last publish, and each publish records them.
 
@@ -313,6 +320,13 @@ await doc.publishAsync('Adds the risk view');
 ### Write a repository
 
 Implement `BlueprintRepository`. Its doc comment states the contract in full. The essentials:
+
+- Hold one `type` of blueprint, and scope every read and write to it. Answer for a blueprint of
+  another type as for a missing one.
+- Give each blueprint an `id` that is a stable token, the same in every environment, never a
+  database id. Links carry it.
+- Keep names unique per owner and type. Reject a create or copy with a name the user already has,
+  with an `httpStatus` of 400.
 
 - Act for the signed-in user. List only the blueprints that user may read, and fill each record's
   `access`, `canPublish` and `canShare`. Only a server is a security boundary, so refuse drafts
@@ -340,6 +354,8 @@ query params:
 /blueprints/:id?version=3&preset=view:byStrategy&asOf=2026-11-20&fund=A&fund=B
 ```
 
+- A link to a blueprint of another type opens nothing, as for a missing one, even if a
+  repository fails to scope by type.
 - `version=N` opens publish N, and `draft` opens the draft. With neither, a link opens the latest
   publish. `preset=group:item` repeats once per group. `id`, `version`, `draft` and `preset` are
   reserved, so no variable may take those names (`variable.reservedName`).

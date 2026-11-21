@@ -4,15 +4,42 @@ import {isGlobal} from './BlueprintRepository';
 import {InMemoryBlueprintRepository} from './InMemoryBlueprintRepository';
 
 describe('InMemoryBlueprintRepository', () => {
-    const OWNER = {
-        canCreate: true,
-        accessOf: () => ({access: 'write' as const, canPublish: true, canShare: true})
-    };
+    const TYPE = 'acme.dashboard',
+        OWNER = {
+            type: TYPE,
+            canCreate: true,
+            accessOf: () => ({access: 'write' as const, canPublish: true, canShare: true})
+        };
 
     it('fails closed by default: no creating, and read access only', async () => {
-        const repository = new InMemoryBlueprintRepository();
+        const repository = new InMemoryBlueprintRepository({type: TYPE});
         expect(await repository.canCreateAsync()).toBe(false);
         await expect(create(repository)).rejects.toThrow(/may not create/);
+    });
+
+    it('takes one dotted type, and records it on every blueprint', async () => {
+        expect(() => new InMemoryBlueprintRepository({type: null})).toThrow(/type/);
+        expect(() => new InMemoryBlueprintRepository({type: 'dashboard'})).toThrow(/dotted/);
+        expect(() => new InMemoryBlueprintRepository({type: `acme.${'x'.repeat(50)}`})).toThrow(
+            /50/
+        );
+        const repository = new InMemoryBlueprintRepository(OWNER),
+            {id, type} = await create(repository);
+        expect(repository.type).toBe(TYPE);
+        expect(type).toBe(TYPE);
+        expect((await repository.listAsync())[0].type).toBe(TYPE);
+        expect((await repository.openAsync(id, {as: 'draft'})).type).toBe(TYPE);
+    });
+
+    it('refuses a name the user already has in its type, on a create or a copy', async () => {
+        const repository = new InMemoryBlueprintRepository(OWNER),
+            {id} = await create(repository);
+        await repository.publishAsync(id, {base: 1});
+        await expect(create(repository)).rejects.toMatchObject({httpStatus: 400});
+        await expect(repository.copyAsync(id, {name: 'Positions'})).rejects.toMatchObject({
+            httpStatus: 400
+        });
+        expect((await repository.copyAsync(id, {name: 'Positions 2'})).name).toBe('Positions 2');
     });
 
     const create = (repository: InMemoryBlueprintRepository) =>
@@ -68,7 +95,11 @@ describe('InMemoryBlueprintRepository', () => {
 
     it('refuses to record a copy of a version the user may not open', async () => {
         const grant = {access: 'write' as 'read' | 'write', canPublish: true},
-            repository = new InMemoryBlueprintRepository({canCreate: true, accessOf: () => grant});
+            repository = new InMemoryBlueprintRepository({
+                type: TYPE,
+                canCreate: true,
+                accessOf: () => grant
+            });
         const {id} = await create(repository);
         grant.access = 'read';
         await expect(
@@ -122,6 +153,7 @@ describe('InMemoryBlueprintRepository', () => {
 
     it("lists each blueprint with the user's access to it", async () => {
         const repository = new InMemoryBlueprintRepository({
+            type: TYPE,
             canCreate: true,
             accessOf: () => ({access: 'read', canPublish: false})
         });

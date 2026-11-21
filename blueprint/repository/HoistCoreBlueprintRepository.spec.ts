@@ -11,7 +11,7 @@ describe('HoistCoreBlueprintRepository', () => {
         await initTestAppAsync();
     });
 
-    const repository = new HoistCoreBlueprintRepository(),
+    const repository = new HoistCoreBlueprintRepository({type: 'acme.dashboard'}),
         record = {
             id: 'bp1',
             name: 'Positions',
@@ -23,6 +23,28 @@ describe('HoistCoreBlueprintRepository', () => {
 
     it('checks a stale base on the server', () => {
         expect(repository.enforcesBase).toBe(true);
+    });
+
+    it('takes one dotted type', () => {
+        expect(() => new HoistCoreBlueprintRepository({type: 'dashboard'})).toThrow(/dotted/);
+        expect(repository.type).toBe('acme.dashboard');
+    });
+
+    it('scopes every request to its type, in the query of a GET or a POST', async () => {
+        hoistCore.route('GET', 'xhBlueprint/list', () => []);
+        hoistCore.route('POST', 'xhBlueprint/create', () => record);
+        hoistCore.route('POST', 'xhBlueprint/delete', () => noContent());
+        await repository.listAsync();
+        await repository.createAsync({name: 'Positions', blueprint: {}});
+        await repository.deleteAsync('bp1');
+        expect(hoistCore.requestsTo('xhBlueprint/list')[0].query).toEqual({type: 'acme.dashboard'});
+        expect(hoistCore.requestsTo('xhBlueprint/create')[0].query).toEqual({
+            type: 'acme.dashboard'
+        });
+        expect(hoistCore.requestsTo('xhBlueprint/delete')[0].query).toEqual({
+            id: 'bp1',
+            type: 'acme.dashboard'
+        });
     });
 
     it('lists, answers whether the user may create, and opens a version', async () => {
@@ -37,8 +59,13 @@ describe('HoistCoreBlueprintRepository', () => {
         expect(await repository.openAsync('bp1', {as: 'draft'})).toMatchObject({kind: 'draft'});
         expect(await repository.openAsync('bp1', {as: 'publish', version: 7})).toBeNull();
         const [draft, missing] = hoistCore.requestsTo('xhBlueprint/open');
-        expect(draft.query).toEqual({id: 'bp1', as: 'draft'});
-        expect(missing.query).toEqual({id: 'bp1', as: 'publish', version: '7'});
+        expect(draft.query).toEqual({id: 'bp1', as: 'draft', type: 'acme.dashboard'});
+        expect(missing.query).toEqual({
+            id: 'bp1',
+            as: 'publish',
+            version: '7',
+            type: 'acme.dashboard'
+        });
     });
 
     it('saves and publishes with the ID in the query and the rest in the body', async () => {
@@ -58,7 +85,7 @@ describe('HoistCoreBlueprintRepository', () => {
         });
         const [save] = hoistCore.requestsTo('xhBlueprint/saveDraft'),
             [publish] = hoistCore.requestsTo('xhBlueprint/publish');
-        expect(save.query).toEqual({id: 'bp 1'});
+        expect(save.query).toEqual({id: 'bp 1', type: 'acme.dashboard'});
         expect(save.json).toEqual({blueprint: {root: 'x'}, base: 2, renames});
         expect(publish.json).toEqual({base: 3, note: 'Ready'});
     });
@@ -111,7 +138,10 @@ describe('HoistCoreBlueprintRepository', () => {
             name: 'Mine',
             from: {as: 'publish', version: 1}
         });
-        expect(hoistCore.requestsTo('xhBlueprint/delete')[0].query).toEqual({id: 'bp1'});
+        expect(hoistCore.requestsTo('xhBlueprint/delete')[0].query).toEqual({
+            id: 'bp1',
+            type: 'acme.dashboard'
+        });
         expect(hoistCore.requestsTo('xhBlueprint/updateAccess')[0].json).toEqual({
             writers: ['ann'],
             readers: ['*']
@@ -126,7 +156,8 @@ describe('HoistCoreBlueprintRepository', () => {
         expect(await repository.loadPersonalizationsAsync('bp1')).toEqual([p]);
         await repository.savePersonalizationAsync(p);
         expect(hoistCore.requestsTo('xhBlueprint/personalizations')[0].query).toEqual({
-            blueprintId: 'bp1'
+            blueprintId: 'bp1',
+            type: 'acme.dashboard'
         });
         expect(hoistCore.requestsTo('xhBlueprint/savePersonalization')[0].json).toEqual(p);
     });

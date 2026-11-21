@@ -5,6 +5,13 @@ import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../B
  * publishes that never change, and each user's personalizations. The library defines what a
  * repository must do, and the app decides how, such as with Hoist's JsonBlobs or its own server.
  *
+ * - A repository holds one type of blueprint, such as `acme.dashboard`, and scopes every read and
+ *   write to it. A blueprint of another type is missing to it, even by id. The host builds each
+ *   type's repository, and opens its blueprints with that type's registry and catalog.
+ * - A blueprint's `id` is its stable token: the same in every environment, never a database id. A
+ *   link carries it.
+ * - A name is unique per owner and type. A create or a copy with a name the user already has in
+ *   the type rejects with an `httpStatus` of 400.
  * - A repository acts for its signed-in user. It lists only the blueprints that user may read, and
  *   its personalization methods reach only that user's personalizations.
  * - It is the only source of access. Each summary and record says what the user may do, and
@@ -27,6 +34,9 @@ import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../B
  *   other call rejects.
  */
 export interface BlueprintRepository {
+    /** The type of blueprint the repository holds: a dotted name, such as `acme.dashboard`. */
+    readonly type: string;
+
     /**
      * True if the repository refuses a stale `base` itself, atomically on its server. False, and
      * the library reads the draft's version before each save and publish.
@@ -134,7 +144,10 @@ export type BlueprintOpenOptions = {as: 'draft'} | {as: 'publish'; version?: num
 
 /** A blueprint as a repository lists it. */
 export interface BlueprintSummary {
+    /** The blueprint's stable token, the same in every environment. */
     id: string;
+    /** The type of the repository that holds it. */
+    type: string;
     name: string;
     description?: string;
     /**
@@ -157,7 +170,7 @@ export interface BlueprintSummary {
     /** Epoch millis of the last save or publish. */
     updated: number;
     updatedBy?: string;
-    /** The blueprint and version a copy came from. */
+    /** The blueprint and version a copy came from, always of the same type. */
     copiedFrom?: {id: string; version: number; as: 'draft' | 'publish'};
     /** Who the blueprint is shared with, only for a user who may share it. */
     sharing?: BlueprintAccessSpec;

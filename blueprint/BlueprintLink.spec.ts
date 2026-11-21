@@ -408,6 +408,7 @@ function open(dataProvider = new FakeBlueprintDataProvider({catalog: portfolioCa
 async function openDocument(access: 'read' | 'write') {
     let grant = {access: 'write' as const, canPublish: true} as PlainObject;
     const repository = new InMemoryBlueprintRepository({
+            type: 'acme.dashboard',
             canCreate: true,
             accessOf: () => ({...grant}) as any
         }),

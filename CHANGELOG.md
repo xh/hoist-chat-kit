@@ -72,7 +72,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `ActionSpec.allowedIn`. The validator refuses an action outside the blueprints it names.
 * Added stored blueprints: the `BlueprintRepository` contract, with one shared draft per blueprint
   and numbered publishes, and `BlueprintDocumentModel`, which opens, saves, publishes, copies,
-  shares and deletes them. Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint`
+  shares and deletes them. Each repository holds one `type` of blueprint, such as
+  `acme.dashboard`, and a copy into another type must pass that type's registry and catalog. Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint`
   endpoints, and `InMemoryBlueprintRepository`, for tests. See
   [Save, open and publish blueprints](blueprint/README.md#save-open-and-publish-blueprints).
 

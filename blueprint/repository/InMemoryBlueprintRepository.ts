@@ -14,6 +14,7 @@ import {
     type BlueprintSummary,
     staleBaseIssue
 } from './BlueprintRepository';
+import {checkBlueprintType} from './impl/blueprintType';
 
 /**
  * A {@link BlueprintRepository} in memory, for tests and demos. It holds everything as copies, so
@@ -25,6 +26,7 @@ import {
  * read only, with no creating, publishing or sharing.
  */
 export class InMemoryBlueprintRepository implements BlueprintRepository {
+    readonly type: string;
     readonly enforcesBase: boolean;
     readonly sharingModes: BlueprintSharingMode[] = ['users', 'roles', 'everyone'];
     private readonly canShareGlobally: boolean;
@@ -35,19 +37,21 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
     private readonly personalizations = new Map<string, BlueprintPersonalization>();
     private nextId = 1;
 
-    constructor(
-        config: {
-            enforcesBase?: boolean;
-            /** The signed-in user the repository acts for. Default `user`. */
-            userId?: string;
-            /** The user's access to each blueprint. Default read, with no publishing or sharing. */
-            accessOf?: (id: string) => Grant;
-            /** True if the user may create blueprints. Default false. */
-            canCreate?: boolean;
-            /** True if a user who may share a blueprint may share it with everyone. Default false. */
-            canShareGlobally?: boolean;
-        } = {}
-    ) {
+    constructor(config: {
+        /** The type of blueprint it holds, such as `acme.dashboard`. */
+        type: string;
+        enforcesBase?: boolean;
+        /** The signed-in user the repository acts for. Default `user`. */
+        userId?: string;
+        /** The user's access to each blueprint. Default read, with no publishing or sharing. */
+        accessOf?: (id: string) => Grant;
+        /** True if the user may create blueprints. Default false. */
+        canCreate?: boolean;
+        /** True if a user who may share a blueprint may share it with everyone. Default false. */
+        canShareGlobally?: boolean;
+    }) {
+        checkBlueprintType(config?.type);
+        this.type = config.type;
         this.enforcesBase = config.enforcesBase ?? true;
         this.userId = config.userId ?? 'user';
         this.accessOf = config.accessOf ?? (() => ({access: 'read', canPublish: false}));
@@ -89,6 +93,10 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
 
     async createAsync(spec: BlueprintCreateSpec): Promise<BlueprintRecord> {
         if (!this.canCreate) throw new Error('You may not create a blueprint.');
+        const taken = [...this.items.values()].some(
+            it => it.owner === this.userId && it.name === spec.name
+        );
+        if (taken) throw httpError(400, `You already have a blueprint named '${spec.name}'.`);
         if (spec.copiedFrom) this.checkSource(spec.copiedFrom);
         const id = `bp${this.nextId++}`;
         this.items.set(id, {
@@ -230,6 +238,7 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
     private summaryOf(item: Item): BlueprintSummary {
         return {
             id: item.id,
+            type: this.type,
             name: item.name,
             ...(item.description ? {description: item.description} : {}),
             ...(item.owner ? {owner: item.owner} : {}),

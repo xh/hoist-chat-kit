@@ -6,6 +6,8 @@ import type {Blueprint, BlueprintAccess, BlueprintIssue} from '../Blueprint';
 import {type BlueprintLinkParams, parseBlueprintLink} from '../BlueprintLink';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
+import type {DataCatalog} from '../DataCatalog';
+import {validateBlueprint} from '../validateBlueprint';
 import {
     type BlueprintAccessSpec,
     type BlueprintCreateSpec,
@@ -18,6 +20,16 @@ import {
     sharingModeOf,
     staleBaseIssue
 } from './BlueprintRepository';
+
+/**
+ * Where a copy into another type goes: that type's repository, and the registry and catalog its
+ * blueprints are checked against.
+ */
+export interface BlueprintCopyTarget {
+    repository: BlueprintRepository;
+    registry: BlueprintRegistry;
+    catalog: DataCatalog;
+}
 
 /** The opened version of a blueprint, without the blueprint, which its model holds. */
 export type BlueprintDocument = Omit<BlueprintRecord, 'blueprint'>;
@@ -96,7 +108,7 @@ export class BlueprintDocumentModel extends HoistModel {
         id: string,
         opts: BlueprintOpenOptions = {as: 'publish'}
     ): Promise<BlueprintIssue[]> {
-        const record = await this.repository.openAsync(id, opts);
+        const record = await this.openRecordAsync(id, opts);
         if (!record)
             return [refusal(`There is no ${opts.as} of this blueprint that you may open.`)];
         const access: BlueprintAccess = record.access === 'write' ? 'write' : 'read';
@@ -253,17 +265,43 @@ export class BlueprintDocumentModel extends HoistModel {
     /**
      * Copy the blueprint open into a new one, from its latest publish by default. Copying needs
      * the right to create, and copying a draft, or an older publish, needs write access.
+     *
+     * @param into - another type to copy into. The copy must pass that type's registry and
+     *      catalog, and records no source, as a copy's source is always of its own type.
      */
-    copyAsync(name: string, from?: BlueprintOpenOptions): Promise<BlueprintRecord> {
+    copyAsync(
+        name: string,
+        from?: BlueprintOpenOptions,
+        into?: BlueprintCopyTarget
+    ): Promise<BlueprintRecord> {
         return this.inTurnAsync(async () => {
-            const {document} = this;
+            const {document, repository} = this,
+                target = into?.repository ?? repository;
             throwIf(!document, 'Open a blueprint to copy it.');
             throwIf(
                 from && needsWrite(from) && document.access !== 'write',
                 'You may copy only the latest publish.'
             );
-            throwIf(!(await this.repository.canCreateAsync()), 'You may not create a blueprint.');
-            return this.repository.copyAsync(document.id, {name, ...(from ? {from} : {})});
+            throwIf(!(await target.canCreateAsync()), 'You may not create a blueprint.');
+            if (target.type === repository.type) {
+                return repository.copyAsync(document.id, {name, ...(from ? {from} : {})});
+            }
+            const source = await this.openRecordAsync(document.id, from ?? {as: 'publish'});
+            if (!source) return null;
+            const {registry, catalog} = into,
+                blueprint = this.migrate ? this.migrate(source.blueprint) : source.blueprint,
+                errors = validateBlueprint(blueprint, {catalog, registry}).filter(
+                    it => it.severity === 'error'
+                );
+            throwIf(
+                errors.length,
+                `This blueprint does not fit ${target.type}: ${errors.map(it => it.message).join(' ')}`
+            );
+            return target.createAsync({
+                name,
+                description: source.description,
+                blueprint: {...blueprint, schema: schemaMapOf(blueprint, registry)}
+            });
         });
     }
 
@@ -335,6 +373,16 @@ export class BlueprintDocumentModel extends HoistModel {
             });
         if (version != null) this.saved(version, sent);
         return this.wentStale(issues);
+    }
+
+    // A repository that fails to scope by type must not open another type's blueprint.
+    private async openRecordAsync(
+        id: string,
+        opts: BlueprintOpenOptions
+    ): Promise<BlueprintRecord> {
+        const {repository} = this,
+            ret = await repository.openAsync(id, opts);
+        return ret?.type === repository.type ? ret : null;
     }
 
     // Run a write after those before it, whether they succeeded or failed.

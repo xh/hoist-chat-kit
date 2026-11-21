@@ -3,6 +3,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import type {BlueprintAccess} from '../Blueprint';
 import {BlueprintModel} from '../BlueprintModel';
+import {BlueprintRegistry} from '../BlueprintRegistry';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
 import {BlueprintDocumentModel} from './BlueprintDocumentModel';
 import type {BlueprintRecord} from './BlueprintRepository';
@@ -27,6 +28,7 @@ describe('BlueprintDocumentModel', () => {
 
     // What a blueprint's owner may do.
     const OWNER: Grant = {access: 'write', canPublish: true, canShare: true};
+    const TYPE = 'acme.dashboard';
 
     function session(repository: InMemoryBlueprintRepository) {
         const blueprintModel = new BlueprintModel({
@@ -49,6 +51,7 @@ describe('BlueprintDocumentModel', () => {
         let shared: string = null;
         const repository = new InMemoryBlueprintRepository({
                 ...config,
+                type: TYPE,
                 canCreate: true,
                 accessOf: it => ({...(it === shared ? grant : OWNER)})
             }),
@@ -147,7 +150,11 @@ describe('BlueprintDocumentModel', () => {
         }
 
         async function gated() {
-            const repository = new Gated({canCreate: true, accessOf: () => ({...OWNER})}),
+            const repository = new Gated({
+                    type: TYPE,
+                    canCreate: true,
+                    accessOf: () => ({...OWNER})
+                }),
                 {id} = await repository.createAsync({
                     name: 'Positions',
                     blueprint: loadBlueprint('p3-morning-report.json')
@@ -347,7 +354,11 @@ describe('BlueprintDocumentModel', () => {
                 return rest as BlueprintRecord;
             }
         }
-        const repository = new Silent({canCreate: true, accessOf: () => ({...OWNER})}),
+        const repository = new Silent({
+                type: TYPE,
+                canCreate: true,
+                accessOf: () => ({...OWNER})
+            }),
             {id} = await repository.createAsync({
                 name: 'Positions',
                 blueprint: loadBlueprint('p3-morning-report.json')
@@ -364,7 +375,9 @@ describe('BlueprintDocumentModel', () => {
     });
 
     it('creates only where the repository allows', async () => {
-        const {blueprintModel, doc} = session(new InMemoryBlueprintRepository({canCreate: false}));
+        const {blueprintModel, doc} = session(
+            new InMemoryBlueprintRepository({type: TYPE, canCreate: false})
+        );
         blueprintModel.setBlueprint(loadBlueprint('p2-linked-dashboard.json'));
         expect(errors(await doc.createAsync('New'))).toEqual(['edit.notAllowed']);
     });
@@ -464,6 +477,7 @@ describe('BlueprintDocumentModel', () => {
 
     it('creates a blueprint from the one open, and deletes it with its personalizations', async () => {
         const repository = new InMemoryBlueprintRepository({
+                type: TYPE,
                 canCreate: true,
                 accessOf: () => ({...OWNER})
             }),
@@ -483,6 +497,59 @@ describe('BlueprintDocumentModel', () => {
         expect(await repository.listAsync()).toEqual([]);
         expect(await repository.loadPersonalizationsAsync(id)).toEqual([]);
         expect(blueprintModel.blueprint).toBeNull();
+    });
+
+    it('opens nothing, by id or by link, of a blueprint of another type', async () => {
+        const other = new InMemoryBlueprintRepository({
+                type: 'acme.report',
+                canCreate: true,
+                accessOf: () => ({...OWNER})
+            }),
+            {id} = await other.createAsync({
+                name: 'Report',
+                blueprint: loadBlueprint('p2-linked-dashboard.json')
+            });
+        await other.publishAsync(id, {base: 1});
+        // A repository that fails to scope its reads by type.
+        const leaky = Object.assign(Object.create(other), {
+                type: TYPE,
+                openAsync: (...args: Parameters<typeof other.openAsync>) => other.openAsync(...args)
+            }),
+            {blueprintModel, doc} = session(leaky);
+
+        expect(errors(await doc.openAsync(id, {as: 'draft'}))).toEqual(['edit.notAllowed']);
+        expect(errors((await doc.openLinkAsync({id})).issues)).toEqual(['edit.notAllowed']);
+        expect(blueprintModel.blueprint).toBeNull();
+        expect(doc.document).toBeNull();
+    });
+
+    it("copies into another type only if that type's registry and catalog accept it", async () => {
+        const {repository, id} = await created(),
+            {doc} = session(repository),
+            target = (registry: BlueprintRegistry) => ({
+                repository: new InMemoryBlueprintRepository({
+                    type: 'acme.report',
+                    canCreate: true,
+                    accessOf: () => ({...OWNER})
+                }),
+                registry,
+                catalog: portfolioCatalog
+            });
+        await doc.openAsync(id, {as: 'draft'});
+
+        // The blueprint uses app entries that a bare registry lacks.
+        const bare = target(new BlueprintRegistry());
+        await expect(doc.copyAsync('Copy', {as: 'draft'}, bare)).rejects.toThrow(
+            /does not fit acme\.report/
+        );
+        expect(await bare.repository.listAsync()).toEqual([]);
+
+        const fits = target(scenarioRegistry()),
+            record = await doc.copyAsync('Copy', {as: 'draft'}, fits);
+        expect(record).toMatchObject({type: 'acme.report', name: 'Copy', kind: 'draft'});
+        expect(record).not.toHaveProperty('copiedFrom');
+        expect(record.blueprint.schema.widgets).toMatchObject({cubeGrid: 1});
+        expect(await repository.listAsync()).toHaveLength(1);
     });
 
     it('upgrades a blueprint through migrate as it opens', async () => {

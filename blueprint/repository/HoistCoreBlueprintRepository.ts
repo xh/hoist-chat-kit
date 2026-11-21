@@ -14,9 +14,11 @@ import type {
     BlueprintSharingMode,
     BlueprintSummary
 } from './BlueprintRepository';
+import {checkBlueprintType} from './impl/blueprintType';
 
 /**
- * A {@link BlueprintRepository} over hoist-core's blueprint endpoints, `xhBlueprint/<action>`.
+ * A {@link BlueprintRepository} over hoist-core's blueprint endpoints, `xhBlueprint/<action>`, for
+ * one type of blueprint, which every request names in its query.
  * hoist-core keeps blueprints in its database, checks each user's access, and refuses a stale
  * `base` atomically. An app enables it in hoist-core with the `xhBlueprintConfig` config.
  *
@@ -26,20 +28,31 @@ import type {
  * publish, null from an open or a copy, and a rejection from any other call.
  */
 export class HoistCoreBlueprintRepository implements BlueprintRepository {
+    readonly type: string;
     readonly enforcesBase = true;
     readonly sharingModes: BlueprintSharingMode[] = ['users', 'roles', 'everyone'];
     private readonly baseUrl: string;
 
-    constructor(config: {/** Default `xhBlueprint`. */ baseUrl?: string} = {}) {
+    constructor(config: {
+        /** The type of blueprint it holds, such as `acme.dashboard`. */
+        type: string;
+        /** Default `xhBlueprint`. */
+        baseUrl?: string;
+    }) {
+        checkBlueprintType(config?.type);
+        this.type = config.type;
         this.baseUrl = config.baseUrl ?? 'xhBlueprint';
     }
 
     listAsync(): Promise<BlueprintSummary[]> {
-        return XH.fetchJson({url: this.url('list')});
+        return XH.fetchJson({url: this.url('list'), params: {type: this.type}});
     }
 
     async canCreateAsync(): Promise<boolean> {
-        const {canCreate} = await XH.fetchJson({url: this.url('canCreate')});
+        const {canCreate} = await XH.fetchJson({
+            url: this.url('canCreate'),
+            params: {type: this.type}
+        });
         return canCreate === true;
     }
 
@@ -47,7 +60,7 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
         const version = opts.as === 'publish' ? opts.version : null;
         return XH.fetchJson({
             url: this.url('open'),
-            params: {id, as: opts.as, ...(version != null ? {version} : {})}
+            params: {id, as: opts.as, ...(version != null ? {version} : {}), type: this.type}
         });
     }
 
@@ -67,7 +80,7 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
     }
 
     listPublishesAsync(id: string): Promise<BlueprintPublish[]> {
-        return XH.fetchJson({url: this.url('listPublishes'), params: {id}});
+        return XH.fetchJson({url: this.url('listPublishes'), params: {id, type: this.type}});
     }
 
     async copyAsync(
@@ -87,7 +100,10 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
     }
 
     loadPersonalizationsAsync(blueprintId: string): Promise<BlueprintPersonalization[]> {
-        return XH.fetchJson({url: this.url('personalizations'), params: {blueprintId}});
+        return XH.fetchJson({
+            url: this.url('personalizations'),
+            params: {blueprintId, type: this.type}
+        });
     }
 
     async savePersonalizationAsync(p: BlueprintPersonalization): Promise<void> {
@@ -101,10 +117,13 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
     //------------------
     // Implementation
     //------------------
-    // A POST carries its ID in the query, as hoist-core reads its body as the JSON payload.
+    // A POST carries its ID and type in the query, as hoist-core reads its body as the JSON
+    // payload. A GET passes them as params.
     private url(action: string, id?: string): string {
-        const ret = `${this.baseUrl}/${action}`;
-        return id == null ? ret : `${ret}?id=${encodeURIComponent(id)}`;
+        const base = `${this.baseUrl}/${action}`;
+        if (!POSTS.includes(action)) return base;
+        const query = new URLSearchParams({...(id != null ? {id} : {}), type: this.type});
+        return `${base}?${query}`;
     }
 
     private async refusalsAsIssues<T extends {issues: BlueprintIssue[]}>(
@@ -120,6 +139,16 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
         }
     }
 }
+
+const POSTS = [
+    'create',
+    'saveDraft',
+    'publish',
+    'copy',
+    'delete',
+    'savePersonalization',
+    'updateAccess'
+];
 
 function refused(code: string, e: {message?: string}): BlueprintIssue {
     return {code, severity: 'error', path: '', message: e?.message ?? code};
