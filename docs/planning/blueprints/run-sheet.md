@@ -98,3 +98,83 @@ tb lists the steps when it runs them.
 12. S4: the input toolbar sits in the Positions panel's top toolbar as before, and the outline lists it as "Toolbar · tbar".
 13. Presets editor on a copy of P3: remove the selector and the `preset.noSelector` warning appears. "Add selector" puts one back in posGrid's cell header.
 14. Styling (ck babdadf, Toolbox 8f4f300b): review the Inspector's editors (Placement, a grid's Data / Columns / Style sections, Variables, Sources, Presets) against the Data Catalog cards, and name the worst remaining looks for ck. The palette strip wraps as rows.
+
+## L. Step 15, the demo apps (Toolbox 545763f2 to 7055bb51)
+
+1. Examples lists Portfolio Blueprints and Weather Blueprints. Each opens on its own library only: 8 portfolio presets, or 6 weather (W1-W5, S5).
+2. Weather: W3 shows a temperature gauge (blue to red) for New York, conditions cards, and temperature and precipitation charts. W4 shows New York and London side by side. W5 has a °C/°F toggle that switches every source and redraws the gauges.
+3. Portfolio: P3 opens by link at `/portfolioBlueprints/morning-report?asOf=...`. Fund and date changes, the treemap filter (S1) and the Columns selector work, and the portfolio builder (P5) runs.
+4. A weather link opened in the Portfolio app shows the denied view.
+5. Blueprints tab: a Portfolio / Weather picker swaps the library, catalog and Registry. Links read `/app/blueprints/weather/<token>` and `/app/blueprints/portfolio/<token>`.
+6. Architect header shows "N calls left this hour". At zero, or when paused, the composer blocks with the server's reason.
+7. Admin > LLM: today's calls, failures, refusals and tokens per user and app. Day picker and export work.
+
+## Results, sections G to L (tb, Nov 21)
+
+Environment notes: from 08:16 to 08:22, hr's dry-run server joined the shared server's cluster and emptied John's roles. Restarted 08:22, and roles restored. Fixed during the run: e615eeed (tab crashed on first render), ae413725 (failed open showed the previous blueprint).
+
+### G
+- G1 S1: PASS, with a visual note. Intro reads "Managed by Dana Whitfield, a Long/Short fund", with NAV, day and YTD. Four stat cards: Day and YTD have trends, NAV and MTD have none. The treemap Technology click filters the grid to Technology, and a second click restores all sectors. Sparklines draw on the total and on group rows. Summary row is on. Visual: with the Architect and Inspector open, the stat-card values truncate ("3,959....", "877,8...") and the callout text overflows its cell (shot g1-s1.png).
+- G2 S2: PASS, with visual notes. Lookback prompt shows 3M. The window is MTD 2026-11-01 to 2026-11-20, ending at as-of. Both price charts show "Select a row in Holdings to see this." until V is picked. Then the window chart draws close and volume as splines on two y axes, and the lookback chart draws a close areaspline. Window QTD and lookback 1M reload them (window from 2026-10-01, lookback from 2026-10-20). Heatmap: x is sector, y is strategy. Waterfall x is strategy. Visual (shot g2-s2.png): the Holdings grid shows only Symbol, since Market Value and Day P&L are clipped in a w4 cell. The heatmap labels 5 of 9 sector columns. The waterfall has no closing total bar, though its callout says "ending at the fund's total". The chartNote callout (h1) shows only its title. The window picker label truncates.
+- G3 S3: PASS. The Long/Short style row's NAV is 8,100.7m: Red River 4,056.3m plus Oak Mount 4,044.5m.
+- G4 S4: FAIL on layout, PASS on behavior. The switch toggles totals (Total row on, off, on). One click on "Publish to PM pack" shows one confirm, "Publish the report for Oak Mount, 2026-11-20". OK shows the toast "Published the report for Oak Mount, 2026-11-20, to the PM pack." The Fund select lists Black Crescent, Hudson Bay, Oak Mount, Red River and Winter Star. Fails (shot g4-s4.png, mainPanel about 490px wide with the Architect and Inspector open): (1) the inputBar in mainPanel's tbar shows only Fund and As of. The separator, Totals switch, slider and filter chooser are clipped, with no overflow menu, so they can't be reached. (2) In the body box, the actions buttonGroup stretches to fill the column, leaving a tall blank band, and the grid gets the bottom third. Both are kit rendering (the tbar toolbar's overflow, and the buttonGroup's flex in a column box), so they're for ck.
+- G5 S5: PASS, with visual notes. Opened via `/app/blueprints/weather/weather-around-the-world`, and the tab switched to Weather with the 6 weather presets. City panel titles London, New York, Tokyo and Sydney come from their variables. The Units toolbar keeps its select visible. Visual (shot g5-s5.png): each city name shows twice, in the canvas cell header and again as the card panel's title. The "Card panels and sparkline trends" callout (h1) shows only its title. Wind has no unit.
+- G6 visual polish: FAIL, for John to judge from shots g1, g2, g4 and g5. Recurring issues at a realistic width (Architect plus Inspector open, canvas about 760px): callouts in h1 or h2 cells clip to their titles, stat-card values truncate, narrow grid cells clip their columns, panel titles repeat inside cell headers, and S4's tbar clips its inputs.
+
+### H
+- H1: PASS. `?draft` opens the morning-report draft v2. An in-app link to version 1 with `asOf=2026-11-02`, and a page load of `?version=1&asOf=2026-11-03`, both open publish v1 with asOf set. The address bar then drops the variable.
+- H2: PASS (impersonating jm.haynes.42@gmail.com, which has no roles; impersonation then ended). A reader's `?draft` link opens publish v1, with the toast "Showing the latest published version, as the link names one you may not open."
+- H3: FIXED then PASS. An unknown id showed "Pick a blueprint, or start a new one." instead of the refusal, because emptyText checked the selection first (fixed in the commit below). It now shows "There is no publish of this blueprint that you may open.", with no stale blueprint and no Inspector.
+  fix: 4460ad93 Show a link's refusal in the denied view, ahead of the no-selection text
+- H4: PASS, with a note. On P3's publish, the "⋮" menu offers Copy link only (Share needs an editable draft). Copy link toasts "Link copied." I didn't read the clipboard back, since that raises a permission prompt in John's browser. The link URLs themselves are covered by H1.
+- H5: PASS. From Home, open Blueprints and select P2 then P1. The URL becomes `/app/blueprints/portfolio/linked-dashboard?draft=true`, then `/app/blueprints/portfolio/one-grid?draft=true`. Back returns to `/app/home`.
+
+### J (on my copy of P3, "tb-run P3 copy")
+- J1: PASS. The outer tabs are Outline, Data and Document. In design, Data has Variables (8), Sources and Presets. In run, Data has Variables (8) only. Document has Issues, History, Publishes and JSON. Counts show only where a grid has rows.
+- J2: PASS. The header holds "Draft v1", Publish, Design/Run and "⋮". The menu offers Copy link and Share.... Share... opens the panel (Everyone can view, Can edit, Can view, and the note), and a click outside closes it.
+- J3: PASS. A save from "elsewhere", made through the repository as another tab would, then a UI edit, gives "Not saved - changed elsewhere". Publish hides, the "⋮" button turns to a warning, and the menu adds Reload and Save as new. Reload takes v2 and discards the edit. Save as new, after a second stale save, opens "tb-run P3 save-as-new" with the edit, while the original keeps v3 without it (shot j3-stale.png).
+
+### K
+- K1: PASS. Library search narrows by name or owner ("toolbox" keeps 8 rows, a nonsense name leaves none), and selecting a row still opens the blueprint.
+- K2: PASS. The Inspector width set to 520 survives a reload (stored as `blueprintsInspector` per user). Restored to 440 after the run.
+- K3: PASS. Portfolio: positions "GRAIN fund, strategy, book, trader, model, symbol JOINS fundSummary on fund; prices on symbol; hypotheticalPortfolio on symbol". prices "GRAIN symbol, day JOINS positions on symbol; hypotheticalPortfolio on symbol". Weather: weather "GRAIN city, time JOINS currentWeather on city". Each type's catalog lists only its own datasets.
+- K4: PASS. Portfolio sections: Widgets (31), Variable types (2), Resolvers (11), Actions (6), Renderers (6). Search "grid" leaves cubeGrid. The App-only origin gives 1, 2, 1, 1, 1. Expanded examples render live with data for cubeGrid, chart, statCard, treemap and gauge (shot k4-registry.png). "Add as a new blueprint" on treemap opens "Example - Treemap" with no errors. In the Answers context, a widget says "Renders in the Dashboard registry only."
+- K5: PASS. The toolbox.ticker renderer sample draws "Symbol". The previousBusinessDay resolver shows `asOf = "2026-11-20"`. The publishToPmPack action sample shows "Publish the report for fund, asOf ← {...}" (placeholder params, not a date). "What the Architect sees" shows describe_registry for the expanded entry and follows it to gauge.
+- K6: PASS on hoistCore. Seeded globals show `toolbox` in muted grey (rgb 158,158,158), both as John and as the reader. My own copy shows no owner. Search by "toolbox" finds them. Not run on the JsonBlob store, which would mean changing the `blueprintsRepository` config. The JsonBlob owner is covered by a spec.
+- K7: PASS. On my P3 copy in design, posGrid's Config shows the badge "Preset: Columns › P&L view". Clicking it gives Inspector Data > Presets with the selection `{kind: preset, id: posViews}` (shot k7-presets.png).
+- K8: NOT RUN, needs John. The palette-to-canvas drop uses native HTML5 drag-and-drop into react-grid-layout. DevTools mouse drags and synthetic DragEvents both left the blueprint unchanged (version unchanged), so this needs a real pointer.
+- K9: NOT RUN, needs John. Outline row drag: ag-grid re-renders rows during the drag ("Node is detached"), so this needs a real pointer.
+- K10: PASS. Selecting regionChart and entering `regionPnl` in the Config header's ID field gives one edit, "Rename element regionChart to regionPnl". The canvas ref follows, and the selection moves to regionPnl.
+- K11: PASS. On the P3 copy's Positions tab, the "Pos Grid" cell header shows "Columns: P&L view | Risk view". Risk view switches the columns from Market Value, Day, MTD and YTD P&L to Gross, Net and Beta-Adj Exposure, Beta and VaR (95%). There's no preset picker in the dashboard toolbar, and the Fund and As of prompts stay (shot k11-selector.png).
+- K12: PASS. S4's outline shows inputBar as "Toolbar · tbar" (shot g4-s4.png), and the inputs sit in the Positions panel's top toolbar. Clipping is noted in G4.
+- K13: PASS. Removing posViewsSelector on the copy raises `preset.noSelector`: "no presetSelector shows the group, so it stays at its default. Add one beside the widget it controls." The Presets editor's "Add selector" adds `presetSelector1` (`{group: posViews, display: toggle}`) to posGrid's cell headerItems, and the warning clears.
+- K14: FOR JOHN (shots k7-presets.png and k14-grid-inspector.png). Sections draw as catalog-style cards (Placement; Data (6) with count and chevron). One-line fields sit beside labels, while Group by, Sort by and Filter keep labels above. The palette wraps as rows. Worst looks I'd name for ck: (1) the wrapped palette takes about a third of the Inspector's height and squeezes the outline tree to about 250px, clipping rows; (2) the Presets editor doesn't use the card sections, and its inputs keep a fixed ~390px width that leaves the right of a wide Inspector empty; (3) placement number fields are full width for one or two digits.
+
+### I (ck's step 13 batches 1 and 2, as seen in passing)
+- PASS, as observed: palette target hint ("Adds into headline", "Adds after posGrid, in positions"); Placement fields as a card (X, Y, W, H); section hints in the Presets editor ("The paths the group's presets set. Each leaves the config.", "The preset a user starts on."); tileFrame labels "Min tile width (px)" through "Spacing (px)"; a lone toolbar child stays visible (S2's windowBar and S5's unitsBar). Not exercised one by one: re-picking a resolver keeps its args, a source renamed with its dataset, adding a source in place from the palette, starters and the "Sets" picker, typed date and option values, the box align warning, tileFrame minOverMax, and the propertyTable column picker.
+
+### L (the demo apps; HIGH 1 from hr's dry run fixed first, renaming the apps blueprintPortfolio and blueprintWeather, 18dc86f1)
+- L1: PASS. Examples lists Portfolio Blueprints and Weather Blueprints. /blueprintPortfolio lists the 8 portfolio presets, and /blueprintWeather the 6 weather presets (S5, W1-W5). Full-page deep links load the right app.
+- L2: FIXED then PASS. The first W3/W5 gauged temperature on a fixed scale, so W5's °F toggle pegged the gauges (72° on -10 to 40). The kit's guidance also says temperature has no natural range. The seeds now gauge humidity (0-100%, unchanged by units), show temperature as a card, and lay the cards out to fit (19928e4c). W5's °C/°F toggle switches every source (72° and 66° at °F, 22° and 19° at °C), and the gauges hold. W4 shows New York and London side by side (shot l2-w5.png). Left for ck: each gauge shows "Humidity" twice (cell header plus gauge title), and the precipitation chart's y2 (Rain, mm) is formatted as a percent. Left for data: Wind has no unit.
+- L3: PASS. /blueprintPortfolio/morning-report?asOf=2026-11-18 opens publish v1 at 2026-11-18. Changing the fund to Red River reloads. The treemap filter (S1) and Columns selector (K11) pass in the shared shell. P5 opens with no errors.
+- L4: PASS. /blueprintPortfolio/weather-new-york shows "There is no publish of this blueprint that you may open.", with no stale blueprint (after ae413725 and 4460ad93).
+- L5: PASS. The Blueprints tab's Portfolio/Weather picker swaps the library (8 and 6), the catalog (5 datasets and 2) and the Registry. Links read /app/blueprints/portfolio/<token> and /app/blueprints/weather/<token>.
+- L6: PARTIAL. John holds TOOLBOX_LLM_UNLIMITED, so `llm/usage` returns callsLeft and tokensLeft as null and the header correctly shows no count. Blocking at zero is covered by llmUsage.spec, but seeing it needs a limited user or a lowered rateLimit.
+- L7: FIXED then PASS. Admin > LLM crashed on render: a Hoist column doesn't take `aggregator`. It now has a computed Total row (7a1e60c2). Today it shows john.haynes@xh.io | blueprintPortfolio | 5 calls | 0 | 0 | input 883 | output 1,719 | cache 96,189 | 98,791 tokens, plus Total, with the day picker, Refresh and Export.
+
+### Spend (measured)
+- One Architect turn, HIGH 2's repro ("Why is Tech down today?" on P3): 5 calls, 883 input, 1,719 output, 96,189 cache, 98,791 tokens, from the `LLM` track entries in Admin > LLM. I didn't compute dollars. hr measured the same step at $0.044.
+
+### Cleanup
+Impersonation ended. My three test blueprints were deleted (tb-run P3 copy, tb-run P3 save-as-new, Example - Treemap). The Inspector is back at 440. No sharing was changed. Variables changed during checks were reset, and none are saved.
+
+Screenshots: /tmp/claude-1000/-home-john-xh-worktrees-blueprints-toolbox/695fb876-0b22-4b1a-84c2-1a5cfac4dcc0/scratchpad/shots/
+
+## M. Phase 4, for John's real pointer and eye
+
+1. P3 in /blueprintPortfolio: right-click a leaf row, and the row menu shows "Open detail" above Hoist's defaults. It opens "Symbol detail" for that symbol. Double-click is already checked.
+2. Admin > Requests: review the sample request 61cb322d (a wind rose, filed by tb in an end-to-end check), then delete it or keep it.
+3. ~~Your Auth0 session in the debug Chromium expired.~~ Done: John logged in again on Nov 21.
+4. Open a drill-in dialog (P3, double-click a symbol row), then resize the window: the dialog refits (ck 4ff3f9a). tb checked it under viewport emulation (818px wide: 736x549; full size: 1100x839).
+5. K8: drag a palette widget onto a dashCanvas cell. It lands where dropped, and undo removes it.
+6. K9: drag outline rows into a container, and before or after a row. A refusal shows under the tree.

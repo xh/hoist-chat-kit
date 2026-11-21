@@ -1202,7 +1202,7 @@ is now the deferred personalizations below, old 12 is 15, and old 13 to 17 are 1
 13. Done, pending John's browser checks. Polish the tools: the Designer's layout, design-mode ease of use, dragging from the palette,
     and the inspector.
 14. Done, pending John's browser checks ([`step14-open-by-url.md`](./step14-open-by-url.md)). Open a blueprint by URL, with its parameters setting variables that URL parameters may set.
-15. In progress ([`step15-demo-plan.md`](./step15-demo-plan.md)). Build the portfolio and weather apps in Toolbox on the foundation, as the demo. The weather
+15. Done, pending John's live run and limits ([`step15-demo-plan.md`](./step15-demo-plan.md)). Build the portfolio and weather apps in Toolbox on the foundation, as the demo. The weather
     app starts from Weather V2, which never merged, not from the current weather dashboard. A demo
     that calls the Claude API needs gating by role, limits and tracking. Finish the library's docs,
     and turn [`guidance.md`](./guidance.md) into two skills: one for the Architect, one for
@@ -1230,7 +1230,7 @@ resets, and Q15 and Q25. To keep them cheap to add later, every widget follows t
     together, with a count.
 18. Add `openBlueprint`, to drill into detail such as a position or a strategy in a popover or a
     dialog, without leaving the blueprint.
-19. Add text that reads variables, such as a title or a column header of "P&L for {fund}". Until
+19. Done (decision 165). Add text that reads variables, such as a title or a column header of "P&L for {fund}". Until
     then, a title can bind one whole variable.
 20. Move Hoist Blueprints into hoist-react as `@xh/hoist/blueprint`, with chat kit.
 
