@@ -118,29 +118,36 @@ export function toAnswerId(id: unknown): string {
 //------------------
 // Implementation
 //------------------
+// Slot names an element keeps for itself, or that hold its children.
+const RESERVED_SLOTS = ['default', 'children', 'component', 'config', 'personalizable'];
+
 function toElement(el: ChatUiElement): BlueprintElement {
     if (!isPlainObject(el)) return el as unknown as BlueprintElement;
     const refs: ChildRef[] = [
-        ...ids(el.children).map(id => ({id: toAnswerId(id)})),
-        ...Object.entries(el.slots ?? {}).flatMap(([slot, slotIds]) =>
-            ids(slotIds).map(id =>
-                slot === 'default' ? {id: toAnswerId(id)} : {id: toAnswerId(id), slot}
-            )
-        )
-    ];
+            ...ids(el.children).map(id => ({id: toAnswerId(id)})),
+            ...ids(el.slots?.default).map(id => ({id: toAnswerId(id)}))
+        ],
+        // A named slot becomes a slot list of the same name.
+        slots = Object.fromEntries(
+            Object.entries(el.slots ?? {})
+                .filter(([slot]) => !RESERVED_SLOTS.includes(slot))
+                .map(([slot, slotIds]) => [slot, ids(slotIds).map(id => ({id: toAnswerId(id)}))])
+                .filter(([, list]) => list.length)
+        );
     // A bound prop stays beside the blueprint, with its binding.
     const bound = isChatUiBindings(el.bindings) ? Object.keys(el.bindings) : [],
         perChild = getOwn(CHILD_REF_PROPS, el.component),
         values = perChild ? el.props?.[perChild.prop] : null;
     if (isArray(values)) {
-        refs.filter(it => !it.slot).forEach((it, idx) => {
+        refs.forEach((it, idx) => {
             if (idx < values.length) it[perChild.key] = values[idx];
         });
     }
     return {
         component: toWidgetName(el.component),
         config: omit(el.props ?? {}, perChild ? [...bound, perChild.prop] : bound),
-        ...(refs.length ? {children: refs} : {})
+        ...(refs.length ? {children: refs} : {}),
+        ...slots
     };
 }
 

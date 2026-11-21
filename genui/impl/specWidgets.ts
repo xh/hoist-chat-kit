@@ -107,7 +107,12 @@ export const CHILD_REF_PROPS: Record<string, {prop: string; key: string}> = {
 
 /** The values a component takes per child, from its child references, in order. */
 export function toPerChild(refs: PlainObject[], key: string): unknown[] {
-    return (refs ?? []).filter(it => !it?.slot).map(it => it?.[key]);
+    return (refs ?? []).map(it => it?.[key]);
+}
+
+// A component's slots other than its default one, each a slot list of its widget.
+function namedSlots(spec: ChatUiComponentSpec): string[] {
+    return (spec.slots ?? []).filter(it => it !== 'default');
 }
 
 /**
@@ -137,13 +142,22 @@ export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog):
                           required: ['id'],
                           properties: {
                               id: {type: 'string'},
-                              slot: {enum: spec.slots.filter(it => it !== 'default')},
                               ...(perChild
                                   ? {[perChild.key]: spec.props.properties[perChild.prop].items}
                                   : {})
                           }
                       }
-                  }
+                  },
+                  ...(namedSlots(spec).length
+                      ? {
+                            slots: Object.fromEntries(
+                                namedSlots(spec).map(slot => [
+                                    slot,
+                                    {description: `What the ${info.label}'s ${slot} slot holds.`}
+                                ])
+                            )
+                        }
+                      : {})
               }
             : {}),
         ...(spec.validate
@@ -338,11 +352,12 @@ function specWidget(spec: ChatUiComponentSpec, catalog: ChatUiCatalog) {
             if (!element || !host) return null;
 
             const refs: ChildRef[] = element.children ?? [],
-                childIds = refs.filter(it => !it.slot).map(it => it.id),
-                slotIds: Record<string, string[]> = {};
-            refs.filter(it => it.slot).forEach(it => {
-                (slotIds[it.slot as string] ??= []).push(it.id);
-            });
+                childIds = refs.map(it => it.id),
+                slotIds: Record<string, string[]> = Object.fromEntries(
+                    namedSlots(spec)
+                        .map(slot => [slot, model.slotRefs(slot).map(it => it.id)])
+                        .filter(([, list]) => list.length)
+                );
 
             const perChild = getOwn(CHILD_REF_PROPS, spec.name),
                 props: PlainObject = {

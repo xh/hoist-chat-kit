@@ -1,8 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
-import type {Blueprint, BlueprintIssue} from './Blueprint';
+import type {Blueprint, BlueprintIssue, ChildRef} from './Blueprint';
 import {checkConfig} from './impl/configSchema';
-import {decodePointer, getOwn, toLookup} from './impl/pointer';
+import {decodePointer, getAt, getOwn, toLookup} from './impl/pointer';
 import {validateBlueprint, type ValidateBlueprintContext} from './validateBlueprint';
 
 export interface DegradeAnswerContext extends ValidateBlueprintContext {
@@ -89,7 +89,9 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
             if (issue.code === 'structure.unknownRoot') {
                 missing.add(bp.root);
             } else if (issue.code === 'structure.unknownChild') {
-                missing.add(getOwn(bp.elements, name)?.children?.[Number(rest[1])]?.id);
+                // The reference's path ends at its id, in any slot list.
+                const ref = getAt(getOwn(bp.elements, name), `/${rest.slice(0, -1).join('/')}`);
+                missing.add((ref as ChildRef)?.id);
             } else if (issue.code === 'structure.notPlaced') {
                 unplaced.add(name);
             } else if (kind === 'elements' && getOwn(bp.elements, name)) {

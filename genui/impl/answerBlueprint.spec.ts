@@ -630,6 +630,27 @@ describe('toAnswerBlueprint', () => {
         expect(degradeAnswer(bp, ctx)).toEqual(bp);
     });
 
+    it('turns a named slot into a slot list of the same name', () => {
+        const bp = toAnswerBlueprint(
+            {
+                root: 'top',
+                elements: {
+                    top: {
+                        component: 'appFrame',
+                        props: {},
+                        children: ['a'],
+                        slots: {header: ['h']}
+                    },
+                    a: {component: 'text', props: {text: 'Body'}},
+                    h: {component: 'text', props: {text: 'Head'}}
+                }
+            } as any,
+            kitOptions
+        );
+        expect(bp.elements.top.children).toEqual([{id: 'a'}]);
+        expect(bp.elements.top.header).toEqual([{id: 'h'}]);
+    });
+
     it("moves each tab's title onto its child reference, as a tab container holds it", () => {
         const bp = toAnswerBlueprint({
             root: 'tabs',
