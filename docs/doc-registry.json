@@ -884,6 +884,28 @@
         "codemod",
         "children"
       ]
+    },
+    {
+      "id": "docs/upgrade-notes/v4-upgrade-notes.md",
+      "title": "v4 Upgrade Notes",
+      "mcpCategory": "upgrade",
+      "viewerCategory": "upgrade",
+      "description": "Upgrade guide from v3.x to v4.0.0. Low difficulty. Covers protocol adapters, catalog exports with text formats, the metrics to stat cards rename, agent state and record card styles.",
+      "keywords": [
+        "upgrade",
+        "migration",
+        "breaking changes",
+        "v4",
+        "v3",
+        "ChatUiAdapter",
+        "translate",
+        "stat cards",
+        "metrics",
+        "agent state",
+        "AgUiCodec",
+        "record card",
+        "PropertyTable"
+      ]
     }
   ]
 }

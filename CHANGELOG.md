@@ -12,30 +12,23 @@
   3. Plain ASCII punctuation only. Use " - " for in-sentence breaks, never an em dash.
 -->
 
-## 3.0.0-SNAPSHOT - unreleased
+## 4.0.0-SNAPSHOT - unreleased
 
-Requires `@xh/hoist` 91 or later.
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - update adapters)
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91, update adapters)
-
-See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
+See [`docs/upgrade-notes/v4-upgrade-notes.md`](docs/upgrade-notes/v4-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
 
-* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
-  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
-* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
-  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
-  91.
 * `ChatUiAdapter.translate()` now takes `{catalog, isPartial}` as its second argument, in place of
   the catalog. See
-  [Update Protocol Adapters](docs/upgrade-notes/v3-upgrade-notes.md#2-update-protocol-adapters).
+  [Update Protocol Adapters](docs/upgrade-notes/v4-upgrade-notes.md#2-update-protocol-adapters).
 * Renamed `chatUiMetricsSpec()` to `chatUiStatCardsSpec()`, which renders Hoist's `StatCardStrip`
   with a `StatCard` per figure. Its catalog name is now `statCards`, its tool `show_stat_cards` and
   its `metrics` prop `cards`. Renamed `ChatUiMetric` and the spec's props and options types to
   match. Removed the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes, and the `--xh-chat-tile-min-width` and
   `--xh-chat-tile-value-font-size` variables. Set Hoist's `--xh-stat-card-*` variables instead. See
-  [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v3-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
+  [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v4-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
 * `ChatUiCard` now renders a Hoist `Card` that holds a `PropertyTable`. Removed the
   `xh-chat-ui-card__fields`, `__field`, `__label` and `__value` classes and the
   `--xh-chat-card-section-pad` variable. Set Hoist's `--xh-card-*` and `--xh-property-table-*`
@@ -43,7 +36,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
   emits `STATE_SNAPSHOT` now gets its state back with every run. See
-  [Move the Agent State to the Chat](docs/upgrade-notes/v3-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
+  [Move the Agent State to the Chat](docs/upgrade-notes/v4-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
 
 ### 🎁 New Features
 
@@ -169,6 +162,51 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   says what lang-core's text names that the catalog lacks. The kit's rules sit with lang-core's
   own rules.
 
+### 🐞 Bug Fixes
+
+* Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
+  not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
+  `send` action now shows its text and each context value as a JSON string, so text cannot pose
+  as the words around it. The url of an `openUrl` action shows in quotes too.
+* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
+  slice and category names, axis titles, and the column labels and row text of a chart by
+  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
+  skipped the chat's link checks, or an inline style that loads a URL.
+
+### ⚙️ Typescript API Adjustments
+
+* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
+  action types that must cover every type.
+* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
+  that calls a component's `render` directly.
+
+### ✨ Styles
+
+* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
+  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
+* `ChatUiCard` shows its subtitle beside the title in the card's header, and its actions in a row
+  at the foot of the card. A compact chat gives its table Hoist's compact size.
+
+### 📚 Libraries
+
+* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
+  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
+
+## 3.0.0 - 2026-11-21
+
+Requires `@xh/hoist` 91 or later.
+
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91)
+
+See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
+* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
+  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
+* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
+  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
+  91.
+
 ### 🎁 New Features
 
 * Added `ChatToolSpec.canAllowForConversation`, to let the user allow a tool for the rest of the
@@ -185,14 +223,6 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   its activity spec.
 * Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
   bare line under the header.
-* Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
-  not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
-  `send` action now shows its text and each context value as a JSON string, so text cannot pose
-  as the words around it. The url of an `openUrl` action shows in quotes too.
-* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
-  slice and category names, axis titles, and the column labels and row text of a chart by
-  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
-  skipped the chat's link checks, or an inline style that loads a URL.
 * Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
   reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
   7px more than it needed to.
@@ -206,26 +236,14 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Removed the install step that added the kit to `extraIncludePaths`. `configureRsbuild()` compiles
   the kit's TypeScript without it, so apps can drop that entry.
 
-### ⚙️ Typescript API Adjustments
+### 🤖 AI Docs + Tooling
 
-* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
-  action types that must cover every type.
-* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
-  that calls a component's `render` directly.
-
-### ✨ Styles
-
-* `ChatWorkspace` lays out its sidebar and side panel for the 1px panel splitter of Hoist 90, in
-  place of the 8px splitter of Hoist 89.
-* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
-  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
-* `ChatUiCard` shows its subtitle beside the title in the card's header, and its actions in a row
-  at the foot of the card. A compact chat gives its table Hoist's compact size.
-
-### 📚 Libraries
-
-* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
-  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
+* The package now ships its Hoist Docs index (`hoist-docs/index.json.gz`), built at publish by
+  `@xh/hoist-docs-builder` and declared by `hoistDocs` in `package.json`. Hoist Docs
+  (`@xh/hoist-docs`) reads it from the installed package and serves the kit's docs and API to
+  agents in apps that install it, next to hoist-react's and hoist-core's.
+* Switched this repo's `.mcp.json` from the hoist-react MCP server to Hoist Docs, and removed
+  `.claude/start-hoist-react-mcp.sh`.
 
 ## 2.1.0 - 2026-11-16
 
@@ -318,15 +336,6 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
   `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
-
-### 🤖 AI Docs + Tooling
-
-* The package now ships its Hoist Docs index (`hoist-docs/index.json.gz`), built at publish by
-  `@xh/hoist-docs-builder` and declared by `hoistDocs` in `package.json`. Hoist Docs
-  (`@xh/hoist-docs`) reads it from the installed package and serves the kit's docs and API to
-  agents in apps that install it, next to hoist-react's and hoist-core's.
-* Switched this repo's `.mcp.json` from the hoist-react MCP server to Hoist Docs, and removed
-  `.claude/start-hoist-react-mcp.sh`.
 
 ## 1.0.0 - 2026-11-02
 
