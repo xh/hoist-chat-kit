@@ -3,6 +3,7 @@ import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
 import {blueprintToolbar} from './impl/BlueprintToolbar';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
+import {drillInDialog} from './impl/DrillIn';
 import './BlueprintView.scss';
 
 export interface BlueprintViewProps extends HoistProps<BlueprintModel> {
@@ -23,11 +24,18 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
     className: 'xh-blueprint-view',
     model: uses(BlueprintModel),
     render({model, className, designModel}) {
-        const impl = useLocalModel(() => new BlueprintViewModel(model, {designModel}));
+        const impl = useLocalModel(() => new BlueprintViewModel(model, {designModel})),
+            {drillIn} = model;
         return panel({
             className,
             tbar: blueprintToolbar({blueprintModel: model}),
-            children: impl.renderElement(model.blueprint?.root)
+            children: [
+                impl.renderElement(model.blueprint?.root),
+                // A popover drill-in draws at the control that opened it.
+                drillIn && !drillIn.anchor
+                    ? drillInDialog({key: JSON.stringify(drillIn), host: model, drillIn})
+                    : null
+            ]
         });
     }
 });

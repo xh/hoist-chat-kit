@@ -12,7 +12,7 @@ import {
     weatherCatalog
 } from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
-import {BlueprintModel} from '../../../blueprint';
+import {BlueprintModel, InMemoryBlueprintRepository} from '../../../blueprint';
 import {elementFromContent} from '@xh/hoist/utils/react';
 import {blueprintView} from './BlueprintView';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
@@ -201,6 +201,52 @@ describe('blueprint desktop widgets', () => {
                 });
                 expect(row('XOM')).toEqual({});
                 expect(row('Technology')).toEqual({});
+            });
+        });
+
+        describe('row actions', () => {
+            it('lists its row actions first in the row menu, passing the row and its group path', async () => {
+                const bp = loadBlueprint('p1-one-grid.json');
+                bp.elements.posGrid.config.rowActions = [
+                    {
+                        label: 'Open detail',
+                        action: {
+                            type: 'openBlueprint',
+                            blueprint: 'symbol-detail',
+                            variables: {symbol: {$row: 'symbol'}, sector: {$row: 'sector'}}
+                        }
+                    }
+                ];
+                const model = open(bp);
+                model.drillInRepository = {type: 'acme.dashboard'} as any;
+                const grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
+                await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+
+                const menu = (gridModel.contextMenu as any)({}, gridModel),
+                    xom = gridModel.store.allRecords.find(it => it.data.cubeLabelValue === 'XOM');
+                expect(menu[0]).toMatchObject({text: 'Open detail'});
+                expect(menu[1]).toBe('-');
+                await menu[0].actionFn({record: xom});
+                expect(model.drillIn.params).toEqual({
+                    id: 'symbol-detail',
+                    symbol: 'XOM',
+                    sector: 'Energy'
+                });
+            });
+
+            it('runs its first row action on a double click', async () => {
+                const bp = loadBlueprint('p1-one-grid.json');
+                bp.elements.posGrid.config.rowActions = [
+                    {label: 'Detail', action: {type: 'openBlueprint', blueprint: 'd'}}
+                ];
+                const model = open(bp);
+                model.drillInRepository = {type: 'acme.dashboard'} as any;
+                const grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
+                await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+                await gridModel.onRowDoubleClicked({data: gridModel.store.allRecords[0]} as any);
+                await vi.waitFor(() => expect(model.drillIn?.id).toBe('d'));
             });
         });
 
@@ -1131,5 +1177,75 @@ describe('blueprint desktop widgets', () => {
 
         render(blueprintView({model: open(bp, registry)}));
         expect(await screen.findByText('Fund input: Oak Mount')).toBeTruthy();
+    });
+});
+
+/** A button's `openBlueprint` opens a stored blueprint of the same type over its host. */
+describe('drill-in', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    async function host(blueprintId?: string) {
+        const repository = new InMemoryBlueprintRepository({
+                type: 'acme.dashboard',
+                canCreate: true,
+                accessOf: () => ({access: 'write', canPublish: true})
+            }),
+            target = await repository.createAsync({
+                name: 'Symbol detail',
+                blueprint: {
+                    variables: {symbol: {type: 'string', setBy: 'prompt', default: {value: 'X'}}},
+                    root: 'note',
+                    elements: {note: {component: 'markdown', config: {text: 'Detail for {symbol}'}}}
+                }
+            });
+        await repository.publishAsync(target.id, {base: 1});
+        const model = new BlueprintModel({
+            blueprint: {
+                root: 'buttons',
+                elements: {
+                    buttons: {
+                        component: 'buttonGroup',
+                        config: {
+                            buttons: [
+                                {
+                                    label: 'Open',
+                                    action: {
+                                        type: 'openBlueprint',
+                                        blueprint: blueprintId ?? target.id,
+                                        variables: {symbol: 'AAPL'}
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: null
+        });
+        model.drillInRepository = repository;
+        onTestFinished(() => model.destroy());
+        return model;
+    }
+
+    it('opens the target in a dialog, named for it, with the values passed in', async () => {
+        const model = await host();
+        render(blueprintView({model}));
+        fireEvent.click(await screen.findByText('Open'));
+        expect(await screen.findByText('Detail for AAPL')).toBeTruthy();
+        expect(screen.getByText('Symbol detail')).toBeTruthy();
+    });
+
+    it('opens nothing for a target the user may not open, and says so', async () => {
+        const toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
+        onTestFinished(() => toast.mockRestore());
+        const model = await host('nope');
+        render(blueprintView({model}));
+        fireEvent.click(await screen.findByText('Open'));
+        await vi.waitFor(() => expect(toast).toHaveBeenCalled());
+        expect(model.drillIn).toBeNull();
     });
 });

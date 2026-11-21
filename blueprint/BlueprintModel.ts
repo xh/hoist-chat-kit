@@ -76,6 +76,8 @@ export interface BlueprintDrillIn {
     title: string;
     /** The target's id and values, as a link to it carries them. */
     params: Record<string, string | string[]>;
+    /** The control a popover anchors to. Absent, and it opens as a dialog. */
+    anchor?: string;
 }
 
 /** The result of an edit: the new version, or the issues that refused it. */

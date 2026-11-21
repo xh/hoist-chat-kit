@@ -489,7 +489,7 @@ describe('ElementInspector', () => {
             [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
                 it => it.textContent
             )
-        ).toEqual(['Placement', 'Data (6)', 'Columns (2)', 'Style (10)']);
+        ).toEqual(['Placement', 'Data (7)', 'Columns (2)', 'Style (10)']);
         expect(row('Title').className).toContain('__row--inline');
         expect(row('Column state').className).not.toContain('__row--inline');
     });

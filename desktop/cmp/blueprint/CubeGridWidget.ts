@@ -1,8 +1,20 @@
 import {AgGrid} from '@xh/hoist/cmp/ag-grid';
 import {CubeGridModel, cubeGrid} from '@xh/hoist/cmp/cubegrid';
-import type {ColumnSpec, ColumnState} from '@xh/hoist/cmp/grid';
+import {
+    type ColumnSpec,
+    type ColumnState,
+    type GridContextMenuItemLike,
+    GridModel
+} from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
-import {type FilterSpec, type FilterTestFn, parseFilter, type StoreRecord} from '@xh/hoist/data';
+import {Icon} from '@xh/hoist/icon';
+import {
+    type FilterSpec,
+    type FilterTestFn,
+    parseFilter,
+    type RecordActionSpec,
+    type StoreRecord
+} from '@xh/hoist/data';
 import {action, computed, observable, observableRef, when} from '@xh/hoist/mobx';
 import {useEffect, useRef} from 'react';
 import {wait} from '@xh/hoist/promise';
@@ -232,6 +244,18 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 sortBy: toGridSort(cfg.sortBy),
                 autosizeOptions: {mode: 'managed'},
                 rowStyle: (record: StoreRecord) => applyRules(this.rowRules, record),
+                // Read as each opens, so an edit to the row actions needs no new grid.
+                contextMenu: (): GridContextMenuItemLike[] => {
+                    const actions = this.rowActionItems;
+                    return [
+                        ...actions,
+                        ...(actions.length ? (['-'] as const) : []),
+                        ...GridModel.defaults.contextMenu
+                    ];
+                },
+                onRowDoubleClicked: ({data}) => {
+                    if (this.rowActions.length) this.runRowActionAsync(0, data);
+                },
                 // Hoist restores the state it had at construction. The blueprint's config is the
                 // default, so apply it again, which then writes back as no edit.
                 restoreDefaultsFn: () => this.restoreConfigAsync()
@@ -323,6 +347,31 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         at: null,
         of: {}
     };
+
+    /** Run one of the grid's row actions on a row, which it reads with its group path. */
+    runRowActionAsync(index: number, record: StoreRecord): Promise<boolean> {
+        const action = this.rowActions[index]?.action;
+        if (!action || !record) return Promise.resolve(false);
+        return this.blueprintModel.runActionsAsync(action, {row: rowData(record)});
+    }
+
+    private get rowActions(): PlainObject[] {
+        return castArray(this.element?.config?.rowActions ?? []);
+    }
+
+    private get rowActionItems(): RecordActionSpec[] {
+        return this.rowActions.map((it, idx) => ({
+            text: it.label,
+            icon: it.icon ? Icon.icon({faName: it.icon}) : null,
+            actionFn: ({record}) => this.runRowActionAsync(idx, record),
+            displayFn: ({record}) => {
+                const blocked = this.blueprintModel.actionBlockedReason(it.action, {
+                    row: rowData(record)
+                });
+                return {disabled: !!blocked, tooltip: blocked};
+            }
+        }));
+    }
 
     @computed
     private get rowRules(): StyleRule[] {
@@ -606,6 +655,16 @@ function toQuery(dimensions: string[]) {
 
 function toGridSort(sortBy: unknown): string[] {
     return castArray(sortBy ?? []).map(it => String(it).replace(/^group\b/, LABEL_COL));
+}
+
+// A row's fields, with the value of each group on its path, so a group row reads its dimensions.
+function rowData(record: StoreRecord): PlainObject {
+    const ret: PlainObject = {...record?.data};
+    for (let it = record; it; it = it.parent) {
+        const {cubeDimension, cubeLabelValue} = it.data ?? {};
+        if (cubeDimension && !(cubeDimension in ret)) ret[cubeDimension] = cubeLabelValue;
+    }
+    return ret;
 }
 
 interface StyleRule {

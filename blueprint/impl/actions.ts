@@ -13,6 +13,8 @@ export const MAX_ACTION_STEPS = 8;
 /** What a run of actions can read beside variables: the row a row action was run on. */
 export interface ActionRunContext {
     row?: PlainObject;
+    /** The control that ran the action, for a popover drill-in to anchor to. */
+    anchor?: string;
 }
 
 /**
@@ -176,7 +178,8 @@ async function runAction(model: BlueprintModel, step: PlainObject, ctx: ActionRu
                 id: step.blueprint,
                 as: step.as ?? 'dialog',
                 title: step.title ?? null,
-                params
+                params,
+                ...(step.as === 'popover' && ctx.anchor ? {anchor: ctx.anchor} : {})
             });
             return;
         }

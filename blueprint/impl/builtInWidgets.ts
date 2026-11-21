@@ -408,6 +408,22 @@ const CUBE_GRID_SCHEMA = {
             }
         },
         rowStyles: ROW_STYLE_RULES,
+        rowActions: {
+            type: 'array',
+            maxItems: 10,
+            items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['label', 'action'],
+                properties: {
+                    label: {type: 'string', maxLength: 40},
+                    icon: {type: 'string', maxLength: 40},
+                    action: ACTION_PROP
+                }
+            },
+            description:
+                'Actions on a row, in its right-click menu, the first also on a double click. An action reads the row\'s fields, and its group path\'s, with {"$row": field}.'
+        },
         columns: {
             type: 'object',
             'x-field': 'any',
@@ -1612,7 +1628,15 @@ const cubeGrid: WidgetSpec = {
     sections: [
         {
             label: 'Data',
-            keys: ['groupBy', 'sortBy', 'filter', 'expandLevel', 'summaryRow', 'showGroupRowCounts']
+            keys: [
+                'groupBy',
+                'sortBy',
+                'filter',
+                'expandLevel',
+                'summaryRow',
+                'showGroupRowCounts',
+                'rowActions'
+            ]
         },
         {label: 'Columns', keys: ['columnState', 'columns']},
         {

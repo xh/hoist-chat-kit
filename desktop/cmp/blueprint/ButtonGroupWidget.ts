@@ -1,8 +1,10 @@
 import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
+import {popover} from '@xh/hoist/kit/blueprint';
 import {castArray} from 'lodash';
 import {BlueprintWidgetModel, type ButtonGroupWidgetConfig} from '../../../blueprint';
+import {drillInPopoverContent} from './impl/DrillIn';
 
 /**
  * The `buttonGroup` widget: a row of Hoist buttons, each running its action, or its list of
@@ -27,8 +29,8 @@ export class ButtonGroupWidgetModel extends BlueprintWidgetModel<ButtonGroupWidg
         return this.blueprintModel.actionBlockedReason(action);
     }
 
-    runAsync(action: PlainObject | PlainObject[]) {
-        return this.blueprintModel.runActionsAsync(action);
+    runAsync(action: PlainObject | PlainObject[], anchor?: string) {
+        return this.blueprintModel.runActionsAsync(action, {anchor});
     }
 }
 
@@ -40,15 +42,31 @@ export const [ButtonGroupWidget, buttonGroupWidget] = hoistCmp.withFactory({
         return buttonGroup({
             className,
             children: model.buttons.map((it, idx) => {
-                const blocked = model.blockedReason(it.action);
-                return button({
-                    key: idx,
-                    text: it.label,
-                    icon: it.icon ? Icon.icon({faName: it.icon}) : null,
-                    title: blocked ?? model.describe(it.action),
-                    disabled: !!blocked,
-                    onClick: () => model.runAsync(it.action).catchDefault()
-                });
+                const blocked = model.blockedReason(it.action),
+                    anchor = `${model.id}/${idx}`,
+                    {drillIn} = model.blueprintModel,
+                    target = button({
+                        key: idx,
+                        text: it.label,
+                        icon: it.icon ? Icon.icon({faName: it.icon}) : null,
+                        title: blocked ?? model.describe(it.action),
+                        disabled: !!blocked,
+                        onClick: () => model.runAsync(it.action, anchor).catchDefault()
+                    });
+                return drillIn?.anchor === anchor
+                    ? popover({
+                          key: idx,
+                          isOpen: true,
+                          position: 'bottom',
+                          onClose: () => model.blueprintModel.closeDrillIn(),
+                          item: target,
+                          content: drillInPopoverContent({
+                              key: JSON.stringify(drillIn),
+                              host: model.blueprintModel,
+                              drillIn
+                          })
+                      })
+                    : target;
             })
         });
     }
