@@ -669,6 +669,7 @@ const PROPERTY_TABLE_SCHEMA = {
             type: 'array',
             minItems: 1,
             maxItems: 30,
+            'x-field': 'any',
             items: {
                 anyOf: [
                     {type: 'string', 'x-field': 'any'},

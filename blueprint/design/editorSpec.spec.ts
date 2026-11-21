@@ -87,4 +87,13 @@ describe('toEditorSpec', () => {
         });
         expect(node.kind).toBe('date');
     });
+
+    it("edits a property table's fields with the grid's column picker", () => {
+        const spec = BUILT_IN_WIDGETS.find(it => it.name === 'propertyTable'),
+            fields = toEditorSpec(spec.config).find(it => it.key === 'fields');
+        expect(fields.kind).toBe('fieldList');
+        expect(
+            (fields as Extract<EditorNode, {kind: 'fieldList'}>).settings.map(it => it.key)
+        ).toEqual(['label', 'format', 'renderer']);
+    });
 });
