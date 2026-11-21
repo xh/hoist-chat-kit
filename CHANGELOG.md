@@ -71,8 +71,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `TreeMap`, with the `show_treemap` tool. The app imports two Highcharts modules in its
   `Bootstrap.ts`: `highcharts/modules/heatmap`, then `highcharts/modules/treemap`.
 * Added `chatUiPropertyTableSpec()`, a list of labeled values over Hoist's `PropertyTable`. It
-  formats each number, and shows its first `maxItems` entries with a count of the rest. It is not
-  standalone.
+  formats each number, and shows its first `maxItems` entries with a count of the rest. A compact
+  chat gives it Hoist's compact size. It is not standalone.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,

@@ -52,7 +52,7 @@ describe('chatUiPropertyTableSpec', () => {
         ).toHaveLength(1);
     });
 
-    it('shows a dash for a value that is missing, blank or a list, and a boolean as text', () => {
+    it('shows a dash for a value that is missing, blank or a list, and a boolean as Yes or No', () => {
         const {container} = renderPropertyTable({
             entries: [
                 {label: 'Owner'},
@@ -64,7 +64,7 @@ describe('chatUiPropertyTableSpec', () => {
             ]
         });
 
-        expect(texts(container, 'value')).toEqual(['-', '-', '-', '0', 'true', 'false']);
+        expect(texts(container, 'value')).toEqual(['-', '-', '-', '0', 'Yes', 'No']);
     });
 
     it('takes the number of columns as the most, and shows fewer in a narrow chat', () => {

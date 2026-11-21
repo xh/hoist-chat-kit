@@ -458,14 +458,14 @@ A property table shows the fields of one record. It nests in a document:
 
 The spec renders Hoist's `PropertyTable`: a label beside each value, in as many columns as fit.
 `columns` sets the most columns, and a narrow chat shows fewer. A number takes a `format` and
-`decimals`. Text shows as is, and a boolean as `true` or `false`. A missing or blank value shows as
+`decimals`. Text shows as is, and a boolean as `Yes` or `No`. A missing or blank value shows as
 `-`. An `intent` colors a value to flag a status. Use the card spec for a record with a frame, a
 title and actions.
 
 The spec shows at most `maxItems` entries, and a muted count of the rest, such as
 `4 more not shown`, rather than fail as a whole. A model that writes a few too many gets no retry.
 The prompt states the maximum. Style the table through Hoist's `--xh-property-table-*` variables,
-under `.xh-chat-ui-property-table`.
+under `.xh-chat-ui-property-table`. A compact chat gives the table Hoist's compact size.
 
 ### Ask the user for input
 

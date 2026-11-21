@@ -9,6 +9,7 @@ import {
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
 import {takeItems, withMoreNote} from './impl/ChatUiMore';
 import type {ChatUiIntent, ChatUiNumberFormat, ChatUiSpecOptions} from './Types';
+import './ChatUiPropertyTable.scss';
 
 /** One labeled value of a property table component, as written by the model. */
 export interface ChatUiPropertyTableEntry {
@@ -17,7 +18,7 @@ export interface ChatUiPropertyTableEntry {
 
     /**
      * The value - a number, formatted with `format`, text shown as is, or a boolean, shown as
-     * `true` or `false`.
+     * `Yes` or `No`.
      */
     value?: number | string | boolean;
 
@@ -139,7 +140,7 @@ const DESCRIPTION =
 
 // An entry of Hoist's `PropertyTable`, or none for a value that is not a labeled value. Hoist
 // renders each string as text, a null value as `-`, and a boolean as nothing, so a boolean
-// passes as text and blank text as null.
+// passes as `Yes` or `No`, as Hoist advises, and blank text as null.
 function toEntry(item: unknown): PropertyTableEntry[] {
     if (!isPlainObject(item)) return [];
     const {label, value, format, decimals, intent} = item as ChatUiPropertyTableEntry;
@@ -150,7 +151,9 @@ function toEntry(item: unknown): PropertyTableEntry[] {
             value: isFinite(value)
                 ? fmtChatUiNumber(value as number, format, decimals)
                 : isBoolean(value)
-                  ? String(value)
+                  ? value
+                      ? 'Yes'
+                      : 'No'
                   : isString(value) && value.trim()
                     ? value
                     : null,
