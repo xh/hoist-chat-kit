@@ -1,7 +1,10 @@
-import {dropRight, isFinite, isPlainObject} from 'lodash';
-import {div} from '@xh/hoist/cmp/layout';
+import {card} from '@xh/hoist/cmp/card';
+import {div, span} from '@xh/hoist/cmp/layout';
+import {propertyTable} from '@xh/hoist/cmp/propertytable';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
+import {dropRight, isEmpty, isPlainObject, isString} from 'lodash';
+import type {ReactNode} from 'react';
 import type {ChatModel} from '../../../core';
 import {
     type ChatUiAction,
@@ -11,13 +14,11 @@ import {
     describeChatUiAction,
     isChatUiMessagingAction
 } from '../../../genui';
-import {
-    CHAT_UI_DECIMALS_SCHEMA,
-    fmtChatUiNumber,
-    CHAT_UI_NUMBER_FORMAT_SCHEMA
-} from './ChatUiFormat';
-import {chatUiFrame} from './ChatUiFrame';
+import {CHAT_UI_DECIMALS_SCHEMA, CHAT_UI_NUMBER_FORMAT_SCHEMA} from './ChatUiFormat';
+import {chatUiSkeleton} from './ChatUiFrame';
+import {toPropertyTableEntry} from './impl/ChatUiPropertyEntries';
 import type {ChatUiSpecOptions, ChatUiNumberFormat} from './Types';
+import '../../../styles/vars.scss';
 import './ChatUiCard.scss';
 
 /** A labeled value on a {@link ChatUiCard}, as written by the model. */
@@ -159,11 +160,11 @@ export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps
 
 /**
  * A detail card of labeled values, with follow-up actions - the component that
- * {@link chatUiCardSpec} renders. The title and subtitle sit in the card's header strip, and the
- * actions follow the card as outlined chips, as they belong to the reply. A long chip is cut to
- * one line. Its tooltip always shows what the click does, as the label may not. Actions that
- * send a message or run a tool are disabled while the chat is busy, and hidden with no
- * `ChatModel`.
+ * {@link chatUiCardSpec} renders. It is a Hoist `Card` that holds a `PropertyTable`. The title
+ * and a muted subtitle sit in the card's header. The actions sit in a row at the foot of the card,
+ * as outlined chips. A long chip is cut to one line. Its tooltip always shows what the click does,
+ * as the label may not. Actions that send a message or run a tool are disabled while the chat is
+ * busy, and hidden with no `ChatModel`.
  */
 export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
     displayName: 'ChatUiCard',
@@ -172,38 +173,28 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
 
     render({className, title, subtitle, fields, actions, chatModel, isPartial, runActionAsync}) {
         // While streaming, the last field may be cut short - its value still being written.
-        const validFields = (isPartial ? dropRight(fields) : (fields ?? [])).filter(isPlainObject),
+        const entries = (isPartial ? dropRight(fields) : (fields ?? [])).flatMap(
+                toPropertyTableEntry
+            ),
             validActions = isPartial
                 ? []
                 : (actions ?? []).filter(
                       it => isPlainObject(it) && (chatModel || !isChatUiMessagingAction(it))
                   );
 
-        return div({
+        // A card still being written holds its place until its first field is complete.
+        let body: ReactNode = null;
+        if (!isEmpty(entries)) {
+            body = propertyTable({entries});
+        } else if (isPartial) {
+            body = chatUiSkeleton(SKELETON_HEIGHT);
+        }
+
+        return card({
             className,
+            title: cardTitle(title, subtitle),
             children: [
-                chatUiFrame({
-                    title,
-                    meta: subtitle,
-                    children: div({
-                        className: 'xh-chat-ui-card__fields',
-                        children: validFields.map(({label, value, format, decimals}, idx) =>
-                            div({
-                                key: idx,
-                                className: 'xh-chat-ui-card__field',
-                                children: [
-                                    div({className: 'xh-chat-ui-card__label', children: label}),
-                                    div({
-                                        className: 'xh-chat-ui-card__value',
-                                        children: isFinite(value)
-                                            ? fmtChatUiNumber(value as number, format, decimals)
-                                            : value
-                                    })
-                                ]
-                            })
-                        )
-                    })
-                }),
+                body,
                 validActions.length
                     ? div({
                           className: 'xh-chat-ui-card__actions',
@@ -233,7 +224,25 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
 //------------------
 // Implementation
 //------------------
+const SKELETON_HEIGHT = 48;
+
 const DESCRIPTION =
     'A detail card for one record - a client, an order, a counterparty - with its key fields ' +
     'as labeled values, and up to a few follow-up actions, shown as buttons, for the obvious ' +
     'next steps.';
+
+// The title of the card, with the subtitle after it in a muted tone. Hoist's `Card` takes one
+// title, and lays out the parts of a title node in a row.
+function cardTitle(title: string, subtitle: string): ReactNode {
+    const hasTitle = isString(title) && !!title,
+        hasSubtitle = isString(subtitle) && !!subtitle.trim();
+    if (!hasTitle && !hasSubtitle) return null;
+    return [
+        hasTitle
+            ? span({key: 'title', className: 'xh-chat-ui-card__title', children: title})
+            : null,
+        hasSubtitle
+            ? span({key: 'subtitle', className: 'xh-chat-ui-card__subtitle', children: subtitle})
+            : null
+    ];
+}

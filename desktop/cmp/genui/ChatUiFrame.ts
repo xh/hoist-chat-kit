@@ -38,7 +38,7 @@ export interface ChatUiFrameProps extends HoistProps {
 
 /**
  * The bordered surface of a generative UI card: a 28 px header strip with a title, muted meta text
- * and buttons, the body, and an optional footer. The built-in grid, chart and card draw in one -
+ * and buttons, the body, and an optional footer. The built-in grid, chart and treemap draw in one -
  * use it in your own catalog components for the same look. A frame with a string title is a
  * `region` named by it.
  */

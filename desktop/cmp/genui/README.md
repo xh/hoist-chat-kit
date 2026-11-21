@@ -56,8 +56,9 @@ Key features:
   `$48.5B`, with the full value in a tooltip.
 - **Follow-up actions** - a card's follow-up chips run typed actions. By default each one sends
   a message as the user's next turn, and its tooltip shows what the click does.
-- **One card frame** - every card shares a 28 px header strip, a footer for counts, and the same
-  loading, failed and empty states. `.xh-chat--compact` narrows them for a docked chat.
+- **One card frame** - the table, chart and treemap share a 28 px header strip, a footer for
+  counts, and the same loading, failed and empty states. `.xh-chat--compact` narrows them for a
+  docked chat.
 - **Forms and inputs** - a form, a button and ten inputs put Hoist's `FormField`, inputs and
   `Button` to work. Each input holds a value that the user changes, validates it with Hoist
   rules, and can bind it to the state of its document.
@@ -100,7 +101,8 @@ short. The components handle this:
 - `ChatUiChart` waits until the chart type and axes are complete, creates its `ChartModel`, and
   passes the series to `setSeries()`. Hoist updates the points in place.
 - The stat cards spec shows each card once its figure is complete.
-- `ChatUiCard` shows fields as they arrive, and its actions once the props are complete.
+- `ChatUiCard` shows a placeholder until its first field is complete, then each field as it
+  completes, and its actions once the props are complete.
 - `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
   to come.
 - `ChatUiText` renders its markdown as it streams, as a reply's own text does.
@@ -315,15 +317,21 @@ outline. A large `number` or `currency` value, from 100,000 up, shows to three s
 with a `K`, `M`, `B` or `T` suffix. Its tooltip shows the full value. The model sends the full
 number.
 
-A card shows one record, with its title and subtitle in the header strip. Each action is a typed
-`ChatUiAction` with a `label`, shown as an outlined chip after the card. A click runs it through
-the catalog's `runActionAsync()`. A long chip is cut to one line. By default the card takes `send` actions
-only. A `send` action sends its `text` as the user's own message, with any structured `context` on
-the message's `metadata.context`. The context is a flat object of at most 8 short values, such as
-record ids. The button's tooltip describes the action and its context before the click, and the
-chat shows both after it. Sent text is at most 200 characters. Buttons that send a message or run
-a tool are disabled while the chat is busy, or while a send blocker gives a reason to wait. In a
-message list over a host that is not a `ChatModel`, the card hides them.
+A card shows one record. It renders Hoist's `Card`, with the title and a muted subtitle in its
+header, and its fields in a Hoist `PropertyTable`. A numeric field takes a `format` and `decimals`,
+and a blank value shows as `-`. The card does not collapse. Each action is a typed `ChatUiAction`
+with a `label`, shown as an outlined chip in a row at the foot of the card. Hoist's `Card` has no
+footer, so the row sits under the fields, after a thin rule. A click runs the action through the
+catalog's `runActionAsync()`. A long chip is cut to one line. By default the card takes `send`
+actions only. A `send` action sends its `text` as the user's own message, with any structured
+`context` on the message's `metadata.context`. The context is a flat object of at most 8 short
+values, such as record ids. The button's tooltip describes the action and its context before the
+click, and the chat shows both after it. Sent text is at most 200 characters. Buttons that send a
+message or run a tool are disabled while the chat is busy, or while a send blocker gives a reason to
+wait. In a message list over a host that is not a `ChatModel`, the card hides them.
+
+Style the card through Hoist's `--xh-card-*` and `--xh-property-table-*` variables, under
+`.xh-chat-ui-card`. A compact chat gives its table Hoist's compact size.
 
 ```json
 {

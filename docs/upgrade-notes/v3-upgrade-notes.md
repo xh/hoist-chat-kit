@@ -6,9 +6,10 @@
 
 Hoist Chat Kit v3 moves the kit to `@xh/hoist` v91. The kit's styles read Hoist's renamed CSS
 variables, and its code and docs pass child elements as `children`. The kit's own `--xh-chat-*`
-variables keep their names and their defaults. Its other required steps apply only to apps that
-write a `ChatUiAdapter`, that export a catalog for a server, that use the metrics component
-component themselves, or that set `state` on an `AgUiCodec`.
+variables keep their names and their defaults, apart from the metrics and record card variables that
+Hoist's own now replace. Its other required steps apply only to apps that write a `ChatUiAdapter`,
+that export a catalog for a server, that use the metrics component themselves, that set `state` on
+an `AgUiCodec`, or that style the record card.
 
 - **Hoist v91 (required)** - upgrade the app to Hoist v91 first - see Prerequisites.
 - **The kit version (required)** - see Step 1.
@@ -22,6 +23,10 @@ component themselves, or that set `state` on an `AgUiCodec`.
   exhaustive `switch` over segments needs a case for it.
 - **Agent state (required if used)** - `AgUiCodecConfig.state` is gone, as the chat now holds the
   agent's state - see Step 5.
+- **Record card styles (required if used)** - `ChatUiCard` is now a Hoist `Card` that holds a
+  `PropertyTable`. Move an override of `--xh-chat-card-section-pad` or of the
+  `xh-chat-ui-card__fields`, `__field`, `__label` and `__value` classes to Hoist's `--xh-card-*`
+  and `--xh-property-table-*` variables, under `.xh-chat-ui-card`.
 
 ## Prerequisites
 

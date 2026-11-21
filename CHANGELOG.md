@@ -36,6 +36,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `xh-chat-ui-metrics__*` classes, and the `--xh-chat-tile-min-width` and
   `--xh-chat-tile-value-font-size` variables. Set Hoist's `--xh-stat-card-*` variables instead. See
   [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v3-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
+* `ChatUiCard` now renders a Hoist `Card` that holds a `PropertyTable`. Removed the
+  `xh-chat-ui-card__fields`, `__field`, `__label` and `__value` classes and the
+  `--xh-chat-card-section-pad` variable. Set Hoist's `--xh-card-*` and `--xh-property-table-*`
+  variables under `.xh-chat-ui-card` instead.
 * Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
   emits `STATE_SNAPSHOT` now gets its state back with every run. See
@@ -215,6 +219,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   place of the 8px splitter of Hoist 89.
 * Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
   components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
+* `ChatUiCard` shows its subtitle beside the title in the card's header, and its actions in a row
+  at the foot of the card. A compact chat gives its table Hoist's compact size.
 
 ### 📚 Libraries
 

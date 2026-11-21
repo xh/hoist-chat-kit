@@ -2978,9 +2978,10 @@ variables. The badges, tabs, treemap and input specs already match. A tool name 
 as `show_stat_cards`, where the catalog name is in camel case.
 
 One spec waits. `section` renders `Card`, but `card` still names the record card. The record card
-will become a Hoist `Card` that holds a `PropertyTable`, with its actions in the card's footer, and
-`section` becomes `card` in that change. `callout` rendered `Banner` until Hoist 91 shipped its own
-`Callout`, and then moved onto it with no rename.
+now renders a Hoist `Card` that holds a `PropertyTable`. Hoist's `Card` has no footer, so its
+actions sit in a row at the bottom of the card. It no longer shares the frame of the grid, chart
+and treemap, as D128 had it. `section` becomes `card` in a later change. `callout` rendered
+`Banner` until Hoist 91 shipped its own `Callout`, and then moved onto it with no rename.
 
 **Why.** A developer or an agent that reads a catalog name finds the component in Hoist's docs
 under the same name. A second name for the same component is one more thing to learn and map, and

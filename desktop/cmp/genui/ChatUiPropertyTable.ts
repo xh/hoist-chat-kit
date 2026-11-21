@@ -1,13 +1,10 @@
-import {propertyTable, type PropertyTableEntry} from '@xh/hoist/cmp/propertytable';
-import {dropRight, isBoolean, isEmpty, isFinite, isInteger, isPlainObject, isString} from 'lodash';
+import {propertyTable} from '@xh/hoist/cmp/propertytable';
+import {dropRight, isEmpty, isInteger} from 'lodash';
 import type {ChatUiComponentSpec} from '../../../genui';
-import {
-    CHAT_UI_DECIMALS_SCHEMA,
-    CHAT_UI_NUMBER_FORMAT_SCHEMA,
-    fmtChatUiNumber
-} from './ChatUiFormat';
-import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
+import {CHAT_UI_DECIMALS_SCHEMA, CHAT_UI_NUMBER_FORMAT_SCHEMA} from './ChatUiFormat';
+import {CHAT_UI_INTENTS} from './impl/ChatUiIntents';
 import {takeItems, withMoreNote} from './impl/ChatUiMore';
+import {toPropertyTableEntry} from './impl/ChatUiPropertyEntries';
 import type {ChatUiIntent, ChatUiNumberFormat, ChatUiSpecOptions} from './Types';
 import './ChatUiPropertyTable.scss';
 
@@ -104,7 +101,9 @@ export function chatUiPropertyTableSpec(
         standalone: false,
         render: ({entries, columns}, {isPartial}) => {
             // While streaming, the last value may be cut short.
-            const complete = (isPartial ? dropRight(entries) : (entries ?? [])).flatMap(toEntry),
+            const complete = (isPartial ? dropRight(entries) : (entries ?? [])).flatMap(
+                    toPropertyTableEntry
+                ),
                 {shown, hidden} = takeItems(complete, maxItems);
             if (isEmpty(shown)) return null;
             return withMoreNote(
@@ -137,27 +136,3 @@ const MAX_COLUMNS = 4;
 const DESCRIPTION =
     'A list of labeled values, such as the fields of a record. Use it for facts about one ' +
     'thing. Use stat cards for headline figures, and a grid for many records.';
-
-// An entry of Hoist's `PropertyTable`, or none for a value that is not a labeled value. Hoist
-// renders each string as text, a null value as `-`, and a boolean as nothing, so a boolean
-// passes as `Yes` or `No`, as Hoist advises, and blank text as null.
-function toEntry(item: unknown): PropertyTableEntry[] {
-    if (!isPlainObject(item)) return [];
-    const {label, value, format, decimals, intent} = item as ChatUiPropertyTableEntry;
-    if (!isString(label) || isEmpty(label)) return [];
-    return [
-        {
-            label,
-            value: isFinite(value)
-                ? fmtChatUiNumber(value as number, format, decimals)
-                : isBoolean(value)
-                  ? value
-                      ? 'Yes'
-                      : 'No'
-                  : isString(value) && value.trim()
-                    ? value
-                    : null,
-            intent: toHoistIntent(intent)
-        }
-    ];
-}
