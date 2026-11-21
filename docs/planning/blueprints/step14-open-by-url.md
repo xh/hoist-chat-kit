@@ -16,8 +16,9 @@
   - `draft` opens the draft.
   - With neither, the link opens the latest publish, which is what readers run.
   - `preset=group:item` is repeated once per group.
-- **Every other param names a variable.** The validator refuses a variable named `version`,
-  `draft` or `preset` (`variable.reservedName`). Params the kit does not know are left to the host.
+- **Every other param names a variable.** The validator refuses a variable named `id`,
+  `version`, `draft` or `preset` (`variable.reservedName`). `id` is reserved because the router
+  merges the path's `id` into the params. Params the kit does not know are left to the host.
 - **Values in text form, by type:**
 
   | Type | Form | Notes |
@@ -135,22 +136,25 @@ not as silent drops. I recommend the notice, as silent drops hide a broken link.
 
 **Chat kit (new public API, John - D14-4):**
 
-- `parseBlueprintLink(params, blueprint, registry): BlueprintLinkState` and
-  `blueprintLinkParams(model): Record<string, string | string[]>`. These are pure, they are
-  unit-tested, and `openBlueprint` reuses them.
+- `parseBlueprintLink(params, blueprint?, registry?): BlueprintLinkState`. Without a blueprint
+  it reads only `id` and `open`. `blueprintLinkParams(documentModel)` and
+  `blueprintLinkUrl(documentModel, route)` go the other way. These are pure apart from the
+  router, they are unit-tested, and `openBlueprint` reuses them.
 - `BlueprintModel.applyLinkState(state)`. It applies presets and variables before the first load,
   as above.
 - An optional `VariableTypeSpec.urlCodec?: {parse(text): unknown; format(value): string}` for app
   types that match no field type. Without one, the type is not settable by URL.
-- The denied, fallback and ignored-values notices.
-- A "Copy link" button for the blueprint toolbar, shown when the host gives a route.
+- `BlueprintDocumentModel.openLinkAsync(params)`. It opens, falls back to the latest publish,
+  applies the link in the same tick, and shows the one notice as a warning toast. A blueprint
+  the user may not open returns `openAsync`'s refusal.
+- `blueprintLinkButton({documentModel, route})`, which renders nothing without the route.
 
 **Host app (Toolbox first):**
 
 - A route with `/:id`, such as `blueprints.open`. Its name goes to the kit's config.
-- On route change: read `XH.routerState.params`, call `parseBlueprintLink`, open, then
-  `applyLinkState`. Opening from the list navigates to the route, so the list and links share one
-  path.
+- On route change: `documentModel.openLinkAsync(XH.routerState.params)`, and show its refusal
+  as the denied view. Opening from the list navigates to the route, so the list and links share
+  one path.
 - A dataset server that checks entitlement on every param (above).
 - Optionally, a `urlCodec` for each app type to set by link, such as Toolbox's portfolio.
 
