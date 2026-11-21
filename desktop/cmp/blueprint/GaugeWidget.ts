@@ -47,6 +47,10 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
         };
     }
 
+    private get inCanvas(): boolean {
+        return this.parentElement?.component === 'dashCanvas';
+    }
+
     private setCube(cube: Cube) {
         this.registerView(null);
         this.view?.destroy();
@@ -56,7 +60,7 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
 
     private updateChart() {
         const {view, source, chartModel} = this,
-            {value, min = 0, max = 100, stops, format} = this.resolvedConfig,
+            {value, title, min = 0, max = 100, stops, format} = this.resolvedConfig,
             def = source?.fields[value];
         if (!view || !def) {
             chartModel.setSeries([]);
@@ -70,8 +74,8 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
             });
         chartModel.setHighchartsConfig({
             chart: {type: 'solidgauge'},
-            // Its container draws its title, as a canvas cell's header does.
-            title: {text: null},
+            // A canvas cell draws its title in its header. Highcharts reads a title as markup.
+            title: {text: title && !this.inCanvas ? escape(title) : null},
             pane: {
                 startAngle: -90,
                 endAngle: 90,

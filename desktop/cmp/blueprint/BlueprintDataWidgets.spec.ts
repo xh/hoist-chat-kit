@@ -443,6 +443,19 @@ describe('blueprint data widgets', () => {
             expect(label).not.toContain('<');
         });
 
+        it('draws its own title, escaped, where its parent draws none, as in a box', async () => {
+            const bp = withGauge({title: 'Gross <b>exposure</b>'});
+            bp.elements.row = {component: 'box', children: [{id: 'gauge'}]};
+            bp.elements.dashboard.children = bp.elements.dashboard.children.map(it =>
+                it.id === 'gauge' ? {...it, id: 'row'} : it
+            );
+            const gauge = widget(GaugeWidgetModel, open(bp), 'gauge');
+            await vi.waitFor(() => expect(gauge.chartModel.series[0]?.data).toEqual([350]));
+            expect(gauge.chartModel.highchartsConfig.title.text).toBe(
+                'Gross &lt;b&gt;exposure&lt;/b&gt;'
+            );
+        });
+
         it('refuses a min that is not under its max, and a stop color that is not hex', () => {
             const codes = (config: object) =>
                 open()

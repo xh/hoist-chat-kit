@@ -566,8 +566,9 @@ export class BlueprintModel extends HoistModel {
      * as "P&L for {fund}". A reference to anything but a variable fills as empty.
      */
     resolveTitle(value: unknown): string {
-        const ret = this.resolve(value);
-        return typeof ret === 'string' ? this.fillVariables(ret) : (ret ?? null);
+        // A bound value shows as it is, never read as a template.
+        if (typeof value !== 'string') return this.resolve(value) ?? null;
+        return this.fillVariables(value);
     }
 
     /** A filter with its bindings resolved, dropping clauses bound to null. Null for none. */
@@ -575,13 +576,14 @@ export class BlueprintModel extends HoistModel {
         return resolveFilter(filter, name => this.getVariable(name)?.value);
     }
 
-    /** A text with each `{variable}` it reads filled as plain text. */
+    /** A title with each `{variable}` it reads filled as plain text, cut to 200 characters. */
     fillVariables(text: string): string {
         if (!text.includes('{')) return text;
-        return fillTemplate(text, ({source, name}) => {
+        const ret = fillTemplate(text, ({source, name}) => {
             const variable = source ? null : this.getVariable(name);
             return variable ? variableText(variable.value, variable.decl.type) : '';
         });
+        return ret.length > MAX_TITLE ? `${ret.slice(0, MAX_TITLE - 1)}…` : ret;
     }
 
     /** The distinct values of a field over a source's loaded rows, sorted. Empty until it loads. */
@@ -753,3 +755,6 @@ function nothingTo(action: 'undo' | 'redo'): BlueprintEditResult {
         ]
     };
 }
+
+// The longest a filled title gets, as a variable's value may be long.
+const MAX_TITLE = 200;

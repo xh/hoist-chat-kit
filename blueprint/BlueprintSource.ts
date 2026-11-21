@@ -260,8 +260,11 @@ export class BlueprintSource extends HoistBase {
         const {catalog, blueprint} = this.context,
             chosen = paramLabel(resolveFormat(field, ret.formats, {catalog, blueprint}).label);
         if (!chosen) return ret;
-        const value = this.context.resolve(this.decl.params?.[chosen.param]),
-            label = chosen.values[value as string];
+        // A joined field reads the param of the source it joins from.
+        const joinedFrom = this.joins.find(it => it.fields.some(f => f.name === name))?.join.source,
+            owner = joinedFrom ? this.context.blueprint?.sources?.[joinedFrom] : this.decl,
+            value = this.context.resolve(getOwn(owner?.params, chosen.param)),
+            label = getOwn(chosen.values, String(value));
         return {...ret, formats: [...ret.formats, {label: isString(label) ? label : ''}]};
     }
 

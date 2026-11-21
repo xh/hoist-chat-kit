@@ -117,6 +117,30 @@ describe('BlueprintWidgetModel', () => {
         expect(model.resolveTitle('As of {asOf}')).toBe('As of 2026-03-03');
     });
 
+    it('fills only literal titles: a bound value shows as written, and a long fill is cut', () => {
+        const model = open();
+        model.setBlueprint({
+            ...model.blueprint,
+            variables: {
+                ...model.blueprint.variables,
+                desk: {type: 'string', setBy: 'prompt', default: {value: 'Desk {asOf}'}},
+                note: {type: 'string', setBy: 'prompt', default: {value: 'x'.repeat(300)}}
+            },
+            elements: {
+                ...model.blueprint.elements,
+                sectorChart: {
+                    ...model.blueprint.elements.sectorChart,
+                    config: {...model.blueprint.elements.sectorChart.config, title: {$var: 'desk'}}
+                }
+            }
+        });
+        expect(widget(model, 'sectorChart').resolvedConfig.title).toBe('Desk {asOf}');
+        expect(model.resolveTitle({$var: 'desk'})).toBe('Desk {asOf}');
+        const long = model.resolveTitle('{note}');
+        expect(long).toHaveLength(200);
+        expect(long.endsWith('…')).toBe(true);
+    });
+
     it('shows the value of the variable its element sets, and sets it', () => {
         const model = open(),
             chooser = widget(model, 'chooser'),

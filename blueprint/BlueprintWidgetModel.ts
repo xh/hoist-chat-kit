@@ -92,8 +92,8 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
                 delete ret[key];
             }
         });
-        // The resolved config is a copy, so its titles fill in place.
-        templateStrings(ret, schema)
+        // Only literal titles fill, never a bound value. The resolved config is a copy.
+        templateStrings(config, schema)
             .filter(it => it.mode === 'variables')
             .forEach(({text, path}) => set(ret, path, blueprintModel.fillVariables(text)));
         return ret;

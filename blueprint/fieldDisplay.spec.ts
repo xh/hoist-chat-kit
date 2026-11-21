@@ -229,4 +229,56 @@ describe('a format label chosen by a param', () => {
         expect(text()).toBe('12 mph');
         expect(text({format: {label: ' knots'}})).toBe('12 knots');
     });
+
+    it("labels a joined field by its own source's param", () => {
+        const joined = new DataCatalog({
+                formats: {speed: {label: {param: 'units', values: {metric: ' m/s'}}}},
+                kinds: {speed: {base: 'number', format: 'speed', aggregator: 'AVG'}},
+                datasets: {
+                    sites: {
+                        key: ['city'],
+                        params: {},
+                        fields: [{name: 'city', type: 'string', isDimension: true}]
+                    },
+                    wind: {
+                        key: ['city'],
+                        params: {units: {type: 'string'}},
+                        fields: [
+                            {name: 'city', type: 'string', isDimension: true},
+                            {name: 'windSpeed', type: 'number', kind: 'speed'}
+                        ]
+                    }
+                }
+            }),
+            model = new BlueprintModel({
+                blueprint: {
+                    variables: {units: {type: 'string', default: {value: 'metric'}}},
+                    sources: {
+                        w: {dataset: 'wind', params: {units: {$var: 'units'}}},
+                        s: {
+                            dataset: 'sites',
+                            joins: [{source: 'w', on: {city: 'city'}, fields: ['windSpeed']}]
+                        }
+                    },
+                    root: 'grid',
+                    elements: {
+                        grid: {
+                            component: 'cubeGrid',
+                            config: {source: 's', columnState: ['city', 'windSpeed']}
+                        }
+                    }
+                },
+                catalog: joined,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: joined})
+            });
+        onTestFinished(() => model.destroy());
+        const source = model.getSource('s'),
+            field = source.fields.windSpeed,
+            opts = resolveFormat(field, source.displayOf('windSpeed').formats, {
+                catalog: joined,
+                blueprint: model.blueprint
+            });
+        expect(formatValue(12, field, opts, joined, true)).toBe('12 m/s');
+    });
 });
