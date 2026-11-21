@@ -124,7 +124,8 @@ interface WidgetSpec<C> {
   "symbol"}` gives the selected row's symbol, or null unless that row has one symbol.
 - A chart whose `x` is a dimension aggregates through the Cube. A chart whose `x` is a date or
   time field plots rows as they are.
-- The blueprint's toolbar renders prompts and the preset switch. Neither is a widget.
+- The blueprint's toolbar renders prompts, which are not widgets. A preset group shows through a
+  `presetSelector` widget.
 - A grid's `sortBy` uses Hoist's sort form: a string, or a list of them, such as
   `["pnlDay|desc|abs", "symbol"]`. The field `group` names the tree column, in `sortBy` and in
   `columnState`, so the tree column's width, pin and visibility are kept like any column's. With no
@@ -186,8 +187,19 @@ The first widgets, for the scenarios:
 - A child reference is an object: the child's ID, plus what the container needs to place it.
   Each container declares a schema for its child references. A `dashCanvas` takes `x`, `y`, `w`
   and `h`. A `tabContainer` takes `title` and `icon`.
+- A container can hold named slot lists beside `children`, each named for the component prop it
+  fills, in an order of its own. A `panel` has `tbar` and `bbar`, toolbars above and below its
+  content, and `headerItems`, inputs in its header. A child reference can hold slot lists too: a
+  `dashCanvas` cell's `headerItems`, as in `{"id": "posGrid", "x": 0, "y": 0, "w": 8, "h": 6,
+  "headerItems": [{"id": "posViews"}]}`. A reference in a slot other than `children` holds the
+  child's ID alone.
+- Each widget spec declares its `slots`, and a container its child references' `slots`, each with
+  what it accepts, a `description` in users' words and optional `terms`. `describe_registry` and
+  `show_ui`'s widget listing show them.
 - A widget's config holds no layout. A move or a rearrange changes only child references.
-- An element has at most one parent, so the layout places each widget exactly once.
+- An element sits in exactly one slot list of one parent, so the layout places each widget
+  exactly once. `addElement` and `moveElement` take a `slot`, `children` by default, and `of`, the
+  child whose reference holds the slot.
 - Layouts nest, for example a tab container that holds canvases.
 - A designer can make a container's placement personalizable, so a user in run mode can
   rearrange it. How such a personalization meets a publish that adds or removes a child is Q25.
@@ -686,8 +698,12 @@ Two places declare what can vary:
 ```
 
 - `presets` holds named preset groups, such as one per grid. Each group has a `label`,
-  `controls`, `default` and `items`, and shows as its own switch. A path belongs to at most one
-  group.
+  `controls`, `default` and `items`. A path belongs to at most one group.
+- A `presetSelector` widget shows a group and switches its active preset, as a segmented control,
+  buttons, a select, or a toggle for exactly two presets. It belongs in the header of the widget
+  the group controls: its canvas cell's `headerItems`, or its panel's. Selectors of one group stay
+  in sync, and in design mode the preset they switch to is the one edits write into. A group with
+  no selector stays at its default, and the validator warns of it.
 - A group's `controls` lists the paths its presets control. Those paths leave the element's
   config, because a preset is always active and a value in config would never apply.
 - Every preset in a group sets every path the group controls, so switching presets always gives

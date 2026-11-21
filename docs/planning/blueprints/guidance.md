@@ -25,6 +25,8 @@ Enforced by:
 | A path never indexes into an array. Replace the whole array. | Design: index paths break as soon as anything else changes the array | Validator |
 | To clear a variable, use `resetVariable`, not `setVariable` with null. | P3: Sonnet's "All" button set a filter to null and was refused | Validator |
 | After a refused edit, read each issue's path, fix that path, and send the whole edit again. | Every round: each refused edit was fixed on the next try | Prompt |
+| Put a preset group's selector in the header of the widget the group controls: its canvas cell's `headerItems`, or its panel's. | Decisions 154 and 157: a group with no selector stays at its default | Prompt, and a validator warning (`preset.noSelector`) |
+| Put a toolbar or its items in a panel's `tbar` or `bbar` slot list when the user asks for them above or below, in a footer, or along the bottom. | Decision 157 | Prompt, and each slot's description and terms in `describe_registry` and `show_ui` |
 
 ### Values and variables
 
