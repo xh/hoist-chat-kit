@@ -409,10 +409,35 @@ it.
 - A chart of the chance of rain through the day, over the query result.
 - Any stat cards hold inline computed values, allowed in a chat answer only.
 - A question that does not touch the host, even with a host open.
-- If the user then says "add Chicago to my dashboard", the Architect adds a third city column
-  and turns the computed numbers into widgets over a source.
+- Adding Chicago to the dashboard is W3b.
 - Several segments in one reply, each its own blueprint, are covered by the library's tests and
   a scripted conversation, not by this scenario.
+
+### W3b. Adding an answer's city to the dashboard
+
+**Who.** The W3 user, with write access, in run mode.
+
+**Prompts.**
+
+1. "Will I need an umbrella in Chicago tomorrow? When is rain most likely?"
+2. "Add Chicago to my dashboard."
+
+**Sees.**
+
+1. W3's answer. The dashboard is unchanged.
+2. The Architect asks to switch to design mode, then adds a third city column. A `cityC`
+   variable defaults to Chicago, new current and forecast sources read the same datasets with
+   the dashboard's units, and the column mirrors the other two. The figures the answer computed
+   become stat cards over the forecast source, filtered to tomorrow through a date resolver, so
+   they are fetched each time the dashboard opens.
+
+**Tests.**
+
+- Asks for design mode before it edits.
+- No artifact or inline source in the dashboard.
+- The new column's widgets read new sources over the same datasets, and the units toggle
+  reloads all three columns.
+- Tomorrow is a resolver, not a fixed date.
 
 ### W4. One city's day on two axes
 

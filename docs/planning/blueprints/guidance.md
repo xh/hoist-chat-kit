@@ -20,6 +20,7 @@ Enforced by:
 | Rule | Source | Enforced by |
 |---|---|---|
 | Read before writing. Use `describe_catalog` for fields and `describe_registry` for a widget's config schema. Never guess a field or config name. | Every test round: both models read first, and no edit failed on a wrong field | Prompt |
+| A tool that writes widget configs lists each small widget's config keys, required keys marked, and the values of short enums. Long schemas stay behind `describe_registry`. | W3 and W3b: models wrote callout `message`, text `content` and an unknown stack `gap` until `show_ui` listed keys and enum values. Then the slips stopped | Prompt |
 | Make one edit for one request, and keep it to what was asked. | P3: one edit per prompt over nine prompts | Prompt |
 | Only the first element added to an empty blueprint can omit its parent, and it becomes the root. Every later element needs a parent and a placement. | P3: both models added a second top-level element without a parent on the first edit, in two rounds | Validator and the tool description |
 | A path never indexes into an array. Replace the whole array. | Design: index paths break as soon as anything else changes the array | Validator |
@@ -57,6 +58,11 @@ Enforced by:
 | Look at the data with `query_dataset`, then answer. Answer in text alone when one or two facts answer the question. Show UI when the answer holds a series over time, a ranking, a comparison, or more numbers than a sentence carries, and still say the answer in one sentence of text. A question with several parts, such as a headline and its detail, takes a segment for each part. | W3: Sonnet answered the umbrella question in text, and Opus with a chart and a grid. In Toolbox, three of four runs of W3 and P4 answered in prose alone, where a chart of rain through the day or a ranking of traders served the user better | Prompt |
 | Widgets that interact go in one segment. Segments never share variables. | Design: segments are isolated | Not yet |
 | A segment may hold literal parameters, artifacts and computed inline values. A dashboard may not. | Design: answers are fixed records. Decision 83: a person may author a short inline list | Validator: an artifact outside an answer is an error, and an inline source a warning, an error over 50 rows |
+| In design mode, a request to show or add something builds it in the blueprint. Answer with `show_ui` only a question about the data, or any request in run mode. | Step 9 sweep: W1 on an empty blueprint in design mode got an answer and an offer to add it, on both models, and nothing was built | Prompt |
+| Name a grid or chart with its own `title`, not a text element beside it, so the label stays with its widget. | Grid styles preview: a text label sat between grids with equal gaps, so it was unclear which grid it named | Prompt, in widget guidance |
+| Keep tab titles to one or two words, as a person would say them, not raw values. | Grid styles preview: Sonnet titled tabs with raw enum values, and the strip clipped at a 350px chat width | Prompt, in widget guidance |
+| To show how variants of something look, show them all at once, stacked, each with its own title. Use tabs only when each variant is a full view the user will explore. | Grid styles preview: tabs hid all but one variant, so the styles could not be compared. John preferred small titled grids stacked up | Prompt |
+| A preview or illustration is minimal: only the columns and rows that show the point, such as two grouping levels and five rows. Use a small inline source, or limit a dataset grid with a filter and `expandLevel`. A preview is a thumbnail, so it may use a compact or tiny `sizingMode` to fit, unless sizing is what it shows. | Grid styles preview: both models built full position grids to show a tree style | Prompt |
 | A question never changes the host blueprint. | W3: the host stayed unchanged on both models | Prompt |
 | To add an answer to the host, read it with `read_answer`, then translate it. Reuse a host source that gives the artifact's rows, else add the source `read_answer` gives. Keep the query's filter, grouping and sort, and give each new widget a child reference. | P4: both models added the chart over the host's existing source | Prompt. `read_answer` maps each artifact to its source and widget config, and finds matching host sources |
 | Bind a literal parameter to a host variable only when it means the same thing, not when it merely holds the same value today. A date that means today, or one relative to it, becomes the host's variable or a resolver. | Decision 83 | Prompt |
@@ -73,7 +79,9 @@ both again on harder scenarios before choosing a default.
 In Toolbox, through the real Architect on real data, both passed every check on P1, P2 and P3
 from empty, and Sonnet cost about half as much. Sonnet took more refused edits on P2 and
 recovered. Opus took fewer model calls on P2. P3's nine turns cost $0.23 on Sonnet and $0.46 on
-Opus. Sonnet 5.5 is now the default (decision 65).
+Opus. Sonnet 5.5 is now the default (decision 65). Adding answers to a host passed on both models, with design mode asked for first every time.
+Sonnet answers in text alone more often than Opus: W3's rain question got prose in every Sonnet
+run, which is a fair reading of it. An app that wants more UI in answers should test Opus there.
 
 ## Designing a Data Catalog
 
@@ -100,4 +108,5 @@ test round can watch for related problems.
 - **Preset values in the blueprint's own shape.** Values keyed by path needed escaped pointers to
   edit. A preset's `set` now mirrors the blueprint, so every path stays plain.
 - **Check every key.** The validator let an unknown key under `presets` through. Every object in
-  a blueprint should refuse keys it does not know.
+  a blueprint should refuse keys it does not know. Edit operations too: a misspelled `index` or `child` on `addElement`
+  is refused with `edit.unknownProperty`, not ignored.

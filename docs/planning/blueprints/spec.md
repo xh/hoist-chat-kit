@@ -114,7 +114,9 @@ interface WidgetSpec<C> {
   do not affect validity. `x-binding` marks a path that accepts `{"$var": ...}`. `x-field` marks
   a value that names fields of the widget's source, optionally only dimensions or measures. The
   foundation checks those names against the Data Catalog, and design mode offers a field
-  picker. `x-action` marks an action prop, and `x-format` a format prop.
+  picker. `x-action` marks an action prop, and `x-format` a format prop. `x-variable` marks a param that names a
+  variable rather than taking a value, such as `setVariable`'s `variable`: the foundation checks the
+  name, and design mode offers the variables that param may name.
 - Every widget that shows data reads it from a source. No widget holds data in its config. In a
   chat answer, values the LLM computed go in an `inline` source, and the widget names its
   fields.
@@ -136,15 +138,17 @@ interface WidgetSpec<C> {
 - A user's own column filters are transient for now. They will become a personalizable path of
   their own, applied with AND on top of the designer's `filter`, never in its place.
 
-The first widgets, for the scenarios:
+The first widgets, for the scenarios. Step 11 adds many more, listed in
+[`step11-widget-catalog.md`](./step11-widget-catalog.md):
 
 | Name | Label | Main config | Outputs or value | Preset paths |
 |---|---|---|---|---|
 | `dashCanvas` | Dashboard | `columns`, `rowHeight`. Child references take `x`, `y`, `w`, `h` | None | None |
 | `tabContainer` | Tabs | Child references take `title`, `icon` | None | None |
-| `cubeGrid` | Grid | `source`, `groupBy`, `columnState`, `sortBy`, `filter`, `expandLevel`, `summaryRow`. `columnState` lists field names, or objects with `field`, `width`, `hidden`, `pinned`, `format` and `renderer` | Outputs `selection` (a filter) and `selected` (one field's value) | `columnState`, `sortBy` |
+| `cubeGrid` | Grid | `source`, `groupBy`, `columns`, `columnState`, `sortBy`, `filter`, `expandLevel`, `summaryRow`, and the grid styles. `columns` maps a field to its column config: `headerName`, `headerTooltip`, `headerAlign`, `align`, `tooltip`, `highlightOnChange`, `minWidth`, `maxWidth`, `flex`, `chooserName`, `chooserGroup`, `chooserDescription`, `exportName`, `format` and `renderer`. `columnState` holds only state: field names, or objects with `field`, `width`, `hidden` and `pinned` | Outputs `selection` (a filter) and `selected` (one field's value) | `columnState`, `sortBy` |
 | `chart` | Chart | `source`, `type`, `x`, `y`, `groupBy` to split series, `stacking`, `filter`, `sortBy`, `top`, `title` | None | `type` |
-| `statCardStrip` | Stat cards | `source`, `title`, `cards`: each a `field`, `label`, `format` and `agg`. A card with `agg: "count"` and no field counts rows | None | None |
+| `statCard` | Stat card | `source`, `field`, `agg`, `label`, `format`, `deltaField`, `intent`, `trend`. A card with `agg: "count"` and no field counts rows | None | None |
+| `tileFrame` | Tiles | Children are tiles, such as stat cards, laid out to fill the frame | None | None |
 | `groupingChooser` | Grouping | `dimensions` the user can choose from | Value: a list of dimensions | None |
 | `buttonGroup` | Buttons | `buttons`: each a `label`, `icon` and `action` | None | None |
 | `buttonGroupInput` | Toggle | `options`: each a `value` and `label` | Value: one option | None |
@@ -269,7 +273,8 @@ The first widgets, for the scenarios:
   lists of these, written such as `string[]`, and `filter`. A filter is a variable, not a
   separate concept.
 - A variable's `options` limits its values, for a prompt's choices: `{"values": [...]}`, or
-  `{"dataset": "positions", "field": "fund"}` for a dimension's values. An app variable type can
+  `{"source": "positions", "field": "fund"}` for the values of a field in one of the blueprint's
+  sources. The `{dataset, field}` form is refused (`variable.badOptions`). An app variable type can
   supply its own choices and its own input.
 - An app variable type declares the field type its values match, such as `fund` matching
   `string`. A `fund` variable can then bind to a parameter or a filter on a `string` field.
@@ -383,6 +388,8 @@ A source is one of three kinds. Widgets do not know which kind they read.
   fetched each time the blueprint opens.
 - A blueprint never depends on chat storage. An artifact with no dataset becomes an `inline`
   source if it is small, or a snapshot that the blueprint owns.
+- Outside a chat answer, an artifact source is an error, and an `inline` source the Architect
+  writes is a warning, with a row cap, since a person may author a small inline list.
 
 Live data:
 
@@ -419,6 +426,26 @@ Measures that roll up on the server, with the `"server"` aggregator:
   lags its rows.
 
 Paging and very large results come later, as a capability a dataset declares.
+
+### Sources can join
+
+A source can take fields from other sources, keyed on fields they share, so a widget shows data
+from several datasets without the backend joining them. Each widget still reads one source. The
+design is decision 132.
+
+- The join lives on the source: `joins: [{source, on, fields, as?}]`. It is a left join.
+- Each catalog dataset declares its `key`, the fields that identify a row. Comparing `on` with each
+  side's key gives the grain, and the grain picks the mode for each joined field:
+  - Same grain: a row join. Values copy onto the primary's rows and aggregate normally.
+  - Coarser grain, or a measure the secondary computes on its server: a supplied join. A lookup
+    keyed by dimension values feeds `SUPPLIED` at each group level whose path pins the join key,
+    and is blank where the value is undefined, such as a fund's NAV by sector. The root is the
+    secondary's own aggregate over the keys present in the primary's current rows.
+  - Finer grain, including a time series: aggregate the secondary to the join key, then join.
+- A joined source shares the primary's parameters by default, so as-of follows as-of.
+- A source-filter clause on joined fields is pushed down as a semi-join: it runs on the joined
+  source first, then the primary's request filters on the matching keys. The requests run in
+  sequence only then. A later option may let a join fetch more and filter on the client instead.
 
 ### Filters use Hoist's filter form
 
@@ -810,6 +837,48 @@ Two places declare what can vary:
 - In design mode, an edit goes to the draft definition or to a preset.
 - If a user without write access wants an authored change, the user saves a copy of the
   document and edits the copy.
+- The app decides who may publish, through its access provider. By default, anyone with write
+  access can publish. (Q11, settled.)
+
+### Storage is a contract the app implements
+
+The library defines what persistence must do, as the `BlueprintRepository` interface, and the app
+implements it. (Q12 and Q13, settled.)
+
+- A repository holds one type of blueprint, a dotted name such as `toolbox.weather`, and scopes
+  every read and write to it. A blueprint of another type is missing to it, even by id. A name is
+  unique per owner and type. (Decision 159.)
+- The host builds a repository for each type, and opens its blueprints with that type's registry
+  and catalog, so the Architect, validation and design mode see only that type's widgets and
+  datasets.
+- A blueprint's `id` is its stable token, the same in every environment, never a database id. A
+  link carries it. (Decision 160.)
+- A blueprint has one draft and a series of numbered publishes that never change. Users run the
+  latest publish, and designers edit the draft.
+- Saving the draft takes the version it was based on, and a stale base is refused with
+  `edit.staleBase`. A repository declares whether it enforces this on its server. If it does not, the
+  library checks before saving, which narrows the race but does not close it.
+- A personalization is keyed by user, blueprint and preset, holds edit operations, and records
+  the publish version it was made against. It follows renamed IDs through the rename history.
+- A copy records the blueprint and version it came from, always of its own type. A copy into
+  another type must pass that type's validation, and records no source.
+- A summary may name its owner: the user who created it, or the name an app gives the blueprints
+  it seeds.
+- Each blueprint a repository returns carries the user's access and whether they may publish,
+  and the repository answers whether the user may create one. Nothing grants access without the
+  repository saying so. By default, publishing follows write access. A repository that supports
+  sharing implements an optional method to set a blueprint's writers and readers.
+- A blueprint whose readers include `'*'` is global: everyone can read its latest publish. Making a
+  blueprint global takes a role the app names, by default an admin role. A repository declares which
+  sharing it supports: named users, roles, or everyone.
+- Every writer edits one shared draft per blueprint.
+- Architect conversations are not part of the contract. They live in chat kit's thread storage,
+  keyed by blueprint.
+- Readers see only the latest publish. Drafts and older publishes are for writers.
+- Pending renames stay on the draft until the next publish, so a publish carries every rename
+  since the one before.
+- Deleting a blueprint deletes its publishes and its personalizations. A repository without referential
+  integrity does this in code, and ignores and cleans up orphans it finds.
 - The edit tools enforce mode and access. The prompt does not.
 - A blueprint's model holds its mode and the user's access, and is their one source. It opens in
   run mode with read access unless the app says otherwise. Design mode needs write access.
@@ -935,13 +1004,22 @@ produces it from code, from a server, or from a stored document with its own ver
 A blueprint uses the Data Catalog and adds only what is specific to it:
 
 - A source binds its dataset's parameters.
+- A source waits while a required parameter has no value, and also while a parameter bound to a
+  variable that a widget's output sets, such as a grid's selected symbol, has no value: nothing
+  selected means nothing to show. A prompt or resolver variable left empty means "all".
 - A source can declare instances of parameterized fields under its `fields`, each with a key,
   such as `retMtd` and `retYtd`. Widgets name an instance as they name any field. Widgets that
   name the same instance share one request column and one Cube field.
-- An instance can give a `label`. Without one, its label is the field's label followed by its
+- An instance can give a `label`, and the same display keys as a source override below. Without one, its label is the field's label followed by its
   parameter values in parentheses, each formatted by the parameter's `kind`, or else by its type,
   such as "Shocked P&L (-10%)". A catalog parameter can name a `kind`, as a field does.
+- A source's `fields` can also hold a display override for a plain catalog field: an entry with
+  no `field` key, such as `"pnlDay": {"label": "Today"}`. It may set `label`, `description`,
+  `align`, `width`, `format` and `renderer`, and every widget over that source shows it. It
+  changes how the field displays, never its data.
 - A blueprint cannot define or change any other field.
+- A field's display resolves in three layers, each overriding the one before: the catalog field,
+  then the source's entry, then the widget's own column config.
 
 ### Formats are declarative and layered
 
@@ -1058,7 +1136,7 @@ Toolbox, so Toolbox runs both packages inline. To start the client, run this in 
 XH_INLINE_PACKAGES=@xh/hoist-chat-kit pnpm startWithHoist
 ```
 
-The plan ends with a usable system: people and the Architect build, save, publish and run
+The plan ends with an impressive demo: people and the Architect build, save, publish and run
 blueprints in Toolbox's portfolio and weather apps. Phases 1 to 3 get there. Phase 4 adds
 features that the spec already settles, in the order we choose.
 
@@ -1102,48 +1180,70 @@ features that the spec already settles, in the order we choose.
    and `show_ui` and the component tools take blueprint segments. The text formats and adapters
    produce segments. Adding an answer to a host becomes a feature. This covers P4 and W3.
 
-### Phase 3: a usable system
+### Phase 3: an impressive demo
+
+Steps were renumbered on Nov 20. Decisions logged before then use the old numbers: old step 11
+is now the deferred personalizations below, old 12 is 15, and old 13 to 17 are 16 to 20.
 
 9. Let people design blueprints. Design mode adds, moves, resizes and removes widgets on canvases
    and tabs, and edits variables and sources. A config editor comes from each widget's schema,
    with Hoist editors where they fit: a field picker for `x-field`, `GroupingChooser` and
-   `FilterChooser`. Undo, redo and history come from the edits.
-10. Save, open and publish blueprints. This settles Q11 and Q12. The app provides storage through
-    an interface, with drafts, numbered publishes and the version check on `base` across users.
-    Saving writes the `schema` map, and opening runs the migrations. A URL opens a blueprint, and
-    its parameters set variables.
-11. Run blueprints as users. Preset switches, personalizations with their marks and resets, and
-    access with copies, from the follow-up scenarios in
-    [`scenarios.md`](./scenarios.md#follow-up). This settles Q13, Q15 and Q25.
-12. Build the portfolio and weather apps in Toolbox on the foundation. The weather app starts
-    from Weather V2, which never merged, not from the current weather dashboard. A demo that
-    calls the Claude API needs gating by role, limits and tracking. Anselm can give access to
-    the platform's admin tools. Write the library's READMEs and doc registry entries, and turn
-    [`guidance.md`](./guidance.md) into two skills: one for the Architect, one for designing a
-    Data Catalog.
+   `FilterChooser`. Undo, redo and history come from the edits. Done.
+10. Save, open and publish blueprints. The app implements a storage contract, with drafts,
+    numbered publishes, the version check on `base`, and sharing. Done, with a JsonBlob
+    repository in Toolbox and a hoist-core one. Opening by URL moves to step 14.
+11. Done. Build out the widget catalog, so a blueprint can present and visualize far more: layout and
+    content widgets, data widgets such as a property table, treemap, sparkline and progress bar,
+    more chart types, and inputs on the canvas. Chat kit's presentational specs that suit
+    dashboards become real widgets, without forking chat kit's components.
+12. Done. Refine the Architect: new scenarios that use the new widgets, run in the harness and the
+    browser on both models, prompt and guidance improvements from those runs, cost and latency,
+    and building a whole dashboard from one request.
+13. Done, pending John's browser checks. Polish the tools: the Designer's layout, design-mode ease of use, dragging from the palette,
+    and the inspector.
+14. Done, pending John's browser checks ([`step14-open-by-url.md`](./step14-open-by-url.md)). Open a blueprint by URL, with its parameters setting variables that URL parameters may set.
+15. In progress ([`step15-demo-plan.md`](./step15-demo-plan.md)). Build the portfolio and weather apps in Toolbox on the foundation, as the demo. The weather
+    app starts from Weather V2, which never merged, not from the current weather dashboard. A demo
+    that calls the Claude API needs gating by role, limits and tracking. Finish the library's docs,
+    and turn [`guidance.md`](./guidance.md) into two skills: one for the Architect, one for
+    designing a Data Catalog.
+
+Personalizations, deferred: preset choices kept per user, personalizations with their marks and
+resets, and Q15 and Q25. To keep them cheap to add later, every widget follows two rules now:
+
+- State a user can change in a widget, such as a sort, column layout or grouping, is config,
+  written through the widget's config path and declared among its preset paths. In run mode it
+  stays transient.
+- A widget keeps no private state that the blueprint cannot see.
 
 ### Phase 4: features, in the order we choose
 
-13. Prove that framework features are easy to add. Start with conditional styles on the base
+16. Prove that framework features are easy to add. Start with conditional styles on the base
     grid widget. A condition uses the filter grammar. A style is a Hoist intent or a registry
     class, never raw CSS.
-14. Add `request_feature`, a tool the Architect uses when a request needs something Blueprints
+17. Add `request_feature`, a tool the Architect uses when a request needs something Blueprints
     cannot do. The Architect says so, offers a workaround, and asks the user before it sends
     anything. A request holds a summary, a category such as "grid: conditional styles", the
     user's words, the workaround, and the relevant blueprint fragment. The app decides what
     leaves its environment, and delivers the request through its own endpoint, such as a
     hoist-core endpoint that forwards to XH's issue tracker. Requests in one category group
     together, with a count.
-15. Add `openBlueprint`, to drill into detail such as a position or a strategy in a popover or a
+18. Add `openBlueprint`, to drill into detail such as a position or a strategy in a popover or a
     dialog, without leaving the blueprint.
-16. Add text that reads variables, such as a title or a column header of "P&L for {fund}". Until
+19. Add text that reads variables, such as a title or a column header of "P&L for {fund}". Until
     then, a title can bind one whole variable.
-17. Move Hoist Blueprints into hoist-react as `@xh/hoist/blueprint`, with chat kit.
+20. Move Hoist Blueprints into hoist-react as `@xh/hoist/blueprint`, with chat kit.
 
 These are in the spec but not yet in a step. Each needs only a priority, unless noted:
 
 - Paging and very large results, as a capability a dataset declares.
 - A mobile renderer, which shows a container's children in list order.
+- A hoist-core data backend that runs a blueprint's source requests on the server, with the catalogs,
+  so joins and time-series collection happen on server hardware and the browser gets the exact
+  shape it needs.
+- A blueprint domain object and service in hoist-core, implementing the storage contract with
+  real referential integrity and a server-side version check (a compare-and-set update). Until
+  then, an app implements the contract itself, as Toolbox does over JsonBlobs.
 - A server-run Architect, once Q22 is settled.
 - The Architect configuring a Data Catalog. This needs a design first: the spec defines the
   catalog's format, but not how it is edited.
@@ -1155,19 +1255,15 @@ These are in the spec but not yet in a step. Each needs only a priority, unless 
 The vertical slice can stub these. Access, personalizations and locking wait for the follow-up
 scenarios.
 
-- **Q11.** Whether publishing needs its own permission, apart from write access. Plan step 10.
-- **Q12.** Where things are saved: blueprints, their drafts, published versions and history,
-  personalizations, and snapshots a blueprint owns. The slice can use a simple store. Plan step 10.
-- **Q13.** Whether a copy records the blueprint and version it came from. Plan step 11.
 - **Q15.** How a blueprint says its data is live or locked, for a one-off report that a user
-  wants kept as it was. Plan step 11.
+  wants kept as it was. Deferred with personalizations.
 - **Q22.** How a server-run Architect edits a blueprint, and where its checks run. AG-UI shared
   state patches with JSON Patch (chat kit D125), but a blueprint changes only through checked
   edits, and the checks run in TS.
 - **Q25.** How a personalization meets a publish that changes what it replaced. A personalized
   column state may lack a column the designer added. A personalized list of children may lack a
   widget the designer added. One rule: a personalization of a whole unit applies only while the
-  unit names the same columns or children as the definition. Plan step 11.
+  unit names the same columns or children as the definition. Deferred with personalizations.
 
 ### Settled
 

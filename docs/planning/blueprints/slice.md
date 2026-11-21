@@ -64,6 +64,7 @@ aggregator. The format already has room for each, so none changes what the slice
 | `blueprints-ck` | `~/xh/worktrees/blueprints/hoist-chat-kit` | `blueprints` | The Blueprints library: the document model, edit engine, validator, registry, variables, sources, data provider interface and the widgets |
 | `blueprints-tb` | `~/xh/worktrees/blueprints/toolbox` | `blueprints` | The Toolbox client: the Blueprints tab, the JSON harness, the inspector, the data provider that calls the server, and the app's registry entries |
 | `blueprints-data` | `~/xh/worktrees/blueprints/toolbox-data` | `blueprints-data` | The Toolbox server: the extended position and order data, the Data Catalog endpoint, the query endpoint and live updates |
+| `blueprints-data` (from phase 3) | `~/xh/worktrees/blueprints/hoist-core` | `blueprints` | The hoist-core blueprint storage: domain, service, access and endpoints |
 | `blueprints-hr` | `~/xh/worktrees/blueprints/hoist-react` | `blueprints` | Changes to hoist-react that the slice needs, on request only |
 | Orchestrator | The session that wrote this plan | None | The spec, the guidance notes, decisions with John, and reviews. `blueprints-tb` merges `blueprints-data` into `blueprints` |
 
@@ -193,6 +194,18 @@ CHANGELOG entry under the current snapshot.
 - Send questions, milestones and anything that changes a contract to the orchestrator. Decisions
   about the format go to John through the orchestrator, who records them in the spec.
 - If the spec is silent or wrong, say so, and do not invent a rule in code.
+- When a design change affects the seeded blueprints, delete and reseed them in both repositories
+  without asking. John said so directly. Other stored blueprints still need his okay before deletion.
+- Major design or spec decisions go to John through the orchestrator before they are built: a
+  contract apps implement, new public API, persistence, a new format section, or a reversal of an
+  earlier decision. Minor choices that follow from conventions or earlier decisions are decided,
+  reported and logged.
+- While John is away, the orchestrator decides where the path is clear and consistent with the
+  design, unless reversing it later would be expensive. Core decisions go to John as a prompt,
+  which reaches his phone.
+- The orchestrator sends each design or implementation decision to the deck session
+  (`hoist-chat-kit-38`) and the research session (`hoist-chat-kit-e5`), so their presentation
+  and landscape artifacts stay current.
 - The orchestrator records every decision made during the slice in
   [`decisions.md`](./decisions.md), for John to review.
 - Run Toolbox as hoist-react's `CLAUDE.md` describes. From `toolbox/client-app`,
