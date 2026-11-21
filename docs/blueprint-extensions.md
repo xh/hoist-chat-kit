@@ -95,7 +95,7 @@ editors what a value means:
 | `x-format` | A format: a name, an object, or a name with changes | Offers a format editor |
 | `x-renderer` | A renderer name, or a name with options | Checks it, and offers a picker |
 | `x-action` | An action, or a list of steps | Checks each step against its type's params |
-| `x-template` | Text with `{variable}` and `{source.field}` references | Checks each reference, and warns of a literal figure |
+| `x-template` | Text with `{variable}` and `{source.field}` references. `'variables'` marks a title, which reads variables only | Checks each reference, and warns of a literal figure. Fills a title's variables in `resolvedConfig` |
 | `x-preset` | The name of one of the blueprint's preset groups | Checks the name |
 | `x-unit` | The unit of a number, such as `px` | Shows it beside the editor |
 | `x-starter: false` | An optional property | Leaves it out of a new widget's config |

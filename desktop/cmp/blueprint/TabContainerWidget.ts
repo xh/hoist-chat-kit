@@ -1,7 +1,6 @@
 import {tabContainer, TabContainerModel, type TabConfig} from '@xh/hoist/cmp/tab';
 import {hoistCmp, managed, uses} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
-import {pick} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -20,7 +19,12 @@ export class TabContainerWidgetModel extends BlueprintWidgetModel<TabContainerWi
     constructor(config: BlueprintWidgetConfig) {
         super(config);
         this.addReaction({
-            track: () => this.children.map(it => pick(it, 'id', 'title', 'icon')),
+            track: () =>
+                this.children.map(({id, title, icon}) => ({
+                    id,
+                    title: this.blueprintModel.resolveTitle(title),
+                    icon
+                })),
             run: children => this.loadTabs(children),
             equals: 'structural',
             fireImmediately: true
@@ -35,7 +39,7 @@ export class TabContainerWidgetModel extends BlueprintWidgetModel<TabContainerWi
             activeTabId = tabContainerModel.activeTabId,
             tabs: TabConfig[] = children.map(({id, title, icon}) => ({
                 id,
-                title: (title as string) ?? id,
+                title: (title as string) || id,
                 icon: icon ? Icon.icon({faName: icon as any}) : null,
                 content: () => this.renderElement(id)
             }));

@@ -2,12 +2,14 @@ import {HoistModel, type PlainObject, XH} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {computed} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
+import {set} from 'lodash';
 import type {ReactNode} from 'react';
 import type {BlueprintElement, BlueprintOp, ChildRef} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintSource} from './BlueprintSource';
 import type {BlueprintVariable} from './BlueprintVariable';
 import {parentOf} from './impl/elements';
+import {templateStrings} from './impl/configSchema';
 import {fitsProp} from './validateBlueprint';
 
 export interface BlueprintWidgetConfig {
@@ -72,13 +74,17 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return null;
     }
 
-    /** The element's config, with each binding replaced by its variable's current value. */
+    /**
+     * The element's config, with each binding replaced by its variable's current value, and each
+     * title that reads variables filled.
+     */
     @computed
     get resolvedConfig(): C {
-        const config = this.element?.config ?? {},
-            props = this.blueprintModel.registry.widgets[this.element?.component]?.config
-                ?.properties as PlainObject,
-            ret = this.blueprintModel.resolve(config);
+        const {blueprintModel} = this,
+            config = this.element?.config ?? {},
+            schema = blueprintModel.registry.widgets[this.element?.component]?.config,
+            props = schema?.properties as PlainObject,
+            ret = blueprintModel.resolve(config);
         // A variable set from outside, such as by a URL parameter, may hold a value the prop
         // refuses: leave it out, so the widget takes its default.
         Object.keys(config).forEach(key => {
@@ -86,6 +92,10 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
                 delete ret[key];
             }
         });
+        // The resolved config is a copy, so its titles fill in place.
+        templateStrings(ret, schema)
+            .filter(it => it.mode === 'variables')
+            .forEach(({text, path}) => set(ret, path, blueprintModel.fillVariables(text)));
         return ret;
     }
 

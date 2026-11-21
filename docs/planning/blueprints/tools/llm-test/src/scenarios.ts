@@ -427,6 +427,19 @@ export const SCENARIOS: Scenario[] = [
         ]
     },
     {
+        id: 'P14',
+        title: 'The date in a title and a column header',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [{prompt: "I keep losing track of which day I'm looking at. Put the date in the sector chart's title, and in the grid's market value column header."}],
+        checks: [
+            ["the sector chart's title reads the as-of date", o => /\{asOf\}/.test(o.blueprint.elements?.sectorChart?.config?.title ?? '')],
+            ["the market value column's header reads the as-of date", o => /\{asOf\}/.test(o.blueprint.elements?.posGrid?.config?.columns?.mktVal?.headerName ?? '')],
+            ['no date written into a title or header', o => !/\d{4}-\d{2}-\d{2}/.test(JSON.stringify(o.blueprint.elements))],
+            ['no new variable', o => Object.keys(o.blueprint.variables ?? {}).length === 2]
+        ]
+    },
+    {
         id: 'W4',
         title: "One city's day on two axes",
         context: BUILD,

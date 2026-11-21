@@ -10,6 +10,7 @@ import {
     validateBlueprint
 } from '../../../blueprint';
 import {blueprintView} from './BlueprintView';
+import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {DashContainerWidgetModel} from './DashContainerWidget';
 import {PanelWidgetModel} from './PanelWidget';
 
@@ -374,6 +375,87 @@ describe('layout and container widgets', () => {
                 {catalog: portfolioCatalog, registry: scenarioRegistry()}
             );
             expect(issues.map(it => it.code)).toContain('dashContainer.unknownView');
+        });
+    });
+
+    describe('titles with variables', () => {
+        const FUND = {type: 'string', setBy: 'prompt', default: {value: 'Oak Mount'}} as const;
+
+        it('fills tab, canvas cell and panel titles from variables, and follows them', async () => {
+            const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    variables: {fund: FUND},
+                    root: 'tabs',
+                    elements: {
+                        tabs: {
+                            component: 'tabContainer',
+                            children: [{id: 'canvas', title: 'Funds: {fund}'}]
+                        },
+                        canvas: {
+                            component: 'dashCanvas',
+                            children: [{id: 'pnl', x: 0, y: 0, w: 6, h: 4}]
+                        },
+                        pnl: {component: 'panel', config: {title: 'P&L for {fund}', emptyText: 'x'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'run'
+            });
+            const of = <T>(Cls: new (c: any) => T, id: string): T => {
+                const ret = new Cls({blueprintModel: model, id, renderElement: () => null});
+                onTestFinished(() => (ret as any).destroy());
+                return ret;
+            };
+            onTestFinished(() => model.destroy());
+            render(blueprintView({model}));
+            const canvas = of(DashCanvasWidgetModel, 'canvas'),
+                panel = of(PanelWidgetModel, 'pnl');
+            expect(await screen.findByText('Funds: Oak Mount')).toBeTruthy();
+            expect(canvas.titles.pnl).toBe('P&L for Oak Mount');
+            expect(panel.resolvedConfig.title).toBe('P&L for Oak Mount');
+
+            model.setVariable('fund', 'Elm Street');
+            expect(await screen.findByText('Funds: Elm Street')).toBeTruthy();
+            expect(canvas.titles.pnl).toBe('P&L for Elm Street');
+            expect(panel.resolvedConfig.title).toBe('P&L for Elm Street');
+        });
+
+        it("fills a dashContainer's view titles, from its references and its children", () => {
+            const model = new BlueprintModel({
+                    blueprint: {
+                        schema: {blueprint: 1},
+                        variables: {fund: FUND},
+                        root: 'views',
+                        elements: {
+                            views: {
+                                component: 'dashContainer',
+                                children: [{id: 'a', title: 'A <b>{fund}</b>'}, {id: 'b'}]
+                            },
+                            a: emptyPanel('A'),
+                            b: {component: 'panel', config: {title: 'B {fund}', emptyText: 'B'}}
+                        }
+                    },
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode: 'run'
+                }),
+                widget = new DashContainerWidgetModel({
+                    blueprintModel: model,
+                    id: 'views',
+                    renderElement: () => null
+                });
+            onTestFinished(() => {
+                widget.destroy();
+                model.destroy();
+            });
+            expect(widget.containerModel.viewSpecs.map(it => it.title)).toEqual([
+                'A ‹b›Oak Mount‹/b›',
+                'B Oak Mount'
+            ]);
         });
     });
 

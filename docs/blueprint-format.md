@@ -265,6 +265,12 @@ formatted as the field formats. `{{` and `}}` write a literal brace. The validat
 reference, and warns of a figure written into the text, such as `$4.2m` or `3.5%`
 (`template.literalFigure`), as it would be wrong the next day.
 
+Titles read variables too, so a title can say what the user chose: `"P&L for {fund}"`. A widget's
+`title`, a tab's or a `dashContainer` view's `title` on its child reference, a `statCard`'s
+`label` and a grid column's `headerName` all fill each `{variable}` as plain text, and follow the
+variable as it changes. A title reads variables only. A source reference in one is an error
+(`template.variablesOnly`), as is a name that is no variable (`template.unknownRef`).
+
 ## Switch Views with Presets
 
 A preset group holds named sets of values that a user switches between, such as a grid's P&L

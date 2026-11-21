@@ -62,6 +62,39 @@ export function checkFilter(value: unknown, path: SchemaPath = []): SchemaProble
     return [];
 }
 
+/** A text in a value that its schema marks `x-template`, with its path and its mode. */
+export interface TemplateString {
+    text: string;
+    path: SchemaPath;
+    /** `variables` for a title, which reads variables only. */
+    mode: true | 'variables';
+}
+
+/** Every text in a value that its schema marks `x-template`, at any depth. */
+export function templateStrings(
+    value: unknown,
+    schema: PlainObject,
+    path: SchemaPath = []
+): TemplateString[] {
+    if (!schema) return [];
+    if (schema['x-template'] && isString(value)) {
+        return [{text: value, path, mode: schema['x-template']}];
+    }
+    if (isArray(value) && isPlainObject(schema.items)) {
+        return value.flatMap((it, i) => templateStrings(it, schema.items, [...path, i]));
+    }
+    if (isPlainObject(value)) {
+        const {properties, additionalProperties: extra} = schema;
+        return Object.entries(value as PlainObject).flatMap(([key, it]) =>
+            templateStrings(it, properties?.[key] ?? (isPlainObject(extra) ? extra : null), [
+                ...path,
+                key
+            ])
+        );
+    }
+    return [];
+}
+
 export function toPointer(path: SchemaPath): string {
     return path.map(it => `/${it}`).join('');
 }

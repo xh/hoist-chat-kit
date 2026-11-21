@@ -1,0 +1,8 @@
+{
+    "base": 12,
+    "description": "Show the as-of date in the sector chart's title and the market value column's header",
+    "ops": [
+        {"op": "set", "path": "/elements/sectorChart/config/title", "value": "Day P&L by Sector, {asOf}"},
+        {"op": "set", "path": "/elements/posGrid/config/columns", "value": {"mktVal": {"headerName": "Market Value, {asOf}"}}}
+    ]
+}

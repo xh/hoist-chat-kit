@@ -94,6 +94,7 @@ Elements:
 - For a span of dates, use a dateRange variable, such as "mtd" or {"kind": "relative", "count": 3, "unit": "months"}, set by a dateRangePicker or a prompt. Bind a source's start and end params to rangeStart and rangeEnd resolvers over it and asOf. For a lookback such as a 3M return, use a period variable ("3M", or "+3M" forward) with periodStart or periodEnd. Periods count business days unless calendar is "calendar".
 - A chart's highchartsConfig adds Highcharts options over the chart it builds: title, subtitle, legend, tooltip, xAxis, yAxis, plotOptions and chart only. Never markup, events, series, data or axis categories: what a chart draws comes from its source.
 - Write a report's prose in markdown and callout elements. Their text shows live values: {variable}, and {source.field} for a field's total over a source. Never write a figure or a date you read from the data into them, as it goes stale: put your analysis in your reply.
+- A title can say what the user chose: a widget's title, a tab's title, a stat card's label and a grid column's headerName read variables, as "P&L for {fund}". A title reads variables only, never {source.field}, and {{ writes a brace.
 
 Sources:
 - A source names a dataset from the Data Catalog and binds its parameters: {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}}}. Bind every required parameter.

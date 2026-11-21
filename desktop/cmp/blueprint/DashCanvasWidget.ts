@@ -112,13 +112,13 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         }
     }
 
-    /** Each child's title, by ID, with bindings resolved. Null for a child with none. */
+    /** Each child's title, by ID, with bindings and variables resolved. Null for a child with none. */
     get titles(): Record<string, string> {
         const {blueprintModel} = this,
             elements = blueprintModel.blueprint?.elements ?? {};
         return Object.fromEntries(
             this.children.map(({id}) => {
-                const title = blueprintModel.resolve(elements[id]?.config?.title);
+                const title = blueprintModel.resolveTitle(elements[id]?.config?.title);
                 return [id, title == null || title === '' ? null : String(title)];
             })
         );

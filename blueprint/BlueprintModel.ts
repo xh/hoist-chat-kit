@@ -27,6 +27,8 @@ import {
 } from './impl/actions';
 import {upgradeSlots} from './impl/elements';
 import {resolveBindings, resolveFilter} from './impl/bindings';
+import {fillTemplate} from './impl/template';
+import {variableText} from './impl/variableText';
 import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
 import type {BlueprintAccess, BlueprintMode} from './Blueprint';
@@ -559,9 +561,27 @@ export class BlueprintModel extends HoistModel {
         return resolveBindings(value, name => this.getVariable(name)?.value);
     }
 
+    /**
+     * A title with its binding resolved, and each `{variable}` it reads filled as plain text, such
+     * as "P&L for {fund}". A reference to anything but a variable fills as empty.
+     */
+    resolveTitle(value: unknown): string {
+        const ret = this.resolve(value);
+        return typeof ret === 'string' ? this.fillVariables(ret) : (ret ?? null);
+    }
+
     /** A filter with its bindings resolved, dropping clauses bound to null. Null for none. */
     resolveFilter(filter: unknown): FilterSpec {
         return resolveFilter(filter, name => this.getVariable(name)?.value);
+    }
+
+    /** A text with each `{variable}` it reads filled as plain text. */
+    fillVariables(text: string): string {
+        if (!text.includes('{')) return text;
+        return fillTemplate(text, ({source, name}) => {
+            const variable = source ? null : this.getVariable(name);
+            return variable ? variableText(variable.value, variable.decl.type) : '';
+        });
     }
 
     /** The distinct values of a field over a source's loaded rows, sorted. Empty until it loads. */

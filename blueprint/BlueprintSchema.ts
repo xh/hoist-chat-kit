@@ -5,7 +5,8 @@ import type {ExtendedJSONSchema} from 'json-schema-to-ts';
  * ignores. `x-binding` marks a value that accepts `{"$var": name}`, `x-source` a source name,
  * `x-field` a field of the widget's source, and `x-filter`, `x-format`, `x-renderer` and `x-action`
  * a value of that form. `x-template` marks text whose `{variable}` and `{source.field}` references
- * the validator checks, and that a widget fills - see `parseTemplate()`. `x-starter: false` leaves
+ * the validator checks, and that a widget fills - see `parseTemplate()`. `x-template: 'variables'`
+ * marks a title that reads variables only, which `resolvedConfig` fills as plain text. `x-starter: false` leaves
  * an optional property out of the config a new widget starts with. On an action's param, `x-variable` marks the name of a variable the action
  * may set, which is never a binding.
  */
@@ -20,7 +21,7 @@ export type BlueprintSchemaExtension = {
     'x-variable'?: boolean;
     /** Names a preset group of the blueprint, which the validator checks. */
     'x-preset'?: boolean;
-    'x-template'?: boolean;
+    'x-template'?: boolean | 'variables';
     'x-starter'?: false;
     /** The unit a number is in, such as `px`, which an editor shows beside it. */
     'x-unit'?: string;

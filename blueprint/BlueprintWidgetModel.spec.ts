@@ -86,6 +86,37 @@ describe('BlueprintWidgetModel', () => {
         expect(grid.resolvedConfig.expandLevel).toBe(2);
     });
 
+    it('fills variables into its title and column headers as plain text, and follows them', () => {
+        const model = open();
+        model.setBlueprint({
+            ...model.blueprint,
+            elements: {
+                ...model.blueprint.elements,
+                sectorChart: {
+                    ...model.blueprint.elements.sectorChart,
+                    config: {...model.blueprint.elements.sectorChart.config, title: 'P&L, {asOf}'}
+                },
+                posGrid: {
+                    ...model.blueprint.elements.posGrid,
+                    config: {
+                        ...model.blueprint.elements.posGrid.config,
+                        columns: {mktVal: {headerName: 'MV {asOf} {{x}}'}}
+                    }
+                }
+            }
+        });
+        model.setVariable('asOf', '2026-03-02');
+        const chart = widget(model, 'sectorChart'),
+            grid = widget(model, 'posGrid');
+        expect(chart.resolvedConfig.title).toBe('P&L, 2026-03-02');
+        expect(grid.resolvedConfig.columns.mktVal.headerName).toBe('MV 2026-03-02 {x}');
+        expect(model.blueprint.elements.sectorChart.config.title).toBe('P&L, {asOf}');
+
+        model.setVariable('asOf', '2026-03-03');
+        expect(chart.resolvedConfig.title).toBe('P&L, 2026-03-03');
+        expect(model.resolveTitle('As of {asOf}')).toBe('As of 2026-03-03');
+    });
+
     it('shows the value of the variable its element sets, and sets it', () => {
         const model = open(),
             chooser = widget(model, 'chooser'),

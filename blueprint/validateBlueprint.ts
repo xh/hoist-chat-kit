@@ -10,7 +10,7 @@ import {
 import {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
 import type {BlueprintRegistry, SlotAccepts, SlotSpec, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
-import {checkConfig, checkFilter} from './impl/configSchema';
+import {checkConfig, checkFilter, templateStrings, toPointer} from './impl/configSchema';
 import {joinFields} from './impl/joins';
 import {slotLists} from './impl/elements';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
@@ -684,7 +684,13 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     }
 
     // A template's references, each to a variable, a field of its source, or a source's field.
-    const checkTemplate = (text: string, path: string, defaultSource: string) => {
+    // A title reads variables only, as it has no source to read a field from.
+    const checkTemplate = (
+        text: string,
+        path: string,
+        defaultSource: string,
+        variablesOnly = false
+    ) => {
         const literal = parseTemplate(text).parts.filter(isString).join(' ');
         if (!isAnswer && LITERAL_FIGURE.test(literal)) {
             warn(
@@ -695,6 +701,18 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         templateRefs(text).forEach(({ref, source, name}) => {
             if (!source && variables[name]) return;
+            if (variablesOnly) {
+                if (source) {
+                    err(
+                        'template.variablesOnly',
+                        path,
+                        `'{${ref}}' reads a source, but a title reads variables only: write {variable}`
+                    );
+                } else {
+                    err('template.unknownRef', path, `'{${ref}}' names no variable`);
+                }
+                return;
+            }
             const from = source ?? defaultSource,
                 field = sourceFields[from]?.[name];
             if (!source && !field) {
@@ -753,7 +771,16 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     );
                 }
             };
-        const props: PlainObject = registry.widgets[el.component]?.config?.properties ?? {};
+        const spec = registry.widgets[el.component],
+            props: PlainObject = spec?.config?.properties ?? {};
+        templateStrings(cfg, spec?.config).forEach(({text, path, mode}) =>
+            checkTemplate(text, `${p}${toPointer(path)}`, cfg.source, mode === 'variables')
+        );
+        (el.children ?? []).forEach((ref, i) =>
+            templateStrings(ref, spec?.children?.schema).forEach(({text, path}) =>
+                checkTemplate(text, `/elements/${id}/children/${i}${toPointer(path)}`, null, true)
+            )
+        );
         Object.entries(props).forEach(([key, prop]) => {
             const bound = isPlainObject(cfg[key]) ? variables[cfg[key].$var] : null,
                 want = prop?.['x-binding'] && bound ? bindingTypesOf(prop) : null;
@@ -775,9 +802,6 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
             if (prop?.['x-preset'] && isString(cfg[key]) && !getOwn(bp.presets, cfg[key])) {
                 err('preset.unknownGroup', `${p}/${key}`, `unknown preset group '${cfg[key]}'`);
-            }
-            if (prop?.['x-template'] && isString(cfg[key])) {
-                checkTemplate(cfg[key], `${p}/${key}`, cfg.source);
             }
         });
         if (isArray(cfg.groupBy)) {

@@ -75,7 +75,7 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
         blueprintModel.presentationOf(id) === 'panel'
     ) {
         const height = Math.min(model.contentHeight ?? Infinity, rows * ANSWER_ROW_HEIGHT),
-            title = blueprintModel.resolve(model.element.config?.title),
+            title = blueprintModel.resolveTitle(model.element.config?.title),
             hasTitle = title != null && title !== '';
         if (viewModel.framePanel) {
             return viewModel.framePanel({

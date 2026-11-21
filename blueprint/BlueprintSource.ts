@@ -68,6 +68,7 @@ export interface BlueprintSourceContext {
     readonly artifacts: Record<string, string>;
     readonly artifactProvider: BlueprintArtifactProvider;
     resolve(value: unknown): any;
+    resolveTitle(value: unknown): string;
     resolveFilter(filter: unknown): FilterSpec;
     getSource(name: string): BlueprintSource;
 }
@@ -319,7 +320,7 @@ export class BlueprintSource extends HoistBase {
     private titleOf(id: string): string {
         const elements = this.context.blueprint?.elements;
         for (let it = id; it; it = parentOf(elements, it)) {
-            const title = this.context.resolve(getOwn(elements, it)?.config?.title);
+            const title = this.context.resolveTitle(getOwn(elements, it)?.config?.title);
             if (title) return title;
         }
         return id;

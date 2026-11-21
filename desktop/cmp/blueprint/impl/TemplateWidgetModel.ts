@@ -1,14 +1,12 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
-import {fmtDate, fmtNumber} from '@xh/hoist/format';
 import {observableRef} from '@xh/hoist/mobx';
-import {LocalDate} from '@xh/hoist/utils/datetime';
 import {
     type BlueprintSource,
     type BlueprintWidgetConfig,
     BlueprintWidgetModel
 } from '../../../../blueprint';
-import {describeValue} from '../../../../blueprint/impl/builtInWidgets';
+import {variableText} from '../../../../blueprint/impl/variableText';
 import {formatValue, resolveFormat} from '../../../../blueprint/impl/formats';
 import type {ChatMarkdownProps} from '../../../../cmp/markdown';
 import {
@@ -107,7 +105,7 @@ export class TemplateWidgetModel<
         const {blueprintModel} = this;
         if (!source) {
             const variable = blueprintModel.getVariable(name);
-            if (variable) return formatVariable(variable.value, variable.decl.type);
+            if (variable) return variableText(variable.value, variable.decl.type);
         }
         const sourceName = source ?? this.resolvedConfig.source,
             src = blueprintModel.getSource(sourceName),
@@ -120,13 +118,4 @@ export class TemplateWidgetModel<
             opts = resolveFormat(def, src.displayOf(name).formats, {catalog, blueprint});
         return String(formatValue(value, def, opts, catalog, true) ?? '');
     }
-}
-
-function formatVariable(value: unknown, type: string): string {
-    if (value == null) return '';
-    if (type === 'localDate' && typeof value === 'string') {
-        return fmtDate(LocalDate.get(value), {asHtml: true}) as string;
-    }
-    if (typeof value === 'number') return fmtNumber(value, {asHtml: true}) as string;
-    return describeValue(value);
 }

@@ -770,6 +770,46 @@ describe('validateBlueprint', () => {
         });
     });
 
+    describe('titles', () => {
+        // The dashboard in tabs, with a titled chart, grid column, stat card and tab.
+        const titled = (title: string, at: 'chart' | 'column' | 'card' | 'tab'): Blueprint => {
+            const bp = p2(),
+                {elements} = bp;
+            bp.root = 'tabs';
+            elements.tabs = {
+                component: 'tabContainer',
+                children: [{id: 'dashboard', title: at === 'tab' ? title : 'Positions'}]
+            };
+            if (at === 'chart') elements.sectorChart.config.title = title;
+            if (at === 'column') elements.posGrid.config.columns = {mktVal: {headerName: title}};
+            if (at === 'card') elements.headlinePnlDay.config.label = title;
+            return bp;
+        };
+
+        it('reads variables in widget titles, tab titles, card labels and column headers', () => {
+            for (const at of ['chart', 'column', 'card', 'tab'] as const) {
+                expect(codes(titled('P&L as of {asOf} {{draft}}', at))).toEqual([]);
+            }
+        });
+
+        it('refuses an unknown variable, a source field and a bad reference, at the title', () => {
+            const issues = (title: string, at: Parameters<typeof titled>[1]) =>
+                validate(titled(title, at)).map(it => [it.code, it.path]);
+            expect(issues('P&L for {fund}', 'chart')).toEqual([
+                ['template.unknownRef', '/elements/sectorChart/config/title']
+            ]);
+            expect(issues('{positions.mktVal}', 'column')).toEqual([
+                ['template.variablesOnly', '/elements/posGrid/config/columns/mktVal/headerName']
+            ]);
+            expect(issues('{mktVal}', 'card')).toEqual([
+                ['template.unknownRef', '/elements/headlinePnlDay/config/label']
+            ]);
+            expect(issues('Risk {as of}', 'tab')).toEqual([
+                ['template.badRef', '/elements/tabs/children/0/title']
+            ]);
+        });
+    });
+
     it('warns of a separator label in a toolbar, which cannot show one', () => {
         const bp: Blueprint = {
             schema: {blueprint: 1},

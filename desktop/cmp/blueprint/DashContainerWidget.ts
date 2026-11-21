@@ -76,8 +76,8 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
         return this.children.map(ref => ({
             id: ref.id,
             title: plainTitle(
-                (ref.title as string) ??
-                    ((blueprintModel.resolve(elements[ref.id]?.config?.title) as string) || ref.id)
+                (ref.title != null ? blueprintModel.resolveTitle(ref.title) : null) ??
+                    (blueprintModel.resolveTitle(elements[ref.id]?.config?.title) || ref.id)
             ),
             content: () => this.renderElement(ref.id),
             unique: true,

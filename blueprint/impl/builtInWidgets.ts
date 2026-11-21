@@ -31,6 +31,14 @@ const ACTION_PROP = {
     anyOf: [ACTION, {type: 'array', minItems: 1, maxItems: 8, items: ACTION}]
 } as const satisfies BlueprintSchema;
 
+/** A title, which may read variables: "P&L for {fund}". */
+const TITLE = {
+    type: 'string',
+    maxLength: 100,
+    'x-binding': true,
+    'x-template': 'variables'
+} as const satisfies BlueprintSchema;
+
 const EMPTY_TEXT = {
     type: 'string',
     maxLength: 200,
@@ -101,7 +109,7 @@ const PANEL_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
-        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        title: TITLE,
         icon: {type: 'string', maxLength: 40, description: 'A Font Awesome icon name.'},
         style: {
             type: 'string',
@@ -296,11 +304,7 @@ const CUBE_GRID_SCHEMA = {
             type: 'string',
             'x-source': true
         },
-        title: {
-            type: 'string',
-            maxLength: 100,
-            'x-binding': true
-        },
+        title: TITLE,
         groupBy: {
             type: 'array',
             items: {
@@ -358,7 +362,9 @@ const CUBE_GRID_SCHEMA = {
                     headerName: {
                         type: 'string',
                         maxLength: 100,
-                        description: 'The header text. Default the field label.'
+                        'x-template': 'variables',
+                        description:
+                            'The header text, which may read variables. Default the field label.'
                     },
                     headerTooltip: {
                         type: 'string',
@@ -567,11 +573,7 @@ const CHART_SCHEMA = {
             type: 'string',
             'x-source': true
         },
-        title: {
-            type: 'string',
-            maxLength: 100,
-            'x-binding': true
-        },
+        title: TITLE,
         type: {
             'x-binding': true,
             enum: [
@@ -665,7 +667,7 @@ const PROPERTY_TABLE_SCHEMA = {
     required: ['source', 'fields'],
     properties: {
         source: {type: 'string', 'x-source': true},
-        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        title: TITLE,
         fields: {
             type: 'array',
             minItems: 1,
@@ -703,7 +705,7 @@ const HEATMAP_SCHEMA = {
     required: ['source', 'x', 'y', 'value'],
     properties: {
         source: {type: 'string', 'x-source': true},
-        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        title: TITLE,
         x: {type: 'string', 'x-field': 'dimension', description: 'The dimension across.'},
         y: {type: 'string', 'x-field': 'dimension', description: 'The dimension down.'},
         value: {type: 'string', 'x-field': 'measure', description: 'Colors each cell.'},
@@ -723,7 +725,7 @@ const TREEMAP_SCHEMA = {
     required: ['source', 'value'],
     properties: {
         source: {type: 'string', 'x-source': true},
-        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        title: TITLE,
         groupBy: {
             type: 'array',
             items: {type: 'string'},
@@ -763,7 +765,7 @@ const STAT_CARD_SCHEMA = {
     properties: {
         source: {type: 'string', 'x-source': true},
         field: {type: 'string', 'x-field': 'measure'},
-        label: {type: 'string', maxLength: 40},
+        label: {type: 'string', maxLength: 40, 'x-template': 'variables'},
         format: FORMAT_PROP,
         agg: {enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE']},
         deltaField: {type: 'string', 'x-field': 'measure', 'x-starter': false},
@@ -787,7 +789,7 @@ const GAUGE_SCHEMA = {
     required: ['source', 'value'],
     properties: {
         source: {type: 'string', 'x-source': true},
-        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        title: TITLE,
         value: {type: 'string', 'x-field': 'measure', description: 'The total the needle shows.'},
         min: {type: 'number', default: 0, description: 'The start of the arc.'},
         max: {type: 'number', default: 100, description: 'The end of the arc.'},
@@ -825,7 +827,7 @@ const TILE_FRAME_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
-        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        title: TITLE,
         minTileWidth: {
             type: 'integer',
             minimum: 20,
@@ -1208,7 +1210,8 @@ const tabContainer: WidgetSpec = {
                 },
                 title: {
                     type: 'string',
-                    maxLength: 60
+                    maxLength: 60,
+                    'x-template': 'variables'
                 },
                 icon: {
                     type: 'string',
@@ -1259,7 +1262,10 @@ const dashContainer: WidgetSpec = {
             type: 'object',
             additionalProperties: false,
             required: ['id'],
-            properties: {id: {type: 'string'}, title: {type: 'string', maxLength: 60}}
+            properties: {
+                id: {type: 'string'},
+                title: {type: 'string', maxLength: 60, 'x-template': 'variables'}
+            }
         }
     },
     size: {default: {w: 12, h: 8}, min: {w: 3, h: 3}},
