@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {loadBlueprint} from '../../test/blueprintFixtures';
-import {isGlobal} from './BlueprintRepository';
+import {checkBlueprintType, isGlobal} from './BlueprintRepository';
 import {InMemoryBlueprintRepository} from './InMemoryBlueprintRepository';
 
 describe('InMemoryBlueprintRepository', () => {
@@ -15,6 +15,11 @@ describe('InMemoryBlueprintRepository', () => {
         const repository = new InMemoryBlueprintRepository({type: TYPE});
         expect(await repository.canCreateAsync()).toBe(false);
         await expect(create(repository)).rejects.toThrow(/may not create/);
+    });
+
+    it('checks a type with the rule every repository shares', () => {
+        expect(() => checkBlueprintType('acme.dashboard')).not.toThrow();
+        expect(() => checkBlueprintType('dashboard')).toThrow(/dotted/);
     });
 
     it('takes one dotted type, and records it on every blueprint', async () => {

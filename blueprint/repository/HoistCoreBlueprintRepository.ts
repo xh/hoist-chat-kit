@@ -14,7 +14,7 @@ import type {
     BlueprintSharingMode,
     BlueprintSummary
 } from './BlueprintRepository';
-import {checkBlueprintType} from './impl/blueprintType';
+import {checkBlueprintType} from './BlueprintRepository';
 
 /**
  * A {@link BlueprintRepository} over hoist-core's blueprint endpoints, `xhBlueprint/<action>`, for

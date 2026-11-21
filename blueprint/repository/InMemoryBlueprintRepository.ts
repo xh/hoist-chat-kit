@@ -12,9 +12,9 @@ import {
     type BlueprintSharingMode,
     type BlueprintRepository,
     type BlueprintSummary,
-    staleBaseIssue
+    staleBaseIssue,
+    checkBlueprintType
 } from './BlueprintRepository';
-import {checkBlueprintType} from './impl/blueprintType';
 
 /**
  * A {@link BlueprintRepository} in memory, for tests and demos. It holds everything as copies, so

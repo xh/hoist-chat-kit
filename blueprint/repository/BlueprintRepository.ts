@@ -1,3 +1,4 @@
+import {throwIf} from '@xh/hoist/utils/js';
 import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../Blueprint';
 
 /**
@@ -254,4 +255,17 @@ export function staleBaseIssue(base: number, current: number): BlueprintIssue {
         path: '',
         message: `The draft is at version ${current}, but this was based on version ${base}. Open it again.`
     };
+}
+
+/**
+ * Throw unless a repository's type is a dotted name of at most 50 characters, such as
+ * `acme.dashboard`. Every repository calls it on construction, so all apply the same rule.
+ */
+export function checkBlueprintType(type: string) {
+    throwIf(!type, 'A blueprint repository needs a type, such as acme.dashboard.');
+    throwIf(
+        !type.includes('.'),
+        `A blueprint type is dotted, such as acme.dashboard, not '${type}'.`
+    );
+    throwIf(type.length > 50, `A blueprint type is at most 50 characters: '${type}'.`);
 }
