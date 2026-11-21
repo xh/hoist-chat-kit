@@ -59,6 +59,29 @@ describe('WidgetPalette', () => {
         expect(model.blueprint.elements[design.selectedElementId].component).toBe('chart');
     });
 
+    it('offers to add a source over a dataset for a widget that needs one, then adds it', () => {
+        const {model, design, palette} = open(undefined);
+        palette.add('dashCanvas');
+        palette.add('cubeGrid');
+        expect(palette.needsSource).toBe('cubeGrid');
+        expect(palette.datasetOptions.map(it => it.value)).toContain('positions');
+
+        palette.addOver('positions');
+        const {sources, variables, elements} = model.blueprint;
+        expect(sources.positions1).toEqual({dataset: 'positions', params: {asOf: {$var: 'asOf'}}});
+        expect(variables.asOf).toMatchObject({
+            type: 'localDate',
+            setBy: 'prompt',
+            default: {resolver: 'today'}
+        });
+        expect(elements[design.selectedElementId]).toMatchObject({
+            component: 'cubeGrid',
+            config: {source: 'positions1'}
+        });
+        expect(palette.needsSource).toBeNull();
+        expect(palette.message).toBeNull();
+    });
+
     it('says where a click adds a widget', () => {
         const {design, palette} = open(loadBlueprint('p3-morning-report.json'));
         expect(palette.target).toBe('Adds into tabs');
@@ -69,12 +92,12 @@ describe('WidgetPalette', () => {
         expect(open(undefined).palette.target).toBe('Adds as the root');
     });
 
-    it('says why a widget was not added', () => {
+    it('says why a widget or its source was not added', () => {
         const {palette} = open(undefined);
         palette.add('dashCanvas');
-        palette.add('cubeGrid');
-        expect(palette.message).toBe('Add a source for the Grid to read first.');
         palette.add('chart');
-        expect(palette.message).toMatch(/Add a source/);
+        expect(palette.needsSource).toBe('chart');
+        palette.addOver('nope');
+        expect(palette.message).toBe("There is no dataset 'nope'.");
     });
 });

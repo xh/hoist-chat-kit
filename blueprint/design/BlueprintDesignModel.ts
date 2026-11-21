@@ -1,7 +1,7 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {castArray, cloneDeep, isEmpty, isPlainObject, mapValues, uniq} from 'lodash';
+import {castArray, cloneDeep, isEmpty, isPlainObject, mapValues, startCase, uniq} from 'lodash';
 import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blueprint';
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
@@ -277,12 +277,21 @@ export class BlueprintDesignModel extends HoistModel {
      * Add a source over a dataset, named for it, with each required parameter bound to the first
      * variable of its type, and select it. Refused if a required parameter has no such variable.
      */
-    addSource(dataset: string): BlueprintEditResult & {id?: string} {
-        const bound = this.boundParams(dataset);
+    addSource(
+        dataset: string,
+        opts: {
+            /** True to add a prompt for each required parameter no variable can take. */
+            addVariables?: boolean;
+        } = {}
+    ): BlueprintEditResult & {id?: string} {
+        const bound = this.boundParams(dataset, opts.addVariables);
         if ('refusal' in bound) return bound.refusal;
         const id = freeKey(this.blueprintModel.blueprint?.sources, dataset),
             value = {dataset, ...bound.params},
-            ret = this.edit(`Add source ${id}`, [{op: 'set', path: `/sources/${id}`, value}]);
+            ret = this.edit(`Add source ${id}`, [
+                ...bound.variableOps,
+                {op: 'set', path: `/sources/${id}`, value}
+            ]);
         if (!ret.issues.some(isError)) this.select({kind: 'source', id});
         return {...ret, id};
     }
@@ -554,22 +563,46 @@ export class BlueprintDesignModel extends HoistModel {
 
     // Each required parameter of a dataset bound to the first variable of its type.
     private boundParams(
-        dataset: string
-    ): {params: {params?: PlainObject}} | {refusal: BlueprintEditResult} {
+        dataset: string,
+        addVariables = false
+    ):
+        | {params: {params?: PlainObject}; variableOps: BlueprintOp[]}
+        | {refusal: BlueprintEditResult} {
         const {blueprint, catalogs, registry} = this.blueprintModel,
             ds = catalogs.map(it => it.getDataset(dataset)).find(Boolean);
         if (!ds) return {refusal: refused(`There is no dataset '${dataset}'.`)};
-        const variables = blueprint?.variables ?? {},
-            params: PlainObject = {};
+        const variables = {...blueprint?.variables},
+            params: PlainObject = {},
+            variableOps: BlueprintOp[] = [];
         for (const [pn, pd] of Object.entries(ds.params ?? {})) {
             if (!pd.required) continue;
-            const bound = Object.keys(variables).find(it =>
+            let bound = Object.keys(variables).find(it =>
                 variableTypeMatches(registry, variables[it].type, pd.type)
             );
+            if (!bound && addVariables) {
+                bound = Object.hasOwn(variables, pn) ? freeKey(variables, pn) : pn;
+                variables[bound] = {
+                    type: pd.type,
+                    label: startCase(pn),
+                    setBy: 'prompt',
+                    // A date that moves keeps the blueprint fresh, as the Architect's guidance has it.
+                    ...(pd.type === 'localDate' && registry.resolvers.today
+                        ? {default: {resolver: 'today'}}
+                        : {})
+                };
+                variableOps.push({op: 'set', path: `/variables/${bound}`, value: variables[bound]});
+            }
             if (!bound) return {refusal: refused(`Add a ${pd.type} variable for ${pn} first.`)};
             params[pn] = {$var: bound};
         }
-        return {params: Object.keys(params).length ? {params} : {}};
+        return {params: Object.keys(params).length ? {params} : {}, variableOps};
+    }
+
+    /** True if a widget cannot start until the blueprint has a source it can read. */
+    needsSource(component: string): boolean {
+        const spec = this.widgetSpec(component),
+            {blueprint, catalog} = this.blueprintModel;
+        return !!spec && !starterConfig(spec, {blueprint, catalog});
     }
 
     private updateEntry(

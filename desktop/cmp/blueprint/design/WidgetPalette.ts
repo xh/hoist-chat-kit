@@ -1,6 +1,7 @@
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
+import {select} from '@xh/hoist/desktop/cmp/input';
 import {action, observable} from '@xh/hoist/mobx';
 import {groupBy, isString, upperFirst} from 'lodash';
 import type {BlueprintDesignModel} from '../../../../blueprint';
@@ -46,6 +47,23 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                         ]
                     })
                 ),
+                impl.needsSource
+                    ? div({
+                          className: `${CLS}__source`,
+                          children: [
+                              div(
+                                  `The ${impl.labelOf(impl.needsSource)} reads a source. Add one over:`
+                              ),
+                              select({
+                                  value: null,
+                                  options: impl.datasetOptions,
+                                  placeholder: 'Dataset…',
+                                  width: '100%',
+                                  onCommit: (it: string) => impl.addOver(it)
+                              })
+                          ]
+                      })
+                    : null,
                 impl.message ? div({className: `${CLS}__message`, children: impl.message}) : null
             ]
         });
@@ -56,6 +74,9 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
 export class WidgetPaletteModel extends HoistModel {
     /** Why the last widget asked for was not added, until the next one is. */
     @observable accessor message: string = null;
+
+    /** A widget asked for that needs a source first, which the palette offers to add. */
+    @observable accessor needsSource: string = null;
 
     constructor(readonly designModel: BlueprintDesignModel) {
         super();
@@ -92,9 +113,20 @@ export class WidgetPaletteModel extends HoistModel {
             : `Adds into ${nameOf(target.parent)}`;
     }
 
+    labelOf(component: string): string {
+        return this.designModel.blueprintModel.registry.widgets[component]?.label ?? component;
+    }
+
     get readOnly(): boolean {
         const {mode, access} = this.designModel.blueprintModel;
         return mode !== 'design' || access !== 'write';
+    }
+
+    /** The datasets a source for {@link needsSource} can read. */
+    get datasetOptions(): {value: string; label: string}[] {
+        return this.designModel.blueprintModel.catalogs.flatMap(cat =>
+            Object.values(cat.datasets).map(it => ({value: it.name, label: it.label ?? it.name}))
+        );
     }
 
     @action
@@ -102,8 +134,23 @@ export class WidgetPaletteModel extends HoistModel {
         const {designModel} = this,
             {id, issues} = designModel.addWidget(component),
             error = issues.find(it => it.severity === 'error');
-        this.message = error?.message ?? null;
+        this.needsSource = error && designModel.needsSource(component) ? component : null;
+        this.message = this.needsSource ? null : (error?.message ?? null);
         if (!error) designModel.select({kind: 'element', id});
+    }
+
+    /** Add a source over a dataset, with prompts for what it needs, then the widget waiting on it. */
+    @action
+    addOver(dataset: string) {
+        const component = this.needsSource,
+            error = this.designModel
+                .addSource(dataset, {addVariables: true})
+                .issues.find(it => it.severity === 'error');
+        if (error) {
+            this.message = error.message;
+            return;
+        }
+        this.add(component);
     }
 }
 
