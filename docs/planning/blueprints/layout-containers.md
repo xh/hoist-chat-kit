@@ -7,10 +7,12 @@
 
 ## Recommendation
 
-Build **controlled layout primitives** in hoist-react, with Blueprints as their first consumer.
-Leave `DashCanvas` and `DashContainer` as they are for apps. Later, rebuild those two over the
-same primitives in a major release of their own. This is option (c). It takes the safe part of
-(b), a new path that leaves apps alone, and adds (a)'s goal of one implementation in hoist-react.
+Build **controlled layout primitives**, with Blueprints as their first consumer. Build them in the
+chat kit now, alongside UI round 2, and move them into hoist-react with everything else at step
+20 (decided, D-L7). Leave `DashCanvas` and `DashContainer` as they are for apps. Later, rebuild
+those two over the same primitives in a major release of their own. This is option (c). It takes
+the safe part of (b), a new path that leaves apps alone, and adds (a)'s goal of one implementation
+in hoist-react.
 
 - **Canvas:** a thin controlled wrapper over react-grid-layout (RGL), with no `DashCanvasModel`.
   The blueprint's child references are the layout. A finished gesture becomes one edit.
@@ -28,10 +30,10 @@ Every app would carry both modes. For the dash container, (a) means changing Gol
 change to those models is a breaking change for them.
 
 **(b) Fork Blueprints-native copies.** This leaves apps safe, but it makes a second copy of each
-model. If the copy lives in the chat kit, it moves again in step 20.
+model, shaped to Blueprints, that a later fold-back must reconcile with the first.
 
-**(c)** keeps (b)'s isolation and avoids the copy. The primitives are small and controlled, and
-the legacy models later become stateful wrappers over them.
+**(c)** keeps (b)'s isolation and avoids the copy. The primitives are small, controlled and not
+specific to Blueprints. The legacy models later become stateful wrappers over them.
 
 ## What is wrong today
 
@@ -106,13 +108,27 @@ external drops.
 
 - The wrapper derives `layout` from the child references on every render. It holds no copy.
 - `onDragStop` and `onResizeStop` become one `applyEdit`. A drop from the palette becomes
-  `addWidget`.
-- Each cell is the kit's own frame: a `data-blueprint-element` hit target, a header of React
-  nodes from the kit, and a body. Hoist's `Panel` header is not used, so E2 and E3 go away.
+  `addWidget`. Resize snaps to the same grid as a move (R13).
+- Keyboard moves and resizes, arrows and Shift+arrows (R17), go through `setChildPlacement`, as
+  the handles' edits do. The canvas renders the new placement from props at once.
+- Each cell is the kit's own frame, with a header of React nodes from the kit, and a body.
+  Hoist's `Panel` header is not used, so E2 and E3 go away.
+- **A view is selectable** (R1, R11). The frame carries `data-blueprint-view`, naming the child
+  and its canvas, apart from the widget's `data-blueprint-element`. The header shows the child
+  reference's `title`, else the widget's, and is left out when the reference sets `hideHeader`
+  (UI round 2, choice R2-1). A view with no header still selects by its frame's border.
+- **An empty canvas renders its frame** and an overlay slot for the hint, never a placeholder in
+  its place, so it still takes drops (R8, E9). An empty stack does the same.
+- **Test for focus** (R19, E12): deriving `layout` on every render must not remount the root or a
+  frame, so a keyboard nudge keeps focus.
 - **Esc cancels a drag** by rendering the document's layout again, so the cell snaps back (E5).
   Ending react-draggable's drag still needs the synthetic `mouseup`, as it does today.
 - **A reader's rearrangement (R21)** is a transient config layer, under rule 1 for widgets: state
   a user can change is config, and in run mode it stays transient. "Reset layout" drops the layer.
+  It covers placement only. A reader cannot add, remove or rename views, or change header items
+  (R20).
+- **No drags between canvases** (R16, decision 153). A view moves into another container through
+  Structure or a menu. Docking, below, moves views within one dash container only.
 
 ### Dash container: splits and tabs, no GoldenLayout
 
@@ -126,10 +142,57 @@ renderer reads it as it is, so **blueprints need no migration**.
   built on Hoist's resizable `Panel`, which is less code to add but has no keyboard support.
 - **Tabs:** Hoist's `TabContainer`, which already reports `activeTabId` (R5) and switches by
   keyboard through Blueprint's tabs (R18). Its tab order comes from the node.
-- **Drag between stacks and edges** (R7, R14, R15): HTML5 drag and drop, with edge and center
-  zones drawn by the kit. The drop reports a target node and side, so `canMoveTo` can dry-run the
-  move before the drop.
+- **Docking** keeps GoldenLayout's placement: drag between stacks, onto edges to split, and into
+  tab strips. The next section gives the full behavior.
 - **Header items** are React nodes in the stack's tab strip (R10).
+
+### Docking
+
+Docking places a view in a dash container by dragging it, as GoldenLayout does today. The
+container computes the target, the kit draws the preview, and the drop is one edit (R7, R14,
+R15).
+
+**Sources.** A drag starts from a tab in a tab strip, or from the palette for a new widget. A
+drag starts after the pointer moves 5 pixels, so a click on a tab still selects it.
+
+**Drop zones.** Over a stack, the pointer picks one zone at a time:
+
+| Zone | Where the pointer is | Result |
+|---|---|---|
+| Center | The middle of a stack's body | The view joins the stack as its last tab |
+| Edge | The outer quarter of a stack's body, on one of its four sides | The stack splits on that side, and the view takes a new stack there |
+| Tab strip | Between two tabs, or after the last | The view joins the stack at that index |
+| Root edge | The outer 16 pixels of the whole container | The whole layout splits, and the view takes the new side |
+
+**Sizes.** An edge drop gives the new stack half of the target's size, and the target keeps the
+other half. A root-edge drop gives the new side a third. Every split keeps its children's sizes
+summing to 100.
+
+**Preview.** While a zone is active, the kit draws:
+- for center and edge zones, a translucent box over the area the view would take, in the style
+  of the canvas drop placeholder (`--xh-intent-primary-trans1` with a dashed border);
+- for a tab strip, an insertion bar between the tabs.
+
+There is one preview at a time, and it moves without delay as the pointer crosses zones.
+
+**Refusal.** On entering a zone, the container dry-runs the move with `canMoveTo`, once per zone
+per drag. A refused zone draws the preview in the danger intent, shows the reason as its label,
+and takes no drop.
+
+**Clean-up.** A move that empties a stack removes it. A split left with one child is replaced
+by that child. Both happen in the same edit as the move.
+
+**Cancel.** Esc, or a drop outside every zone, ends the drag with no edit (R12).
+
+**Keyboard alternatives** (R18, R19). Every drag placement has a keyboard path, through the
+model, with no drag:
+- **Alt+Left and Alt+Right** on a focused tab move it within its strip (R18).
+- **Move to** in the view's menu and the Structure row menu lists each stack by its tabs, and
+  each side of each stack: "Into Positions and Orders", "Split right of Positions". That covers
+  every zone except the tab strip index, which Alt+arrows covers.
+- **Arrow keys** on a focused split divider resize it, through the split component.
+
+Each one is one edit, as a drag is.
 
 ### Overlay layer
 
@@ -171,24 +234,32 @@ also get hr's two pending fixes (D-L8).
 
 ## Landing in step 20
 
-The move PR changes no behavior (D20-6), so this lands after it, as its own PR in one repository.
+The primitives are built in the chat kit now, alongside UI round 2, and move with everything
+else (D-L7).
 
-1. Step 20's move lands as planned, with the current containers.
-2. Primitives and widgets in one hoist-react PR:
-   - the primitives, internal until the fold-back: controlled grid canvas, split, tab stack;
+1. **Now, in the chat kit:**
+   - the primitives: controlled grid canvas, split, tab stack and docking;
    - the `dashCanvas` and `dashContainer` widgets switched to them;
    - the overlay layer in `BlueprintView`.
-3. The fold-back, in a later major: `DashCanvasModel` and `DashContainerModel` rebuilt as
+
+   They sit in a package of their own, not under `blueprint`, because they do not depend on
+   Blueprints. They stay `@internal` until the fold-back.
+2. **Step 20's move** carries them into hoist-react with the rest of the chat kit. D20-1's table
+   gains a row for their package (D-L11). The move PR still changes no behavior (D20-6).
+3. **The fold-back, in a later major:** `DashCanvasModel` and `DashContainerModel` are rebuilt as
    stateful wrappers over the primitives. GoldenLayout's state maps almost one to one onto the
    split and tab tree, so a converter can carry apps' saved state across.
 
-Built before the move instead, step 2 would span two repositories: primitives in hoist-react,
-widgets in the chat kit. It would then move again.
+Until step 20, the primitives' dependencies, such as a split library (D-L3), are chat kit
+dependencies. They join D20-3's table.
 
 ## Costs
 
-- **New code:** a controlled canvas wrapper, a split and tab renderer, kit-drawn drop zones, and
-  the overlay layer. The chat kit's widget models shrink, because the mirror and its guards go.
+- **New code:** a controlled canvas wrapper, a split and tab renderer, docking with its zones,
+  previews and keyboard paths, and the overlay layer. The chat kit's widget models shrink,
+  because the mirror and its guards go.
+- **Work beside UI round 2:** both change the same widgets and `BlueprintView`, so they need one
+  owner, or a clear split of files between ck and the primitives' builder.
 - **A new dependency** if D-L3 picks a split library. It joins D20-3's table.
 - **Two paths in hoist-react** until the fold-back: the legacy models and the primitives.
 - **The fold-back** needs a converter for apps' saved state, and its own upgrade notes.
@@ -199,13 +270,16 @@ widgets in the chat kit. It would then move again.
 
 | # | Decision | Recommendation | Who |
 |---|---|---|---|
-| D-L1 | The approach | (c): controlled primitives in hoist-react, Blueprints first, legacy unchanged | J |
-| D-L2 | GoldenLayout in Blueprints | Remove it. Splits and tabs render natively, from today's `layout` format | J |
+| D-L1 | The approach | (c): controlled primitives, Blueprints first, legacy unchanged | J |
+| D-L2 | GoldenLayout in Blueprints | Remove it. Splits and tabs render natively, from today's `layout` format. Docking keeps its placements | J |
 | D-L3 | Split component | react-resizable-panels, after a license and version check. Otherwise Hoist's resizable `Panel` | J |
 | D-L4 | Canvas engine | Keep RGL, controlled from the document, with no `DashCanvasModel` | J |
 | D-L5 | Reader rearrangement (R21) | Yes, as a transient layer with "Reset layout" | J |
 | D-L6 | Fold-back | A later major, with a state converter. Not part of step 20 | J |
-| D-L7 | Timing | After step 20's move PR, as one hoist-react PR | J |
+| D-L7 | Timing | **Decided:** built in the chat kit now, beside UI round 2, and moved at step 20 | J |
 | D-L8 | hoist-react fixes for everyone, now | The panel title's inline flex to CSS, `titleDetails` as a node, and hr's two pending dash PRs | J |
 | D-L9 | New layout kinds (R23, R24) | Splits come with D-L2. Tabs nested in a canvas view work through nesting. A tab strip as a header item, and maximizing a view, wait | J |
 | D-L10 | Mobile | None now. The format keeps a stacked mobile renderer possible | J |
+| D-L11 | The primitives' package | Chat kit `desktop/cmp/layout`, `@internal`. At step 20, hoist-react `desktop/cmp/dash/layout`, beside the models it later serves. Not `desktop/cmp/dock`, which is Hoist's docked-panel component | J |
+| D-L12 | Docking behavior | As in Docking: four zones, half-size edge splits, one preview, refusal before the drop, clean-up in the same edit, and a keyboard path for every placement | J |
+| D-L13 | Who builds it | One owner for the primitives, with a file split agreed with ck, because UI round 2 changes the same widgets and `BlueprintView` | J |
