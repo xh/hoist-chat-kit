@@ -75,13 +75,10 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         return this.titles[id] != null || this.cellHeaderRefs[id]?.length > 0;
     }
 
-    /** A cell's header items: in design mode its element's chrome first, then its own items. */
+    /** A cell's header items: in design mode its element's id first, then its own items. */
     headerItemsFor(id: string): ReactNode[] {
         return [
-            this.isDesign
-                ? (this.renderDesignChrome?.(id) ??
-                  span({key: '_id', className: `${CLS}__cell-id`, children: id}))
-                : null,
+            this.isDesign ? span({key: '_id', className: `${CLS}__cell-id`, children: id}) : null,
             ...(this.cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))
         ].filter(Boolean);
     }

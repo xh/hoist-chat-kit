@@ -19,11 +19,6 @@ export interface BlueprintWidgetConfig {
     id: string;
     /** Render another element, such as a container's child. */
     renderElement: (id: string) => ReactNode;
-    /**
-     * Render what design mode shows of an element in its container's chrome, such as a canvas
-     * cell's header: its id, or its toolbar while selected. Null outside a designer.
-     */
-    renderDesignChrome?: (id: string) => ReactNode;
 }
 
 /**
@@ -35,16 +30,14 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     readonly blueprintModel: BlueprintModel;
     readonly id: string;
     readonly renderElement: (id: string) => ReactNode;
-    readonly renderDesignChrome: (id: string) => ReactNode;
 
     private removeView: () => void = null;
 
-    constructor({blueprintModel, id, renderElement, renderDesignChrome}: BlueprintWidgetConfig) {
+    constructor({blueprintModel, id, renderElement}: BlueprintWidgetConfig) {
         super();
         this.blueprintModel = blueprintModel;
         this.id = id;
         this.renderElement = renderElement;
-        this.renderDesignChrome = renderDesignChrome ?? null;
     }
 
     /** The element as the blueprint declares it, or null once it is gone. */
