@@ -27,7 +27,7 @@ import {childIds, locate, parentOf, slotLabel, slotLists} from '../impl/elements
 import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
-import {labelOf} from './editorSpec';
+import {configEditLabel, labelOf} from './editorSpec';
 import {starterConfig} from './starterConfig';
 import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring';
 
@@ -1231,10 +1231,7 @@ export class BlueprintDesignModel extends HoistModel {
                 value === undefined
                     ? {op: 'remove', path: target}
                     : {op: 'set', path: target, value};
-        // Named for the element and the property, as its editor labels it, such as "posGrid: group by".
-        const key = path.split('/')[1],
-            prop = getOwn<PlainObject>(spec.config?.properties, key);
-        return this.edit(`${id}: ${(prop?.title ?? labelOf(key)).toLowerCase()}`, [op]);
+        return this.edit(configEditLabel(id, spec.config, path), [op]);
     }
 
     //------------------

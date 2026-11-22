@@ -9,6 +9,7 @@ import type {BlueprintElement, BlueprintOp, ChildRef} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintSource} from './BlueprintSource';
 import type {BlueprintVariable} from './BlueprintVariable';
+import {configEditLabel} from './design/editorSpec';
 import {parentOf} from './impl/elements';
 import {templateStrings} from './impl/configSchema';
 import {fitsProp} from './validateBlueprint';
@@ -151,14 +152,19 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     /**
      * Set a value in the element's config, as {@link applyUserEdit}. `path` is inside the config.
      * A path that a preset group controls changes its active preset instead. `description` names
-     * the edit for undo, by default the element and path.
+     * the edit for undo, by default as the property's editor labels it.
      */
     setConfig(path: string, value: unknown, description?: string): boolean {
         // In design mode, a path that presets control changes the active preset.
         const target = this.blueprintModel.writePathFor(`/elements/${this.id}/config${path}`);
         return this.applyUserEdit(
             [{op: 'set', path: target, value}],
-            description ?? `${this.id}: ${path.slice(1)}`
+            description ??
+                configEditLabel(
+                    this.id,
+                    this.blueprintModel.registry.widgets[this.element?.component]?.config,
+                    path
+                )
         );
     }
 

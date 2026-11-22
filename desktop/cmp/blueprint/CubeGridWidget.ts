@@ -37,6 +37,7 @@ import {
     type BlueprintWidgetConfig,
     type CubeGridWidgetConfig
 } from '../../../blueprint';
+import {sortKeysOf} from '../../../blueprint/design/configValues';
 import {CUBE_GRID_STYLES} from '../../../blueprint/impl/builtInWidgets';
 import type {FieldDisplayLayer} from '../../../blueprint/impl/formats';
 import {styleToCss} from '../../../blueprint/impl/gridStyles';
@@ -540,8 +541,10 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         if (!sorters || this.gridModel?.isRestoringDefaults) return;
         const next = sorters.map(it => it.replace(/^cubeLabel\b/, TREE_COLUMN)),
             value = next.length === 1 ? next[0] : next.length ? next : null,
-            current = this.element?.config.sortBy ?? null;
-        if (isEqual(castArray(value ?? []), castArray(current ?? []))) return;
+            current = this.element?.config.sortBy ?? null,
+            // The grid writes `field|asc` where a config may leave asc implied.
+            same = (a: unknown, b: unknown) => isEqual(sortKeysOf(a), sortKeysOf(b));
+        if (same(value, current)) return;
         if (!this.setConfig('/sortBy', value)) this.gridModel.setSortBy(toGridSort(current));
     }
 

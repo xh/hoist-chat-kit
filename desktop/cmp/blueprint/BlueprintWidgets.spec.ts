@@ -588,6 +588,19 @@ describe('blueprint desktop widgets', () => {
             await vi.waitFor(() =>
                 expect(model.blueprint.elements.posGrid.config.sortBy).toBe('pnlDay|desc')
             );
+            expect(model.undoDescription).toBe('posGrid: sort by');
+        });
+
+        it('makes no edit back for a sort the config writes with asc implied', async () => {
+            const model = open(loadBlueprint('p1-one-grid.json')),
+                grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                inner = grid.cubeGridModel.innerGridModel;
+            grid.setConfig('/sortBy', 'pnlDay');
+            await vi.waitFor(() => expect(inner.sortBy.map(String)).toEqual(['pnlDay|asc']));
+            const edits = model.history.length;
+            await wait(20);
+            expect(model.history.length).toBe(edits);
+            expect(model.blueprint.elements.posGrid.config.sortBy).toBe('pnlDay');
         });
     });
 

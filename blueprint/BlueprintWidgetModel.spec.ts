@@ -211,13 +211,13 @@ describe('BlueprintWidgetModel', () => {
         expect(grid.resolvedConfig.groupBy).toEqual(['sector']);
     });
 
-    it("describes a user's change in design mode by its element and config key", () => {
+    it("describes a user's change in design mode by its element and the property's label", () => {
         const model = open(),
             grid = widget(model, 'posGrid');
         model.setAccess('write');
         model.setMode('design');
         expect(grid.setConfig('/sortBy', 'mktVal|desc')).toBe(true);
-        expect(model.history.at(-1).description).toBe('posGrid: sortBy');
+        expect(model.history.at(-1).description).toBe('posGrid: sort by');
     });
 
     it('has no value variable when no variable names its element', () => {
