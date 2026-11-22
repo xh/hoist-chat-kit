@@ -464,6 +464,24 @@ describe('ElementInspector', () => {
             ).toEqual(['date', 'pattern', 'nullDisplay']);
         });
 
+        it("reads a date field's typed filter value as that day, west of UTC too", () => {
+            const {design, inspector} = open('p2-linked-dashboard.json', 'posGrid'),
+                grid = design.addWidget('cubeGrid'),
+                tz = process.env.TZ;
+            design.setConfig(grid.id, '/source', 'orders');
+            design.select({kind: 'element', id: grid.id});
+            process.env.TZ = 'America/New_York';
+            onTestFinished(() => {
+                process.env.TZ = tz;
+            });
+            const {valueParser} = inspector
+                    .filterFieldSpecs()
+                    .find(it => it.field === 'time') as any,
+                day = valueParser('2026-11-22');
+            expect([day.getFullYear(), day.getMonth(), day.getDate()]).toEqual([2026, 10, 22]);
+            expect(valueParser('Nov 22')).toBeNull();
+        });
+
         it('draws a format picker, a renderer picker and an action editor', () => {
             const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
             design.setConfig('posGrid', '/columns', {

@@ -5,6 +5,7 @@ import {action, observableRef, runInAction} from '@xh/hoist/mobx';
 import {isEmpty, isEqual, isString, omit, pickBy, sortBy, uniq} from 'lodash';
 import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
+import {LocalDate} from '@xh/hoist/utils/datetime';
 import type {
     ActionSpec,
     BlueprintDesignModel,
@@ -466,10 +467,13 @@ export abstract class ConfigEditorModel extends HoistModel {
 const MAX_FILTER_VALUES = 1000,
     FILTER_FIELD_TYPES = ['string', 'number', 'int', 'bool', 'date', 'localDate'];
 
-// A typed date, such as 2026-11-20, as a Date, or null if it reads as none.
+// A typed day, such as 2026-11-20, as a Date at its local midnight, or null if it reads as none.
 function parseDate(input: string): Date {
-    const ret = new Date(input);
-    return isNaN(ret.getTime()) ? null : ret;
+    try {
+        return LocalDate.get(input?.trim()).date;
+    } catch {
+        return null;
+    }
 }
 
 function walkStrings(value: unknown, fn: (s: string) => void) {
