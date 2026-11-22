@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react';
+import {act, render, screen} from '@testing-library/react';
 import type {PlainObject} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
@@ -13,7 +13,7 @@ import {
 } from '../../../blueprint';
 import {blueprintView} from './BlueprintView';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
-import {DashContainerWidgetModel} from './DashContainerWidget';
+import {dashContainerWidget, DashContainerWidgetModel} from './DashContainerWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {MarkdownWidgetModel} from './MarkdownWidget';
 import {PanelWidgetModel} from './PanelWidget';
@@ -378,9 +378,28 @@ describe('layout and container widgets', () => {
 
         it('offers a view per child, titled by its reference or its title', () => {
             const {widget} = open(container());
-            expect(widget.containerModel.viewSpecs.map(it => [it.id, it.title])).toEqual([
-                ['a', 'First'],
-                ['b', 'Second']
+            expect(widget.titles).toEqual({a: 'First', b: 'Second'});
+        });
+
+        it('adds a child its layout leaves out to its first stack', () => {
+            const {widget} = open(
+                container([
+                    {type: 'row', content: [{type: 'stack', content: [{type: 'view', id: 'a'}]}]}
+                ])
+            );
+            expect(widget.layout).toEqual([
+                {
+                    type: 'row',
+                    content: [
+                        {
+                            type: 'stack',
+                            content: [
+                                {type: 'view', id: 'a'},
+                                {type: 'view', id: 'b'}
+                            ]
+                        }
+                    ]
+                }
             ]);
         });
 
@@ -432,17 +451,31 @@ describe('layout and container widgets', () => {
                 }
             ]);
             expect(widget.layout).toEqual([
-                {type: 'stack', content: [{type: 'view', id: 'a', width: 50}]}
+                {
+                    type: 'stack',
+                    content: [
+                        {type: 'view', id: 'a', width: 50},
+                        {type: 'view', id: 'b'}
+                    ]
+                }
             ]);
         });
 
-        it('gives GoldenLayout titles that hold no markup, as it sets them as HTML', () => {
+        it('shows tab titles as text, never as markup', () => {
             const elements = container();
             (elements.tabs.children as PlainObject[])[0].title = '<img src=x onerror=alert(1)>';
-            elements.b.config.title = 'P&L <b>bold</b>';
-            const titles = open(elements).widget.containerModel.viewSpecs.map(it => it.title);
-            expect(titles.every(it => !/[<>]/.test(it))).toBe(true);
-            expect(titles[1]).toContain('P&L');
+            const {widget} = open(elements),
+                {container: el} = render(dashContainerWidget({model: widget}) as ReactElement);
+            expect(el.querySelector('img')).toBeNull();
+            expect(el.querySelector('[role=tab]').textContent).toBe('<img src=x onerror=alert(1)>');
+        });
+
+        it('reports the views no tab shows, and shows one asked for', async () => {
+            const {widget} = open(container());
+            render(dashContainerWidget({model: widget}) as ReactElement);
+            expect(widget.hiddenViews).toEqual(['b']);
+            await act(async () => widget.activateView('b'));
+            expect(widget.hiddenViews).toEqual(['a']);
         });
 
         it('refuses a layout item with a key GoldenLayout state may hold but a blueprint may not', () => {
@@ -552,10 +585,7 @@ describe('layout and container widgets', () => {
                 widget.destroy();
                 model.destroy();
             });
-            expect(widget.containerModel.viewSpecs.map(it => it.title)).toEqual([
-                'A ‹b›Oak Mount‹/b›',
-                'B Oak Mount'
-            ]);
+            expect(Object.values(widget.titles)).toEqual(['A <b>Oak Mount</b>', 'B Oak Mount']);
         });
     });
 

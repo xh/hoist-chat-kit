@@ -164,9 +164,7 @@ export class BlueprintViewModel extends HoistModel {
                             if (model instanceof TabContainerWidgetModel) {
                                 activeTabs[id] = model.tabContainerModel.activeTabId;
                             } else if (model instanceof DashContainerWidgetModel) {
-                                hiddenViews[id] = model.containerModel.viewModels
-                                    .filter(vm => !vm.isActive)
-                                    .map(vm => vm.viewSpec.id);
+                                hiddenViews[id] = model.hiddenViews;
                             }
                         });
                         return {activeTabs, hiddenViews};

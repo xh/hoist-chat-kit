@@ -274,13 +274,11 @@ function onDrop(impl: DockLayoutModel, e: DragEvent) {
     impl.dropHere();
 }
 
-// Show the views a host asks for.
+// Show the views a host asks for, each time it asks.
 function useShowActive(impl: DockLayoutModel, active: string[]) {
-    const key = (active ?? []).join('\u0000');
     useEffect(() => {
         (active ?? []).forEach(id => impl.activate(id));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [impl, key]);
+    }, [impl, active]);
 }
 
 // Tell a host which views no tab shows, when that changes.
