@@ -1,6 +1,7 @@
 import {chip, type ChipEvent} from '@xh/hoist/cmp/chip';
 import type {Intent} from '@xh/hoist/core';
 import classNames from 'classnames';
+import type {ReactElement} from 'react';
 
 /** What a chip names, which sets its color. */
 export type ChipKind = 'variable' | 'source' | 'element' | 'set' | 'preset';
@@ -18,7 +19,8 @@ export function selectChip({
     label,
     onSelect,
     onRemove,
-    removeHint
+    removeHint,
+    icon
 }: {
     key?: string | number;
     className?: string;
@@ -30,6 +32,8 @@ export function selectChip({
     onRemove?: (e: ChipEvent) => void;
     /** What Delete does, for its name and tooltip, such as "Delete unbinds.". */
     removeHint?: string;
+    /** A glyph after its text, such as a sort key's direction. */
+    icon?: ReactElement;
 }) {
     const name = [label, onRemove ? (removeHint ?? 'Delete removes it.') : null]
         .filter(Boolean)
@@ -50,6 +54,7 @@ export function selectChip({
         },
         onClick: onSelect ? () => onSelect() : null,
         onRemove: onRemove ? e => onRemove(e) : null,
+        rightIcon: icon ?? null,
         children: text
     });
 }

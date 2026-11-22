@@ -41,7 +41,10 @@ import {
 } from '../../../../../blueprint';
 import {
     joinNamed,
+    joinSortKeys,
     joinSteps,
+    type SortKey,
+    sortKeysOf,
     splitNamed,
     stepsOf
 } from '../../../../../blueprint/design/configValues';
@@ -78,6 +81,21 @@ const FORMAT_OPTIONS = toEditorSpec({
         nullDisplay: {type: 'string', maxLength: 20, description: 'The text for no value.'}
     }
 });
+
+// The format options only a number takes, and those only a date takes.
+const NUMBER_OPTIONS = ['precision', 'scale', 'ledger', 'colorSpec', 'label'],
+    DATE_OPTIONS = ['date', 'pattern'];
+
+// The options that fit a format, a number's or a date's by the options it and its named
+// definition set, or all of them where those say neither or both.
+function formatOptionNodes(definition: PlainObject, options: PlainObject): EditorNode[] {
+    const keys = Object.keys({...definition, ...options}),
+        isDate = keys.some(it => DATE_OPTIONS.includes(it)),
+        isNumber = keys.some(it => NUMBER_OPTIONS.includes(it));
+    if (isDate === isNumber) return FORMAT_OPTIONS;
+    const others = isDate ? NUMBER_OPTIONS : DATE_OPTIONS;
+    return FORMAT_OPTIONS.filter(it => !others.includes(it.key));
+}
 
 const CONFIRM_NODE = toEditorSpec({
     type: 'object',
@@ -155,7 +173,8 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                     )
                 ]
             }),
-            node.kind === 'format' ? formatOptionsCard(value, commit, ctx, !!issues.length) : null
+            node.kind === 'format' ? formatOptionsCard(value, commit, ctx, !!issues.length) : null,
+            node.kind === 'sort' ? sortDrawer(node, value, commit, ctx) : null
         ]
     });
 }
@@ -167,6 +186,7 @@ const INLINE_KINDS = [
     'boolean',
     'choice',
     'format',
+    'sort',
     'variable',
     'preset',
     'source',
@@ -433,6 +453,8 @@ function editorFor(
             return rendererEditor(value, commit, ctx);
         case 'action':
             return actionEditor(node, value, commit, ctx);
+        case 'sort':
+            return sortSummary(value, ctx);
         default:
             return jsonEditor(value, commit, ctx);
     }
@@ -937,7 +959,151 @@ function formatOptionsCard(
         ],
         intent: invalid ? ('danger' as const) : null,
         modelConfig: {collapsible: true, defaultCollapsed: isEmpty(options)},
-        children: optionsGroup(FORMAT_OPTIONS, options, it => commit(joinNamed(name, it)), ctx)
+        children: optionsGroup(
+            formatOptionNodes(
+                ctx.impl.formatDefinition(name ?? splitNamed(ctx.inherited?.format).name),
+                options
+            ),
+            options,
+            it => commit(joinNamed(name, it)),
+            ctx
+        )
+    });
+}
+
+// A sort's keys in brief, as chips with their directions, and the chevron that opens its drawer.
+function sortSummary(value: unknown, ctx: EditorContext) {
+    const {impl} = ctx,
+        scope = scopeOf(ctx),
+        keys = sortKeysOf(value),
+        open = impl.isItemOpen(scope, SORT_DRAWER);
+    return hbox({
+        className: classNames(`${CLS}__sort`, open && `${CLS}__sort--open`),
+        children: [
+            div({
+                className: `${CLS}__sort-chips`,
+                children: keys.length
+                    ? keys.map(({field, desc}, idx) =>
+                          selectChip({
+                              key: idx,
+                              text: field,
+                              icon: desc ? Icon.sortDesc() : Icon.sortAsc(),
+                              label: `${impl.fieldLabel(field)}, ${desc ? 'descending' : 'ascending'}`
+                          })
+                      )
+                    : span({className: `${CLS}__sort-none`, children: 'None'})
+            }),
+            drawerButton(open, () => impl.toggleItem(scope, SORT_DRAWER))
+        ]
+    });
+}
+
+// A sort's keys across its row, each a field and a direction, in order, with a way to add one. A
+// part a key holds that the drawer has no control for, such as abs, shows as a tag and stays.
+function sortDrawer(
+    node: Extract<EditorNode, {kind: 'sort'}>,
+    value: unknown,
+    commit: (value: unknown) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        scope = scopeOf(ctx);
+    if (!impl.isItemOpen(scope, SORT_DRAWER)) return null;
+    const keys = sortKeysOf(value),
+        disabled = impl.readOnly,
+        used = keys.map(it => it.field),
+        options = withCurrent(impl.fieldOptions('any'), used),
+        commitKeys = (list: SortKey[]) => commit(joinSortKeys(list)),
+        replace = (index: number, key: SortKey) =>
+            commitKeys(keys.map((it, j) => (j === index ? key : it))),
+        ids = impl.keysFor(`${scope}/keys`, used),
+        rows = keys.map((key, index) => ({id: ids[index], index, key}));
+    return div({
+        key: 'sort-drawer',
+        className: `${CLS}__sort-drawer`,
+        children: [
+            rows.length
+                ? sortableList({
+                      className: `${CLS}__sort-keys`,
+                      value: rows,
+                      itemKey: 'id',
+                      getItemLabel: (row: PlainObject) => impl.fieldLabel(row.key.field),
+                      disabled,
+                      compact: true,
+                      onReorder: e => commitKeys(e.items.map((it: PlainObject) => it.key)),
+                      renderItem: ({index, key}: {index: number; key: SortKey}) =>
+                          hbox({
+                              className: `${CLS}__sort-key`,
+                              ...({'data-sort-field': key.field} as object),
+                              children: [
+                                  select({
+                                      value: key.field,
+                                      options: options.filter(
+                                          it => it.value === key.field || !used.includes(it.value)
+                                      ),
+                                      optionRenderer: fieldOption,
+                                      disabled,
+                                      flex: 1,
+                                      width: null,
+                                      onCommit: (field: string) =>
+                                          field &&
+                                          field !== key.field &&
+                                          replace(index, {...key, field})
+                                  }),
+                                  key.abs
+                                      ? span({
+                                            className: `${CLS}__sort-tag`,
+                                            title: 'Sorts by absolute value',
+                                            children: 'abs'
+                                        })
+                                      : null,
+                                  segmentedControl({
+                                      value: key.desc,
+                                      options: [
+                                          {value: false, label: 'Asc', icon: Icon.sortAsc()},
+                                          {value: true, label: 'Desc', icon: Icon.sortDesc()}
+                                      ],
+                                      intent: 'primary',
+                                      toggleOnClick: true,
+                                      fill: false,
+                                      compact: true,
+                                      disabled,
+                                      onCommit: (desc: boolean) => replace(index, {...key, desc})
+                                  }),
+                                  removeItemButton(`Remove ${key.field}`, disabled, () =>
+                                      commitKeys(keys.filter((_, j) => j !== index))
+                                  )
+                              ]
+                          })
+                  })
+                : null,
+            keys.length < node.maxKeys
+                ? select({
+                      key: keys.length,
+                      placeholder: 'Add a sort key…',
+                      options: options.filter(it => !used.includes(it.value)),
+                      optionRenderer: fieldOption,
+                      disabled,
+                      width: '100%',
+                      onCommit: (field: string) =>
+                          field && commitKeys([...keys, {field, desc: false, abs: false}])
+                  })
+                : null
+        ]
+    });
+}
+
+// The open-item key of a sort's drawer, in its property's scope.
+const SORT_DRAWER = '$drawer';
+
+// A field in a picker: its label, then its name in mono.
+function fieldOption(opt: Option) {
+    return hbox({
+        className: `${CLS}__field-option`,
+        children: [
+            span({children: opt.label}),
+            opt.label !== opt.value ? span({className: `${CLS}__key`, children: opt.value}) : null
+        ]
     });
 }
 

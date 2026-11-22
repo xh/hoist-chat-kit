@@ -95,6 +95,7 @@ editors what a value means:
 | `x-format` | A format: a name, an object, or a name with changes | Offers a format editor |
 | `x-renderer` | A renderer name, or a name with options | Checks it, and offers a picker |
 | `x-action` | An action, or a list of steps | Checks each step against its type's params |
+| `x-sort` | A Hoist sort: a sorter such as `pnl\|desc\|abs`, or a list of them | Edits it as keys over the source's fields, each with a direction, in a drawer |
 | `x-template` | Text with `{variable}` and `{source.field}` references. `'variables'` marks a title, which reads variables only | Checks each reference, and warns of a literal figure. Fills a title's variables in `resolvedConfig` |
 | `x-preset` | The name of one of the blueprint's preset groups | Checks the name |
 | `x-blueprint` | The id of a stored blueprint of the same type | Offers a picker over the repository's list |

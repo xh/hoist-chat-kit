@@ -40,6 +40,11 @@ export type BlueprintSchemaExtension = {
      */
     'x-thumbnails'?: Record<string, string>;
     /**
+     * A Hoist sort over the widget's source fields: a sorter such as `pnl|desc|abs`, or a list of
+     * them. Design mode edits it as keys, each a field and a direction.
+     */
+    'x-sort'?: boolean;
+    /**
      * On a boolean, the label of each value, the positive state first, such as
      * `{false: 'Show', true: 'Hide'}` for a `hidden` titled "Visible". Design mode shows one segment
      * per value, in this order. Without it, On then Off.

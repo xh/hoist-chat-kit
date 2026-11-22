@@ -40,6 +40,11 @@ export type EditorNode = EditorBase &
         | {kind: 'format'}
         | {kind: 'renderer'}
         | {kind: 'action'}
+        | {
+              kind: 'sort';
+              /** How many keys it takes: 1 for a lone sorter, else its list's `maxItems`. */
+              maxKeys: number;
+          }
         | {kind: 'icon'}
         | {kind: 'json'}
     );
@@ -65,7 +70,7 @@ export interface EditorBase {
 /**
  * The editors for a widget's config, one per property of its schema, in the schema's order. The
  * registry's annotations pick a kind: `x-source`, `x-field`, `x-filter`, `x-format`, `x-renderer`,
- * `x-action`, `x-variable` and `x-blueprint`. A list of fields whose items may also be objects with settings, such as a grid's
+ * `x-action`, `x-sort`, `x-variable` and `x-blueprint`. A list of fields whose items may also be objects with settings, such as a grid's
  * columns, is a `fieldList`, with an `x-settings` map's entry editors where it names one, and an
  * object keyed freely by field a `map` with a `keyRole`. Any
  * shape the kit has no editor for is `json`, so every value can be edited.
@@ -118,6 +123,12 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
     if (schema['x-format']) return {...base, kind: 'format'};
     if (schema['x-renderer']) return {...base, kind: 'renderer'};
     if (schema['x-action']) return {...base, kind: 'action'};
+    if (schema['x-sort']) {
+        const list = [schema, ...(schema.anyOf ?? schema.oneOf ?? [])].find(
+            it => it.type === 'array'
+        );
+        return {...base, kind: 'sort', maxKeys: list ? (list.maxItems ?? 10) : 1};
+    }
     const role = schema['x-field'];
     if (role && (schema.type === 'string' || isStringArray(schema))) {
         return {...base, kind: 'field', role, multiple: schema.type === 'array'};

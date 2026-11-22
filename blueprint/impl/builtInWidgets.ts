@@ -545,6 +545,7 @@ const CUBE_GRID_SCHEMA = {
         // The grid writes it back as the user sorts, so it stays a literal.
         sortBy: {
             'x-binding': false,
+            'x-sort': true,
             anyOf: [
                 {
                     type: 'string',

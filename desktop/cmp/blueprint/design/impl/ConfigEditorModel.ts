@@ -309,6 +309,17 @@ export abstract class ConfigEditorModel extends HoistModel {
      * The named formats a format can use: the catalogs', then the blueprint's own. A name the
      * blueprint redefines, or adds, says so.
      */
+    /** A named format's options, from the blueprint's own formats or else a catalog's, or null. */
+    formatDefinition(name: string): PlainObject {
+        if (!name) return null;
+        const {blueprint, catalogs} = this.designModel.blueprintModel;
+        return (
+            getOwn(blueprint?.formats, name) ??
+            catalogs.map(it => getOwn(it.formats, name)).find(Boolean) ??
+            null
+        );
+    }
+
     get formatOptions(): Option[] {
         const {blueprint, catalogs} = this.designModel.blueprintModel,
             own = blueprint?.formats ?? {},

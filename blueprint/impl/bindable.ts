@@ -82,6 +82,7 @@ const REFERENCES = [
     'x-format',
     'x-renderer',
     'x-action',
+    'x-sort',
     'x-variable',
     'x-blueprint',
     'x-preset',

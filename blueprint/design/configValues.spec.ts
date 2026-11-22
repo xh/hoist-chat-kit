@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {joinNamed, joinSteps, splitNamed, stepsOf} from './configValues';
+import {joinNamed, joinSortKeys, joinSteps, sortKeysOf, splitNamed, stepsOf} from './configValues';
 
 /**
  * A format or renderer is a name, options, or a name with options. An action prop is one step or
@@ -32,5 +32,22 @@ describe('config values', () => {
         expect(joinSteps([refresh])).toEqual(refresh);
         expect(joinSteps([refresh, reset])).toEqual([refresh, reset]);
         expect(joinSteps([])).toBeUndefined();
+    });
+
+    it('splits a sort into keys of field, direction and abs, and joins them back simplest', () => {
+        expect(sortKeysOf(['pnl|desc|abs', 'symbol'])).toEqual([
+            {field: 'pnl', desc: true, abs: true},
+            {field: 'symbol', desc: false, abs: false}
+        ]);
+        expect(sortKeysOf('mv|asc')).toEqual([{field: 'mv', desc: false, abs: false}]);
+        expect(sortKeysOf(undefined)).toEqual([]);
+        expect(joinSortKeys([{field: 'pnl', desc: false, abs: true}])).toBe('pnl|abs');
+        expect(
+            joinSortKeys([
+                {field: 'pnl', desc: true, abs: false},
+                {field: 'symbol', desc: false, abs: false}
+            ])
+        ).toEqual(['pnl|desc', 'symbol']);
+        expect(joinSortKeys([])).toBeUndefined();
     });
 });

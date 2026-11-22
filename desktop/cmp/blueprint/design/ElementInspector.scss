@@ -331,8 +331,65 @@
     }
   }
 
-  &__column--open &__chevron svg {
+  &__column--open &__chevron svg,
+  &__sort--open &__chevron svg {
     transform: rotate(180deg);
+  }
+
+  // A sort's keys as chips in a field's frame, with the chevron that opens its drawer.
+  &__sort {
+    align-items: center;
+    gap: 4px;
+    min-height: 26px;
+    padding: 0 0 0 4px;
+    background-color: var(--xh-input-bg);
+    border: var(--xh-border-solid);
+    border-radius: var(--xh-border-radius);
+
+    &--open {
+      border-color: var(--xh-intent-primary);
+    }
+  }
+
+  &__sort-chips {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &__sort-none {
+    font-size: 11.5px;
+    color: var(--xh-text-color-muted);
+  }
+
+  // The drawer spans the row under it, on the Inspector's ground, with the open item's rule.
+  &__sort-drawer {
+    display: flex;
+    flex-direction: column;
+    grid-column: 1 / -1;
+    gap: var(--xh-spacing-half);
+    margin-top: 4px;
+    padding: 6px 0 8px 12px;
+    box-shadow: inset 2px 0 0 var(--xh-intent-primary);
+  }
+
+  &__sort-key {
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__sort-tag {
+    flex: none;
+    padding: 0 4px;
+    font-family: var(--xh-font-family-mono);
+    font-size: 10.5px;
+    color: var(--xh-text-color-muted);
+    background-color: var(--xh-bg-alt);
+    border-radius: 3px;
   }
 
   &__column-label {
@@ -428,5 +485,17 @@
         text-decoration: underline;
       }
     }
+  }
+}
+
+// A field in a picker, whose menu draws in a portal outside the Inspector: its label, then its name.
+.xh-blueprint-element-inspector__field-option {
+  align-items: baseline;
+  gap: 6px;
+
+  .xh-blueprint-element-inspector__key {
+    margin-left: 0;
+    font-family: var(--xh-font-family-mono);
+    font-size: 11px;
   }
 }

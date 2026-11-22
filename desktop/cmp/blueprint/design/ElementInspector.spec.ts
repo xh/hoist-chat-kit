@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -437,6 +437,12 @@ describe('ElementInspector', () => {
             expect(
                 opened.querySelector('.xh-blueprint-element-inspector__format-summary').textContent
             ).toBe('precision 1');
+            // A number format offers a number's options, and no date's.
+            expect(
+                [...opened.querySelectorAll('[data-config-key]')].map(it =>
+                    it.getAttribute('data-config-key')
+                )
+            ).toEqual(['precision', 'scale', 'ledger', 'colorSpec', 'label', 'nullDisplay']);
         });
 
         it('draws a format picker, a renderer picker and an action editor', () => {
@@ -865,31 +871,92 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
     });
 
-    it("switches a grid's sort between one field and a list, carrying the sort across, never trapped", async () => {
-        const {design, model} = open('p2-linked-dashboard.json');
-        design.setConfig('posGrid', '/sortBy', 'mktVal|desc');
-        const {container} = render(elementInspector({designModel: design}) as ReactElement),
-            modes = () => [
-                ...container.querySelectorAll(
-                    '[data-config-key="sortBy"] .xh-blueprint-element-inspector__one-of > .xh-button-group button'
+    describe('sort by', () => {
+        const setup = (initial: unknown) => {
+            const {design, model} = open('p2-linked-dashboard.json');
+            design.setConfig('posGrid', '/sortBy', initial);
+            const {container} = render(elementInspector({designModel: design}) as ReactElement),
+                row = () => container.querySelector('[data-config-key="sortBy"]'),
+                keys = () =>
+                    [...row().querySelectorAll('[data-sort-field]')].map(it =>
+                        it.getAttribute('data-sort-field')
+                    ),
+                key = (field: string) => row().querySelector(`[data-sort-field="${field}"]`),
+                sortBy = () => model.blueprint.elements.posGrid.config.sortBy;
+            return {design, model, container, row, keys, key, sortBy};
+        };
+
+        // Open a Hoist select, and pick the field with the given name.
+        const choose = (selectEl: Element, name: string) => {
+            fireEvent.keyDown(selectEl.querySelector('input'), {key: 'ArrowDown', keyCode: 40});
+            fireEvent.click(
+                [...document.querySelectorAll('.xh-select__option')].find(it =>
+                    it.textContent.endsWith(name)
                 )
-            ],
-            sortBy = () => model.blueprint.elements.posGrid.config.sortBy;
-        fireEvent.click(modes()[1]);
-        expect(sortBy()).toEqual(['mktVal|desc']);
-        fireEvent.click(modes()[0]);
-        expect(sortBy()).toBe('mktVal|desc');
-        // With no sort, either form leaves it unset rather than writing one that fails.
-        design.setConfig('posGrid', '/sortBy', undefined);
-        await wait();
-        fireEvent.click(modes()[1]);
-        fireEvent.click(modes()[0]);
-        expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('sortBy');
-        expect(
-            container.querySelector(
-                '[data-config-key="sortBy"] .xh-blueprint-element-inspector__issue'
-            )?.textContent
-        ).toBeUndefined();
+            );
+        };
+
+        it('shows its keys as chips with their directions, and no form switch or raw text', () => {
+            const {row} = setup(['pnlDay|desc', 'symbol']);
+            expect(
+                [...row().querySelectorAll('.xh-chip')].map(it => it.getAttribute('aria-label'))
+            ).toEqual([
+                expect.stringMatching(/, descending$/),
+                expect.stringMatching(/, ascending$/)
+            ]);
+            expect(row().textContent).toContain('pnlDay');
+            expect(row().querySelector('.xh-blueprint-element-inspector__one-of')).toBeNull();
+            expect(row().querySelector('input[type="text"]')).toBeNull();
+        });
+
+        it('adds, flips, reorders and removes keys from its drawer, each one edit', async () => {
+            const {model, row, keys, key, sortBy} = setup('pnlDay|desc'),
+                edits = () => model.history.length,
+                before = edits();
+            fireEvent.click(row().querySelector('[title="Settings"]'));
+            expect(keys()).toEqual(['pnlDay']);
+
+            fireEvent.click(within(key('pnlDay') as HTMLElement).getByText('Asc'));
+            expect(sortBy()).toBe('pnlDay');
+            expect(edits()).toBe(before + 1);
+
+            choose(
+                row().querySelector('.xh-blueprint-element-inspector__sort-drawer > .xh-select'),
+                'mktVal'
+            );
+            expect(sortBy()).toEqual(['pnlDay', 'mktVal']);
+            expect(edits()).toBe(before + 2);
+
+            await altDown(
+                key('pnlDay')
+                    .closest('.xh-sortable-list__item')
+                    .querySelector('.xh-sortable-list__handle')
+            );
+            expect(sortBy()).toEqual(['mktVal', 'pnlDay']);
+
+            fireEvent.click(within(key('mktVal') as HTMLElement).getByTitle('Remove mktVal'));
+            expect(sortBy()).toBe('pnlDay');
+        });
+
+        it('keeps a part it has no control for, such as abs, as a tag on its key', () => {
+            const {row, key, sortBy} = setup('mktVal|desc|abs');
+            fireEvent.click(row().querySelector('[title="Settings"]'));
+            expect(
+                key('mktVal').querySelector('.xh-blueprint-element-inspector__sort-tag').textContent
+            ).toBe('abs');
+            fireEvent.click(within(key('mktVal') as HTMLElement).getByText('Asc'));
+            expect(sortBy()).toBe('mktVal|abs');
+            expect(row().querySelector('.xh-blueprint-element-inspector__issue')).toBeNull();
+        });
+
+        it('leaves the sort unset once its last key goes, and reads None', () => {
+            const {model, row, keys} = setup('pnlDay');
+            fireEvent.click(row().querySelector('[title="Settings"]'));
+            fireEvent.click(row().querySelector('[title="Remove pnlDay"]'));
+            expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('sortBy');
+            expect(keys()).toEqual([]);
+            expect(row().textContent).toContain('None');
+        });
     });
 
     it("sets a grid's summary row from cards for Top, Bottom and Off, each one edit", () => {
