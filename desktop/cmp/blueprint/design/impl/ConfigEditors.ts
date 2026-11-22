@@ -408,7 +408,7 @@ function bindableEditor(
         variables = impl.variablesFor(node),
         bound = isVarBinding(value) ? value.$var : null;
     if (bound != null) {
-        return hbox({
+        return div({
             className: `${CLS}__bindable`,
             children: [
                 selectChip({
@@ -430,7 +430,7 @@ function bindableEditor(
             ]
         });
     }
-    return hbox({
+    return div({
         className: `${CLS}__bindable`,
         children: [
             div({
@@ -1047,7 +1047,7 @@ function linkValuesEditor(
                         div({
                             className: `${CLS}__row-body`,
                             children: [
-                                hbox({
+                                div({
                                     className: `${CLS}__bindable`,
                                     children: [
                                         chip

@@ -95,5 +95,13 @@
     &:hover:not(:disabled) {
       background-color: var(--xh-bg);
     }
+
+    &.xh-button--intent-success {
+      color: var(--xh-intent-success-text-color);
+    }
+
+    &.xh-button--intent-danger {
+      color: var(--xh-intent-danger-text-color);
+    }
   }
 }

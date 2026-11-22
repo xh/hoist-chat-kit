@@ -147,6 +147,13 @@
       > .xh-blueprint-element-inspector__bindable {
         display: contents;
       }
+
+      .xh-blueprint-element-inspector__bind-button.xh-button,
+      .xh-blueprint-element-inspector__unbind.xh-button {
+        width: 26px;
+        min-width: 26px;
+        padding: 0;
+      }
     }
   }
 
@@ -210,6 +217,7 @@
   }
 
   &__bindable {
+    display: flex;
     align-items: center;
     gap: var(--xh-spacing-half);
   }

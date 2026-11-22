@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {createElement, type ReactElement} from 'react';
-import {beforeAll, describe, expect, it, vi} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {loadBlueprint, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {
     blueprintSchematic,
@@ -25,7 +25,10 @@ describe('BlueprintPreview', () => {
     it.each(Object.values(registry.widgets).filter(it => !it.reserved && !it.app))(
         'draws a glyph for the built-in $name',
         spec => {
+            const error = vi.spyOn(console, 'error');
+            onTestFinished(() => error.mockRestore());
             const svg = draw(widgetPreview(spec)).querySelector('svg.xh-blueprint-preview');
+            expect(error).not.toHaveBeenCalled();
             expect(svg).not.toBeNull();
             expect(
                 svg.querySelectorAll('rect, path, line, circle, polyline').length

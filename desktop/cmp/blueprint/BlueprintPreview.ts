@@ -1,5 +1,5 @@
 import {elementFactory} from '@xh/hoist/core';
-import type {ReactElement, ReactNode} from 'react';
+import {cloneElement, isValidElement, type ReactElement, type ReactNode} from 'react';
 import type {Blueprint, BlueprintRegistry, WidgetGlyph, WidgetSpec} from '../../../blueprint';
 import {getOwn} from '../../../blueprint/impl/pointer';
 import {widgetIcon} from './design/impl/icons';
@@ -425,7 +425,10 @@ function glyphShapes(
         viewBox: `0 0 ${w} ${h}`,
         preserveAspectRatio: glyph.stretch ? 'none' : 'xMidYMid meet',
         overflow: 'visible',
-        children: glyph.draw()
+        // Keyed here, as a glyph joins shape lists that each count from 0.
+        children: glyph
+            .draw()
+            .map((it, i) => (isValidElement(it) ? cloneElement(it, {key: i}) : it))
     });
 }
 
