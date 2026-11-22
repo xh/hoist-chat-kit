@@ -541,4 +541,24 @@ describe('design mode selection', () => {
         expect(confirm.mock.calls[0][0].message).toMatch(/positions/);
         expect(joined.blueprint.sources).toHaveProperty('funds');
     });
+
+    it("puts the selected widget's toolbar in its canvas cell's header, in place of its id", async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            view = new BlueprintViewModel(model, {designModel: design});
+        onTestFinished(() => view.destroy());
+        const canvas = view.getWidgetModel('overview') as any,
+            header = () =>
+                canvas.canvasModel.viewModels.find(it => it.viewSpec.id === 'sectorChart')
+                    .headerItems[0],
+            {container, rerender} = render(header());
+        expect(container.textContent).toBe('sectorChart');
+        design.select({kind: 'element', id: 'sectorChart'});
+        rerender(header());
+        await vi.waitFor(() =>
+            expect(container.querySelector('.xh-blueprint-selection-toolbar')).toBeTruthy()
+        );
+        // The cell's body then draws no toolbar of its own.
+        const body = render(view.renderElement('sectorChart') as ReactElement);
+        expect(body.container.querySelector('.xh-blueprint-selection-toolbar')).toBeNull();
+    });
 });

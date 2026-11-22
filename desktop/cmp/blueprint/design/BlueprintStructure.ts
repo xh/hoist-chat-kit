@@ -23,6 +23,7 @@ import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
 import {issueSummary, selectionMenu} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
+import {partIcon} from './impl/icons';
 
 export type StructureSection = 'element' | 'source' | 'variable' | 'preset';
 
@@ -108,6 +109,11 @@ export class BlueprintStructureModel extends HoistModel {
                 ],
                 run: () => this.loadRows(),
                 fireImmediately: true
+            },
+            {
+                // Rows draw through ag-Grid's renderers, which redraw only when told to.
+                track: () => [designModel.activeTabs, designModel.hiddenViews],
+                run: () => this.gridModel.agApi?.refreshCells({force: true})
             },
             {
                 track: () => [this.filterText, this.dragging, designModel.selectedElementId],
@@ -477,7 +483,9 @@ export class BlueprintStructureModel extends HoistModel {
                 kind === 'element' && this.isOffscreen(name) && `${CLS}__row--offscreen`
             ),
             children: [
-                iconFor(kind, component, blueprintModel.registry.widgets[component]?.category),
+                partIcon(kind, blueprintModel.registry.widgets[component], {
+                    className: `${CLS}__icon`
+                }),
                 span({className: `${CLS}__name`, children: name}),
                 label ? span({className: `${CLS}__label`, children: label}) : null,
                 issues.length
@@ -525,26 +533,3 @@ const slotKey = ({parent, slot, of}: AddPlace) => `slot:${parent}|${slot}|${of ?
 
 const isSamePlace = (a: AddPlace, b: AddPlace) =>
     !!a && !!b && a.parent === b.parent && a.slot === b.slot && (a.of ?? null) === (b.of ?? null);
-
-function iconFor(kind: string, component: string, category: string) {
-    const className = `${CLS}__icon`;
-    switch (kind) {
-        case 'source':
-            return Icon.database({className});
-        case 'variable':
-            return Icon.tag({className});
-        case 'preset':
-            return Icon.gear({className});
-    }
-    if (component === 'cubeGrid') return Icon.grid({className});
-    return (CATEGORY_ICONS[category] ?? Icon.square)({className});
-}
-
-const CATEGORY_ICONS: Record<string, (p?: PlainObject) => ReactElement> = {
-    container: Icon.folder,
-    layout: Icon.square,
-    content: Icon.code,
-    data: Icon.chartBar,
-    input: Icon.edit,
-    action: Icon.bolt
-};

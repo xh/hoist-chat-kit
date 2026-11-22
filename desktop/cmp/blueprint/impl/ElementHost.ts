@@ -12,6 +12,7 @@ import type {BlueprintWidgetModel, WidgetSpec} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import type {BlueprintViewModel} from './BlueprintViewModel';
+import {DashCanvasWidgetModel} from '../DashCanvasWidget';
 import {selectionToolbar} from '../design/impl/SelectionToolbar';
 import {missingModules} from './highchartsModules';
 
@@ -76,7 +77,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             children: [
                 content,
                 designEmpty(id, viewModel),
-                designModel.selectedElementId === id
+                designModel.selectedElementId === id && !inCellHeader(id, viewModel)
                     ? selectionToolbar({key: 'selection-toolbar', designModel, id})
                     : null
             ]
@@ -123,6 +124,12 @@ function needsField(
         };
     }
     return null;
+}
+
+// True for an element whose canvas cell draws a header, which then holds its toolbar.
+function inCellHeader(id: string, viewModel: BlueprintViewModel): boolean {
+    const parent = viewModel.getWidgetModel(viewModel.designModel.pathTo(id).at(-1));
+    return parent instanceof DashCanvasWidgetModel && parent.cellHasHeader(id);
 }
 
 function notePlaceholder(children: ReactNode) {

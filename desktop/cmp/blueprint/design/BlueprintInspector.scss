@@ -36,8 +36,16 @@
     border-bottom: var(--xh-border-solid);
   }
 
-  &__icon {
-    color: var(--xh-text-color-muted);
+  &__icon-box {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: var(--xh-intent-primary);
+    border-radius: 6px;
+    background-color: var(--xh-intent-primary-trans1);
   }
 
   &__titles {
@@ -104,12 +112,6 @@
     font-family: var(--xh-font-family-mono);
     font-size: 11px;
 
-    &.xh-button {
-      min-height: 18px;
-      padding: 0 var(--xh-spacing-half);
-      background-color: var(--xh-intent-primary-trans1);
-    }
-
     &--plain {
       padding: 0 var(--xh-spacing-half);
       color: var(--xh-text-color-muted);
@@ -138,5 +140,35 @@
   &__body {
     flex: 1 1 auto;
     overflow: auto;
+  }
+}
+
+// A chip names a part of the blueprint by its kind's color, and selects it. Over Hoist's minimal
+// button, which would draw it as plain text.
+.xh-blueprint-inspector .xh-blueprint-inspector__chip.xh-button.xh-button--minimal {
+  min-height: 18px;
+  padding: 0 6px;
+  font-family: var(--xh-font-family-mono);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  background-color: var(--xh-bg-alt);
+
+  &.xh-blueprint-inspector__chip--variable {
+    color: var(--xh-intent-primary);
+    background-color: var(--xh-intent-primary-trans1);
+  }
+
+  &.xh-blueprint-inspector__chip--source {
+    background-color: var(--xh-intent-success-trans1);
+  }
+
+  &.xh-blueprint-inspector__chip--set {
+    background-color: var(--xh-intent-warning-trans1);
+  }
+
+  &.xh-blueprint-inspector__chip--preset {
+    color: var(--xh-purple);
+    background-color: color-mix(in srgb, var(--xh-purple) 15%, transparent);
   }
 }

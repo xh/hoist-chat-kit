@@ -169,15 +169,6 @@
     gap: var(--xh-spacing-half);
   }
 
-  &__var-chip.xh-button {
-    min-height: 20px;
-    padding: 0 var(--xh-spacing);
-    font-family: var(--xh-font-family-mono);
-    font-size: 12px;
-    background-color: var(--xh-intent-primary-trans1);
-    border-radius: 10px;
-  }
-
   &__unbind.xh-button {
     min-height: 20px;
     min-width: 20px;
@@ -293,4 +284,17 @@
       }
     }
   }
+}
+
+// A bound field's variable, as the Inspector's chips draw one, over Hoist's minimal button.
+.xh-blueprint-element-inspector
+  .xh-blueprint-element-inspector__var-chip.xh-button.xh-button--minimal {
+  min-height: 20px;
+  padding: 0 6px;
+  font-family: var(--xh-font-family-mono);
+  font-size: 12px;
+  color: var(--xh-intent-primary);
+  cursor: pointer;
+  border-radius: 4px;
+  background-color: var(--xh-intent-primary-trans1);
 }

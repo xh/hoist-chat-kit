@@ -17,6 +17,7 @@ import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../..
 import {slotLabel} from '../../../../blueprint/impl/elements';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {paletteDrag} from '../impl/paletteDrag';
+import {widgetIcon} from './impl/icons';
 import './WidgetPalette.scss';
 
 export interface WidgetPaletteProps extends HoistProps {
@@ -95,7 +96,7 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                                             }
                                         },
                                         children: [
-                                            iconOf(it.icon, it.category),
+                                            widgetIcon(it as any, {className: `${CLS}__tile-icon`}),
                                             div({
                                                 className: `${CLS}__tile-text`,
                                                 children: [
@@ -297,18 +298,3 @@ const CLS = 'xh-blueprint-widget-palette';
 function firstSentence(text: string): string {
     return text?.match(/^.*?[.!?](?=\s+[A-Z]|$)/)?.[0] ?? text ?? null;
 }
-
-// The widget's icon, else its category's.
-function iconOf(icon: string, category: string) {
-    const factory = (Icon as any)[icon] ?? (Icon as any)[CATEGORY_ICONS[category]] ?? Icon.square;
-    return factory({className: `${CLS}__tile-icon`});
-}
-
-const CATEGORY_ICONS: Record<string, string> = {
-    container: 'folder',
-    layout: 'square',
-    content: 'fileText',
-    data: 'chartBar',
-    input: 'edit',
-    action: 'bolt'
-};

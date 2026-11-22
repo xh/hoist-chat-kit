@@ -161,3 +161,20 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
 });
 
 const CLS = 'xh-blueprint-selection-toolbar';
+
+/**
+ * What design mode shows of an element in its container's chrome, such as a canvas cell's header:
+ * its id, or its toolbar while it is selected, which then covers none of its content.
+ */
+export const designChrome = hoistCmp.factory<
+    HoistProps & {designModel: BlueprintDesignModel; id: string}
+>({
+    displayName: 'BlueprintDesignChrome',
+    model: false,
+    render({designModel, id}) {
+        if (designModel.blueprintModel.mode !== 'design') return null;
+        return designModel.selectedElementId === id
+            ? selectionToolbar({designModel, id, className: `${CLS}--in-header`})
+            : span({className: 'xh-blueprint-dash-canvas__cell-id', children: id});
+    }
+});

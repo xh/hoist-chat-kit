@@ -116,6 +116,11 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     };
 
+    /** True if a child's cell draws a header, from its title or its header items. */
+    cellHasHeader(id: string): boolean {
+        return this.titles[id] != null || this.cellHeaderRefs[id]?.length > 0;
+    }
+
     private get isDesign(): boolean {
         return this.blueprintModel.mode === 'design';
     }
@@ -234,11 +239,12 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
                 vm.headerItems = [
                     // In design mode a cell's header names its element, after its title.
                     this.isDesign
-                        ? span({
+                        ? (this.renderDesignChrome?.(id) ??
+                          span({
                               key: '_id',
                               className: 'xh-blueprint-dash-canvas__cell-id',
                               children: id
-                          })
+                          }))
                         : null,
                     ...(cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))
                 ].filter(Boolean);

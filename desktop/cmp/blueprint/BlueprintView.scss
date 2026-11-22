@@ -121,7 +121,8 @@
   }
 }
 
-// Inside the selected element's top edge, as a cell clips what lies outside it.
+// Inside the selected element's top edge, as a cell clips what lies outside it. In a canvas cell's
+// header, it takes the id's place instead, beside the title, covering none of the content.
 .xh-blueprint-selection-toolbar {
   position: absolute;
   top: 0;
@@ -133,6 +134,13 @@
   padding: 0 2px;
   color: var(--xh-white);
   background-color: var(--xh-intent-primary);
+
+  &--in-header {
+    position: static;
+    flex: none;
+    margin-right: auto;
+    border-radius: 3px;
+  }
 
   &__name {
     padding: 0 var(--xh-spacing-half);
@@ -160,8 +168,12 @@
   background-color: var(--xh-bg);
   border-bottom: var(--xh-border-solid);
 
+  // The title wins the room: the design id truncates first.
   .xh-panel-header__title {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 12px;
     font-weight: 600;
     color: var(--xh-text-color);
@@ -169,15 +181,21 @@
 
   .xh-panel-header__items {
     flex: 1 1 auto;
+    min-width: 0;
     justify-content: flex-end;
   }
 }
 
 .xh-blueprint-dash-canvas__cell-id {
+  flex: 0 1000 auto;
+  min-width: 0;
   margin-right: auto;
   padding-left: var(--xh-spacing-half);
+  overflow: hidden;
   font-family: var(--xh-font-family-mono);
   font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--xh-text-color-muted);
 }
 

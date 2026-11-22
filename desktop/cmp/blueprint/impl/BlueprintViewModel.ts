@@ -51,6 +51,7 @@ import {
     textInputWidget,
     TextInputWidgetModel
 } from '../InputWidgets';
+import {designChrome} from '../design/impl/SelectionToolbar';
 import {elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
@@ -215,6 +216,10 @@ export class BlueprintViewModel extends HoistModel {
         );
     }
 
+    // An element's id in its container's chrome in design mode, or its toolbar while selected.
+    private renderDesignChrome = (id: string): ReactNode =>
+        designChrome({key: '_chrome', id, designModel: this.designModel});
+
     /** Render an element by ID, or nothing if the blueprint has no such element. */
     renderElement = (id: string): ReactNode =>
         id ? elementHost({key: id, id, blueprintViewModel: this}) : null;
@@ -264,7 +269,8 @@ export class BlueprintViewModel extends HoistModel {
                 model = new ModelClass({
                     blueprintModel: this.blueprintModel,
                     id,
-                    renderElement: this.renderElement
+                    renderElement: this.renderElement,
+                    renderDesignChrome: this.designModel ? this.renderDesignChrome : null
                 });
             this.widgets.set(id, {component: el.component, model});
         });

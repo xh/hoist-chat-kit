@@ -19,6 +19,7 @@ import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
 import {refuse, selectionMenu} from './impl/designActions';
+import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
 import {sourcesEditor} from './SourcesEditor';
 import {variablesEditor} from './VariablesEditor';
@@ -142,8 +143,13 @@ export class BlueprintInspectorModel extends HoistModel {
         if (!selection) return [];
         const {blueprintModel} = designModel,
             w = wiringFor(blueprintModel.blueprint, selection, designModel.wiring),
-            chip = (ref: WiringRef, text = ref.label ?? ref.id): WiringChip => ({
+            chip = (
+                ref: WiringRef,
+                text = ref.label ?? ref.id,
+                kind: string = ref.kind
+            ): WiringChip => ({
                 text,
+                kind,
                 ...(['element', 'source', 'variable', 'preset'].includes(ref.kind)
                     ? {
                           select: () =>
@@ -154,13 +160,18 @@ export class BlueprintInspectorModel extends HoistModel {
                       }
                     : {})
             }),
-            row = (label: string, refs: WiringRef[], text?: (ref: WiringRef) => string) =>
-                refs.length ? [{label, chips: refs.map(it => chip(it, text?.(it)))}] : [];
+            row = (
+                label: string,
+                refs: WiringRef[],
+                text?: (ref: WiringRef) => string,
+                kind?: string
+            ) => (refs.length ? [{label, chips: refs.map(it => chip(it, text?.(it), kind))}] : []);
         switch (selection.kind) {
             case 'element':
                 return [
                     ...row('Reads', w.reads),
-                    ...row('Sets', w.sets),
+                    // What an element sets draws as an output.
+                    ...row('Sets', w.sets, undefined, 'set'),
                     ...row('Presets', w.presets)
                 ];
             case 'variable': {
@@ -227,6 +238,8 @@ const CLS = 'xh-blueprint-inspector';
 /** A wire's other end, which selects it when it is part of the blueprint. */
 export interface WiringChip {
     text: string;
+    /** What it names, for its color: `element`, `source`, `variable`, `preset`, or `set`. */
+    kind?: string;
     select?: () => void;
 }
 
@@ -243,8 +256,6 @@ const COLLECTIONS = {
     variable: 'variables',
     preset: 'presets'
 };
-
-const ICONS = {element: Icon.square, source: Icon.database, variable: Icon.tag, preset: Icon.gear};
 
 function editorFor(
     {kind}: BlueprintSelection,
@@ -307,7 +318,16 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
         return hbox({
             className: `${CLS}__header`,
             children: [
-                ICONS[selection.kind]({className: `${CLS}__icon`}),
+                div({
+                    className: `${CLS}__icon-box`,
+                    children: partIcon(
+                        selection.kind,
+                        designModel.blueprintModel.registry.widgets[
+                            designModel.blueprintModel.blueprint?.elements?.[selection.id]
+                                ?.component
+                        ]
+                    )
+                }),
                 div({
                     className: `${CLS}__titles`,
                     children: [
@@ -386,7 +406,7 @@ const summary = hoistCmp.factory<
                           children: [
                               span({className: `${CLS}__wiring-label`, children: 'Root'}),
                               button({
-                                  className: `${CLS}__chip`,
+                                  className: `${CLS}__chip ${CLS}__chip--element`,
                                   text: root,
                                   minimal: true,
                                   onClick: () =>
@@ -427,7 +447,7 @@ const wiringCard = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                       it.select
                                           ? button({
                                                 key: idx,
-                                                className: `${CLS}__chip`,
+                                                className: `${CLS}__chip ${CLS}__chip--${it.kind}`,
                                                 text: it.text,
                                                 minimal: true,
                                                 onClick: it.select
