@@ -19,7 +19,11 @@ import {cellElementAt} from '../impl/ElementHost';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {elementInspector} from './ElementInspector';
 import {ElementOutlineModel} from './ElementOutline';
-import {removeElementAsync, removePresetGroupAsync} from './impl/designActions';
+import {
+    removeElementAsync,
+    removePresetGroupAsync,
+    removeSelectionAsync
+} from './impl/designActions';
 
 /**
  * A designer sees the element tree, and selects an element there or by a click in the blueprint.
@@ -503,5 +507,38 @@ describe('design mode selection', () => {
             )
         );
         expect(model.history).toHaveLength(0);
+    });
+
+    it('removes a source or variable with a toast to undo, and asks first when sources join it', async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            toast = vi.spyOn(XH, 'toast').mockReturnValue(null),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(false);
+        onTestFinished(() => {
+            toast.mockRestore();
+            confirm.mockRestore();
+        });
+        const {id} = design.addVariable();
+        design.select({kind: 'variable', id});
+        await removeSelectionAsync(design);
+        expect(model.blueprint.variables).not.toHaveProperty(id);
+        expect((toast.mock.calls.at(-1)[0] as any).actionButtonProps.text).toBe('Undo');
+
+        const joined = new BlueprintModel({
+                blueprint: loadBlueprint('p8-joined-positions.json'),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            joinedDesign = new BlueprintDesignModel({blueprintModel: joined});
+        onTestFinished(() => {
+            joinedDesign.destroy();
+            joined.destroy();
+        });
+        joinedDesign.select({kind: 'source', id: 'funds'});
+        await removeSelectionAsync(joinedDesign);
+        expect(confirm.mock.calls[0][0].message).toMatch(/positions/);
+        expect(joined.blueprint.sources).toHaveProperty('funds');
     });
 });

@@ -329,7 +329,8 @@ and Risk columns.
 - `controls` lists the paths the group's presets set. Each is a widget's preset path, which its
   spec declares, or a variable's default. A path belongs to one group at most.
 - A controlled path leaves the element's config, since a preset always applies
-  (`preset.stillInConfig`). Every preset sets every path its group controls.
+  (`preset.stillInConfig`). Every preset sets every path its group controls, so a group has at
+  least one preset (`preset.noItems`), and a path the widget requires may leave its config.
 - A preset's `set` has the shape of the blueprint itself, holding only the controlled paths.
 - A `presetSelector` widget shows the group, as a segmented control, buttons, a select, or a
   toggle for exactly two presets. Put it in the header of the widget the group controls: its

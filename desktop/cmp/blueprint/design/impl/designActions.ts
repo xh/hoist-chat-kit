@@ -73,6 +73,43 @@ export async function removePresetGroupAsync(
     return [];
 }
 
+/**
+ * Remove a source, as one edit. A source other sources join asks first, naming them, as their
+ * joins on it go too. One no source joins goes at once, with a toast to undo it.
+ *
+ * @returns the issues that refused the removal, if any.
+ */
+export async function removeSourceAsync(
+    designModel: BlueprintDesignModel,
+    name: string
+): Promise<BlueprintIssue[]> {
+    const joiners = Object.entries(designModel.blueprintModel.blueprint?.sources ?? {})
+        .filter(([, it]) => (it.joins ?? []).some(j => j.source === name))
+        .map(([it]) => it);
+    if (joiners.length) {
+        const ok = await XH.confirm({
+            title: 'Remove',
+            message: `Remove ${name}? ${listOf(joiners)} ${joiners.length > 1 ? 'join' : 'joins'} it, and ${joiners.length > 1 ? 'their joins go' : 'that join goes'} too.`,
+            confirmProps: {text: 'Remove', intent: 'danger'}
+        });
+        if (!ok) return [];
+    }
+    const errors = designModel.removeSource(name).issues.filter(it => it.severity === 'error');
+    if (!errors.length && !joiners.length) undoToast(designModel, name);
+    return errors;
+}
+
+/**
+ * Remove a variable at once, as one edit, with a toast to undo it. Refused while anything reads it.
+ *
+ * @returns the issues that refused the removal, if any.
+ */
+export function removeVariable(designModel: BlueprintDesignModel, name: string): BlueprintIssue[] {
+    const errors = designModel.removeVariable(name).issues.filter(it => it.severity === 'error');
+    if (!errors.length) undoToast(designModel, name);
+    return errors;
+}
+
 // A toast that undoes a removal, while no other edit has come after it.
 function undoToast(designModel: BlueprintDesignModel, id: string) {
     const {blueprintModel} = designModel,
@@ -94,29 +131,25 @@ function undoToast(designModel: BlueprintDesignModel, id: string) {
 }
 
 /**
- * Remove whatever is selected, as its kind does: an element as {@link removeElementAsync}, a
+ * Remove what is selected, or the part given, as its kind does: an element as {@link removeElementAsync}, a
  * preset group as {@link removePresetGroupAsync}, and a source or a variable at once, refused
  * while anything reads it.
  *
  * @returns the issues that refused the removal, if any.
  */
 export async function removeSelectionAsync(
-    designModel: BlueprintDesignModel
+    designModel: BlueprintDesignModel,
+    selection: BlueprintSelection = designModel.selection
 ): Promise<BlueprintIssue[]> {
-    const {selection} = designModel;
     switch (selection?.kind) {
         case 'element':
             return removeElementAsync(designModel, selection.id);
         case 'preset':
             return removePresetGroupAsync(designModel, selection.id);
         case 'source':
-            return designModel
-                .removeSource(selection.id)
-                .issues.filter(it => it.severity === 'error');
+            return removeSourceAsync(designModel, selection.id);
         case 'variable':
-            return designModel
-                .removeVariable(selection.id)
-                .issues.filter(it => it.severity === 'error');
+            return removeVariable(designModel, selection.id);
         default:
             return [];
     }
@@ -179,19 +212,9 @@ export function selectionMenu(
             {
                 ...remove,
                 actionFn: () =>
-                    kind === 'preset'
-                        ? removePresetGroupAsync(designModel, id).then(it =>
-                              refuse(designModel, it)
-                          )
-                        : refuse(
-                              designModel,
-                              (kind === 'source'
-                                  ? designModel.removeSource(id)
-                                  : kind === 'variable'
-                                    ? designModel.removeVariable(id)
-                                    : null
-                              )?.issues ?? []
-                          )
+                    removeSelectionAsync(designModel, {kind, id}).then(it =>
+                        refuse(designModel, it)
+                    )
             }
         ];
     }

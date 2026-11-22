@@ -344,6 +344,23 @@ describe('validateBlueprint', () => {
             ]);
         });
 
+        it('refuses a preset group with no presets, which leaves its required paths unset', () => {
+            // As an Architect edit could write it.
+            const {result} = applyOps(loadBlueprint('p3-morning-report.json'), [
+                    {
+                        op: 'set',
+                        path: '/presets/kinds',
+                        value: {controls: [{path: '/elements/sectorChart/config/type'}], items: {}}
+                    },
+                    {op: 'remove', path: '/elements/sectorChart/config/type'}
+                ]),
+                codes = validate(result)
+                    .filter(it => it.severity === 'error')
+                    .map(it => it.code);
+            expect(codes).toContain('preset.noItems');
+            expect(codes).toContain('schema.invalid');
+        });
+
         it("lets presets control a variable's default, once it leaves the declaration", () => {
             const bp = loadBlueprint('p3-morning-report.json'),
                 codes = () => validate(bp).map(it => it.code);

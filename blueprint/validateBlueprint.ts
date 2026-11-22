@@ -1,5 +1,14 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isEqual, isNumber, isPlainObject, isString, omit} from 'lodash';
+import {
+    castArray,
+    isArray,
+    isEmpty,
+    isEqual,
+    isNumber,
+    isPlainObject,
+    isString,
+    omit
+} from 'lodash';
 import {
     type Blueprint,
     type BlueprintIssue,
@@ -156,6 +165,8 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         // Each element config key a preset group controls, as `id/key`.
         presetKeys = new Set(
             Object.values(toLookup(bp.presets))
+                // Only a group with presets gives its paths a value.
+                .filter((it: any) => isPlainObject(it?.items) && !isEmpty(it.items))
                 .flatMap((it: any) => (Array.isArray(it?.controls) ? it.controls : []))
                 .map(it => String(it?.path ?? '').split('/'))
                 .filter(segs => segs[1] === 'elements' && segs[3] === 'config' && segs[4])
@@ -1038,6 +1049,13 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 `'${gname}' is not a preset group: {label, controls, default, items}`
             );
             continue;
+        }
+        if (!isPlainObject(pre.items) || isEmpty(pre.items)) {
+            err(
+                'preset.noItems',
+                `${gp}/items`,
+                `'${gname}' has no presets. Give it at least one.`
+            );
         }
         for (const k of Object.keys(pre)) {
             if (!PRESET_GROUP_KEYS.includes(k)) {
