@@ -21,6 +21,7 @@ import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../
 import {locate, parentMap, slotLabel, slotLists} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
+import './BlueprintTree.scss';
 import {issueSummary, selectionMenu} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
 import {partIcon} from './impl/icons';
@@ -83,6 +84,8 @@ export class BlueprintStructureModel extends HoistModel {
         super();
         this.gridModel = new GridModel({
             treeMode: true,
+            treeStyle: 'none',
+            rowClassFn: record => (record ? this.rowClassOf(record) : null),
             hideHeaders: true,
             expandLevel: -1,
             emptyText: 'Nothing matches.',
@@ -150,6 +153,24 @@ export class BlueprintStructureModel extends HoistModel {
     @computed
     private get parents(): Map<string, string> {
         return parentMap(this.designModel.blueprintModel.blueprint?.elements);
+    }
+
+    /**
+     * A row's class by its type: a category such as Elements, a container that holds elements, a
+     * slot, or a leaf. The classes are global, so any blueprint tree can take them.
+     */
+    rowClassOf(record: StoreRecord): string {
+        const {kind, component} = record.data,
+            type =
+                kind === 'section'
+                    ? 'category'
+                    : kind === 'slot'
+                      ? 'slot'
+                      : kind === 'element' &&
+                          this.designModel.blueprintModel.registry.widgets[component]?.children
+                        ? 'container'
+                        : 'leaf';
+        return `xh-blueprint-tree__row--${type}`;
     }
 
     /** The menu of a row: rename, duplicate, move, add into and delete, as its kind allows. */
@@ -483,8 +504,8 @@ export class BlueprintStructureModel extends HoistModel {
                 className: `${CLS}__section`,
                 children: [
                     span({className: `${CLS}__section-name`, children: name}),
-                    span({className: `${CLS}__count`, children: String(count)}),
                     filler(),
+                    span({className: `${CLS}__count`, children: String(count)}),
                     canAdd
                         ? button({
                               icon: Icon.add(),

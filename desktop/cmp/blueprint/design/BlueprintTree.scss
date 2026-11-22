@@ -1,0 +1,30 @@
+// Row types for any blueprint tree grid with `treeStyle: 'none'`, set by its `rowClassFn`: a
+// category as a band, a container in semibold with a primary icon, and a slot in muted italics.
+// Selection keeps Hoist's own highlight.
+.xh-grid .ag-row.xh-blueprint-tree__row--category:not(.ag-row-selected) {
+  background-color: var(--xh-bg-alt);
+  box-shadow:
+    inset 0 1px 0 var(--xh-border-color),
+    inset 0 -1px 0 var(--xh-border-color);
+}
+
+.xh-blueprint-tree__row--category .ag-cell {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--xh-text-color);
+}
+
+.xh-blueprint-tree__row--container .ag-cell {
+  font-weight: 600;
+
+  svg {
+    color: var(--xh-intent-primary-text-color);
+  }
+}
+
+.xh-blueprint-tree__row--slot .ag-cell {
+  font-style: italic;
+  color: var(--xh-text-color-muted);
+}

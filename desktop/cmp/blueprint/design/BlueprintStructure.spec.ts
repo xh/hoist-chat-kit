@@ -45,6 +45,28 @@ describe('BlueprintStructure', () => {
     const record = (structure: BlueprintStructureModel, id: string) =>
         structure.gridModel.store.getById(id);
 
+    it('classes each row by its type: category, container, slot or leaf, with no tree tint', () => {
+        const {structure, model} = open(),
+            {store} = structure.gridModel,
+            classOf = (test: (data: any) => boolean) =>
+                structure.rowClassOf(store.allRecords.find(it => test(it.data))),
+            {elements} = model.blueprint,
+            container = Object.keys(elements).find(id => elements[id].children?.length),
+            leaf = Object.keys(elements).find(
+                id => !model.registry.widgets[elements[id].component]?.children
+            );
+        expect(structure.gridModel.treeStyle).toBe('none');
+        expect(classOf(it => it.kind === 'section')).toBe('xh-blueprint-tree__row--category');
+        expect(classOf(it => it.kind === 'element' && it.name === container)).toBe(
+            'xh-blueprint-tree__row--container'
+        );
+        expect(classOf(it => it.kind === 'element' && it.name === leaf)).toBe(
+            'xh-blueprint-tree__row--leaf'
+        );
+        expect(classOf(it => it.kind === 'source')).toBe('xh-blueprint-tree__row--leaf');
+        expect(classOf(it => it.kind === 'slot')).toBe('xh-blueprint-tree__row--slot');
+    });
+
     it('lists elements, sources, variables and presets, each with its count', () => {
         const {structure} = open(),
             sections = structure.gridModel.store.rootRecords;
