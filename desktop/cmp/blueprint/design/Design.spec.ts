@@ -101,6 +101,8 @@ describe('design mode selection', () => {
         const [spec] = toast.mock.calls[0] as any[];
         expect(spec.message).toMatch(/inside/);
         expect(spec.actionButtonProps.text).toBe('Show');
+        // Long enough to reach for its action.
+        expect(spec.timeout).toBe(8000);
         spec.actionButtonProps.onClick();
         expect(design.selectedElementId).toBe('positions');
     });

@@ -621,7 +621,10 @@ export class BlueprintModel extends HoistModel {
         XH.dangerToast({
             message: issue.message,
             ...(revealIssue && issue.path
-                ? {actionButtonProps: {text: 'Show', onClick: () => revealIssue(issue)}}
+                ? {
+                      actionButtonProps: {text: 'Show', onClick: () => revealIssue(issue)},
+                      timeout: 8000
+                  }
                 : {})
         });
     }

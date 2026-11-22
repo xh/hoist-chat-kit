@@ -48,8 +48,13 @@
 }
 
 // A canvas cell is its widget's frame: a plain header with the title, and in design mode the
-// element's id beside it.
-.xh-blueprint-dash-canvas .xh-dash-tab > .xh-panel-header {
+// element's id beside it. Outranks Hoist's own cell header rules.
+.xh-blueprint-dash-canvas
+  .xh-dash-canvas
+  .react-grid-item
+  > .xh-dash-tab
+  > .xh-panel__inner
+  > .xh-panel-header {
   height: 28px;
   background-color: var(--xh-bg);
   border-bottom: var(--xh-border-solid);
