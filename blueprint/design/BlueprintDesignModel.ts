@@ -121,6 +121,16 @@ export class BlueprintDesignModel extends HoistModel {
         }
     }
 
+    /** A field an Inspector should focus, from a widget that needs it set: view state. */
+    @observableRef accessor fieldFocus: {id: string; key: string; at: number} = null;
+
+    /** Select an element, and ask the Inspector to focus one of its fields, such as `source`. */
+    @action
+    requestFieldFocus(id: string, key: string) {
+        this.select({kind: 'element', id});
+        this.fieldFocus = {id, key, at: Date.now()};
+    }
+
     /** The host's Add, opened to search, as from the `/` key. Set by the host. */
     onRequestAdd: () => void = null;
 

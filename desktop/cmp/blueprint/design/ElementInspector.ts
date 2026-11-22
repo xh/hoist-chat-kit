@@ -4,7 +4,9 @@ import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
+import {wait} from '@xh/hoist/promise';
 import {isEqual} from 'lodash';
+import {useEffect, useRef} from 'react';
 import {type BlueprintDesignModel, type EditorNode, toEditorSpec} from '../../../../blueprint';
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
@@ -274,8 +276,22 @@ export const NEW_VARIABLE = '$new';
 const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
     model: uses(ElementInspectorModel),
     render({model: impl, className}) {
+        const ref = useRef<HTMLDivElement>(null),
+            {fieldFocus} = impl.designModel;
+        // A widget that needs a field set asks for it, and its editor takes focus.
+        useEffect(() => {
+            if (!fieldFocus || fieldFocus.id !== impl.elementId) return;
+            wait().then(() =>
+                ref.current
+                    ?.querySelector<HTMLElement>(
+                        `[data-config-key="${fieldFocus.key}"] :is(input, button, [tabindex="0"])`
+                    )
+                    ?.focus()
+            );
+        }, [fieldFocus, impl.elementId]);
         if (!impl.elementId) return placeholder('Select an element to edit its config.');
         return div({
+            ref,
             className,
             children: [
                 impl.framed
@@ -398,6 +414,7 @@ function slotEditor(impl: ElementInspectorModel) {
 function setsEditor(impl: ElementInspectorModel) {
     return div({
         className: `${CLS}__row`,
+        ...({'data-config-key': 'sets'} as object),
         children: [
             div({className: `${CLS}__label`, children: 'Sets'}),
             select({

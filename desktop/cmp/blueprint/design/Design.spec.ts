@@ -17,6 +17,7 @@ import {wait} from '@xh/hoist/promise';
 import {blueprintView} from '../BlueprintView';
 import {cellElementAt} from '../impl/ElementHost';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
+import {elementInspector} from './ElementInspector';
 import {ElementOutlineModel} from './ElementOutline';
 import {removeElementAsync, removePresetGroupAsync} from './impl/designActions';
 
@@ -466,5 +467,41 @@ describe('design mode selection', () => {
         expect(document.activeElement).not.toBe(surface());
         answer(false);
         await vi.waitFor(() => expect(document.activeElement).toBe(surface()));
+    });
+
+    it('offers to fix a widget that needs config, focusing the field in the Inspector', async () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    root: 'page',
+                    elements: {
+                        page: {
+                            component: 'box',
+                            config: {direction: 'column'},
+                            children: [{id: 'name'}]
+                        },
+                        name: {component: 'textInput', config: {label: 'Name'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model});
+        onTestFinished(() => {
+            design.destroy();
+            model.destroy();
+        });
+        const view = render(blueprintView({model, designModel: design}) as ReactElement),
+            inspector = render(elementInspector({designModel: design}) as ReactElement);
+        fireEvent.click(view.getByText('Pick a variable'));
+        expect(design.selectedElementId).toBe('name');
+        await vi.waitFor(() =>
+            expect(document.activeElement?.closest('[data-config-key="sets"]')).toBe(
+                inspector.container.querySelector('[data-config-key="sets"]')
+            )
+        );
+        expect(model.history).toHaveLength(0);
     });
 });

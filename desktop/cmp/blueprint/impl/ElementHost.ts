@@ -8,7 +8,7 @@ import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
-import type {BlueprintWidgetModel} from '../../../../blueprint';
+import type {BlueprintWidgetModel, WidgetSpec} from '../../../../blueprint';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {selectionToolbar} from '../design/impl/SelectionToolbar';
@@ -95,6 +95,33 @@ export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
         it => it.closest('.xh-panel-header')?.closest('.xh-dash-tab') !== cell
     );
     return inBody?.dataset.blueprintElement ?? null;
+}
+
+// The field a widget needs set before it can draw: the variable an input sets, or a source.
+function needsField(
+    model: BlueprintWidgetModel,
+    spec: WidgetSpec
+): {key: string; text: string; action: string} {
+    if (spec?.value && !model.valueVariable) {
+        return {
+            key: 'sets',
+            text: `This ${spec.label} sets no variable yet.`,
+            action: 'Pick a variable'
+        };
+    }
+    const source = model.element?.config?.source;
+    if (
+        spec?.config?.properties?.source?.['x-source'] &&
+        spec.config.required?.includes('source') &&
+        !(typeof source === 'string' && model.blueprintModel.blueprint?.sources?.[source])
+    ) {
+        return {
+            key: 'source',
+            text: `This ${spec.label} reads no source yet.`,
+            action: 'Pick a source'
+        };
+    }
+    return null;
 }
 
 function notePlaceholder(children: ReactNode) {
@@ -191,10 +218,31 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
               ? 'This result has too many rows to show here.'
               : model.source?.isUnavailable
                 ? 'The data for this answer is no longer available.'
-                : spec?.value && !model.valueVariable
-                  ? `This ${spec.label} sets no variable yet. Pick one under Sets in the inspector.`
-                  : (model.source?.joinWait ?? model.source?.selectionWait ?? null);
+                : (model.source?.joinWait ?? model.source?.selectionWait ?? null);
     if (notice) return notePlaceholder(notice);
+    // A widget that needs a field set says so, and in design mode offers to set it.
+    const needs = needsField(model, spec);
+    if (needs) {
+        const {designModel, blueprintModel} = viewModel,
+            canFix =
+                designModel &&
+                blueprintModel.mode === 'design' &&
+                blueprintModel.access === 'write';
+        return notePlaceholder([
+            needs.text,
+            canFix
+                ? button({
+                      key: 'fix',
+                      text: needs.action,
+                      minimal: true,
+                      onClick: (e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          designModel.requestFieldFocus(id, needs.key);
+                      }
+                  })
+                : null
+        ]);
+    }
     const {source} = model;
     if (source?.lastError && !source.isLoading) {
         return notePlaceholder([

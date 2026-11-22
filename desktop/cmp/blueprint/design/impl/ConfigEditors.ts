@@ -91,6 +91,7 @@ export interface RowProps {
 export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
     return div({
         key,
+        ...({'data-config-key': node.key} as object),
         // A one-line value sits beside its label. A structure takes the row's full width.
         className: classNames(
             `${CLS}__row`,

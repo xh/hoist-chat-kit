@@ -332,7 +332,7 @@ describe('input widgets', () => {
         onTestFinished(() => model.destroy());
         render(blueprintView({model}));
         expect(screen.getByRole('note').textContent).toMatch(
-            /This Select sets no variable yet\. Pick one under Sets in the inspector\./
+            /^This Select sets no variable yet\.$/
         );
     });
 
