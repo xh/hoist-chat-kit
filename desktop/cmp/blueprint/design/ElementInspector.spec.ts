@@ -542,7 +542,7 @@ describe('ElementInspector', () => {
             confirm.mockResolvedValueOnce(true);
             await inspector.removeAsync();
             expect(model.blueprint.elements).not.toHaveProperty('positions');
-            expect(model.history.at(-1).description).toBe('Remove Dashboard');
+            expect(model.history.at(-1).description).toBe('Remove positions');
         });
 
         it("lists a tab container's tabs, to retitle, reorder, add and remove", async () => {
