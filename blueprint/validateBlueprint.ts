@@ -169,7 +169,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         if (el.children && !spec.children) {
             err('element.notContainer', `${p}/children`, `${el.component} takes no children`);
         }
-        if (el.component === 'dashCanvas') checkCanvasLayout(el, p, err);
+        if (el.component === 'dashCanvas') {
+            checkCanvasLayout(el, p, err, warn, it => registry.widgets[elements[it]?.component]);
+        }
         if (el.component === 'dateRangePicker' && registry.dateRangePresets) {
             castArray(el.config?.presets ?? []).forEach((token: string, i: number) => {
                 if (!registry.dateRangePresets[token]) {
@@ -1260,11 +1262,16 @@ function bindingTypesOf(schema: PlainObject): string[] {
     }
 }
 
-/** A canvas places children freely, so they must not overlap or pass the last column. */
+/**
+ * A canvas places children freely, so they must not overlap or pass the last column. A cell
+ * narrower than its widget takes clips it, which is worth a warning.
+ */
 function checkCanvasLayout(
     el: PlainObject,
     path: string,
-    err: (code: string, path: string, message: string) => void
+    err: (code: string, path: string, message: string) => void,
+    warn: (code: string, path: string, message: string) => void,
+    specOf: (id: string) => WidgetSpec
 ) {
     const cols = el.config?.columns ?? 12,
         kids = (el.children ?? [])
@@ -1277,6 +1284,14 @@ function checkCanvasLayout(
                 'layout.outOfBounds',
                 at,
                 `'${c.id}' reaches column ${c.x + c.w}, past the last of ${cols}`
+            );
+        }
+        const minW = specOf(c.id)?.size?.min?.w;
+        if (minW && c.w < minW) {
+            warn(
+                'layout.tooNarrow',
+                `${at}/w`,
+                `'${c.id}' is ${c.w} columns wide, narrower than the ${minW} its widget needs`
             );
         }
         kids.slice(k + 1).forEach(({c: d}) => {

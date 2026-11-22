@@ -1,5 +1,4 @@
-import {card, CardModel} from '@xh/hoist/cmp/card';
-import {vframe} from '@xh/hoist/cmp/layout';
+import classNames from 'classnames';
 import {hoistCmp, uses, XH} from '@xh/hoist/core';
 import {panel, PanelModel} from '@xh/hoist/desktop/cmp/panel';
 import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
@@ -13,61 +12,61 @@ import {
 import {emptyContent, layoutChildren} from './impl/layout';
 
 /**
- * The `panel` widget: a Hoist `Panel`, or a `Card` for its card style, over its children in a
- * column. Its `tbar` and `bbar` slots fill the panel's toolbars, and `headerItems` its header.
- * Its collapsed state follows `collapsed` in its config, and a user's collapse writes it back, so
- * it stays transient in run mode.
+ * The `panel` widget: a Hoist `Panel` over its children in a column. Its `tbar` and `bbar` slots
+ * fill the panel's toolbars, and `headerItems` its header. In a canvas cell it draws no header or
+ * border, as the cell is its frame and carries its title, icon and header items. Elsewhere its card
+ * style is a compact header in a bordered frame. Its collapsed state follows `collapsed` in its
+ * config, and a user's collapse writes it back, so it stays transient in run mode.
  */
 export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
     @observableRef accessor panelModel: PanelModel = null;
-    @observableRef accessor cardModel: CardModel = null;
 
     constructor(config: BlueprintWidgetConfig) {
         super(config);
         this.addReaction(
             {
                 track: () => !!this.resolvedConfig.collapsible,
-                run: collapsible => this.createModels(collapsible),
+                run: collapsible => this.createModel(collapsible),
                 fireImmediately: true
             },
             {
                 track: () => !!this.resolvedConfig.collapsed,
-                run: collapsed => {
-                    this.panelModel.setCollapsed(collapsed);
-                    this.cardModel.setCollapsed(collapsed);
-                }
+                run: collapsed => this.panelModel.setCollapsed(collapsed)
             },
             {
-                track: () => [this.panelModel.collapsed, this.cardModel.collapsed],
-                run: ([fromPanel, fromCard]) => {
-                    const collapsed = !!this.resolvedConfig.collapsed,
-                        changed = [fromPanel, fromCard].find(it => it !== collapsed);
-                    if (changed != null) this.setConfig('/collapsed', changed);
+                track: () => this.panelModel.collapsed,
+                run: collapsed => {
+                    if (collapsed !== !!this.resolvedConfig.collapsed) {
+                        this.setConfig('/collapsed', collapsed);
+                    }
                 }
             }
         );
     }
 
+    /** True in a canvas cell, which frames the panel and carries its header. */
+    get inCanvasCell(): boolean {
+        return this.parentElement?.component === 'dashCanvas';
+    }
+
     override destroy() {
-        XH.safeDestroy(this.panelModel, this.cardModel);
+        XH.safeDestroy(this.panelModel);
         super.destroy();
     }
 
     //------------------
     // Implementation
     //------------------
-    private createModels(collapsible: boolean) {
-        XH.safeDestroy(this.panelModel, this.cardModel);
-        const defaultCollapsed = collapsible && !!this.resolvedConfig.collapsed;
+    private createModel(collapsible: boolean) {
+        XH.safeDestroy(this.panelModel);
         this.panelModel = new PanelModel({
             collapsible,
-            defaultCollapsed,
+            defaultCollapsed: collapsible && !!this.resolvedConfig.collapsed,
             resizable: false,
             showSplitter: false,
             // Hoist collapses a panel only with a side and a size, which fills its slot here.
             ...(collapsible ? {side: 'top', defaultSize: '100%'} : {})
         });
-        this.cardModel = new CardModel({collapsible, defaultCollapsed});
     }
 }
 
@@ -88,33 +87,25 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
                     ? items[0]
                     : toolbar({children: items, enableOverflowMenu: refs.length > 1});
             },
-            headerItems = model.slotRefs('headerItems').map(it => model.renderElement(it.id)),
-            props = {
+            body = emptyContent(model, content) ?? layoutChildren(model, 'column', content),
+            toolbars = {tbar: slot('tbar'), bbar: slot('bbar')};
+        if (model.inCanvasCell) {
+            return panel({className, model: model.panelModel, ...toolbars, children: body});
+        }
+        const isCard = style === 'card';
+        return panel({
+            className: classNames(
                 className,
-                title: title || null,
-                icon: icon ? Icon.icon({faName: icon as any}) : null
-            },
-            body = emptyContent(model, content) ?? layoutChildren(model, 'column', content);
-        return style === 'card'
-            ? card({
-                  ...props,
-                  model: model.cardModel,
-                  intent: intent && intent !== 'none' ? intent : null,
-                  flex: 'auto',
-                  children: [
-                      slot('tbar'),
-                      vframe({className: 'xh-blueprint-panel__body', children: body}),
-                      slot('bbar')
-                  ]
-              })
-            : panel({
-                  ...props,
-                  model: model.panelModel,
-                  compactHeader,
-                  headerItems,
-                  tbar: slot('tbar'),
-                  bbar: slot('bbar'),
-                  children: body
-              });
+                isCard && 'xh-blueprint-panel--card',
+                isCard && intent && intent !== 'none' && `xh-blueprint-panel--${intent}`
+            ),
+            model: model.panelModel,
+            title: title || null,
+            icon: icon ? Icon.icon({faName: icon as any}) : null,
+            compactHeader: isCard || compactHeader,
+            headerItems: model.slotRefs('headerItems').map(it => model.renderElement(it.id)),
+            ...toolbars,
+            children: body
+        });
     }
 });

@@ -463,7 +463,7 @@ describe('input widgets', () => {
             expect(document.querySelector('.xh-panel-header .xh-select')).toBeTruthy();
             expect(screen.getByText('Body')).toBeTruthy();
 
-            // A card holds its bars around a body that fills the rest.
+            // The card style holds its bars around its body, as a panel does.
             const {container} = show({
                 bar: {
                     component: 'panel',
@@ -474,11 +474,9 @@ describe('input widgets', () => {
                 top: {component: 'toolbar', config: {}, children: []},
                 body: {component: 'markdown', config: {text: 'Card body'}}
             });
-            const content = container.querySelector('.xh-card__content');
-            expect(content.querySelector(':scope > .xh-toolbar')).toBeTruthy();
-            expect(content.querySelector(':scope > .xh-blueprint-panel__body')?.textContent).toBe(
-                'Card body'
-            );
+            const frame = container.querySelector('.xh-blueprint-panel--card');
+            expect(frame.querySelector('.xh-toolbar')).toBeTruthy();
+            expect(frame.textContent).toContain('Card body');
 
             expect(() =>
                 show({

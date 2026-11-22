@@ -20,20 +20,59 @@
       outline: 2px solid var(--xh-intent-primary);
       outline-offset: -2px;
     }
+
+    // A cell narrower than its widget takes, as the validator warns.
+    &--too-narrow:not(&--selected) {
+      outline: 1px solid var(--xh-intent-warning);
+      outline-offset: -1px;
+    }
   }
 }
 
 // A card panel's content fills it, below its legend. It may shrink below its content, as Hoist's
 // card holds its min-content width, so a toolbar in it overflows to its menu.
-.xh-blueprint-panel.xh-card {
-  display: flex;
-  flex-direction: column;
+// A panel may shrink below its content, so a toolbar in it overflows to its menu.
+.xh-blueprint-panel {
   min-width: 0;
 
-  > .xh-card__content {
-    flex: 1 1 auto;
-    min-height: 0;
+  // The card style: a compact header in a bordered frame, tinted by its intent.
+  &--card {
+    border: var(--xh-border-solid);
   }
+
+  @each $intent in primary, success, warning, danger {
+    &--#{$intent} {
+      border-color: var(--xh-intent-#{$intent});
+    }
+  }
+}
+
+// A canvas cell is its widget's frame: a plain header with the title, and in design mode the
+// element's id beside it.
+.xh-blueprint-dash-canvas .xh-dash-tab > .xh-panel-header {
+  height: 28px;
+  background-color: var(--xh-bg);
+  border-bottom: var(--xh-border-solid);
+
+  .xh-panel-header__title {
+    flex: 0 1 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--xh-text-color);
+  }
+
+  .xh-panel-header__items {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+}
+
+.xh-blueprint-dash-canvas__cell-id {
+  margin-right: auto;
+  padding-left: var(--xh-spacing-half);
+  font-family: var(--xh-font-family-mono);
+  font-size: 11px;
+  color: var(--xh-text-color-muted);
 }
 
 .xh-blueprint-property-table__title {

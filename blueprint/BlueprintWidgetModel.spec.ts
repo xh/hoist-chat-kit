@@ -141,6 +141,24 @@ describe('BlueprintWidgetModel', () => {
         expect(long.endsWith('…')).toBe(true);
     });
 
+    it('knows when its canvas cell is narrower than its widget takes', () => {
+        const model = open();
+        expect(widget(model, 'posGrid').isTooNarrow).toBe(false);
+        model.setBlueprint({
+            ...model.blueprint,
+            elements: {
+                ...model.blueprint.elements,
+                dashboard: {
+                    ...model.blueprint.elements.dashboard,
+                    children: model.blueprint.elements.dashboard.children.map(it =>
+                        it.id === 'posGrid' ? {...it, w: 1} : it
+                    )
+                }
+            }
+        });
+        expect(widget(model, 'posGrid').isTooNarrow).toBe(true);
+    });
+
     it('shows the value of the variable its element sets, and sets it', () => {
         const model = open(),
             chooser = widget(model, 'chooser'),

@@ -811,6 +811,15 @@ describe('validateBlueprint', () => {
         });
     });
 
+    it('warns of a canvas cell narrower than its widget takes, at its width', () => {
+        const bp = p2();
+        const cells = bp.elements.dashboard.children as PlainObject[];
+        cells.find(it => it.id === 'posGrid').w = 1;
+        expect(validate(bp).map(it => [it.code, it.severity, it.path])).toEqual([
+            ['layout.tooNarrow', 'warning', '/elements/dashboard/children/1/w']
+        ]);
+    });
+
     describe('grid styles', () => {
         const styled = (styles: object[], rowStyles: object[] = []): Blueprint => {
             const bp = p2();

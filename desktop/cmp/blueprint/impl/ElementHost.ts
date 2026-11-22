@@ -27,7 +27,9 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             className: classNames(
                 'xh-blueprint-view__design-element',
                 designModel.selectedElementId === id &&
-                    'xh-blueprint-view__design-element--selected'
+                    'xh-blueprint-view__design-element--selected',
+                viewModel.getWidgetModel(id)?.isTooNarrow &&
+                    'xh-blueprint-view__design-element--too-narrow'
             ),
             // Read by cellElementAt, and by a selection that scrolls into view.
             ...({'data-blueprint-element': id} as object),

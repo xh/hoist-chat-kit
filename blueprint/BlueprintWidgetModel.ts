@@ -60,6 +60,15 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return ((holder as PlainObject)?.[slot] as ChildRef[]) ?? [];
     }
 
+    /** True in a canvas cell narrower than the widget's least width, which clips it. */
+    get isTooNarrow(): boolean {
+        const parent = this.parentElement;
+        if (parent?.component !== 'dashCanvas') return false;
+        const cell = parent.children?.find(it => it.id === this.id),
+            minW = this.blueprintModel.registry.widgets[this.element?.component]?.size?.min?.w;
+        return !!minW && (cell?.w as number) < minW;
+    }
+
     /** The container that holds the element, or null for the root. */
     get parentElement(): BlueprintElement {
         const elements = this.blueprintModel.effective?.elements;

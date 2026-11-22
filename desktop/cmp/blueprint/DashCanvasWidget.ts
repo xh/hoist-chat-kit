@@ -1,4 +1,5 @@
-import {box, div} from '@xh/hoist/cmp/layout';
+import {box, div, span} from '@xh/hoist/cmp/layout';
+import {Icon} from '@xh/hoist/icon';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import {
     dashCanvas,
@@ -37,6 +38,9 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             columns,
             rowHeight,
             compact: false,
+            margin: [8, 8],
+            containerPadding: [8, 8],
+            showGridBackground: this.isDesign,
             // Unlocked for palette drops only: every view spec still refuses add and remove.
             contentLocked: false,
             allowsDrop: true,
@@ -48,7 +52,17 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
 
         this.addReaction(
             {
-                track: () => [this.children, this.titles, this.takesDrop],
+                track: () => this.isDesign,
+                run: isDesign => (this.canvasModel.showGridBackground = isDesign)
+            },
+            {
+                track: () => [
+                    this.children,
+                    this.titles,
+                    this.cellHeaderRefs,
+                    this.takesDrop,
+                    this.isDesign
+                ],
                 run: () => this.loadChildren(),
                 equals: 'structural',
                 fireImmediately: true
@@ -69,6 +83,10 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
                 equals: 'structural'
             }
         );
+    }
+
+    private get isDesign(): boolean {
+        return this.blueprintModel.mode === 'design';
     }
 
     /** True while a palette drag is in progress and the blueprint is open for design. */
@@ -113,16 +131,37 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         }
     }
 
-    /** Each child's title, by ID, with bindings and variables resolved. Null for a child with none. */
+    /**
+     * Each child's title, by ID, with bindings and variables resolved. Null for a child with none.
+     * The cell is the child's only frame, so it carries the child's title.
+     */
     get titles(): Record<string, string> {
         const {blueprintModel} = this,
             elements = blueprintModel.blueprint?.elements ?? {};
         return Object.fromEntries(
             this.children.map(({id}) => {
-                if (OWN_TITLE.includes(elements[id]?.component)) return [id, null];
                 const title = blueprintModel.resolveTitle(elements[id]?.config?.title);
                 return [id, title == null || title === '' ? null : String(title)];
             })
+        );
+    }
+
+    /**
+     * Each child's header items, by ID: the cell's own `headerItems`, then a panel child's, which
+     * draws no header of its own in a cell.
+     */
+    get cellHeaderRefs(): Record<string, ChildRef[]> {
+        const elements = this.blueprintModel.blueprint?.elements ?? {};
+        return Object.fromEntries(
+            this.children.map(({id}) => [
+                id,
+                [
+                    ...this.slotRefs('headerItems', id),
+                    ...(elements[id]?.component === 'panel'
+                        ? ((elements[id].headerItems as ChildRef[]) ?? [])
+                        : [])
+                ]
+            ])
         );
     }
 
@@ -136,9 +175,8 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
      * so they survive that.
      */
     private loadChildren() {
-        const {canvasModel, children, titles} = this,
-            hasHeader = (id: string) =>
-                titles[id] != null || this.slotRefs('headerItems', id).length > 0,
+        const {canvasModel, children, titles, cellHeaderRefs} = this,
+            hasHeader = (id: string) => titles[id] != null || cellHeaderRefs[id]?.length > 0,
             headerChanged = canvasModel.viewModels.some(
                 it => !it.viewSpec.hidePanelHeader !== hasHeader(it.viewSpec.id)
             );
@@ -157,11 +195,23 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         if (!titlesMatch || !isEqual(toPlacement(canvasModel.state), toPlacement(state))) {
             canvasModel.loadState(state);
         }
+        const elements = this.blueprintModel.blueprint?.elements ?? {};
         runInAction(() =>
             canvasModel.viewModels.forEach(vm => {
-                vm.headerItems = this.slotRefs('headerItems', vm.viewSpec.id).map(it =>
-                    this.renderElement(it.id)
-                );
+                const id = vm.viewSpec.id,
+                    icon = elements[id]?.config?.icon;
+                vm.headerItems = [
+                    // In design mode a cell's header names its element, after its title.
+                    this.isDesign
+                        ? span({
+                              key: '_id',
+                              className: 'xh-blueprint-dash-canvas__cell-id',
+                              item: id
+                          })
+                        : null,
+                    ...(cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))
+                ].filter(Boolean);
+                vm.icon = icon ? Icon.icon({faName: icon}) : null;
             })
         );
     }
@@ -255,6 +305,3 @@ function toPlacement(state: DashCanvasItemState[]): PlainObject[] {
         'id'
     );
 }
-
-// Widgets that draw their own title, so a cell does not repeat it in its header.
-const OWN_TITLE = ['panel'];

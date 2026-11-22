@@ -12,6 +12,8 @@ import {
 import {blueprintView} from './BlueprintView';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {DashContainerWidgetModel} from './DashContainerWidget';
+import {BlueprintViewModel} from './impl/BlueprintViewModel';
+import {elementFromContent} from '@xh/hoist/utils/react';
 import {PanelWidgetModel} from './PanelWidget';
 
 /**
@@ -253,7 +255,7 @@ describe('layout and container widgets', () => {
             expect(screen.getByText('Inside')).toBeTruthy();
         });
 
-        it("draws Hoist's card in place of its chrome, with its card style", () => {
+        it('draws its card style as a compact panel header in a bordered frame, never a card legend', () => {
             const {container} = show('page', {
                 page: {
                     component: 'panel',
@@ -262,10 +264,10 @@ describe('layout and container widgets', () => {
                 },
                 a: emptyPanel('Inside')
             });
-            const card = container.querySelector('.xh-card');
-            expect(card).toBeTruthy();
-            expect(card.textContent).toContain('Group');
-            expect(card.textContent).toContain('Inside');
+            expect(container.querySelector('.xh-card')).toBeNull();
+            const frame = container.querySelector('.xh-blueprint-panel--card');
+            expect(frame.querySelector('.xh-panel-header').textContent).toContain('Group');
+            expect(frame.textContent).toContain('Inside');
         });
 
         it('collapses as its config says, and keeps a collapse by the user transient', async () => {
@@ -531,21 +533,85 @@ describe('layout and container widgets', () => {
         });
     });
 
-    it("leaves a panel's title to the panel, so a canvas cell does not repeat it", () => {
-        const {model} = show('canvas', {
-                canvas: {
-                    component: 'dashCanvas',
-                    children: [{id: 'pnl', x: 0, y: 0, w: 6, h: 4}]
-                },
-                pnl: {component: 'panel', config: {title: 'Positions', emptyText: 'x'}}
-            }),
-            canvas = new DashCanvasWidgetModel({
-                blueprintModel: model,
-                id: 'canvas',
-                renderElement: () => null
+    describe('canvas cells', () => {
+        const cells = (mode: 'run' | 'design' = 'run') => {
+            const model = new BlueprintModel({
+                    blueprint: {
+                        root: 'canvas',
+                        elements: {
+                            canvas: {
+                                component: 'dashCanvas',
+                                children: [
+                                    {id: 'pnl', x: 0, y: 0, w: 6, h: 4},
+                                    {id: 'tiles', x: 6, y: 0, w: 6, h: 2},
+                                    {id: 'grid', x: 0, y: 4, w: 1, h: 4}
+                                ]
+                            },
+                            pnl: {
+                                component: 'panel',
+                                config: {title: 'Positions', icon: 'chart-line', style: 'card'},
+                                children: [{id: 'body'}],
+                                headerItems: [{id: 'pick'}]
+                            },
+                            body: emptyPanel('Inside'),
+                            pick: {component: 'switchInput'},
+                            tiles: {component: 'tileFrame'},
+                            grid: {component: 'cubeGrid', config: {source: 'positions'}}
+                        },
+                        sources: {positions: {dataset: 'positions', params: {asOf: '2026-11-20'}}}
+                    },
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode,
+                    access: 'write',
+                    isAnswer: true
+                }),
+                view = new BlueprintViewModel(model);
+            onTestFinished(() => {
+                view.destroy();
+                model.destroy();
             });
-        onTestFinished(() => canvas.destroy());
-        expect(canvas.titles.pnl).toBeNull();
+            const canvas = view.getWidgetModel('canvas') as DashCanvasWidgetModel,
+                cell = (id: string) =>
+                    canvas.canvasModel.viewModels.find(it => it.viewSpec.id === id);
+            return {model, view, canvas, cell};
+        };
+
+        it("hands a panel's title, icon and header items to its cell, and draws it frameless there", () => {
+            const {view, canvas, cell} = cells();
+            expect(cell('pnl').title).toBe('Positions');
+            expect(cell('pnl').icon).toBeTruthy();
+            expect(cell('pnl').headerItems).toHaveLength(1);
+            const spec = canvas.canvasModel.viewSpecs.find(it => it.id === 'pnl'),
+                {container} = render(
+                    elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel})
+                );
+            expect(container.querySelector('.xh-card')).toBeNull();
+            expect(container.querySelector('.xh-blueprint-panel--card')).toBeNull();
+            expect(container.querySelector('.xh-panel-header')).toBeNull();
+            expect(container.textContent).toContain('Inside');
+            expect(view).toBeTruthy();
+        });
+
+        it('hides the header of a cell with no title and no header items', () => {
+            const {cell} = cells();
+            expect(cell('tiles').viewSpec.hidePanelHeader).toBe(true);
+        });
+
+        it('spaces cells 8px apart, and shows the column grid and element ids in design mode only', () => {
+            const run = cells('run');
+            expect(run.canvas.canvasModel.margin).toEqual([8, 8]);
+            expect(run.canvas.canvasModel.containerPadding).toEqual([8, 8]);
+            expect(run.canvas.canvasModel.showGridBackground).toBe(false);
+            expect(run.cell('pnl').headerItems).toHaveLength(1);
+            const design = cells('design');
+            expect(design.canvas.canvasModel.showGridBackground).toBe(true);
+            const [idItem] = design.cell('pnl').headerItems as any[];
+            expect(idItem.props.className).toBe('xh-blueprint-dash-canvas__cell-id');
+            // A cell with no header stays without one, id or not.
+            expect(design.cell('tiles').viewSpec.hidePanelHeader).toBe(true);
+        });
     });
 
     describe('emptyText', () => {
