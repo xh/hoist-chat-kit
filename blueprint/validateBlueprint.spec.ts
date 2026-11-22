@@ -1163,6 +1163,81 @@ describe('validateBlueprint', () => {
         expect(codes(bp)).toContain('binding.typeMismatch');
     });
 
+    it('refuses a required property bound to a variable that may be empty, until it has a default', () => {
+        const registry = new BlueprintRegistry({
+                widgets: [
+                    {
+                        name: 'acme.meter',
+                        label: 'Meter',
+                        version: 1,
+                        guidance: 'A meter.',
+                        category: 'content',
+                        config: {
+                            type: 'object',
+                            required: ['level'],
+                            properties: {level: {type: 'number'}}
+                        }
+                    }
+                ]
+            }),
+            bp = {
+                root: 'm',
+                variables: {level: {type: 'number', setBy: 'prompt'}},
+                elements: {m: {component: 'acme.meter', config: {level: {$var: 'level'}}}}
+            } as any,
+            errors = () =>
+                validateBlueprint(bp, {catalog: portfolioCatalog, registry})
+                    .filter(it => it.severity === 'error')
+                    .map(it => [it.code, it.path]);
+        expect(errors()).toEqual([['binding.mayBeNull', '/elements/m/config/level']]);
+        bp.variables.level.default = {value: 3};
+        expect(errors()).toEqual([]);
+    });
+
+    it('takes a binding at a path presets control only inside a preset, checked as a config binding is', () => {
+        const bp = p2();
+        bp.variables.kind = {
+            type: 'string',
+            setBy: 'prompt',
+            options: {values: ['bar', 'column']},
+            default: {value: 'bar'}
+        };
+        bp.variables.flag = {type: 'bool', setBy: 'prompt', default: {value: true}};
+        delete bp.elements.sectorChart.config.type;
+        bp.presets = {
+            look: {
+                controls: [{path: '/elements/sectorChart/config/type'}],
+                default: 'chosen',
+                items: {
+                    chosen: {set: {elements: {sectorChart: {config: {type: {$var: 'kind'}}}}}},
+                    pie: {set: {elements: {sectorChart: {config: {type: 'pie'}}}}}
+                }
+            }
+        };
+        const errors = () =>
+            validate(bp)
+                .filter(it => it.severity === 'error')
+                .map(it => [it.code, it.path]);
+        expect(errors()).toEqual([]);
+
+        bp.presets.look.items.chosen.set = {
+            elements: {sectorChart: {config: {type: {$var: 'flag'}}}}
+        };
+        expect(errors()).toEqual([
+            [
+                'binding.typeMismatch',
+                '/presets/look/items/chosen/set/elements/sectorChart/config/type'
+            ]
+        ]);
+
+        // In the element's config too, the path has two places to read from.
+        bp.presets.look.items.chosen.set = {
+            elements: {sectorChart: {config: {type: {$var: 'kind'}}}}
+        };
+        bp.elements.sectorChart.config.type = {$var: 'kind'};
+        expect(errors().map(([code]) => code)).toEqual(['preset.stillInConfig']);
+    });
+
     it("takes a grid's summary row at the top or bottom, or none, and no longer as summaryRow", () => {
         const bp = p2();
         bp.elements.posGrid.config.showSummary = 'bottom';

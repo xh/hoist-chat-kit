@@ -92,7 +92,7 @@ describe('BlueprintWidgetModel', () => {
             ...model.blueprint,
             variables: {
                 ...model.blueprint.variables,
-                chartType: {type: 'string', setBy: 'prompt'},
+                chartType: {type: 'string', setBy: 'prompt', default: {value: 'bar'}},
                 depth: {type: 'int', setBy: 'prompt'}
             },
             elements: {

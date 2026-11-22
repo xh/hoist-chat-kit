@@ -289,6 +289,31 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
     }
 
+    // A config value bound to a variable, in an element's config or a preset's: the property must
+    // take a binding, of the variable's type, and every value the variable may hold.
+    function checkBound(key: string, prop: PlainObject, value: unknown, at: string) {
+        const name = isPlainObject(value) ? (value as PlainObject).$var : null,
+            bound = isString(name) ? variables[name] : null;
+        if (!bound) return;
+        const want = prop?.['x-binding'] ? bindingTypesOf(prop) : null;
+        if (want && !want.some(it => typeMatches(bound.type, it))) {
+            err(
+                'binding.typeMismatch',
+                at,
+                `${key} takes a ${want.join(' or ')}, but '${name}' is a ${bound.type}`
+            );
+        } else if (want) {
+            const bad = boundValues(bound).find(it => !fitsProp(it, prop));
+            if (bad !== undefined) {
+                err(
+                    'binding.outOfRange',
+                    at,
+                    `'${name}' may hold ${JSON.stringify(bad)}, which ${key} does not take`
+                );
+            }
+        }
+    }
+
     // Variables and their writers.
     const settableFromOutside = new Set<string>();
     for (const [vn, v] of Object.entries(variables)) {
@@ -833,24 +858,23 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 checkTemplate(text, `/elements/${id}/children/${i}${toPointer(path)}`, null, true)
             )
         );
+        const required: string[] = spec?.config?.required ?? [];
         Object.entries(props).forEach(([key, prop]) => {
-            const bound = isPlainObject(cfg[key]) ? variables[cfg[key].$var] : null,
-                want = prop?.['x-binding'] && bound ? bindingTypesOf(prop) : null;
-            if (want && !want.some(it => typeMatches(bound.type, it))) {
+            checkBound(key, prop, cfg[key], `${p}/${key}`);
+            // A widget cannot draw without a required value, so a variable it reads must start with one.
+            const name = isPlainObject(cfg[key]) ? cfg[key].$var : null,
+                decl = isString(name) ? getOwn(variables, name) : null;
+            if (
+                required.includes(key) &&
+                decl &&
+                decl.setBy !== 'resolver' &&
+                (decl.default as PlainObject)?.value == null
+            ) {
                 err(
-                    'binding.typeMismatch',
+                    'binding.mayBeNull',
                     `${p}/${key}`,
-                    `${key} takes a ${want.join(' or ')}, but '${cfg[key].$var}' is a ${bound.type}`
+                    `${key} is required, but '${name}' may be empty: give it a default`
                 );
-            } else if (want) {
-                const bad = boundValues(bound).find(it => !fitsProp(it, prop));
-                if (bad !== undefined) {
-                    err(
-                        'binding.outOfRange',
-                        `${p}/${key}`,
-                        `'${cfg[key].$var}' may hold ${JSON.stringify(bad)}, which ${key} does not take`
-                    );
-                }
             }
             if (prop?.['x-preset'] && isString(cfg[key]) && !getOwn(bp.presets, cfg[key])) {
                 err('preset.unknownGroup', `${p}/${key}`, `unknown preset group '${cfg[key]}'`);
@@ -1082,6 +1106,12 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                         `${gp}/items/${iname}/set`,
                         `preset '${iname}' does not set ${path}`
                     );
+                } else if (segs[0] === 'elements' && segs.length === 4) {
+                    const prop =
+                        registry.widgets[elements[segs[1]]?.component]?.config?.properties?.[
+                            segs[3]
+                        ];
+                    if (prop) checkBound(segs[3], prop, o, `${gp}/items/${iname}/set${path}`);
                 }
             }
         };
