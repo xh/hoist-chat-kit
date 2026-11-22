@@ -28,13 +28,23 @@ export const CANVAS_COLUMNS = 12;
 
 /**
  * A canvas's cells for a new column count: each cell's x and w scaled in proportion, kept inside
- * the grid, and any cell the scaling makes overlap another moved down below it, in reading order.
+ * the grid and no narrower than `minWidth` gives for it, such as its widget's `size.min.w`, and any
+ * cell the scaling makes overlap another moved down below it, in reading order.
  */
-export function rescaleCells(children: ChildRef[], from: number, to: number): ChildRef[] {
+export function rescaleCells(
+    children: ChildRef[],
+    from: number,
+    to: number,
+    minWidth?: (id: string) => number
+): ChildRef[] {
     if (from === to || !(from > 0) || !(to > 0)) return children;
     const ret = children.map(it => {
             if (!isCell(it)) return it;
-            const w = clamp(Math.round((it.w * to) / from), 1, to),
+            const w = clamp(
+                    Math.max(Math.round((it.w * to) / from), minWidth?.(it.id) ?? 1),
+                    1,
+                    to
+                ),
                 x = clamp(Math.round((it.x * to) / from), 0, to - w);
             return {...it, x, w} as Cell;
         }),

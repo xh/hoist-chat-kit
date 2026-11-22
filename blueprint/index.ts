@@ -58,6 +58,7 @@ export {
     resolveFormat,
     type ResolvedFieldDisplay
 } from './impl/formats';
+export {CANVAS_COLUMNS, rescaleCells} from './impl/canvasCells';
 export * from './design/BlueprintDesignModel';
 export * from './design/editorSpec';
 export * from './design/wiring';

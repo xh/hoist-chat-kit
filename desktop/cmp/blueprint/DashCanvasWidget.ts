@@ -3,7 +3,12 @@ import {hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core'
 import {Icon} from '@xh/hoist/icon';
 import {pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
-import {BlueprintWidgetModel, type ChildRef, type DashCanvasWidgetConfig} from '../../../blueprint';
+import {
+    BlueprintWidgetModel,
+    CANVAS_COLUMNS,
+    type ChildRef,
+    type DashCanvasWidgetConfig
+} from '../../../blueprint';
 import {gridCanvas, type GridCanvasChange, type GridCell} from '../layout';
 import {widgetIcon} from './design/impl/icons';
 import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
@@ -137,7 +142,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             cell = cells.find(it => it.id === id);
         if (!cell) return `There is no cell '${id}'.`;
         const next = {...cell, ...pick(place, 'x', 'y', 'w', 'h')},
-            columns = (this.resolvedConfig.columns as number) ?? 12,
+            columns = (this.resolvedConfig.columns as number) ?? CANVAS_COLUMNS,
             {x, y, w, h} = next;
         if (![x, y, w, h].every(Number.isInteger) || x < 0 || y < 0 || x + w > columns) {
             return `'${id}' must lie on the grid, within its ${columns} columns.`;
@@ -174,7 +179,7 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-dash-canvas',
     model: uses(DashCanvasWidgetModel),
     render({model, className}) {
-        const {columns = 12, rowHeight = 50} = model.resolvedConfig,
+        const {columns = CANVAS_COLUMNS, rowHeight = 50} = model.resolvedConfig,
             // The hint lies over a live canvas, so an empty one still takes a drop.
             empty = emptyContent(model);
         return box({

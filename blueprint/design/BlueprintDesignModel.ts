@@ -1247,7 +1247,12 @@ export class BlueprintDesignModel extends HoistModel {
         if (el?.component !== 'dashCanvas' || path !== '/columns' || !el.children) return [];
         const from = (el.config?.columns as number) ?? CANVAS_COLUMNS,
             to = (value as number) ?? CANVAS_COLUMNS,
-            children = rescaleCells(el.children, from, to);
+            children = rescaleCells(
+                el.children,
+                from,
+                to,
+                cell => this.elementSpec(cell)?.size?.min?.w
+            );
         return children === el.children
             ? []
             : [{op: 'set', path: `/elements/${id}/children`, value: children}];
