@@ -63,7 +63,7 @@ BlueprintDocumentModel                # A stored blueprint, open in the Blueprin
 └── Methods:
     ├── openAsync() / createAsync() / reloadAsync()
     ├── saveDraftAsync() / publishAsync()
-    └── copyAsync() / deleteAsync() / updateAccessAsync()
+    └── copyAsync() / renameAsync() / deleteAsync() / updateAccessAsync()
 ```
 
 A blueprint holds these top-level keys:
@@ -416,6 +416,9 @@ Implement `BlueprintRepository`. Its doc comment states the contract in full. Th
   without it.
 - Report a refused save or publish as an issue. Return null from `openAsync` or `copyAsync` for a
   blueprint that is missing or that the user may not open. Reject from any other call.
+- Implement `renameAsync` only if the store can rename a blueprint. The library offers renaming
+  only then, to writers. Refuse a name the blueprint's owner already has, with an `httpStatus` of
+  400, and leave the description as it is when the call omits it.
 - Implement `updateAccessAsync` only if the store can share. The library offers sharing only
   then. A grantee is a username, `role:<ROLE>`, or `*` for everyone. Name the forms the store
   takes in `sharingModes`, and set `canShareGlobally` on a record whose user may share it with

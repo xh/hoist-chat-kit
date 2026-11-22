@@ -410,6 +410,27 @@ describe('BlueprintDocumentModel', () => {
         expect(doc.canShare).toBe(false);
     });
 
+    it('renames the blueprint open for a writer, where its repository can rename', async () => {
+        const {repository, grant, id} = await created(),
+            {doc} = session(repository);
+        await doc.openAsync(id, {as: 'draft'});
+        expect(doc.canRename).toBe(true);
+        await doc.renameAsync('Book', 'The book');
+        expect(doc.document).toMatchObject({name: 'Book', description: 'The book'});
+        expect((await repository.listAsync())[0].name).toBe('Book');
+
+        grant.access = 'read';
+        await repository.publishAsync(id, {base: 1});
+        await doc.openAsync(id, {as: 'publish'});
+        expect(doc.canRename).toBe(false);
+        await expect(doc.renameAsync('Mine')).rejects.toThrow(/writer/);
+
+        grant.access = 'write';
+        await doc.openAsync(id, {as: 'draft'});
+        Object.assign(repository, {renameAsync: undefined});
+        expect(doc.canRename).toBe(false);
+    });
+
     it('shares only in the modes its repository supports, and with everyone only if allowed', async () => {
         const {repository, id} = await created(),
             {doc} = session(repository);

@@ -47,6 +47,27 @@ describe('InMemoryBlueprintRepository', () => {
         expect((await repository.copyAsync(id, {name: 'Positions 2'})).name).toBe('Positions 2');
     });
 
+    it('renames a blueprint for a writer, refusing a name its owner already has', async () => {
+        const repository = new InMemoryBlueprintRepository(OWNER),
+            {id} = await create(repository);
+        await repository.createAsync({
+            name: 'Orders',
+            blueprint: loadBlueprint('p3-morning-report.json')
+        });
+        const renamed = await repository.renameAsync(id, {name: 'Book', description: 'The book'});
+        expect(renamed).toMatchObject({id, name: 'Book', description: 'The book', draftVersion: 1});
+        expect((await repository.openAsync(id, {as: 'draft'})).name).toBe('Book');
+        await expect(repository.renameAsync(id, {name: 'Orders'})).rejects.toMatchObject({
+            httpStatus: 400
+        });
+        // Its own name is no clash.
+        expect((await repository.renameAsync(id, {name: 'Book'})).description).toBe('The book');
+
+        const reader = new InMemoryBlueprintRepository({type: TYPE});
+        Object.assign(reader, {items: (repository as any).items});
+        await expect(reader.renameAsync(id, {name: 'Mine'})).rejects.toThrow(/writer/);
+    });
+
     const create = (repository: InMemoryBlueprintRepository) =>
         repository.createAsync({
             name: 'Positions',

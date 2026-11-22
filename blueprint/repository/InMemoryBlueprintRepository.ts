@@ -198,6 +198,21 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         this.personalizations.set(`${this.userId}|${p.blueprintId}|${p.preset ?? ''}`, clone(p));
     }
 
+    async renameAsync(
+        id: string,
+        spec: {name: string; description?: string}
+    ): Promise<BlueprintSummary> {
+        const item = this.items.get(id);
+        if (!item || !this.isWriter(id)) throw new Error('Only a writer can rename a blueprint.');
+        const taken = [...this.items.values()].some(
+            it => it !== item && it.owner === item.owner && it.name === spec.name
+        );
+        if (taken) throw httpError(400, `A blueprint named '${spec.name}' already exists.`);
+        item.name = spec.name;
+        if (spec.description !== undefined) item.description = spec.description;
+        return clone(this.summaryOf(item));
+    }
+
     async updateAccessAsync(id: string, spec: BlueprintAccessSpec): Promise<void> {
         const item = this.items.get(id);
         if (!item || !this.accessOf(id).canShare)

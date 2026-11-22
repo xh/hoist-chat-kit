@@ -36,9 +36,9 @@ export type BlueprintDocument = Omit<BlueprintRecord, 'blueprint'>;
 
 /**
  * A stored blueprint, open in a `BlueprintModel`: opening a version, saving the draft, publishing,
- * copying, sharing and deleting, through the app's {@link BlueprintRepository}, as its records
- * allow. Readers open the latest publish. A draft, an older publish, saving, sharing and deleting
- * are for writers, and publishing for those the repository lets publish.
+ * copying, renaming, sharing and deleting, through the app's {@link BlueprintRepository}, as its
+ * records allow. Readers open the latest publish. A draft, an older publish, saving, renaming,
+ * sharing and deleting are for writers, and publishing for those the repository lets publish.
  */
 export class BlueprintDocumentModel extends HoistModel {
     readonly blueprintModel: BlueprintModel;
@@ -315,6 +315,21 @@ export class BlueprintDocumentModel extends HoistModel {
         this.closed();
     }
 
+    /** True if the user may rename the blueprint open, and its repository can rename. */
+    get canRename(): boolean {
+        return this.document?.access === 'write' && !!this.repository.renameAsync;
+    }
+
+    /** Change the name of the blueprint open, and its description if given. Needs write access. */
+    async renameAsync(name: string, description?: string) {
+        throwIf(!this.canRename, 'Only a writer can rename a blueprint.');
+        const {name: newName, description: newDescription} = await this.repository.renameAsync(
+            this.document.id,
+            {name, ...(description !== undefined ? {description} : {})}
+        );
+        this.renamed(newName, newDescription);
+    }
+
     /** True if the user may share the blueprint open, as its repository says, and it can share. */
     get canShare(): boolean {
         return this.document?.canShare === true && !!this.repository.updateAccessAsync;
@@ -437,6 +452,11 @@ export class BlueprintDocumentModel extends HoistModel {
         this.openRenames = [];
         // The publish took the renames saved, so those made since the last save stay pending.
         this.renamesFrom = this.savedHistoryLength;
+    }
+
+    @action
+    private renamed(name: string, description: string) {
+        this.document = {...this.document, name, description};
     }
 
     @action

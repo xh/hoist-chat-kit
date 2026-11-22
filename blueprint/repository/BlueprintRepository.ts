@@ -12,7 +12,8 @@ import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../B
  * - A blueprint's `id` is its stable token: the same in every environment, never a database id. A
  *   link carries it.
  * - A name is unique per owner and type. A create or a copy with a name the user already has in
- *   the type rejects with an `httpStatus` of 400.
+ *   the type, or a rename to a name the blueprint's owner already has, rejects with an
+ *   `httpStatus` of 400.
  * - A repository acts for its signed-in user. It lists only the blueprints that user may read, and
  *   its personalization methods reach only that user's personalizations.
  * - It is the only source of access. Each summary and record says what the user may do, and
@@ -113,6 +114,13 @@ export interface BlueprintRepository {
      * preset.
      */
     savePersonalizationAsync(p: BlueprintPersonalization): Promise<void>;
+
+    /**
+     * Change a blueprint's name, and its description if given, for a writer. Its drafts and
+     * publishes stay as they are. Optional: the library offers renaming only when a repository
+     * implements it.
+     */
+    renameAsync?(id: string, spec: {name: string; description?: string}): Promise<BlueprintSummary>;
 
     /**
      * Set who may write and who may read a blueprint, for a user it allows with `canShare`.
