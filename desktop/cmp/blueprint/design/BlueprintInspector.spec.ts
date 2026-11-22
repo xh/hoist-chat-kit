@@ -1,4 +1,4 @@
-import {fireEvent, render} from '@testing-library/react';
+import {act, fireEvent, render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -41,6 +41,26 @@ describe('BlueprintInspector', () => {
         });
         return {model, design, inspector};
     }
+
+    it("shows the selection's quick actions under its id, each one edit, with its key or why not", () => {
+        const {model, design} = open();
+        design.select({kind: 'element', id: 'sectorChart'});
+        const {container} = render(blueprintInspector({designModel: design}) as ReactElement),
+            bar = () => container.querySelector('.xh-blueprint-inspector__actions'),
+            buttons = () => [...bar().querySelectorAll('.xh-button')];
+        expect(buttons().map(it => it.textContent)).toEqual(['Duplicate', 'Wrap in', 'Delete']);
+        expect(buttons()[0].getAttribute('title')).toBe('Duplicate · Ctrl+D');
+        const edits = model.history.length;
+        fireEvent.click(buttons()[0]);
+        expect(model.history.length).toBe(edits + 1);
+        expect(design.selectedElementId).not.toBe('sectorChart');
+
+        // A container also offers to add a widget to it, and the root cannot be duplicated.
+        act(() => design.select({kind: 'element', id: 'tabs'}));
+        expect(buttons().map(it => it.textContent)).toContain('Add a widget…');
+        expect((buttons()[0] as HTMLButtonElement).disabled).toBe(true);
+        expect(buttons()[0].getAttribute('title')).toMatch(/root/);
+    });
 
     it('names the selection, its path and what it reads, for every kind', () => {
         const {design, inspector} = open();

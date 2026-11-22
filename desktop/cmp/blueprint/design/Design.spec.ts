@@ -374,6 +374,22 @@ describe('design mode selection', () => {
         fireEvent.keyUp(window, {key: 'Alt'});
     });
 
+    it('opens the design menu on a right-click in Edit, for what it lands on, and leaves it to the widget in Interact', async () => {
+        stubRects();
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            inner = [...container.querySelectorAll('.xh-blueprint-view__design-element')].at(-1);
+        expect(fireEvent.contextMenu(inner)).toBe(false);
+        expect(design.selectedElementId).toBe('overview');
+        await vi.waitFor(() => expect(document.body.textContent).toContain('Add a widget…'));
+        expect(document.body.textContent).toContain('Select tabs');
+
+        design.select(null);
+        design.setInteraction('interact');
+        expect(fireEvent.contextMenu(inner)).toBe(true);
+        expect(design.selection).toBeNull();
+    });
+
     it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
         stubRects();
         const {design, model} = open('p3-morning-report.json'),

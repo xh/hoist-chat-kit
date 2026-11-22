@@ -3,10 +3,11 @@ import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/co
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
+import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
-import {sum} from 'lodash';
+import {partition, sum} from 'lodash';
 import type React from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {
@@ -14,6 +15,7 @@ import {
     type BlueprintDocumentModel,
     type BlueprintIssue,
     type BlueprintSelection,
+    type DesignAction,
     variableTypeLabel,
     wiringFor,
     type WiringRef
@@ -22,7 +24,13 @@ import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
 import {selectChip} from './impl/chips';
-import {refuse, selectionMenu} from './impl/designActions';
+import {
+    actionIcon,
+    actionMenuItems,
+    refuse,
+    runDesignActionAsync,
+    selectionMenu
+} from './impl/designActions';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
 import {sourcesEditor} from './SourcesEditor';
@@ -56,6 +64,7 @@ export const [BlueprintInspector, blueprintInspector] =
                 children: [
                     breadcrumb({impl}),
                     header({impl}),
+                    actionBar({impl}),
                     ...impl.issues.map((it, idx) => issueRow({key: idx, impl, issue: it})),
                     wiringCard({impl}),
                     div({
@@ -478,6 +487,46 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                       })
                     : null
             ]
+        });
+    }
+});
+
+// The selection's quick actions, as the design menu and keys run them: Duplicate, Wrap in and its
+// own actions, then Delete apart at the right. Each says its key, or why it cannot run.
+const actionBar = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
+    displayName: 'BlueprintInspectorActions',
+    model: false,
+    render({impl}) {
+        const {selection, designModel} = impl,
+            actions = designModel.designActions(selection);
+        if (!actions.length) return null;
+        const [rest, remove] = partition(actions, it => it.id !== 'delete'),
+            control = (action: DesignAction) => {
+                const props = {
+                    key: action.id,
+                    icon: actionIcon(action.icon),
+                    text: action.label,
+                    title:
+                        action.disabledReason ??
+                        [action.label, action.shortcut].filter(Boolean).join(' · '),
+                    intent: action.intent,
+                    minimal: true,
+                    disabled: !!action.disabledReason
+                };
+                return action.items
+                    ? menuButton({
+                          ...props,
+                          menuItems: () => actionMenuItems(designModel, selection.id, action.items)
+                      })
+                    : button({
+                          ...props,
+                          onClick: () => runDesignActionAsync(designModel, selection.id, action)
+                      });
+            };
+        return toolbar({
+            className: `${CLS}__actions`,
+            compact: true,
+            children: [...rest.map(control), filler(), ...remove.map(control)]
         });
     }
 });

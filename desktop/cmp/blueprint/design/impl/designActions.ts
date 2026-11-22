@@ -79,6 +79,25 @@ export function actionIcon(name: string, props: {className?: string} = {}): Reac
     return typeof factory === 'function' ? factory(props) : null;
 }
 
+/** Design actions as menu items, a disabled one naming why in its tooltip. */
+export function actionMenuItems(
+    designModel: BlueprintDesignModel,
+    id: string,
+    actions: DesignAction[]
+): MenuItemLike[] {
+    return actions.map(action => ({
+        text: action.disabledReason
+            ? span({title: action.disabledReason, children: action.label})
+            : action.label,
+        icon: actionIcon(action.icon),
+        intent: action.intent,
+        disabled: !!action.disabledReason,
+        ...(action.items
+            ? {items: actionMenuItems(designModel, id, action.items)}
+            : {actionFn: () => runDesignActionAsync(designModel, id, action)})
+    }));
+}
+
 /**
  * The design menu for an element or a canvas view: its actions, a disabled one naming why, then
  * a way to select what holds it, so a right-click on a nested element can climb.
@@ -88,20 +107,9 @@ export function designMenu(
     sel: BlueprintSelection
 ): MenuItemLike[] {
     if (sel?.kind !== 'element' && sel?.kind !== 'view') return [];
-    const toItem = (action: DesignAction): MenuItemLike => ({
-            text: action.disabledReason
-                ? span({title: action.disabledReason, children: action.label})
-                : action.label,
-            icon: actionIcon(action.icon),
-            intent: action.intent,
-            disabled: !!action.disabledReason,
-            ...(action.items
-                ? {items: action.items.map(toItem)}
-                : {actionFn: () => runDesignActionAsync(designModel, sel.id, action)})
-        }),
-        view = sel.kind === 'element' ? designModel.viewOf(sel.id) : null,
+    const view = sel.kind === 'element' ? designModel.viewOf(sel.id) : null,
         parent = sel.kind === 'view' ? sel.of : designModel.pathTo(sel.id).at(-1),
-        actions = designModel.designActions(sel).map(toItem);
+        actions = actionMenuItems(designModel, sel.id, designModel.designActions(sel));
     return [
         ...actions,
         ...(view || parent

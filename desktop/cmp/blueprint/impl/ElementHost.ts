@@ -8,10 +8,18 @@ import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
-import {type BlueprintWidgetModel, variableLabel, type WidgetSpec} from '../../../../blueprint';
+import {
+    type BlueprintSelection,
+    type BlueprintWidgetModel,
+    variableLabel,
+    type WidgetSpec
+} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
+import {contextMenu} from '@xh/hoist/desktop/cmp/contextmenu';
+import {showContextMenu} from '@xh/hoist/kit/blueprint';
 import {altHold} from '../design/impl/altHold';
+import {designMenu} from '../design/impl/designActions';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {missingModules} from './highchartsModules';
 
@@ -86,6 +94,27 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             },
             onMouseLeave: () => {
                 if (designModel.hoveredId === id) designModel.setHovered(null);
+            },
+            // In Edit, a right-click opens the design menu for what it lands on, before a widget's
+            // own menu, which it keeps for Interact and an Alt click.
+            onContextMenuCapture: (e: React.MouseEvent) => {
+                const native = e.nativeEvent as MouseEvent & {xhMenu?: boolean};
+                if (native.xhMenu || designModel.interaction === 'interact' || altHold.active) {
+                    return;
+                }
+                native.xhMenu = true;
+                const target = e.target as HTMLElement,
+                    view = viewAt(target, e.currentTarget as HTMLElement),
+                    el = target.closest<HTMLElement>('[data-blueprint-element]'),
+                    sel: BlueprintSelection = view
+                        ? {kind: 'view', ...view}
+                        : {kind: 'element', id: el?.dataset.blueprintElement ?? id},
+                    items = designMenu(designModel, sel);
+                if (!items.length) return;
+                e.preventDefault();
+                e.stopPropagation();
+                designModel.select(sel);
+                showContextMenu(contextMenu({menuItems: items}), {left: e.clientX, top: e.clientY});
             },
             children: [content, designEmpty(id, viewModel), null]
         });
