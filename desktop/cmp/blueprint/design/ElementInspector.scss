@@ -360,6 +360,10 @@
     }
   }
 
+  &__pair {
+    gap: 6px;
+  }
+
   &__sort-chips {
     display: flex;
     flex: 1 1 auto;

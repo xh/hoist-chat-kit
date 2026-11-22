@@ -462,6 +462,11 @@ export class BlueprintStructureModel extends HoistModel {
         return div({
             className: `${CLS}__drop`,
             draggable: canDrag,
+            // An element's row marks it in the blueprint as the canvas's hover does, where it shows.
+            onMouseEnter: () => kind === 'element' && this.designModel.setHovered(name),
+            onMouseLeave: () => {
+                if (this.designModel.hoveredId === name) this.designModel.setHovered(null);
+            },
             onDragStart: (e: React.DragEvent) => {
                 this.startDrag(name);
                 e.dataTransfer.setData('text/plain', name);

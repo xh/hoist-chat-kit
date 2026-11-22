@@ -103,7 +103,7 @@ editors what a value means:
 | `x-icon` | A Font Awesome icon name | Picks it with Hoist's `iconPicker`, from Hoist's icons and any the app registers with `Icon.register` |
 | `x-starter: false` | An optional property | Leaves it out of a new widget's config |
 | `x-thumbnails` | On an enum, a kit thumbnail per option, by value, such as `{line: 'chart.line'}` | Shows a card with its picture for each option. `thumbnailPreview(name)` draws one |
-| `x-labels` | On a boolean, a label per value, the positive state first, such as `{false: 'Show', true: 'Hide'}` for a `hidden` titled "Visible" | Shows one segment per value, in this order. Without it, On then Off |
+| `x-labels` | On a boolean, a label per value, the positive state first, such as `{false: 'Show', true: 'Hide'}` for a `hidden` titled "Visible". On a choice, a label for any option, such as `{false: 'Free'}` | Shows one segment per boolean value, in this order, without it On then Off. Names a choice's options |
 | `x-settings: {in, show}` | A list of fields whose items have more settings in `in`, a sibling map keyed by field | Edits each item's map entry in the item's drawer, the `show` keys first, and folds the map into the list |
 
 - Give a property JSON Schema's `title` when its label should differ from its key, as a column's

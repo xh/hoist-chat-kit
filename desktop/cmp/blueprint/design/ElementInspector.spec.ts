@@ -950,6 +950,23 @@ describe('ElementInspector', () => {
         );
     });
 
+    it("sets a canvas's packing from picture cards and its gap from two numbers, each one edit", () => {
+        const {design, model} = open('p3-morning-report.json', 'overview'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (key: string) => container.querySelector(`[data-config-key="${key}"]`),
+            config = () => model.blueprint.elements.overview.config ?? {};
+        expect(row('compact').textContent).toContain('Free');
+        expect(row('compact').querySelectorAll('.xh-blueprint-preview')).toHaveLength(3);
+        const inputs = row('margin').querySelectorAll('input');
+        expect([...inputs].map(it => it.placeholder)).toEqual(['10', '10']);
+        const before = model.history.length;
+        fireEvent.focus(inputs[1]);
+        fireEvent.change(inputs[1], {target: {value: '4'}});
+        fireEvent.blur(inputs[1]);
+        expect(config().margin).toEqual([10, 4]);
+        expect(model.history.length).toBe(before + 1);
+    });
+
     describe('sort by', () => {
         const setup = (initial: unknown) => {
             const {design, model} = open('p2-linked-dashboard.json');

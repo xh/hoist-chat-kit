@@ -1,3 +1,4 @@
+import {fireEvent, render} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -44,6 +45,24 @@ describe('BlueprintStructure', () => {
 
     const record = (structure: BlueprintStructureModel, id: string) =>
         structure.gridModel.store.getById(id);
+
+    it("marks an element hovered from its row, as the canvas's hover does, and clears it on leave", () => {
+        const {structure, design} = open(),
+            row = (test: (data: any) => boolean) =>
+                render(
+                    (structure as any).renderRow(
+                        structure.gridModel.store.allRecords.find(it => test(it.data))
+                    )
+                ).container.firstElementChild;
+        const posGrid = row(it => it.kind === 'element' && it.name === 'posGrid');
+        fireEvent.mouseEnter(posGrid);
+        expect(design.hoveredId).toBe('posGrid');
+        fireEvent.mouseLeave(posGrid);
+        expect(design.hoveredId).toBeNull();
+        // A row that is no element marks nothing.
+        fireEvent.mouseEnter(row(it => it.kind === 'source'));
+        expect(design.hoveredId).toBeNull();
+    });
 
     it('classes each row by its type: category, container, slot or leaf, with no tree tint', () => {
         const {structure, model} = open(),

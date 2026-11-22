@@ -43,6 +43,7 @@ export type EditorNode = EditorBase &
         | {kind: 'format'}
         | {kind: 'renderer'}
         | {kind: 'action'}
+        | {kind: 'pair'; item: EditorNode}
         | {
               kind: 'sort';
               /** How many keys it takes: 1 for a lone sorter, else its list's `maxItems`. */
@@ -135,6 +136,15 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
     const role = schema['x-field'];
     if (role && (schema.type === 'string' || isStringArray(schema))) {
         return {...base, kind: 'field', role, multiple: schema.type === 'array'};
+    }
+    // Two numbers, such as a gap across and down.
+    if (
+        schema.type === 'array' &&
+        schema.minItems === 2 &&
+        schema.maxItems === 2 &&
+        ['integer', 'number'].includes(schema.items?.type)
+    ) {
+        return {...base, kind: 'pair', item: toNode(schema.items, null, false)};
     }
     const withSettings = role && schema.type === 'array' ? fieldSettingsOf(schema.items) : null;
     if (withSettings) {

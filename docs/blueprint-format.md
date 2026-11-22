@@ -61,7 +61,10 @@ container also lists its children.
   what the container needs to place it. A `dashCanvas` takes `x`, `y`, `w` and `h` on a grid of
   its `columns`, 12 by default. It can also take `title`, which replaces the widget's title in the
   cell header, and `hideHeader`, which draws the cell without one. Every other cell has a header,
-  titled by the widget's label where nothing gives a title. A `tabContainer` takes `title` and
+  titled by the widget's label where nothing gives a title. A canvas packs its cells upward unless
+  its `compact` says `'horizontal'`, or `false` for cells that stay where they are put. Its other
+  layout settings follow Hoist's `DashCanvas`: `margin`, `containerPadding`, `maxRows`,
+  `showGridBackground`, `preventCollision` and `layoutLocked`. A `tabContainer` takes `title` and
   `icon`. A `box` takes `flex`,
   `width` and `height`. A child with none of these takes an equal share of the box, except an
   input, a button row, a toolbar or a separator, which keep their own size, and `markdown` or a
