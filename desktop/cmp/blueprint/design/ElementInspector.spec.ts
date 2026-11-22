@@ -569,6 +569,7 @@ describe('ElementInspector', () => {
                 )
             ].map(it => it.textContent);
         expect(labels).toEqual(['Title *', 'Icon']);
+        expect(container.querySelector('[data-config-key="icon"] .xh-icon-picker')).toBeTruthy();
     });
 
     it('draws a labelled editor per property', () => {
