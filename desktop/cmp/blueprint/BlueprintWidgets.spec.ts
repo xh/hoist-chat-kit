@@ -276,6 +276,33 @@ describe('blueprint desktop widgets', () => {
                 await gridModel.onRowDoubleClicked({data: gridModel.store.allRecords[0]} as any);
                 await vi.waitFor(() => expect(model.drillIn?.id).toBe('d'));
             });
+
+            it('shows why a row action cannot open a blueprint where there is none to open from', async () => {
+                const bp = loadBlueprint('p1-one-grid.json');
+                bp.elements.posGrid.config.rowActions = [
+                    {label: 'Detail', action: {type: 'openBlueprint', blueprint: 'd'}}
+                ];
+                const model = open(bp),
+                    toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
+                onTestFinished(() => toast.mockRestore());
+                await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+                const [item] = (gridModel.contextMenu as any)({}, gridModel),
+                    record = gridModel.store.allRecords[0];
+                expect(item.displayFn({record})).toEqual({
+                    disabled: true,
+                    tooltip: 'This blueprint opens no other blueprints here.'
+                });
+
+                await gridModel.onRowDoubleClicked({data: record} as any);
+                await vi.waitFor(() =>
+                    expect(toast).toHaveBeenCalledWith(
+                        'This blueprint opens no other blueprints here.'
+                    )
+                );
+                expect(model.drillIn).toBeNull();
+            });
         });
 
         describe('columns', () => {
