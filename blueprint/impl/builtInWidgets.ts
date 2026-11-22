@@ -54,13 +54,15 @@ const DASH_CANVAS_SCHEMA = {
             type: 'integer',
             minimum: 1,
             maximum: 24,
-            description: 'Columns in the grid. Default 12.'
+            default: 12,
+            description: 'Columns in the grid.'
         },
         rowHeight: {
             type: 'integer',
             minimum: 20,
             maximum: 200,
-            description: 'Height of one row in pixels. Default 50.'
+            default: 50,
+            description: 'Height of one row in pixels.'
         }
     }
 } as const satisfies BlueprintSchema;

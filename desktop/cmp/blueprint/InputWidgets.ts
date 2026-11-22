@@ -12,6 +12,7 @@ import {
     switchInput,
     textInput
 } from '@xh/hoist/desktop/cmp/input';
+import {fmtCompact} from '@xh/hoist/format';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import classNames from 'classnames';
@@ -150,6 +151,8 @@ export class SliderWidgetModel extends InputWidgetModel<SliderWidgetConfig> {
             max,
             stepSize: step,
             labelStepSize: (max - min) / 4,
+            // A wide range reads compactly, as -500k rather than -500000.
+            labelRenderer: (v: number) => fmtCompact(v, {asHtml: true, labelCls: null}) as string,
             value: this.draft ?? (this.value as number) ?? min,
             onChange: action((value: number) => (this.draft = value))
         };

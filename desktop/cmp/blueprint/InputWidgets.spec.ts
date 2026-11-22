@@ -153,6 +153,14 @@ describe('input widgets', () => {
         slider.release();
         expect(valueOf(model)).toBe(6);
         expect(slider.inputProps.value).toBe(6);
+        // Labels read compactly across a wide range, and as written across a narrow one.
+        const {labelRenderer} = slider.inputProps;
+        expect([-500000, 250000, 6, 2.5].map(labelRenderer)).toEqual([
+            expect.stringMatching(/^-500k$/i),
+            expect.stringMatching(/^250k$/i),
+            '6',
+            '2.5'
+        ]);
     });
 
     it("chooses a filter over its source's dimensions, and sets its variable to the filter", async () => {
