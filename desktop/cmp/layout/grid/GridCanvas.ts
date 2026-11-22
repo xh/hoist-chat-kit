@@ -125,7 +125,11 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                               width,
                               height: height ?? expectedGridHeight(rglProps),
                               rows: 'auto',
-                              ...gridConfig
+                              ...gridConfig,
+                              color: 'var(--xh-dash-canvas-grid-cell-color)',
+                              borderRadius: 0,
+                              // Clip to the grid: 'auto' rows round up, and a part row would overflow.
+                              style: {height: height ?? expectedGridHeight(rglProps)}
                           })
                       })
                     : null,
