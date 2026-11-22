@@ -224,12 +224,24 @@ describe('BlueprintStructure', () => {
         expect(model.blueprint.variables).toHaveProperty('asOf');
     });
 
-    it('offers a menu of rename, duplicate, move, add and delete for an element', () => {
+    it("offers an element's design actions in its menu, then a way to climb to what holds it", () => {
         const {structure} = open(),
-            texts = structure
-                .menuFor(record(structure, 'element:posGrid'))
-                .map((it: any) => it.text ?? it);
-        expect(texts).toEqual(['Rename…', 'Duplicate', 'Move to', 'Add child', '-', 'Delete']);
+            texts = (id: string) =>
+                structure
+                    .menuFor(record(structure, `element:${id}`))
+                    .map((it: any) => it.text ?? it);
+        expect(texts('posGrid')).toEqual([
+            'Rename…',
+            '-',
+            'Duplicate',
+            'Wrap in',
+            'Delete',
+            '-',
+            'Select the posGrid view'
+        ]);
+        // A container also offers to add a widget to it.
+        expect(texts('positions')).toContain('Add a widget…');
+        expect(texts('positions')).not.toContain('Move earlier');
     });
 
     it('says why a drag cannot drop before the drop, checking each target once per drag', () => {

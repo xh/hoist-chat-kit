@@ -29,6 +29,7 @@ import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
 import {configEditLabel, labelOf} from '../impl/labels';
+import {removalMessage} from './removalMessage';
 import {starterConfig} from './starterConfig';
 import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring';
 
@@ -49,6 +50,27 @@ export interface AddPlace {
     /** The child of the parent whose reference holds the slot, such as a canvas cell. */
     of?: string;
     after?: string;
+}
+
+/** An action on the selection, as the Inspector's bar, the design menu and the keys offer it. */
+export interface DesignAction {
+    id: string;
+    label: string;
+    /** A Hoist icon's name, such as `copy`. */
+    icon?: string;
+    intent?: 'primary' | 'danger';
+    /** Its key, as the shortcut list names it. */
+    shortcut?: string;
+    /** Why it cannot run now, which a host shows as a disabled item's tooltip, or null. */
+    disabledReason?: string;
+    /** A question to ask before it runs, such as what a removal takes with it. */
+    confirm?: string;
+    /** Make its edit. Returns why it was refused, or null. */
+    run?: () => string;
+    /** Its choices, for an action that is a menu, such as Wrap in. */
+    items?: DesignAction[];
+    /** An action the host carries out with its own UI: `addWidget` opens Add for the container. */
+    host?: 'addWidget';
 }
 
 /** What a drop brings: an element already in the blueprint, or a widget from the palette. */
@@ -415,6 +437,103 @@ export class BlueprintDesignModel extends HoistModel {
                 ...(opts.extraOps?.(id) ?? [])
             ],
             id
+        };
+    }
+
+    /**
+     * The actions on a selection, in the order a bar or menu shows them: for an element, Duplicate,
+     * Wrap in, Add a widget for a container, then Delete; for a canvas view, its header's toggle,
+     * then Delete. None for a user who may not edit.
+     */
+    designActions(sel: BlueprintSelection): DesignAction[] {
+        const {blueprintModel} = this,
+            elements = blueprintModel.blueprint?.elements ?? {};
+        if (blueprintModel.mode !== 'design' || blueprintModel.access !== 'write') return [];
+        if ((sel?.kind !== 'element' && sel?.kind !== 'view') || !getOwn(elements, sel.id))
+            return [];
+        const {id} = sel,
+            spec = this.elementSpec(id),
+            isRoot = blueprintModel.blueprint.root === id,
+            remove = this.deleteAction(id);
+        if (sel.kind === 'view') {
+            const hidden = !!elements[sel.of]?.children?.find(it => it.id === id)?.hideHeader;
+            return [
+                {
+                    id: 'header',
+                    label: hidden ? 'Show header' : 'Hide header',
+                    icon: hidden ? 'eye' : 'eyeSlash',
+                    run: () =>
+                        this.setChildPlacement(
+                            id,
+                            {hideHeader: hidden ? undefined : true},
+                            `${id} view: ${hidden ? 'show' : 'hide'} header`
+                        ).issues.find(isError)?.message ?? null
+                },
+                remove
+            ];
+        }
+        const wraps = this.wrapOptions(id).map(({widget, label, refusal}): DesignAction => ({
+            id: `wrap:${widget}`,
+            label,
+            icon: this.widgetSpec(widget)?.icon,
+            disabledReason: refusal,
+            run: () => this.wrapIn(id, widget)
+        }));
+        return [
+            {
+                id: 'duplicate',
+                label: 'Duplicate',
+                icon: 'copy',
+                shortcut: 'Ctrl+D',
+                disabledReason: isRoot ? 'The root cannot be duplicated.' : null,
+                run: () => this.duplicateElement(id).issues.find(isError)?.message ?? null
+            },
+            {
+                id: 'wrap',
+                label: 'Wrap in',
+                icon: 'box',
+                disabledReason: isRoot ? 'The root has no container to wrap it in.' : null,
+                items: wraps
+            },
+            ...(spec?.children
+                ? [
+                      {
+                          id: 'addWidget',
+                          label: 'Add a widget…',
+                          icon: 'add',
+                          intent: 'primary',
+                          host: 'addWidget'
+                      } as DesignAction
+                  ]
+                : []),
+            remove
+        ];
+    }
+
+    // Delete an element and what it holds, asking first when more goes with it, then select its
+    // next sibling, else its previous, else its parent.
+    private deleteAction(id: string): DesignAction {
+        const removal = this.describeRemoval(id),
+            cascades =
+                removal.elements.length > 1 ||
+                [removal.removedVariables, removal.unboundVariables, removal.presetPaths].some(
+                    it => it.length
+                );
+        return {
+            id: 'delete',
+            label: 'Delete',
+            icon: 'minusCircle',
+            intent: 'danger',
+            shortcut: 'Del',
+            confirm: cascades ? removalMessage(id, removal) : null,
+            run: () => {
+                const next =
+                        this.siblingOf(id, 1) ?? this.siblingOf(id, -1) ?? this.pathTo(id).at(-1),
+                    error = this.removeElement(id).issues.find(isError);
+                if (error) return error.message;
+                this.select(next ? {kind: 'element', id: next} : null);
+                return null;
+            }
         };
     }
 
@@ -1006,34 +1125,85 @@ export class BlueprintDesignModel extends HoistModel {
         ].filter(it => it.widgets.length);
     }
 
-    /**
-     * Put an element in a new panel, in one edit, and select the panel. The panel takes the
-     * element's place, with its cell's slots such as header items, and the element's title.
-     */
+    /** Wrap an element in a new panel, which takes its title, as one edit. See {@link wrapIn}. */
     wrapInPanel(id: string): BlueprintEditResult & {id?: string} {
-        const {elements} = this.blueprintModel.blueprint ?? {},
+        return this.applyWrap(id, 'panel');
+    }
+
+    /**
+     * Wrap an element in a new container of a widget, which takes its place, as one edit, and
+     * select the container. A panel takes its title.
+     *
+     * @returns why it cannot, or null.
+     */
+    wrapIn(id: string, widget: string): string {
+        return this.applyWrap(id, widget).issues.find(isError)?.message ?? null;
+    }
+
+    /** Why {@link wrapIn} would refuse, applying nothing, or null if it would wrap. */
+    canWrapIn(id: string, widget: string): string {
+        return this.dryRun(this.planWrap(id, widget))[0]?.message ?? null;
+    }
+
+    /** The container widgets an element can be wrapped in, by name, with why each refuses, if it does. */
+    wrapOptions(id: string): {widget: string; label: string; refusal: string}[] {
+        return Object.values(this.blueprintModel.registry.widgets)
+            .filter(it => it.category === 'container' && it.children && !it.reserved)
+            .map(it => ({widget: it.name, label: it.label, refusal: this.canWrapIn(id, it.name)}));
+    }
+
+    // Wrap an element as planned, and select its container.
+    private applyWrap(id: string, widget: string): BlueprintEditResult & {id?: string} {
+        const plan = this.planWrap(id, widget);
+        if ('issues' in plan) return plan;
+        const ret = this.edit(plan.description, plan.ops);
+        if (!ret.issues.some(isError)) this.select({kind: 'element', id: plan.id});
+        return {...ret, id: plan.id};
+    }
+
+    // The ops that wrap an element in a new container, with the container's id, or why not.
+    private planWrap(
+        id: string,
+        widget: string
+    ): {description: string; ops: BlueprintOp[]; id: string} | BlueprintEditResult {
+        const {blueprint, catalog} = this.blueprintModel,
+            elements = blueprint?.elements ?? {},
             at = locate(elements, id),
-            spec = this.elementSpec(id);
-        if (!at || !spec) return refused(`'${id}' has no container to wrap it in.`);
-        const panelId = this.newId('panel'),
-            title = elements[id].config?.title,
+            spec = this.elementSpec(id),
+            wrapper = this.widgetSpec(widget);
+        if (!at || !spec) return refused(`${id} has no container to wrap it in.`);
+        if (!wrapper?.children) return refused(`A ${wrapper?.label ?? widget} holds no widgets.`);
+        const config = starterConfig(wrapper, {blueprint, catalog});
+        if (!config || typeof config === 'string') {
+            return refused(
+                typeof config === 'string' ? config : `A ${wrapper.label} cannot start empty.`
+            );
+        }
+        const wrapId = this.newId(widget),
+            title = widget === 'panel' ? elements[id].config?.title : undefined,
             parent = cloneDeep(elements[at.parent]);
         slotLists(parent)
             .find(it => it.slot === at.slot && it.of === at.of)
-            .refs.find(it => it.id === id).id = panelId;
-        const ret = this.edit(`Wrap ${spec.label} in a panel`, [
-            {
-                op: 'set',
-                path: `/elements/${panelId}`,
-                value: {component: 'panel', config: title != null ? {title} : {}, children: [{id}]}
-            },
-            ...(title != null
-                ? [{op: 'remove', path: `/elements/${id}/config/title`} as BlueprintOp]
-                : []),
-            {op: 'set', path: `/elements/${at.parent}`, value: parent}
-        ]);
-        if (!ret.issues.some(isError)) this.select({kind: 'element', id: panelId});
-        return {...ret, id: panelId};
+            .refs.find(it => it.id === id).id = wrapId;
+        return {
+            description: `Wrap ${id} in a ${wrapper.label.toLowerCase()}`,
+            ops: [
+                {
+                    op: 'set',
+                    path: `/elements/${wrapId}`,
+                    value: {
+                        component: widget,
+                        config: title != null ? {...config, title} : config,
+                        children: [{id, ...childRefIn(wrapper, spec)}]
+                    }
+                },
+                ...(title != null
+                    ? [{op: 'remove', path: `/elements/${id}/config/title`} as BlueprintOp]
+                    : []),
+                {op: 'set', path: `/elements/${at.parent}`, value: parent}
+            ],
+            id: wrapId
+        };
     }
 
     /** Move an element to another slot of its container, at its end, as one edit. */
@@ -1675,6 +1845,16 @@ function accepts(rule: SlotAccepts, spec: WidgetSpec): boolean {
 }
 
 // A refusal the design model makes itself, at the path of what it names, if any.
+// A child's reference in a new container of a widget: titled where it takes titles, and at the
+// top-left of a canvas at its default size.
+function childRefIn(container: WidgetSpec, child: WidgetSpec): PlainObject {
+    const required: string[] = container.children?.schema?.required ?? [];
+    if (required.includes('title')) return {title: child.label};
+    if (!required.includes('x')) return {};
+    const {w = 4, h = 2} = child.size?.default ?? {};
+    return {x: 0, y: 0, w: Math.min(w, 12), h};
+}
+
 function refused(message: string, path = ''): BlueprintEditResult & {id?: string} {
     return {issues: [{code: 'edit.refused', severity: 'error', path, message}]};
 }

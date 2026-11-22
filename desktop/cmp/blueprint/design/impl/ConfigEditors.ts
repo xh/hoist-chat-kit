@@ -48,7 +48,9 @@ import {
     splitNamed,
     stepsOf
 } from '../../../../../blueprint/design/configValues';
+import {listOf} from '../../../../../blueprint/impl/labels';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
+export {listOf};
 import {thumbnailPreview} from '../../BlueprintPreview';
 import type {ConfigEditorModel} from './ConfigEditorModel';
 import {selectChip} from './chips';
@@ -1570,9 +1572,6 @@ export function nodeOf(key: string, schema: PlainObject): EditorNode {
 }
 
 /** Names as a list in prose: "a", "a and b", or "a, b and c". */
-export function listOf(names: string[]): string {
-    return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
-}
 
 // The options, plus any current value they lack, so a select still shows it.
 function withCurrent(options: Option[], value: unknown): Option[] {

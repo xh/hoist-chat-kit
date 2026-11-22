@@ -20,3 +20,8 @@ export function labelOf(key: string): string {
     const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
     return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+/** Names as a list in words: `a`, `a and b`, `a, b and c`. */
+export function listOf(names: string[]): string {
+    return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+}

@@ -1,14 +1,19 @@
-import {type PlainObject, XH} from '@xh/hoist/core';
+import {span} from '@xh/hoist/cmp/layout';
+import {type MenuItemLike, type PlainObject, XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import type {
     AddPlace,
     BlueprintDesignModel,
     BlueprintIssue,
-    BlueprintRemoval,
-    BlueprintSelection
+    BlueprintSelection,
+    DesignAction
 } from '../../../../../blueprint';
-import {slotLabel} from '../../../../../blueprint/impl/elements';
+import {getOwn} from '../../../../../blueprint/impl/pointer';
+import type {ReactElement} from 'react';
 import {listOf} from './ConfigEditors';
+import {removalMessage} from '../../../../../blueprint/design/removalMessage';
+
+export {removalMessage};
 
 /**
  * Remove an element with everything inside it, in one edit, then select the next sibling, else the
@@ -21,29 +26,98 @@ export async function removeElementAsync(
     designModel: BlueprintDesignModel,
     id: string
 ): Promise<BlueprintIssue[]> {
-    const removal = designModel.describeRemoval(id),
-        {elements, removedVariables, unboundVariables, presetPaths} = removal,
-        cascades =
-            elements.length > 1 ||
-            [removedVariables, unboundVariables, presetPaths].some(it => it.length);
-    if (cascades) {
-        const ok = await XH.confirm({
-            title: 'Remove',
-            message: removalMessage(id, removal),
-            confirmProps: {text: 'Remove', intent: 'danger'}
-        });
-        if (!ok) return [];
+    const remove = designModel.designActions({kind: 'element', id}).find(it => it.id === 'delete');
+    if (!remove) return [];
+    const refusal = await runDesignActionAsync(designModel, id, remove, {silent: true});
+    return refusal ? [{code: 'edit.refused', severity: 'error', path: '', message: refusal}] : [];
+}
+
+/**
+ * Run a design action on an element: ask first where it says to, then make its edit. A refusal
+ * shows as a toast, unless `silent`, and a removal that asked nothing offers to undo it. Add a
+ * widget opens Add for the element.
+ *
+ * @returns why it was refused, or null.
+ */
+export async function runDesignActionAsync(
+    designModel: BlueprintDesignModel,
+    id: string,
+    action: DesignAction,
+    opts: {silent?: boolean} = {}
+): Promise<string> {
+    if (action.disabledReason) return action.disabledReason;
+    if (action.host === 'addWidget') {
+        designModel.select({kind: 'element', id});
+        designModel.selectSlot({parent: id, slot: 'children'});
+        designModel.requestAdd();
+        return null;
     }
-    const next =
-            designModel.siblingOf(id, 1) ??
-            designModel.siblingOf(id, -1) ??
-            designModel.pathTo(id).at(-1) ??
-            null,
-        errors = designModel.removeElement(id).issues.filter(it => it.severity === 'error');
-    if (errors.length) return errors;
-    designModel.select(next ? {kind: 'element', id: next} : null);
-    if (!cascades) undoToast(designModel, id);
-    return [];
+    if (action.confirm) {
+        const ok = await XH.confirm({
+            title: action.label,
+            message: action.confirm,
+            confirmProps: {text: action.label, intent: action.intent ?? 'primary'}
+        });
+        if (!ok) return null;
+    }
+    const refusal = action.run?.() ?? null;
+    if (refusal && !opts.silent) {
+        designModel.blueprintModel.showRefusal({
+            code: 'edit.refused',
+            severity: 'error',
+            path: '',
+            message: refusal
+        });
+    }
+    if (!refusal && action.id === 'delete' && !action.confirm) undoToast(designModel, id);
+    return refusal;
+}
+
+/** A design action's icon, by its Hoist icon name. */
+export function actionIcon(name: string, props: {className?: string} = {}): ReactElement {
+    const factory = name ? (getOwn(Icon, name) as (p: object) => ReactElement) : null;
+    return typeof factory === 'function' ? factory(props) : null;
+}
+
+/**
+ * The design menu for an element or a canvas view: its actions, a disabled one naming why, then
+ * a way to select what holds it, so a right-click on a nested element can climb.
+ */
+export function designMenu(
+    designModel: BlueprintDesignModel,
+    sel: BlueprintSelection
+): MenuItemLike[] {
+    if (sel?.kind !== 'element' && sel?.kind !== 'view') return [];
+    const toItem = (action: DesignAction): MenuItemLike => ({
+            text: action.disabledReason
+                ? span({title: action.disabledReason, children: action.label})
+                : action.label,
+            icon: actionIcon(action.icon),
+            intent: action.intent,
+            disabled: !!action.disabledReason,
+            ...(action.items
+                ? {items: action.items.map(toItem)}
+                : {actionFn: () => runDesignActionAsync(designModel, sel.id, action)})
+        }),
+        view = sel.kind === 'element' ? designModel.viewOf(sel.id) : null,
+        parent = sel.kind === 'view' ? sel.of : designModel.pathTo(sel.id).at(-1),
+        actions = designModel.designActions(sel).map(toItem);
+    return [
+        ...actions,
+        ...(view || parent
+            ? [
+                  ...(actions.length ? ['-'] : []),
+                  {
+                      text: view ? `Select the ${sel.id} view` : `Select ${parent}`,
+                      icon: Icon.arrowUp(),
+                      actionFn: () =>
+                          designModel.select(
+                              view ? {kind: 'view', ...view} : {kind: 'element', id: parent}
+                          )
+                  }
+              ]
+            : [])
+    ] as MenuItemLike[];
 }
 
 /**
@@ -182,8 +256,8 @@ export function addWidgetAt(designModel: BlueprintDesignModel, widget: string, p
 }
 
 /**
- * The menu items for a part of the blueprint: rename, then for an element duplicate, move to a
- * slot and add a child, then delete. Empty for a user who may not edit.
+ * The menu items for a part of the blueprint: rename, then for an element its design menu, else
+ * delete. Empty for a user who may not edit.
  */
 export function selectionMenu(
     designModel: BlueprintDesignModel,
@@ -219,35 +293,7 @@ export function selectionMenu(
             }
         ];
     }
-    const labelOf = (it: string) => blueprintModel.registry.widgets[it]?.label ?? it,
-        parent = designModel.pathTo(id).at(-1);
-    return [
-        rename,
-        {text: 'Duplicate', icon: Icon.copy(), actionFn: () => duplicateElement(designModel, id)},
-        {
-            text: 'Move to',
-            disabled: !parent,
-            items: designModel.slotsFor(id).map(({slot, of}) => ({
-                text: of ? `${of} · ${slotLabel(slot, true)}` : slotLabel(slot),
-                actionFn: () => refuse(designModel, designModel.moveToSlot(id, slot, of).issues)
-            }))
-        },
-        {
-            text: 'Add child',
-            items: designModel.addPlacesFor(id).flatMap(({place, label, widgets}) => [
-                {text: label, disabled: true},
-                ...widgets.map(it => ({
-                    text: labelOf(it),
-                    actionFn: () => addWidgetAt(designModel, it, place)
-                }))
-            ])
-        },
-        '-',
-        {
-            ...remove,
-            actionFn: () => removeElementAsync(designModel, id).then(it => refuse(designModel, it))
-        }
-    ];
+    return [rename, '-', ...designMenu(designModel, {kind, id})];
 }
 
 /** Issues counted as a screen reader reads a dot: `2 errors, 1 warning`. */
@@ -259,30 +305,4 @@ export function issueSummary(issues: BlueprintIssue[]): string {
     return [count('error', 'error'), count('warning', 'warning'), count('info', 'note')]
         .filter(Boolean)
         .join(', ');
-}
-
-/** What removing an element takes with it, for the user to confirm. */
-export function removalMessage(id: string, removal: BlueprintRemoval): string {
-    const inside = removal.elements.length - 1,
-        sentences = [
-            inside
-                ? `Remove ${id}, and the ${inside} element${inside > 1 ? 's' : ''} in it?`
-                : `Remove ${id}?`
-        ];
-    const {removedVariables: gone, unboundVariables: unbound, presetPaths} = removal;
-    if (gone.length)
-        sentences.push(
-            `Variable${gone.length > 1 ? 's' : ''} ${listOf(gone)} ${gone.length > 1 ? 'go' : 'goes'} too.`
-        );
-    if (unbound.length) {
-        sentences.push(
-            `${listOf(unbound)} ${unbound.length > 1 ? 'lose a writer' : 'loses a writer'}, and keep${unbound.length > 1 ? '' : 's'} its other writers or its default.`
-        );
-    }
-    if (presetPaths.length) {
-        sentences.push(
-            `Presets stop setting ${presetPaths.length} path${presetPaths.length > 1 ? 's' : ''} in it.`
-        );
-    }
-    return sentences.join(' ');
 }

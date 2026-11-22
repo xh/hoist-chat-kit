@@ -1071,4 +1071,54 @@ describe('BlueprintDesignModel', () => {
             ]);
         });
     });
+
+    describe('design actions', () => {
+        it("lists an element's actions in order, with why any cannot run, and none for a reader", () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                ids = (id: string) => design.designActions({kind: 'element', id}).map(it => it.id),
+                action = (id: string, actionId: string) =>
+                    design.designActions({kind: 'element', id}).find(it => it.id === actionId);
+            expect(ids('posGrid')).toEqual(['duplicate', 'wrap', 'delete']);
+            expect(ids('dashboard')).toEqual(['duplicate', 'wrap', 'addWidget', 'delete']);
+            expect(action('dashboard', 'duplicate').disabledReason).toMatch(/root/);
+            const toolbar = action('posGrid', 'wrap').items.find(it => it.id === 'wrap:toolbar');
+            expect(toolbar.disabledReason).toEqual(expect.any(String));
+            expect(
+                action('posGrid', 'wrap').items.find(it => it.id === 'wrap:panel').disabledReason
+            ).toBeNull();
+            model.setAccess('read');
+            expect(ids('posGrid')).toEqual([]);
+        });
+
+        it('wraps an element in a container of any kind, as one edit, selecting the container', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                edits = model.history.length;
+            expect(design.wrapIn('posGrid', 'box')).toBeNull();
+            const box = design.selectedElementId;
+            expect(model.blueprint.elements[box]).toMatchObject({
+                component: 'box',
+                children: [{id: 'posGrid'}]
+            });
+            expect(model.blueprint.elements.dashboard.children.some(it => it.id === box)).toBe(
+                true
+            );
+            expect(model.history.length).toBe(edits + 1);
+            model.undo();
+            expect(model.blueprint.elements[box]).toBeUndefined();
+        });
+
+        it('deletes through its action, asking first only when more goes with it, then selects a neighbour', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                remove = (id: string) =>
+                    design.designActions({kind: 'element', id}).find(it => it.id === 'delete');
+            expect(remove('sectorChart').confirm).toBeFalsy();
+            expect(remove('posGrid').confirm).toMatch(/loses a writer/);
+            expect(remove('dashboard').confirm).toMatch(
+                /Remove dashboard, and the \d+ elements in it\?/
+            );
+            expect(remove('sectorChart').run()).toBeNull();
+            expect(model.blueprint.elements.sectorChart).toBeUndefined();
+            expect(design.selection?.kind).toBe('element');
+        });
+    });
 });
