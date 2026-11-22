@@ -88,6 +88,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                 button({
                     icon: Icon.arrowUp(),
                     title: 'Select the parent (Esc)',
+                    'aria-label': 'Select the parent (Esc)',
                     minimal: true,
                     disabled: !parent,
                     onClick: () => designModel.select({kind: 'element', id: parent})
@@ -101,6 +102,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                           button({
                               icon: Icon.copy(),
                               title: 'Duplicate (Ctrl+D)',
+                              'aria-label': 'Duplicate (Ctrl+D)',
                               minimal: true,
                               disabled: !parent,
                               onClick: () => duplicateElement(designModel, id)
@@ -109,6 +111,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                               ? menuButton({
                                     icon: Icon.add(),
                                     title: 'Add',
+                                    'aria-label': 'Add',
                                     minimal: true,
                                     menuItems: addItems
                                 })
@@ -116,12 +119,14 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                           menuButton({
                               icon: Icon.ellipsisVertical(),
                               title: 'More',
+                              'aria-label': 'More',
                               minimal: true,
                               menuItems: moreItems
                           }),
                           button({
                               icon: Icon.delete(),
                               title: 'Delete (Del)',
+                              'aria-label': 'Delete (Del)',
                               intent: 'danger',
                               minimal: true,
                               onClick: () => removeElementAsync(designModel, id).then(refuse)

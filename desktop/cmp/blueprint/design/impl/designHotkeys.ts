@@ -26,18 +26,25 @@ export function designHotkeys(
     opts: {
         /** False to leave the arrows to a host that moves with them, such as a grid. */
         arrows?: boolean;
+        /**
+         * True for a surface that draws live widgets, such as the canvas, whose own controls keep
+         * their keys: a key pressed in a grid, a button or a slider never reaches the design.
+         */
+        fromWidgets?: boolean;
     } = {}
 ): HotkeyConfig[] {
-    const {arrows = true} = opts;
+    const {arrows = true, fromWidgets = false} = opts;
     return DESIGN_KEYS.filter(it => arrows || !ARROW_RE.test(it.combo)).map(
         ({combo, label, run, always}) => ({
             combo,
             label,
             group: 'Design',
-            preventDefault: true,
-            onKeyDown: () => {
+            onKeyDown: (e: KeyboardEvent) => {
+                if (fromWidgets && (e.target as Element)?.closest?.(INTERACTIVE)) return;
                 const id = designModel.selectedElementId;
-                if (id || always) run(designModel, id);
+                if (!id && !always) return;
+                e.preventDefault();
+                run(designModel, id);
             }
         })
     );
@@ -51,7 +58,10 @@ export function showDesignKeys() {
             className: 'xh-blueprint-design-keys',
             children: tbody(
                 DESIGN_KEYS.map(it =>
-                    tr({key: it.combo, children: [th(it.keys ?? it.combo), td(it.label)]})
+                    tr({
+                        key: it.combo,
+                        children: [th({scope: 'row', children: it.keys ?? it.combo}), td(it.label)]
+                    })
                 )
             )
         })
@@ -92,6 +102,19 @@ const arrow =
             selectElement(dm, dm.siblingOf(id, (dx || dy) > 0 ? 1 : -1));
         }
     };
+
+// A widget's controls that take keys of their own. Blueprint's hotkeys already skip inputs.
+const INTERACTIVE = [
+    'button',
+    'a[href]',
+    '[role=gridcell]',
+    '[role=slider]',
+    '[role=listbox]',
+    '[role=tab]',
+    '[role=menuitem]',
+    '.xh-grid',
+    '.ag-root-wrapper'
+].join(',');
 
 const ARROW_RE = /^(shift\+)?(left|right|up|down)$/;
 

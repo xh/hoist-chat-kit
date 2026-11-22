@@ -341,4 +341,66 @@ describe('design mode selection', () => {
         expect(await findByText(/^No rows for As of /)).toBeTruthy();
         expect(container.querySelector('.xh-blueprint-view__data .xh-mask')).toBeNull();
     });
+
+    it("leaves a widget's own controls their keys: a grid, a button and a text input", async () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    ...loadBlueprint('p1-one-grid.json'),
+                    root: 'page',
+                    variables: {
+                        ...loadBlueprint('p1-one-grid.json').variables,
+                        who: {type: 'string', setBy: {element: 'name'}}
+                    },
+                    elements: {
+                        ...loadBlueprint('p1-one-grid.json').elements,
+                        page: {
+                            component: 'box',
+                            config: {direction: 'column'},
+                            children: [{id: 'buttons'}, {id: 'name'}, {id: 'posGrid'}]
+                        },
+                        buttons: {
+                            component: 'buttonGroup',
+                            config: {buttons: [{label: 'Go', action: {type: 'refresh'}}]}
+                        },
+                        name: {component: 'textInput', config: {label: 'Name'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model});
+        onTestFinished(() => {
+            design.destroy();
+            model.destroy();
+        });
+        const {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            removed = () => !model.blueprint.elements.posGrid;
+        design.select({kind: 'element', id: 'posGrid'});
+        // ag-Grid is not loaded here, so its frame stands in for a focused cell.
+        const grid = await vi.waitFor(() => {
+            const it = container.querySelector('[data-blueprint-element="posGrid"] .xh-grid > *');
+            expect(it).toBeTruthy();
+            return it;
+        });
+        fireEvent.keyDown(grid, {key: 'Backspace'});
+        fireEvent.keyDown(grid, {key: 'ArrowDown'});
+        fireEvent.keyDown(container.querySelector('.xh-blueprint-button-group button'), {
+            key: 'Enter'
+        });
+        fireEvent.keyDown(container.querySelector('[data-blueprint-element="name"] input'), {
+            key: 'Delete'
+        });
+        expect(removed()).toBe(false);
+        expect(design.selectedElementId).toBe('posGrid');
+        expect(model.history).toHaveLength(0);
+
+        // From the design surface itself, they act.
+        fireEvent.keyDown(container.querySelector('[data-blueprint-element="posGrid"]'), {
+            key: 'Escape'
+        });
+        expect(design.selectedElementId).toBe('page');
+    });
 });
