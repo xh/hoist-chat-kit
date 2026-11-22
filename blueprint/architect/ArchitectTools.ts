@@ -303,7 +303,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
     {
         name: 'query_dataset',
         description:
-            'Query a dataset to look at its data, for example to answer a question. Returns an artifact: an id, columns, the first rows, the total row count, and, as text, each row\'s numbers and dates formatted as the app shows them. Quote the text, not the raw values. A chat answer can show the artifact with {"artifact": id} as a source.',
+            'Query a dataset to look at its data, for example to answer a question. Returns an artifact: an id, columns, the first rows, the total row count, and, as text, each row\'s numbers and dates formatted as the app shows them. Compute from rows, and quote numbers and dates from text. A chat answer can show the artifact with {"artifact": id} as a source.',
         parameters: {
             type: 'object',
             required: ['dataset', 'params'],
