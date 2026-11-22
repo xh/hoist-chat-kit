@@ -1,4 +1,4 @@
-import {HoistModel, XH, type ElementFactory} from '@xh/hoist/core';
+import {HoistModel, managed, XH, type ElementFactory} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {last} from 'lodash';
@@ -51,7 +51,8 @@ import {
     textInputWidget,
     TextInputWidgetModel
 } from '../InputWidgets';
-import {designChrome} from '../design/impl/SelectionToolbar';
+import {designMarks} from '../design/impl/designOverlay';
+import {OverlayModel} from '../../layout/overlay';
 import {elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
@@ -116,6 +117,9 @@ export class BlueprintViewModel extends HoistModel {
     readonly designModel: BlueprintDesignModel;
     private readonly widgets = new Map<string, {component: string; model: BlueprintWidgetModel}>();
 
+    /** The layer over the blueprint where design mode marks hover and selection. */
+    @managed readonly overlay = new OverlayModel();
+
     /** The elements the Architect's latest edit touched, haloed for a few seconds after it lands. */
     @observableRef accessor haloIds: string[] = [];
 
@@ -143,10 +147,21 @@ export class BlueprintViewModel extends HoistModel {
         // Synced now, not by fireImmediately, which MobX defers inside a batch such as a render.
         this.syncWidgets();
 
-        const {designModel} = this;
+        const {designModel, overlay} = this;
         if (designModel) {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
+            overlay.addMarks('design', () => designMarks(designModel, overlay));
             this.addReaction(
+                {
+                    // Elements move once the change has drawn, as after an edit or a tab switch.
+                    track: () => [
+                        blueprintModel.blueprint,
+                        blueprintModel.mode,
+                        designModel.activeTabs,
+                        designModel.hiddenViews
+                    ],
+                    run: () => wait().then(() => overlay.layoutChanged())
+                },
                 {
                     // Also on mounting, so a canvas shown after another view, such as the Map,
                     // shows the selection.
@@ -216,10 +231,6 @@ export class BlueprintViewModel extends HoistModel {
         );
     }
 
-    // An element's id in its container's chrome in design mode, or its toolbar while selected.
-    private renderDesignChrome = (id: string): ReactNode =>
-        designChrome({key: '_chrome', id, designModel: this.designModel});
-
     /** Render an element by ID, or nothing if the blueprint has no such element. */
     renderElement = (id: string): ReactNode =>
         id ? elementHost({key: id, id, blueprintViewModel: this}) : null;
@@ -269,8 +280,7 @@ export class BlueprintViewModel extends HoistModel {
                 model = new ModelClass({
                     blueprintModel: this.blueprintModel,
                     id,
-                    renderElement: this.renderElement,
-                    renderDesignChrome: this.designModel ? this.renderDesignChrome : null
+                    renderElement: this.renderElement
                 });
             this.widgets.set(id, {component: el.component, model});
         });

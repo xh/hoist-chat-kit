@@ -12,8 +12,6 @@ import type {BlueprintWidgetModel, WidgetSpec} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import type {BlueprintViewModel} from './BlueprintViewModel';
-import {DashCanvasWidgetModel} from '../DashCanvasWidget';
-import {selectionToolbar} from '../design/impl/SelectionToolbar';
 import {missingModules} from './highchartsModules';
 
 const DESIGN_ELEMENT = 'xh-blueprint-view__design-element';
@@ -38,10 +36,6 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         // A designer wraps each element in run mode too, so switching modes neither remounts a
         // widget nor moves it. Only design mode marks it and takes the pointer.
         const isDesign = viewModel.blueprintModel.mode === 'design',
-            label =
-                viewModel.blueprintModel.registry.widgets[
-                    viewModel.blueprintModel.blueprint?.elements?.[id]?.component
-                ]?.label,
             // The innermost element under the pointer is the one it hovers or selects.
             innermost = (e: React.MouseEvent<HTMLElement>, flag: 'xhSelected' | 'xhHovered') => {
                 const native = e.nativeEvent as MouseEvent & Record<string, boolean>;
@@ -59,8 +53,6 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         return div({
             className: classNames(
                 DESIGN_ELEMENT,
-                designModel.selectedElementId === id && `${DESIGN_ELEMENT}--selected`,
-                designModel.hoveredId === id && `${DESIGN_ELEMENT}--hovered`,
                 designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
                 viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
                 designModel.showAddTarget &&
@@ -68,11 +60,8 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                     `${DESIGN_ELEMENT}--add-target`,
                 viewModel.getWidgetModel(id)?.isTooNarrow && `${DESIGN_ELEMENT}--too-narrow`
             ),
-            // Read by cellElementAt, by a selection that scrolls into view, and by the name tag.
-            ...({
-                'data-blueprint-element': id,
-                'data-blueprint-tag': label ? `${id} · ${label}` : id
-            } as object),
+            // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
+            ...({'data-blueprint-element': id} as object),
             onClick: e => {
                 const target = innermost(e, 'xhSelected');
                 if (target) designModel.select({kind: 'element', id: target});
@@ -84,13 +73,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             onMouseLeave: () => {
                 if (designModel.hoveredId === id) designModel.setHovered(null);
             },
-            children: [
-                content,
-                designEmpty(id, viewModel),
-                designModel.selectedElementId === id && !inCellHeader(id, viewModel)
-                    ? selectionToolbar({key: 'selection-toolbar', designModel, id})
-                    : null
-            ]
+            children: [content, designEmpty(id, viewModel), null]
         });
     }
 });
@@ -131,12 +114,6 @@ function needsField(
         };
     }
     return null;
-}
-
-// True for an element whose canvas cell draws a header, which then holds its toolbar.
-function inCellHeader(id: string, viewModel: BlueprintViewModel): boolean {
-    const parent = viewModel.getWidgetModel(viewModel.designModel.pathTo(id).at(-1));
-    return parent instanceof DashCanvasWidgetModel && parent.cellHasHeader(id);
 }
 
 function notePlaceholder(children: ReactNode) {

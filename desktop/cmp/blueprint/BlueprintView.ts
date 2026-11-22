@@ -1,6 +1,7 @@
 import {hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {type AddPlace, type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
+import {overlayHost} from '../layout/overlay';
 import {designHotkeys} from './design/impl/designHotkeys';
 import {blueprintToolbar} from './impl/BlueprintToolbar';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
@@ -47,7 +48,15 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
             // Focusable, so the design keys work once a click selects an element.
             contentBoxProps: isDesign ? ({tabIndex: 0} as object) : null,
             children: [
-                impl.renderElement(model.blueprint?.root),
+                // A designer marks hover and selection in a layer over the blueprint, kept in run
+                // mode too, so switching modes remounts nothing.
+                designModel
+                    ? overlayHost({
+                          key: 'overlay',
+                          model: impl.overlay,
+                          children: impl.renderElement(model.blueprint?.root)
+                      })
+                    : impl.renderElement(model.blueprint?.root),
                 // A popover drill-in draws at the control that opened it.
                 drillIn && !drillIn.anchor
                     ? drillInDialog({key: JSON.stringify(drillIn), host: model, drillIn})

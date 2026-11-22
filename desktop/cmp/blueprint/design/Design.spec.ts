@@ -15,7 +15,9 @@ import {
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {blueprintView} from '../BlueprintView';
+import {OverlayModel} from '../../layout/overlay';
 import {cellElementAt} from '../impl/ElementHost';
+import {designMarks} from './impl/designOverlay';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {elementInspector} from './ElementInspector';
 import {ElementOutlineModel} from './ElementOutline';
@@ -153,7 +155,8 @@ describe('design mode selection', () => {
         expect(cellElementAt(cell.querySelector('.body') as HTMLElement, host)).toBeNull();
     });
 
-    it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', () => {
+    it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', async () => {
+        stubRects();
         // A tab container draws its first tab, the overview canvas, inside it.
         const {design, model} = open('p3-morning-report.json'),
             {container, rerender} = render(
@@ -165,13 +168,13 @@ describe('design mode selection', () => {
         const inner = wrappers().at(-1);
         fireEvent.click(inner);
         expect(design.selectedElementId).toBe('overview');
-        expect(container.querySelector('.xh-blueprint-view__design-element--selected')).toBe(inner);
+        await vi.waitFor(() => expect(overlayMark(container, 'selection')).not.toBeNull());
 
         // Run mode keeps the same elements, so switching remounts no widget and moves nothing.
         const widget = inner.firstElementChild;
         model.setMode('run');
         rerender(blueprintView({model, designModel: design}) as ReactElement);
-        expect(container.querySelector('.xh-blueprint-view__design-element--selected')).toBeNull();
+        expect(overlayMark(container, 'selection')).toBeNull();
         expect(inner.isConnected).toBe(true);
         expect(inner.firstElementChild).toBe(widget);
         fireEvent.click(inner);
@@ -182,17 +185,20 @@ describe('design mode selection', () => {
     });
 
     it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
+        stubRects();
         const {design, model} = open('p3-morning-report.json'),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement),
             inner = [...container.querySelectorAll('.xh-blueprint-view__design-element')].at(-1);
         fireEvent.mouseOver(inner);
         expect(design.hoveredId).toBe('overview');
-        await vi.waitFor(() =>
-            expect(container.querySelector('.xh-blueprint-view__design-element--hovered')).toBe(
-                inner
-            )
+        const hover = await vi.waitFor(() => {
+            const it = overlayMark(container, 'hover');
+            expect(it).not.toBeNull();
+            return it;
+        });
+        expect(hover.querySelector('.xh-blueprint-overlay__tag').textContent).toBe(
+            'overview · Dashboard'
         );
-        expect(inner.getAttribute('data-blueprint-tag')).toBe('overview · Dashboard');
         fireEvent.mouseLeave(inner);
         expect(design.hoveredId).toBeNull();
         expect(model.history).toHaveLength(0);
@@ -246,6 +252,7 @@ describe('design mode selection', () => {
     });
 
     it('shows a toolbar on the selected element, whose parent button selects its parent', async () => {
+        stubRects();
         const {design, model} = open('p3-morning-report.json'),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement);
         design.select({kind: 'element', id: 'overview'});
@@ -460,6 +467,7 @@ describe('design mode selection', () => {
     });
 
     it('returns focus to the canvas only once a toolbar action, such as a confirm, settles', async () => {
+        stubRects();
         let answer: (ok: boolean) => void;
         const {design, model} = open('p3-morning-report.json'),
             confirm = vi
@@ -552,21 +560,39 @@ describe('design mode selection', () => {
         expect(joined.blueprint.sources).toHaveProperty('funds');
     });
 
-    it("puts the selected widget's toolbar in its canvas cell's header, in place of its id", async () => {
+    it('marks a widget in a canvas cell at its cell, header included, and draws nothing in run mode', () => {
         const {design, model} = open('p3-morning-report.json'),
-            view = new BlueprintViewModel(model, {designModel: design});
-        onTestFinished(() => view.destroy());
-        const canvas = view.getWidgetModel('overview') as any,
-            header = () => canvas.headerItemsFor('sectorChart')[0],
-            {container, rerender} = render(header());
-        expect(container.textContent).toBe('sectorChart');
+            overlay = new OverlayModel(),
+            host = document.createElement('div');
+        onTestFinished(() => overlay.destroy());
+        host.innerHTML = '<div data-blueprint-view="sectorChart"></div>';
+        overlay.setHostEl(host);
         design.select({kind: 'element', id: 'sectorChart'});
-        rerender(header());
-        await vi.waitFor(() =>
-            expect(container.querySelector('.xh-blueprint-selection-toolbar')).toBeTruthy()
-        );
-        // The cell's body then draws no toolbar of its own.
-        const body = render(view.renderElement('sectorChart') as ReactElement);
-        expect(body.container.querySelector('.xh-blueprint-selection-toolbar')).toBeNull();
+        design.setHovered('headline');
+        expect(designMarks(design, overlay).map(it => [it.key, it.target])).toEqual([
+            ['hover', '[data-blueprint-element="headline"]'],
+            ['selection', '[data-blueprint-view="sectorChart"]']
+        ]);
+        model.setMode('run');
+        expect(designMarks(design, overlay)).toEqual([]);
     });
 });
+
+// jsdom lays out nothing, so give every element a box for the overlay to draw marks at.
+function stubRects() {
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 100,
+        right: 200,
+        bottom: 100
+    } as DOMRect);
+    onTestFinished(() => spy.mockRestore());
+}
+
+function overlayMark(container: Element, key: string): Element {
+    return container.querySelector(`[data-overlay-mark="${key}"]`);
+}

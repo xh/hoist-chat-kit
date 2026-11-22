@@ -1,3 +1,4 @@
+import classNames from 'classnames';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type MenuItemLike, XH} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -7,21 +8,25 @@ import {wait} from '@xh/hoist/promise';
 import {useRef} from 'react';
 import type {BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
 import {addWidgetAt, duplicateElement, removeElementAsync} from './designActions';
+import {widgetIcon} from './icons';
 
 interface SelectionToolbarProps extends HoistProps {
     designModel: BlueprintDesignModel;
     id: string;
+    /** True to sit just inside the selection's top edge, where there is no room above it. */
+    inside?: boolean;
 }
 
 /**
- * The selected element's toolbar on the canvas: select its parent, its name, then for a writer
- * duplicate, add, more and delete. Its clicks never reach the canvas, which would select again.
+ * The selected element's toolbar, a tab on its outline: its name, select its parent, then for a
+ * writer add, duplicate, more and delete. Its clicks never reach the canvas, which would select
+ * again.
  */
 export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
     displayName: 'BlueprintSelectionToolbar',
     className: 'xh-blueprint-selection-toolbar',
     model: false,
-    render({designModel, id, className}) {
+    render({designModel, id, inside, className}) {
         const ref = useRef<HTMLDivElement>(null),
             // Back to the canvas once an action settles, so the design keys keep working, and a
             // dialog it opens, such as a confirm, keeps focus until then. The canvas is found
@@ -101,10 +106,22 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                 }
             ];
         return div({
-            className,
+            className: classNames(className, inside && `${CLS}--inside`),
             ref,
             onClick: e => e.stopPropagation(),
             children: [
+                span({
+                    className: `${CLS}__name`,
+                    children: [
+                        registry.widgets[component]
+                            ? widgetIcon(registry.widgets[component], {
+                                  className: `${CLS}__icon`
+                              })
+                            : null,
+                        component ? `${id} · ${labelOf(component)}` : id
+                    ]
+                }),
+                span({className: `${CLS}__divider`}),
                 button({
                     icon: Icon.arrowUp(),
                     title: 'Select the parent (Esc)',
@@ -113,30 +130,28 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                     disabled: !parent,
                     onClick: () => after(designModel.select({kind: 'element', id: parent}))
                 }),
-                span({
-                    className: `${CLS}__name`,
-                    children: component ? `${id} · ${labelOf(component)}` : id
-                }),
                 ...(canEdit
                     ? [
-                          button({
-                              icon: Icon.copy(),
-                              title: 'Duplicate (Ctrl+D)',
-                              'aria-label': 'Duplicate (Ctrl+D)',
-                              minimal: true,
-                              disabled: !parent,
-                              onClick: () => after(duplicateElement(designModel, id))
-                          }),
                           designModel.addPlacesFor(id).length
                               ? menuButton({
                                     className: `${CLS}__menu`,
                                     icon: Icon.add(),
                                     title: 'Add',
                                     'aria-label': 'Add',
+                                    intent: 'primary',
                                     minimal: true,
                                     menuItems: () => withRefocus(addItems())
                                 })
                               : null,
+                          button({
+                              icon: Icon.copy(),
+                              title: 'Duplicate (Ctrl+D)',
+                              'aria-label': 'Duplicate (Ctrl+D)',
+                              intent: 'success',
+                              minimal: true,
+                              disabled: !parent,
+                              onClick: () => after(duplicateElement(designModel, id))
+                          }),
                           menuButton({
                               className: `${CLS}__menu`,
                               icon: Icon.ellipsisVertical(),
@@ -145,6 +160,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                               minimal: true,
                               menuItems: () => withRefocus(moreItems())
                           }),
+                          span({className: `${CLS}__divider`}),
                           button({
                               icon: Icon.delete(),
                               title: 'Delete (Del)',
@@ -161,20 +177,3 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
 });
 
 const CLS = 'xh-blueprint-selection-toolbar';
-
-/**
- * What design mode shows of an element in its container's chrome, such as a canvas cell's header:
- * its id, or its toolbar while it is selected, which then covers none of its content.
- */
-export const designChrome = hoistCmp.factory<
-    HoistProps & {designModel: BlueprintDesignModel; id: string}
->({
-    displayName: 'BlueprintDesignChrome',
-    model: false,
-    render({designModel, id}) {
-        if (designModel.blueprintModel.mode !== 'design') return null;
-        return designModel.selectedElementId === id
-            ? selectionToolbar({designModel, id, className: `${CLS}--in-header`})
-            : span({className: 'xh-blueprint-dash-canvas__cell-id', children: id});
-    }
-});
