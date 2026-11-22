@@ -86,7 +86,9 @@ export class BlueprintStructureModel extends HoistModel {
             hideHeaders: true,
             expandLevel: -1,
             emptyText: 'Nothing matches.',
-            store: {fields: ['name', 'label', 'kind', 'count', 'place', 'component', 'empty']},
+            store: {
+                fields: ['name', 'label', 'kind', 'count', 'place', 'component', 'empty', 'of']
+            },
             contextMenu: agParams => {
                 const record = agParams.node?.data as StoreRecord;
                 return record ? (this.menuFor(record) as any[]) : [];
@@ -260,6 +262,12 @@ export class BlueprintStructureModel extends HoistModel {
         } else if (kind === 'section') {
             // A section is not a part of the blueprint, so nothing stays selected for a key to act on.
             if (designModel.selection) designModel.select(null);
+        } else if (kind === 'view') {
+            const {selection} = designModel,
+                {of} = record.data;
+            if (selection?.kind !== 'view' || selection.id !== name || selection.of !== of) {
+                designModel.select({kind: 'view', id: name, of});
+            }
         } else if (['element', 'source', 'variable', 'preset'].includes(kind)) {
             const {selection, slotTarget} = designModel;
             if (slotTarget || selection?.kind !== kind || selection.id !== name) {
@@ -304,11 +312,31 @@ export class BlueprintStructureModel extends HoistModel {
                             slotLists(el).find(it => it.slot === slot && it.of === of)?.refs ?? []
                         ).filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id)),
                     childRow = (childId: string): PlainObject => {
-                        const row = elementRow(childId);
-                        // A cell's slots, such as its header, sit under its element.
-                        const cells = cellSlots.map(slot =>
-                            slotRow({parent: id, slot, of: childId}, refsOf(slot, childId))
-                        );
+                        const row = elementRow(childId),
+                            // A cell's slots, such as its header, sit under its element, or under
+                            // its canvas view where the view has settings of its own.
+                            cells = cellSlots.map(slot =>
+                                slotRow({parent: id, slot, of: childId}, refsOf(slot, childId))
+                            ),
+                            cell =
+                                el.component === 'dashCanvas'
+                                    ? el.children?.find(it => it.id === childId)
+                                    : null;
+                        if (
+                            cell &&
+                            (cell.title ||
+                                cell.hideHeader ||
+                                (cell.headerItems as unknown[])?.length)
+                        ) {
+                            return {
+                                id: `view:${childId}`,
+                                name: childId,
+                                label: 'Canvas view',
+                                kind: 'view',
+                                of: id,
+                                children: [...cells, row]
+                            };
+                        }
                         return {...row, children: [...cells, ...row.children]};
                     },
                     slotRow = (place: AddPlace, refs: {id: string}[]): PlainObject => ({
@@ -473,7 +501,10 @@ export class BlueprintStructureModel extends HoistModel {
             });
         }
         if (kind === 'slot') return span({className: `${CLS}__slot`, children: name});
-        const base = `/${COLLECTIONS[kind]}/${name}`,
+        const base =
+                kind === 'view'
+                    ? `/elements/${record.data.of}/children`
+                    : `/${COLLECTIONS[kind]}/${name}`,
             issues = blueprintModel.issues.filter(
                 it => it.path === base || it.path?.startsWith(`${base}/`)
             );
@@ -483,9 +514,11 @@ export class BlueprintStructureModel extends HoistModel {
                 kind === 'element' && this.isOffscreen(name) && `${CLS}__row--offscreen`
             ),
             children: [
-                partIcon(kind, blueprintModel.registry.widgets[component], {
-                    className: `${CLS}__icon`
-                }),
+                kind === 'view'
+                    ? Icon.window({className: `${CLS}__icon`})
+                    : partIcon(kind, blueprintModel.registry.widgets[component], {
+                          className: `${CLS}__icon`
+                      }),
                 span({className: `${CLS}__name`, children: name}),
                 label ? span({className: `${CLS}__label`, children: label}) : null,
                 issues.length

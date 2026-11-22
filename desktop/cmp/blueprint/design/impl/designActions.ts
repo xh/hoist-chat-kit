@@ -143,6 +143,7 @@ export async function removeSelectionAsync(
 ): Promise<BlueprintIssue[]> {
     switch (selection?.kind) {
         case 'element':
+        case 'view':
             return removeElementAsync(designModel, selection.id);
         case 'preset':
             return removePresetGroupAsync(designModel, selection.id);
@@ -192,7 +193,7 @@ export function selectionMenu(
     if (blueprintModel.mode !== 'design' || blueprintModel.access !== 'write') return [];
     const rename = {
             text: 'Rename…',
-            disabled: kind === 'preset',
+            disabled: kind === 'preset' || kind === 'view',
             actionFn: async () => {
                 const to = await XH.prompt<string>({
                     title: 'Rename',

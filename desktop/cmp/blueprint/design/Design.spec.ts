@@ -204,6 +204,17 @@ describe('design mode selection', () => {
         expect(container.querySelector('.xh-blueprint-overlay__tag')).toBeNull();
     });
 
+    it('deletes the widget in a selected view with Del, as its toolbar does', async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            toast = vi.spyOn(XH, 'toast').mockReturnValue(null);
+        onTestFinished(() => toast.mockRestore());
+        design.select({kind: 'view', id: 'priceChart', of: 'positions'});
+        designHotkeys(design)
+            .find(it => it.combo === 'del')
+            .onKeyDown({target: document.body, preventDefault: () => null} as any);
+        await vi.waitFor(() => expect(model.blueprint.elements).not.toHaveProperty('priceChart'));
+    });
+
     it('marks a selected view at its frame, with a toolbar that names it', () => {
         const {design} = open('p3-morning-report.json'),
             overlay = new OverlayModel(),

@@ -58,6 +58,19 @@ describe('BlueprintStructure', () => {
         expect(record(structure, 'preset:posViews').data.label).toBe('Columns');
     });
 
+    it('lists a canvas view between its canvas and its widget, only when it has settings of its own', async () => {
+        const {structure, design} = open(),
+            view = record(structure, 'view:posGrid');
+        // posGrid's cell holds header items, so its view has settings. Plain cells do not.
+        expect(view.data).toMatchObject({kind: 'view', name: 'posGrid', of: 'positions'});
+        expect(view.parent.id).toBe('element:positions');
+        expect(view.children.map(it => it.id)).toContain('element:posGrid');
+        expect(record(structure, 'view:priceChart')).toBeFalsy();
+
+        await structure.gridModel.selectAsync('view:posGrid');
+        expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
+    });
+
     it('counts the widgets a source feeds, through joins too', () => {
         const model = new BlueprintModel({
                 blueprint: loadBlueprint('p8-joined-positions.json'),
@@ -81,7 +94,8 @@ describe('BlueprintStructure', () => {
         const {design, structure} = open(),
             header = record(structure, 'element:posViewsSelector').parent;
         expect(header.data.name).toBe('Cell header');
-        expect(header.parent.id).toBe('element:posGrid');
+        // posGrid's view has settings of its own, so its header sits under the view.
+        expect(header.parent.id).toBe('view:posGrid');
         // An empty slot shows only while a drag is on, or under the selected element.
         const empty = 'slot:positions|headerItems|priceChart',
             shown = () => structure.gridModel.store.records.some(it => it.id === empty);
