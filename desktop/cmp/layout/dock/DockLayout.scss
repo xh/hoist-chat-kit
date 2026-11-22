@@ -1,0 +1,164 @@
+.xh-layout-dock {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+
+  &__split {
+    flex: 1 1 auto;
+  }
+
+  &__pane {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &__separator {
+    flex: none;
+    background-color: var(--xh-border-color);
+
+    &[aria-orientation='vertical'] {
+      width: 4px;
+      cursor: col-resize;
+    }
+
+    &[aria-orientation='horizontal'] {
+      height: 4px;
+      cursor: row-resize;
+    }
+
+    &:focus-visible,
+    &:hover {
+      background-color: var(--xh-intent-primary);
+    }
+  }
+
+  &__stack {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background-color: var(--xh-bg);
+  }
+
+  &__tabs {
+    display: flex;
+    flex: none;
+    gap: 2px;
+    min-height: 26px;
+    padding: 0 var(--xh-spacing-half);
+    overflow: hidden;
+    background-color: var(--xh-bg-alt);
+    border-bottom: var(--xh-border-solid);
+  }
+
+  &__tab {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--xh-spacing);
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--xh-text-color-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+
+    &--active {
+      color: var(--xh-text-color);
+      border-bottom-color: var(--xh-intent-primary);
+    }
+
+    &--dragging {
+      opacity: 0.5;
+    }
+
+    &:focus-visible {
+      outline: var(--xh-focus-outline);
+      outline-offset: -2px;
+    }
+  }
+
+  &__body {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &__view {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // A drop preview, drawn in the overlay over its stack or the whole layout.
+  &__preview {
+    position: absolute;
+    inset: 0;
+    background-color: var(--xh-intent-primary-trans1);
+    border: 1px dashed var(--xh-intent-primary);
+
+    &--left {
+      right: 50%;
+    }
+
+    &--right {
+      left: 50%;
+    }
+
+    &--top {
+      bottom: 50%;
+    }
+
+    &--bottom {
+      top: 50%;
+    }
+
+    &--root-left {
+      right: 66.67%;
+    }
+
+    &--root-right {
+      left: 66.67%;
+    }
+
+    &--root-top {
+      bottom: 66.67%;
+    }
+
+    &--root-bottom {
+      top: 66.67%;
+    }
+
+    &--bar {
+      inset: 0 auto auto;
+      width: 2px;
+      height: 26px;
+      background-color: var(--xh-intent-primary);
+      border: none;
+    }
+
+    &--refused {
+      background-color: var(--xh-intent-danger-trans1);
+      border-color: var(--xh-intent-danger);
+    }
+  }
+
+  &__preview-reason {
+    position: absolute;
+    top: var(--xh-spacing-half);
+    left: var(--xh-spacing-half);
+    padding: 0 var(--xh-spacing-half);
+    font-size: 11px;
+    color: var(--xh-intent-danger-text-color);
+    background-color: var(--xh-bg);
+  }
+}
