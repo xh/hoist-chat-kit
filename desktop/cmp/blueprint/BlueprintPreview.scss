@@ -8,8 +8,9 @@
     height: 100%;
   }
 
+  // The per-theme text tokens, which keep a picture's marks at a readable contrast in both themes.
   &__fg {
-    fill: var(--xh-intent-primary);
+    fill: var(--xh-intent-primary-text-color);
   }
 
   &__mid {
@@ -26,7 +27,7 @@
 
   &__line {
     fill: none;
-    stroke: var(--xh-intent-primary);
+    stroke: var(--xh-intent-primary-text-color);
     stroke-width: 2px;
     stroke-linecap: round;
     vector-effect: non-scaling-stroke;
@@ -43,5 +44,5 @@
 
 // A negative part, such as a waterfall's fall or a diverging scale's low end.
 .xh-blueprint-preview__neg {
-  fill: var(--xh-intent-danger);
+  fill: var(--xh-intent-danger-text-color);
 }
