@@ -129,9 +129,19 @@ args.
 **Options.** `options` limits a prompt's choices: `{"values": [...]}`, or `{"source", "field"}`
 for the values of a field in one of the blueprint's sources.
 
-**Bindings.** Config reads a variable one way, `{"$var": "asOf"}`, and only at a path its schema
-marks as bindable. The validator checks that the variable's type fits the value
-(`variable.typeMismatch`). Config holds no expressions.
+**Bindings.** Config reads a variable one way, `{"$var": "asOf"}`. A property whose value is a
+boolean, a number, a string, one of an enum or a list of strings takes a binding, unless its
+schema says `x-binding: false`. A reference, such as a source, a field or a format, takes none, nor
+does an object. Config holds no expressions. The validator checks each binding:
+
+- The variable's type fits the property (`binding.typeMismatch`), and so does every value it may
+  hold (`binding.outOfRange`).
+- A required property reads a variable with a default, as it may otherwise be empty
+  (`binding.mayBeNull`).
+- A path that presets control is bound inside each preset, never in the element's config
+  (`preset.stillInConfig`). A binding in a preset is checked as one in config is.
+
+A bound value changes through its variable, so a user does not personalize it at its own path.
 
 **Literals.** A source parameter always binds a variable, and so does a filter value a user
 might change. A literal that defines what a widget is, such as a chart of one sector, can stay

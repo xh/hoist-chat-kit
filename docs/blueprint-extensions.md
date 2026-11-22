@@ -90,7 +90,7 @@ editors what a value means:
 |------------|-------|--------------|
 | `x-source` | A source name | Checks the source, and offers a source picker |
 | `x-field` | A field of the widget's source: `any`, `dimension` or `measure` | Checks the name against the catalog, and offers a field picker |
-| `x-binding` | A value that may be `{"$var": name}` | Checks the variable's type against the value's |
+| `x-binding` | Whether a value may be `{"$var": name}`. Default true for a boolean, number, string, enum or string list with no other annotation | Checks the variable's type against the value's. `false` keeps a value literal |
 | `x-filter` | A filter in Hoist's `FilterSpec` form | Checks each field, and offers a `FilterChooser` |
 | `x-format` | A format: a name, an object, or a name with changes | Offers a format editor |
 | `x-renderer` | A renderer name, or a name with options | Checks it, and offers a picker |
@@ -109,8 +109,9 @@ editors what a value means:
   its default, and the model reads it with `configDefault(key)`.
 - Write a `description` on any property whose name does not say what it does. The Architect reads
   it, and the inspector shows it as a hint.
-- Mark only the values a user might want to change at run time as `x-binding`. Every bindable
-  path is a path a link can reach.
+- Mark `x-binding: false` on a value the widget writes back from the user, such as a collapsed
+  state, a sort or a layout, so a binding cannot be overwritten. Mark `x-binding: true` on template
+  text or an object that may bind, as those do not by default.
 
 ### Describe it for users and the Architect
 

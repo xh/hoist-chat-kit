@@ -354,8 +354,8 @@ widgetPreview(model.registry.widgets.cubeGrid, {width: 120, height: 40});
 property. The registry's annotations pick an editor: a source select for `x-source`, a field
 picker or a `GroupingChooser` for `x-field`, a `FilterChooser` for `x-filter`, and pickers for
 `x-format`, `x-renderer` and `x-action`, and a select of the variables an action may set for an
-action param marked `x-variable`. A property marked `x-binding` can take a variable in place of a
-value. A shape with no editor falls back to JSON, so every value stays editable. The
+action param marked `x-variable`. A property that binds, by type or by `x-binding`, can take a
+variable in place of a value. A shape with no editor falls back to JSON, so every value stays editable. The
 inspector draws these nodes, so a new widget gets an editor from its schema alone.
 
 ### Give a config property a default

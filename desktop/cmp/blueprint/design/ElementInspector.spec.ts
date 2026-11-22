@@ -693,9 +693,10 @@ describe('ElementInspector', () => {
                 [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
                     it => it.firstElementChild?.textContent === label
                 );
-        expect(
-            row('Group by').querySelector('.xh-blueprint-element-inspector__var-chip').textContent
-        ).toBe('grouping');
+        const chip = row('Group by').querySelector('.xh-blueprint-element-inspector__var-chip');
+        expect(chip.textContent).toBe('grouping');
+        // A bound value is not personalized in its place, but through its variable.
+        expect(chip.getAttribute('title')).toMatch(/Set by variable grouping, .* not here/);
         expect(
             [...container.querySelectorAll('.xh-blueprint-element-inspector__bind-button')].map(
                 it =>

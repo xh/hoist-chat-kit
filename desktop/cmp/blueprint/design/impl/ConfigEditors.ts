@@ -415,7 +415,8 @@ function bindableEditor(
                 selectChip({
                     className: `${CLS}__var-chip`,
                     text: bound,
-                    label: `Show variable ${bound}`,
+                    // A bound value changes through its variable, so it is not personalized here.
+                    label: `Set by variable ${bound}, which a user changes in its place, not here. Show the variable.`,
                     onSelect: () => impl.designModel.select({kind: 'variable', id: bound})
                 }),
                 disabled
