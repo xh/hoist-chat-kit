@@ -85,7 +85,7 @@ describe('wiring', () => {
         expect(wiringFor(bp, {kind: 'variable', id: 'nope'}).readBy).toEqual([]);
     });
 
-    it('traces a large blueprint quickly', () => {
+    it('traces a large blueprint in time linear in its wires', () => {
         const bp: any = {
             root: 'canvas',
             variables: {v0: {type: 'number', setBy: 'prompt'}},
@@ -97,11 +97,20 @@ describe('wiring', () => {
             bp.elements[`w${i}`] = {component: 'markdown', config: {text: `{v${i}}`}};
             bp.elements.canvas.children.push({id: `w${i}`, x: 0, y: i, w: 1, h: 1});
         }
-        const graph = wiringGraph(bp),
-            start = performance.now(),
+        // Count reads of the graph's nodes and edges, rather than time, which load skews.
+        let reads = 0;
+        const counted = <T extends object>(list: T[]) =>
+                new Proxy(list, {
+                    get: (target, key, receiver) => {
+                        if (typeof key === 'string' && /^\d+$/.test(key)) reads++;
+                        return Reflect.get(target, key, receiver);
+                    }
+                }),
+            {nodes, edges} = wiringGraph(bp),
+            graph = {nodes: counted(nodes), edges: counted(edges)},
             {downstream} = traceWiring(graph, {kind: 'variable', id: 'v0'});
         traceWiring(graph, {kind: 'element', id: 'w999'});
         expect(downstream).toHaveLength(2000);
-        expect(performance.now() - start).toBeLessThan(50);
+        expect(reads).toBeLessThanOrEqual(2 * (nodes.length + edges.length));
     });
 });
