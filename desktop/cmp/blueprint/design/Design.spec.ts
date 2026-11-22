@@ -340,6 +340,29 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBeNull();
     });
 
+    it("selects and hovers nothing in Interact, where clicks are the widgets', switched by I and E", () => {
+        stubRects();
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            inner = [...container.querySelectorAll('.xh-blueprint-view__design-element')].at(-1),
+            press = (combo: string) =>
+                designHotkeys(design)
+                    .find(it => it.combo === combo)
+                    .onKeyDown({target: document.body, preventDefault: () => null} as any);
+        design.setHovered('headline');
+        press('i');
+        expect(design.interaction).toBe('interact');
+        expect(design.hoveredId).toBeNull();
+        fireEvent.mouseOver(inner);
+        fireEvent.click(inner);
+        expect(design.hoveredId).toBeNull();
+        expect(design.selection).toBeNull();
+        press('e');
+        expect(design.interaction).toBe('edit');
+        fireEvent.click(inner);
+        expect(design.selectedElementId).toBe('overview');
+    });
+
     it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
         stubRects();
         const {design, model} = open('p3-morning-report.json'),

@@ -1,5 +1,5 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
-import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
+import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {
     castArray,
@@ -75,6 +75,13 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** The element under the pointer on the canvas, in the outline or the map: view state, never an edit. */
     @observableRef accessor hoveredId: string = null;
+
+    /**
+     * How the canvas takes the pointer in design mode: `edit` selects what a click lands on and
+     * opens the design menu, and `interact` lets clicks and menus reach the widgets, selecting
+     * nothing new. The host sets it, and keeps it if it should last. Run mode ignores it.
+     */
+    @bindable accessor interaction: 'edit' | 'interact' = 'edit';
 
     constructor(config: {blueprintModel: BlueprintModel}) {
         super();
@@ -196,6 +203,13 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     setHovered(id: string) {
         this.hoveredId = id;
+    }
+
+    /** Switch between selecting on the canvas and using its widgets. See {@link interaction}. */
+    @action
+    setInteraction(mode: 'edit' | 'interact') {
+        this.interaction = mode;
+        if (mode === 'interact') this.hoveredId = null;
     }
 
     /**
