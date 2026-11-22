@@ -85,6 +85,7 @@ export class BlueprintStructureModel extends HoistModel {
         this.gridModel = new GridModel({
             treeMode: true,
             treeStyle: 'none',
+            stripeRows: false,
             rowClassFn: record => (record ? this.rowClassOf(record) : null),
             hideHeaders: true,
             expandLevel: -1,

@@ -835,6 +835,20 @@ describe('layout and container widgets', () => {
             ).toBeTruthy();
             const [idItem] = design.canvas.headerItemsFor('pnl') as any[];
             expect(idItem.props.className).toBe('xh-blueprint-dash-canvas__cell-id');
+            // Each header leads with an icon, the element's own or else its widget's.
+            const iconOf = () =>
+                renderCanvas(design.view)
+                    .container.querySelector(
+                        '[data-blueprint-view="pnl"] .xh-blueprint-dash-canvas__cell-icon'
+                    )
+                    ?.getAttribute('data-icon');
+            expect(iconOf()).toBe('chart-line');
+            design.model.applyEdit({
+                description: 'drop the icon',
+                ops: [{op: 'remove', path: '/elements/pnl/config/icon'}]
+            });
+            expect(iconOf()).toBeTruthy();
+            expect(iconOf()).not.toBe('chart-line');
             // A cell with no header stays without one, id or not.
             expect(design.canvas.cellHasHeader('tiles')).toBe(false);
         });

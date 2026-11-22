@@ -56,6 +56,7 @@ describe('BlueprintStructure', () => {
                 id => !model.registry.widgets[elements[id].component]?.children
             );
         expect(structure.gridModel.treeStyle).toBe('none');
+        expect(structure.gridModel.stripeRows).toBe(false);
         expect(classOf(it => it.kind === 'section')).toBe('xh-blueprint-tree__row--category');
         expect(classOf(it => it.kind === 'element' && it.name === container)).toBe(
             'xh-blueprint-tree__row--container'

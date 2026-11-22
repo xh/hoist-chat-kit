@@ -5,6 +5,7 @@ import {pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {BlueprintWidgetModel, type ChildRef, type DashCanvasWidgetConfig} from '../../../blueprint';
 import {gridCanvas, type GridCanvasChange, type GridCell} from '../layout';
+import {widgetIcon} from './design/impl/icons';
 import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
 
@@ -221,19 +222,23 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
 //------------------
 const CLS = 'xh-blueprint-dash-canvas';
 
-// A cell's header: its icon and title, then in design mode its element's id or toolbar, which
-// gives way first, then its header items.
+// A cell's header: its icon, the element's own or else its widget's, and its title, then in design
+// mode its element's id or toolbar, which gives way first, then its header items.
 const cellHeader = hoistCmp.factory<HoistProps & {model: DashCanvasWidgetModel; id: string}>({
     displayName: 'DashCanvasCellHeader',
     model: false,
     render({model, id}) {
-        const icon = model.blueprintModel.blueprint?.elements?.[id]?.config?.icon,
+        const {blueprint, registry} = model.blueprintModel,
+            element = blueprint?.elements?.[id],
+            props = {className: `${CLS}__cell-icon`},
             title = model.titles[id];
         return hbox({
             className: `${CLS}__cell-header`,
             ...({'data-blueprint-view-header': true} as PlainObject),
             children: [
-                icon ? Icon.icon({faName: icon, className: `${CLS}__cell-icon`}) : null,
+                element?.config?.icon
+                    ? Icon.icon({faName: element.config.icon, ...props})
+                    : widgetIcon(registry.widgets[element?.component], props),
                 title != null ? span({className: `${CLS}__cell-title`, children: title}) : null,
                 div({className: `${CLS}__cell-items`, children: model.headerItemsFor(id)})
             ]

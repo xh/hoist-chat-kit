@@ -108,6 +108,13 @@
   padding: 0 var(--xh-spacing-half);
 }
 
+.xh-blueprint-dash-canvas__cell-icon {
+  flex: none;
+  width: 12px;
+  font-size: 12px;
+  color: var(--xh-intent-primary-text-color);
+}
+
 .xh-blueprint-dash-canvas__cell-title {
   flex: 0 0 auto;
   max-width: 70%;
