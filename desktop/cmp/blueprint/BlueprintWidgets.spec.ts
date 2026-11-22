@@ -1082,6 +1082,9 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.moveCell('headline', {y: 30, w: 6})).toBeNull();
             expect(model.version).toBe(version + 1);
             expect(canvas.cells.find(it => it.id === 'headline')).toMatchObject({y: 30, w: 6});
+            expect(model.undoDescription).toBe('Resize headline');
+            expect(canvas.moveCell('headline', {y: 40})).toBeNull();
+            expect(model.undoDescription).toBe('Move headline');
         });
 
         it("resets a reader's moves, and offers to only once there are some", () => {

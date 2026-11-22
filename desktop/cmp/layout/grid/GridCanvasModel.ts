@@ -18,7 +18,7 @@ export interface GridCell {
 /** What a finished gesture changed. */
 export interface GridCanvasChange {
     kind: 'move' | 'resize';
-    /** The item the user moved or resized. Other changed cells were pushed aside by it. */
+    /** The item the user moved or resized. */
     id: string;
 }
 

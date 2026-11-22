@@ -4,6 +4,7 @@ import {action, observableRef} from '@xh/hoist/mobx';
 import {isEqual, pick} from 'lodash';
 import {BlueprintWidgetModel, type DashContainerWidgetConfig} from '../../../blueprint';
 import {
+    type DockChange,
     type DockItem,
     dockLayout,
     dockMoveRefusal,
@@ -69,10 +70,15 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
         if (!isEqual(ids, this.hiddenViews)) this.hiddenViews = ids;
     }
 
-    /** Write a layout a user made back to the config, as one edit, or transient in run mode. */
-    noteLayout(layout: PlainObject[]) {
+    /**
+     * Write a layout a user made back to the config, as one edit named for the change, or transient
+     * in run mode.
+     */
+    noteLayout(layout: PlainObject[], change?: DockChange) {
         if (!layout?.length || isEqual(toLayout(layout), this.layout)) return;
-        this.setConfig('/layout', layout);
+        const description =
+            change && (change.kind === 'move' ? `Move ${change.id}` : `Resize ${this.id}`);
+        this.setConfig('/layout', layout, description);
     }
 
     /** Why moving a view to a target would be refused, or null if it would apply. */
@@ -91,7 +97,8 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
     moveView(id: string, target: DockTarget): string {
         const refusal = this.canMove(id, target);
         if (refusal) return refusal;
-        this.noteLayout(moveView(this.layout, id, target));
+        this.noteLayout(moveView(this.layout, id, target), {kind: 'move', id});
+        this.activateView(id);
         return null;
     }
 
@@ -146,7 +153,7 @@ export const [DashContainerWidget, dashContainerWidget] = hoistCmp.withFactory({
                         editable: true,
                         renderView: id => model.renderElement(id),
                         viewTitle: id => model.titles[id],
-                        onChange: layout => model.noteLayout(layout),
+                        onChange: (layout, change) => model.noteLayout(layout, change),
                         canMove: (id, target) => model.canMove(id, target),
                         externalDrag: () => model.externalDrag(),
                         onDropExternal: (key, target) => model.onDropExternal(key, target),

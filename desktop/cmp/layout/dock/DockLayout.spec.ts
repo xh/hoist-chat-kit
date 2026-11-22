@@ -151,6 +151,18 @@ describe('dockLayout', () => {
             expect(model.dragging).toBeNull();
         });
 
+        it('shows a dropped view in the stack it joins', () => {
+            const model = dragModel({
+                editable: true,
+                onChange: next => (model.props = {...model.props, layout: next})
+            });
+            model.activate('positions');
+            model.startDrag('chart');
+            model.dragOver({view: 'positions', zone: 'center'});
+            model.dropHere();
+            expect(model.activeOf(model.props.layout[0])).toBe('chart');
+        });
+
         it('refuses a zone with nowhere to go, or one the host refuses, checking each once a drag', () => {
             const canMove = vi.fn(() => 'Not here.'),
                 onChange = vi.fn(),

@@ -150,14 +150,15 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
 
     /**
      * Set a value in the element's config, as {@link applyUserEdit}. `path` is inside the config.
-     * A path that a preset group controls changes its active preset instead.
+     * A path that a preset group controls changes its active preset instead. `description` names
+     * the edit for undo, by default the element and path.
      */
-    setConfig(path: string, value: unknown): boolean {
+    setConfig(path: string, value: unknown, description?: string): boolean {
         // In design mode, a path that presets control changes the active preset.
         const target = this.blueprintModel.writePathFor(`/elements/${this.id}/config${path}`);
         return this.applyUserEdit(
             [{op: 'set', path: target, value}],
-            `${this.id}: ${path.slice(1)}`
+            description ?? `${this.id}: ${path.slice(1)}`
         );
     }
 
