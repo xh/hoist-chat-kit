@@ -140,7 +140,8 @@ describe('design mode selection', () => {
     it('selects the element in a canvas cell from a click on its header, not the canvas', () => {
         const cell = document.createElement('div');
         cell.innerHTML =
-            '<div class="xh-dash-tab"><div class="xh-panel-header"><span class="title">Day P&L</span>' +
+            '<div data-blueprint-view="sectorChart" data-blueprint-canvas="overview">' +
+            '<div data-blueprint-view-header><span class="title">Day P&L</span>' +
             '<div data-blueprint-element="views"></div></div>' +
             '<div class="body"><div data-blueprint-element="sectorChart"></div></div></div>';
         const host = document.createElement('div');
@@ -556,9 +557,7 @@ describe('design mode selection', () => {
             view = new BlueprintViewModel(model, {designModel: design});
         onTestFinished(() => view.destroy());
         const canvas = view.getWidgetModel('overview') as any,
-            header = () =>
-                canvas.canvasModel.viewModels.find(it => it.viewSpec.id === 'sectorChart')
-                    .headerItems[0],
+            header = () => canvas.headerItemsFor('sectorChart')[0],
             {container, rerender} = render(header());
         expect(container.textContent).toBe('sectorChart');
         design.select({kind: 'element', id: 'sectorChart'});

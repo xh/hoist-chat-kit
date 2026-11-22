@@ -1,7 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import type {PlainObject} from '@xh/hoist/core';
-import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {
@@ -15,7 +15,6 @@ import {blueprintView} from './BlueprintView';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {DashContainerWidgetModel} from './DashContainerWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
-import {elementFromContent} from '@xh/hoist/utils/react';
 import {MarkdownWidgetModel} from './MarkdownWidget';
 import {PanelWidgetModel} from './PanelWidget';
 
@@ -599,115 +598,67 @@ describe('layout and container widgets', () => {
                 view.destroy();
                 model.destroy();
             });
-            const canvas = view.getWidgetModel('canvas') as DashCanvasWidgetModel,
-                cell = (id: string) =>
-                    canvas.canvasModel.viewModels.find(it => it.viewSpec.id === id);
-            return {model, view, canvas, cell};
+            const canvas = view.getWidgetModel('canvas') as DashCanvasWidgetModel;
+            return {model, view, canvas};
         };
 
-        it('cancels a cell drag on Escape, which never reaches the design keys', () => {
-            const {canvas} = cells('design'),
-                edit = vi.spyOn(canvas, 'applyUserEdit'),
-                outer = vi.fn(),
-                moved = () =>
-                    canvas.canvasModel.layout.map((it, idx) =>
-                        idx === 2 ? {...it, x: it.x + 1} : it
-                    );
-            document.addEventListener('keydown', outer);
-            onTestFinished(() => document.removeEventListener('keydown', outer));
-
-            canvas.startDrag();
-            document.body.dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})
-            );
-            canvas.endDrag();
-            canvas.canvasModel.onRglLayoutChange(moved());
-            expect(outer).not.toHaveBeenCalled();
-            expect(edit).not.toHaveBeenCalled();
-
-            // Without Escape, the same drag is an edit.
-            canvas.startDrag();
-            canvas.endDrag();
-            canvas.canvasModel.onRglLayoutChange(moved());
-            expect(edit).toHaveBeenCalledTimes(1);
-        });
-
-        it('forgets a cancelled drag that moved nothing, so the next resize still applies', async () => {
-            const model = new BlueprintModel({
-                    blueprint: {
-                        root: 'canvas',
-                        elements: {
-                            canvas: {
-                                component: 'dashCanvas',
-                                children: [
-                                    {id: 'a', x: 0, y: 0, w: 6, h: 2},
-                                    {id: 'b', x: 6, y: 0, w: 6, h: 2}
-                                ]
-                            },
-                            a: {component: 'markdown', config: {text: 'A'}},
-                            b: {component: 'markdown', config: {text: 'B'}}
-                        }
-                    },
-                    catalog: portfolioCatalog,
-                    registry: scenarioRegistry(),
-                    dataProvider: null,
-                    mode: 'design',
-                    access: 'write'
-                }),
-                view = new BlueprintViewModel(model);
-            onTestFinished(() => {
-                view.destroy();
-                model.destroy();
-            });
-            const canvas = view.getWidgetModel('canvas') as DashCanvasWidgetModel,
-                edit = vi.spyOn(canvas, 'applyUserEdit');
-            canvas.startDrag();
-            document.body.dispatchEvent(
-                new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})
-            );
-            canvas.endDrag();
-            await wait(10);
-            // A resize calls no startDrag.
-            canvas.canvasModel.onRglLayoutChange(
-                canvas.canvasModel.layout.map((it, idx) => (idx === 1 ? {...it, w: it.w - 1} : it))
-            );
-            expect(edit).toHaveBeenCalledTimes(1);
-        });
-
         it("hands a panel's title, icon and header items to its cell, and draws it frameless there", () => {
-            const {view, canvas, cell} = cells();
-            expect(cell('pnl').title).toBe('Positions');
-            expect(cell('pnl').icon).toBeTruthy();
-            expect(cell('pnl').headerItems).toHaveLength(1);
-            const spec = canvas.canvasModel.viewSpecs.find(it => it.id === 'pnl'),
-                {container} = render(
-                    elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel})
-                );
+            const {view, canvas} = cells();
+            expect(canvas.titles.pnl).toBe('Positions');
+            expect(canvas.cellHasHeader('pnl')).toBe(true);
+            expect(canvas.headerItemsFor('pnl')).toHaveLength(1);
+            const {container} = render(view.renderElement('pnl') as ReactElement);
             expect(container.querySelector('.xh-card')).toBeNull();
             expect(container.querySelector('.xh-blueprint-panel--card')).toBeNull();
             expect(container.querySelector('.xh-panel-header')).toBeNull();
             expect(container.textContent).toContain('Inside');
-            expect(view).toBeTruthy();
+        });
+
+        it('draws a cell header with the icon, title and items, marked as the view header', () => {
+            const {view} = cells(),
+                {container} = renderCanvas(view);
+            const frame = container.querySelector('[data-blueprint-view="pnl"]');
+            expect(frame.getAttribute('data-blueprint-canvas')).toBe('canvas');
+            const header = frame.querySelector('[data-blueprint-view-header]');
+            expect(header.querySelector('.xh-blueprint-dash-canvas__cell-title').textContent).toBe(
+                'Positions'
+            );
+            expect(header.querySelector('svg')).toBeTruthy();
         });
 
         it('hides the header of a cell with no title and no header items', () => {
-            const {cell} = cells();
-            expect(cell('tiles').viewSpec.hidePanelHeader).toBe(true);
+            const {canvas, view} = cells();
+            expect(canvas.cellHasHeader('tiles')).toBe(false);
+            const {container} = renderCanvas(view);
+            expect(
+                container.querySelector(
+                    '[data-blueprint-view="tiles"] [data-blueprint-view-header]'
+                )
+            ).toBeNull();
         });
 
-        it('spaces cells 8px apart, and shows the column grid and element ids in design mode only', () => {
+        it('shows the column grid and element ids in design mode only', () => {
             const run = cells('run');
-            expect(run.canvas.canvasModel.margin).toEqual([8, 8]);
-            expect(run.canvas.canvasModel.containerPadding).toEqual([8, 8]);
-            expect(run.canvas.canvasModel.showGridBackground).toBe(false);
-            expect(run.cell('pnl').headerItems).toHaveLength(1);
+            expect(
+                renderCanvas(run.view).container.querySelector('.xh-layout-grid__background')
+            ).toBeNull();
+            expect(run.canvas.headerItemsFor('pnl')).toHaveLength(1);
             const design = cells('design');
-            expect(design.canvas.canvasModel.showGridBackground).toBe(true);
-            const [idItem] = design.cell('pnl').headerItems as any[];
+            expect(
+                renderCanvas(design.view).container.querySelector('.xh-layout-grid__background')
+            ).toBeTruthy();
+            const [idItem] = design.canvas.headerItemsFor('pnl') as any[];
             expect(idItem.props.className).toBe('xh-blueprint-dash-canvas__cell-id');
             // A cell with no header stays without one, id or not.
-            expect(design.cell('tiles').viewSpec.hidePanelHeader).toBe(true);
+            expect(design.canvas.cellHasHeader('tiles')).toBe(false);
         });
+
+        function renderCanvas(view: BlueprintViewModel) {
+            // jsdom has no layout: the canvas waits for a measured width before it draws cells.
+            const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+            onTestFinished(() => spy.mockRestore());
+            return render(view.renderElement('canvas') as ReactElement);
+        }
     });
 
     describe('clipped text', () => {
@@ -795,7 +746,7 @@ describe('layout and container widgets', () => {
             expect(screen.getByText('No tabs')).toBeTruthy();
             expect(screen.getByText('No widgets')).toBeTruthy();
             // The hint lies over a live canvas, which still takes a drop.
-            expect(container.querySelector('.xh-dash-canvas')).toBeTruthy();
+            expect(container.querySelector('.xh-layout-grid')).toBeTruthy();
         });
     });
 });

@@ -96,17 +96,14 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
 });
 
 /**
- * The element in the canvas cell whose header a click landed on, or null. Hoist draws a cell's
- * header outside the element's own wrapper, so the click reaches the canvas: this finds the cell's
- * element, the first in its body. A header item is an element of its own, which takes its click.
+ * The element in the canvas cell whose header a click landed on, or null. A cell's header sits
+ * outside the element's own wrapper, so the click reaches the canvas: the cell names its element.
+ * A header item is an element of its own, which takes its click.
  */
 export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
-    const cell = target?.closest('.xh-panel-header')?.closest('.xh-dash-tab');
-    if (!cell || !host.contains(cell)) return null;
-    const inBody = [...cell.querySelectorAll<HTMLElement>('[data-blueprint-element]')].find(
-        it => it.closest('.xh-panel-header')?.closest('.xh-dash-tab') !== cell
-    );
-    return inBody?.dataset.blueprintElement ?? null;
+    const header = target?.closest('[data-blueprint-view-header]'),
+        view = header?.closest<HTMLElement>('[data-blueprint-view]');
+    return view && host.contains(view) ? view.dataset.blueprintView : null;
 }
 
 // The field a widget needs set before it can draw: the variable an input sets, or a source.

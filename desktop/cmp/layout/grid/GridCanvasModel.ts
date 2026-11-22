@@ -10,6 +10,9 @@ export interface GridCell {
     y: number;
     w: number;
     h: number;
+    /** The smallest size a resize may give it. */
+    minW?: number;
+    minH?: number;
 }
 
 /** What a finished gesture changed. */
@@ -32,8 +35,8 @@ export interface GridCanvasProps {
     onChange?: (cells: GridCell[], change: GridCanvasChange) => void;
     /** For an external drag over the canvas: the size of the cell it would make, or false to refuse. */
     onDropOver?: (e: DragEvent) => {w: number; h: number} | false;
-    /** An external drag dropped at a place. */
-    onDrop?: (place: Omit<GridCell, 'id'>, e: DragEvent) => void;
+    /** An external drag dropped at a place, with the other cells where the drop left them. */
+    onDrop?: (place: Omit<GridCell, 'id'>, cells: GridCell[], e: DragEvent) => void;
     /** True to let cells move and resize. Default false. */
     editable?: boolean;
     /** True to draw the grid's cells behind the cells. Default false. */
@@ -61,7 +64,7 @@ export class GridCanvasModel extends HoistModel {
     get layout(): LayoutItem[] {
         const {epoch} = this;
         return this.props.cells.map(
-            ({id, x, y, w, h}) => ({i: id, x, y, w, h, epoch}) as LayoutItem
+            ({id, x, y, w, h, minW, minH}) => ({i: id, x, y, w, h, minW, minH, epoch}) as LayoutItem
         );
     }
 
