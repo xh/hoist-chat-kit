@@ -81,7 +81,16 @@ export class BlueprintDesignModel extends HoistModel {
         this.addReaction({
             track: () => this.blueprintModel.blueprint,
             run: () => {
-                if (this.selection && !this.exists(this.selection)) this.select(null);
+                const {selection} = this;
+                if (!selection || this.exists(selection)) return;
+                // An undone copy hands the selection back to its original.
+                const original =
+                    selection.kind === 'element' ? this.copiedFrom.get(selection.id) : null;
+                this.select(
+                    original && this.exists({kind: 'element', id: original})
+                        ? {kind: 'element', id: original}
+                        : null
+                );
             }
         });
     }
@@ -520,7 +529,10 @@ export class BlueprintDesignModel extends HoistModel {
                     }))
             ],
             ret = this.edit(`Duplicate ${this.elementSpec(id).label}`, ops);
-        if (!ret.issues.some(isError)) this.select({kind: 'element', id: copyId});
+        if (!ret.issues.some(isError)) {
+            this.copiedFrom.set(copyId, id);
+            this.select({kind: 'element', id: copyId});
+        }
         return {...ret, id: copyId};
     }
 
@@ -693,15 +705,15 @@ export class BlueprintDesignModel extends HoistModel {
         if (!spec) return [];
         return [
             ...(spec.children
-                ? [placeOf({parent: id, slot: 'children'}, `Add to ${id}`, spec.children.accepts)]
+                ? [placeOf({parent: id, slot: 'children'}, 'Content', spec.children.accepts)]
                 : []),
             ...Object.entries(spec.slots ?? {}).map(([slot, it]) =>
-                placeOf({parent: id, slot}, `Add to ${id} ${slot}`, it.accepts)
+                placeOf({parent: id, slot}, SLOT_LABELS[slot] ?? startCase(slot), it.accepts)
             ),
             ...Object.entries(parentSpec?.children?.slots ?? {}).map(([slot, it]) =>
                 placeOf(
                     {parent, slot, of: id},
-                    `Add to ${id} ${slot === 'headerItems' ? 'header' : slot}`,
+                    `Cell ${(SLOT_LABELS[slot] ?? startCase(slot)).toLowerCase()}`,
                     it.accepts
                 )
             )
@@ -1195,6 +1207,9 @@ export class BlueprintDesignModel extends HoistModel {
         ]);
     }
 
+    // Each copy duplicateElement made, to its original.
+    private readonly copiedFrom = new Map<string, string>();
+
     // The last nudge, which a nudge of the same cell soon after folds into.
     private lastNudge: {id: string; at: number; version: number} = null;
 
@@ -1352,6 +1367,13 @@ export class BlueprintDesignModel extends HoistModel {
 }
 
 const isError = (it: {severity: string}) => it.severity === 'error';
+
+// Slots as a designer reads them.
+const SLOT_LABELS: Record<string, string> = {
+    headerItems: 'Header',
+    tbar: 'Top toolbar',
+    bbar: 'Bottom toolbar'
+};
 
 // True if a slot's rule takes a widget. No rule takes every widget.
 function accepts(rule: SlotAccepts, spec: WidgetSpec): boolean {

@@ -22,6 +22,7 @@ import {
     mapValues,
     pick,
     sortBy,
+    startCase,
     uniq,
     uniqWith
 } from 'lodash';
@@ -329,14 +330,14 @@ export class BlueprintSource extends HoistBase {
         return `Select ${SELECTION_NOUNS[el?.component] ?? 'a value'} in ${this.titleOf(waiting.element)} to see this.`;
     }
 
-    // An element's title, else the title of the nearest container that has one, else its ID.
+    // An element's title, else the title of the nearest container that has one, else its ID in words.
     private titleOf(id: string): string {
         const elements = this.context.blueprint?.elements;
         for (let it = id; it; it = parentOf(elements, it)) {
             const title = this.context.resolveTitle(getOwn(elements, it)?.config?.title);
             if (title) return title;
         }
-        return id;
+        return startCase(id);
     }
 
     /**

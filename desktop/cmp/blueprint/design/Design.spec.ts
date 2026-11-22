@@ -403,4 +403,18 @@ describe('design mode selection', () => {
         });
         expect(design.selectedElementId).toBe('page');
     });
+
+    it('refuses a resize into a neighbouring cell with a toast', () => {
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
+        onTestFinished(() => toast.mockRestore());
+        design.select({kind: 'element', id: 'sectorChart'});
+        fireEvent.keyDown(container.querySelector('[data-blueprint-element="overview"]'), {
+            key: 'ArrowRight',
+            shiftKey: true
+        });
+        expect(model.history).toHaveLength(0);
+        expect(toast).toHaveBeenCalled();
+    });
 });

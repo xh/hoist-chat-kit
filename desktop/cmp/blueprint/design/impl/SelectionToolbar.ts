@@ -44,9 +44,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                 const places = designModel.addPlacesFor(id),
                     itemsOf = ({place, widgets}: (typeof places)[number]): MenuItemLike[] =>
                         widgets.map(it => ({text: labelOf(it), actionFn: () => add(it, place)}));
-                return places.length === 1
-                    ? itemsOf(places[0])
-                    : places.flatMap(it => [{heading: it.label}, ...itemsOf(it)]);
+                return places.flatMap(it => [{heading: it.label}, ...itemsOf(it)]);
             },
             moreItems = (): MenuItemLike[] => [
                 {

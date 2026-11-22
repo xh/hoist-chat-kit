@@ -155,6 +155,14 @@ describe('BlueprintDesignModel', () => {
             expect(model.blueprint.elements[id]).toBeUndefined();
         });
 
+        it('selects the original when an undo takes away the copy selected', () => {
+            const {model, design} = p3(),
+                {id} = design.duplicateElement('sectorChart');
+            expect(design.selectedElementId).toBe(id);
+            model.undo();
+            expect(design.selectedElementId).toBe('sectorChart');
+        });
+
         it('tracks the hovered element as view state, never an edit', () => {
             const {model, design} = p3();
             design.setHovered('posGrid');

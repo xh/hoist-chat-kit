@@ -674,7 +674,7 @@ describe('BlueprintModel', () => {
             expect(prices.isWaiting).toBe(true);
             expect(provider.subs.some(it => it.req.dataset === 'prices')).toBe(false);
 
-            expect(prices.selectionWait).toBe('Select a row in posGrid to see this.');
+            expect(prices.selectionWait).toBe('Select a row in Pos Grid to see this.');
 
             model.setOutput('posGrid', 'selected', {sector: 'Technology', symbol: 'NVDA'});
             expect(prices.isWaiting).toBe(false);
