@@ -49,6 +49,7 @@ export type {
 export type * from './BlueprintSchema';
 export * from './degradeAnswer';
 export * from './usages';
+export * from './variableLabel';
 export {
     type FieldDisplayLayer,
     type FormatLike,

@@ -6,7 +6,7 @@ import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {isEmpty} from 'lodash';
 import type {ReactNode} from 'react';
-import type {BlueprintModel, BlueprintVariable} from '../../../../blueprint';
+import {type BlueprintModel, type BlueprintVariable, variableLabel} from '../../../../blueprint';
 import {DateRangeBinding} from './DateRangeBinding';
 
 interface BlueprintToolbarProps extends HoistProps {
@@ -26,7 +26,7 @@ export const blueprintToolbar = hoistCmp.factory<BlueprintToolbarProps>({
         return toolbar({
             className: 'xh-blueprint-view__toolbar',
             children: prompts.flatMap(it => [
-                label(it.decl.label ?? it.name),
+                label(variableLabel(it.name, it.decl)),
                 promptInput(it, model, value => model.setVariable(it.name, value))
             ])
         });

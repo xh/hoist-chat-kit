@@ -35,6 +35,8 @@ export interface FieldDef {
 /** A parameter of a dataset or a parameterized field. */
 export interface ParamDef {
     type: string;
+    /** Its name for users, as a variable made for it shows. Default its name in words. */
+    label?: string;
     /** What a value means, as for a field. It formats the value, as in an instance's label. */
     kind?: string;
     required?: boolean;

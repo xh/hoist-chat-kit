@@ -1,4 +1,4 @@
-import {uniq} from 'lodash';
+import {uniq, uniqBy} from 'lodash';
 import type {Blueprint, BlueprintElement} from './Blueprint';
 import type {WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog} from './DataCatalog';
@@ -36,10 +36,10 @@ export function exampleBlueprintOf(
                 .filter(it => typeof it === 'string' && catalog.getDataset(it))
         ) as string[],
         datesOf = (ds: string) =>
-            Object.entries(catalog.getDataset(ds).params ?? {})
-                .filter(([, it]) => it.required && it.type === 'localDate')
-                .map(([name]) => name),
-        dates = uniq(datasets.flatMap(datesOf));
+            Object.entries(catalog.getDataset(ds).params ?? {}).filter(
+                ([, it]) => it.required && it.type === 'localDate'
+            ),
+        dates = uniqBy(datasets.flatMap(datesOf), ([name]) => name);
     return {
         blueprint: {
             ...extra,
@@ -53,7 +53,7 @@ export function exampleBlueprintOf(
                               {
                                   dataset: ds,
                                   params: Object.fromEntries(
-                                      datesOf(ds).map(it => [it, {$var: it}])
+                                      datesOf(ds).map(([name]) => [name, {$var: name}])
                                   )
                               }
                           ])
@@ -64,9 +64,14 @@ export function exampleBlueprintOf(
                 ? {
                       variables: {
                           ...Object.fromEntries(
-                              dates.map(it => [
-                                  it,
-                                  {type: 'localDate', setBy: 'prompt', default: {resolver: 'today'}}
+                              dates.map(([name, param]) => [
+                                  name,
+                                  {
+                                      type: 'localDate',
+                                      ...(param.label ? {label: param.label} : {}),
+                                      setBy: 'prompt',
+                                      default: {resolver: 'today'}
+                                  }
                               ])
                           ),
                           ...extra.variables

@@ -8,7 +8,7 @@ import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
-import type {BlueprintWidgetModel, WidgetSpec} from '../../../../blueprint';
+import {type BlueprintWidgetModel, variableLabel, type WidgetSpec} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import type {BlueprintViewModel} from './BlueprintViewModel';
@@ -200,7 +200,7 @@ function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode
             .map(name => {
                 const v = blueprintModel.getVariable(name),
                     text = v ? variableText(v.value, v.decl.type) : '';
-                return text ? `${v.decl.label ?? name} ${text}` : null;
+                return text ? `${variableLabel(name, v.decl)} ${text}` : null;
             })
             .filter(Boolean);
     return box({

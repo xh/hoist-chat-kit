@@ -2671,8 +2671,8 @@ const EXAMPLE_BLUEPRINTS: Record<string, () => WidgetSpec['exampleBlueprint']> =
             pnlDayCard: exampleOf('statCard', {field: 'pnlDay'})
         }
     }),
-    callout: () => ({variables: {asOf: {type: 'localDate', setBy: 'prompt'}}}),
-    propertyTable: () => ({variables: {fund: {type: 'string', setBy: 'prompt'}}}),
+    callout: () => ({variables: {asOf: {type: 'localDate', label: 'As of', setBy: 'prompt'}}}),
+    propertyTable: () => ({variables: {fund: {type: 'string', label: 'Fund', setBy: 'prompt'}}}),
     presetSelector: () => ({
         variables: {view: {type: 'string', label: 'View'}},
         presets: {

@@ -88,7 +88,7 @@ grid and its toolbar. [Built-in Widgets](#built-in-widgets) lists each container
 
 Every value that feeds a blueprint is a variable: an as-of date, a fund, a grid's selection. A
 variable lives at the root, under its name, with a `type`, an optional `label`, what sets it, and
-a default.
+a default. A variable with no `label` shows to users by its name in words, as `asOf` reads "As Of".
 
 ```json
 "variables": {
