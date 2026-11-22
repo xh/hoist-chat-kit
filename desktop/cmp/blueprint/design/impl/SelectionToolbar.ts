@@ -1,5 +1,5 @@
 import {div, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps, type MenuItemLike} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type MenuItemLike, XH} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
@@ -28,7 +28,9 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
             // first, as the action can take the toolbar away.
             after = (result: unknown) => {
                 const surface = ref.current?.closest<HTMLElement>('.xh-panel__content[tabindex]');
-                return Promise.resolve(result).finally(() => wait().then(() => surface?.focus()));
+                return Promise.resolve(result)
+                    .catch(e => XH.handleException(e))
+                    .finally(() => wait().then(() => surface?.focus()));
             },
             withRefocus = (items: MenuItemLike[]): MenuItemLike[] =>
                 items.map(it =>

@@ -201,7 +201,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
         if (errors.length) this.refuseWith(placementKey(key), errors);
     }
 
-    private get parentId(): string {
+    get parentId(): string {
         return parentOf(this.designModel.blueprintModel.blueprint?.elements, this.elementId);
     }
 
@@ -312,25 +312,6 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...(impl.sections.find(it => !it.label)?.nodes ?? []).map(node =>
                     configRow(impl, node)
                 ),
-                impl.placementNodes.length || impl.slotOptions.length > 1
-                    ? sectionCard({
-                          key: 'placement',
-                          title: 'Placement',
-                          children: [
-                              impl.slotOptions.length > 1 ? slotEditor(impl) : null,
-                              ...impl.placementNodes.map(node =>
-                                  propertyRow({
-                                      node,
-                                      value: impl.placementValues[node.key],
-                                      commit: v => impl.commitPlacement(node.key, v),
-                                      ctx: {impl, key: placementKey(node.key)},
-                                      issues: impl.issuesFor(placementKey(node.key)),
-                                      key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
-                                  })
-                              )
-                          ]
-                      })
-                    : null,
                 ...impl.sections
                     .filter(it => it.label)
                     .map(section =>
@@ -341,7 +322,29 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                             onToggle: () => impl.toggleSection(section.label),
                             children: section.nodes.map(node => configRow(impl, node))
                         })
-                    )
+                    ),
+                impl.placementNodes.length || impl.slotOptions.length > 1
+                    ? sectionCard({
+                          key: 'placement',
+                          title: `Placement in ${impl.parentId}`,
+                          children: [
+                              impl.slotOptions.length > 1 ? slotEditor(impl) : null,
+                              div({
+                                  className: `${CLS}__placement-row`,
+                                  children: impl.placementNodes.map(node =>
+                                      propertyRow({
+                                          node,
+                                          value: impl.placementValues[node.key],
+                                          commit: v => impl.commitPlacement(node.key, v),
+                                          ctx: {impl, key: placementKey(node.key)},
+                                          issues: impl.issuesFor(placementKey(node.key)),
+                                          key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
+                                      })
+                                  )
+                              })
+                          ]
+                      })
+                    : null
             ]
         });
     }

@@ -74,6 +74,19 @@
     gap: var(--xh-spacing-half);
   }
 
+  // A canvas cell's X, Y, W and H, or a box child's flex and size, side by side.
+  &__placement-row {
+    display: flex;
+    gap: var(--xh-spacing-half);
+
+    > .xh-blueprint-element-inspector__row {
+      display: flex;
+      flex: 1 1 0;
+      flex-direction: column;
+      min-width: 0;
+    }
+  }
+
   &__row-body {
     display: flex;
     flex-direction: column;
@@ -84,7 +97,7 @@
   // A one-line value beside its label, in a column of labels that line up.
   &__row--inline {
     display: grid;
-    grid-template-columns: minmax(88px, 34%) minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
     column-gap: var(--xh-spacing);
     align-items: center;
 
@@ -132,8 +145,32 @@
   }
 
   &__bindable {
-    align-items: flex-start;
+    align-items: center;
     gap: var(--xh-spacing-half);
+  }
+
+  &__var-chip.xh-button {
+    min-height: 20px;
+    padding: 0 var(--xh-spacing);
+    font-family: var(--xh-font-family-mono);
+    font-size: 12px;
+    background-color: var(--xh-intent-primary-trans1);
+    border-radius: 10px;
+  }
+
+  &__unbind.xh-button {
+    min-height: 20px;
+    min-width: 20px;
+  }
+
+  // Shown on hover or focus, so a column of fields stays quiet.
+  &__bind-button {
+    opacity: 0;
+  }
+
+  &__row:hover &__bind-button,
+  &__row:focus-within &__bind-button {
+    opacity: 1;
   }
 
   &__value {

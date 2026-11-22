@@ -174,7 +174,7 @@ export class BlueprintInspectorModel extends HoistModel {
                               : it.id
                     ),
                     ...row('Read by', w.readBy),
-                    {label: 'Now', text: (v && variableText(v.value, v.decl.type)) || '—'}
+                    {label: 'Now', text: (v && variableText(v.value, v.decl.type)) || 'not set'}
                 ];
             }
             case 'source':
@@ -416,6 +416,8 @@ const wiringCard = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                 hbox({
                     key: label,
                     className: `${CLS}__wiring-row`,
+                    role: 'group',
+                    'aria-label': label,
                     children: [
                         span({className: `${CLS}__wiring-label`, children: label}),
                         div({

@@ -1,6 +1,7 @@
 import {div, hbox, span} from '@xh/hoist/cmp/layout';
 import type {PlainObject} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
+import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {
     buttonGroupInput,
     dateInput,
@@ -13,7 +14,7 @@ import {
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {castArray, isEmpty, isEqual, isNumber, isString, omit, uniq} from 'lodash';
+import {castArray, isEmpty, isEqual, isNumber, isString, omit} from 'lodash';
 import classNames from 'classnames';
 import type {ReactElement} from 'react';
 import {
@@ -350,7 +351,8 @@ function editorFor(
     }
 }
 
-// A property that takes a value or a variable, with a switch between them.
+// A property that takes a value or a variable. A bound one shows its variable, which a click
+// selects, with a way to unbind. An unbound one offers its variables on hover or focus.
 function bindableEditor(
     node: EditorNode,
     value: unknown,
@@ -361,30 +363,50 @@ function bindableEditor(
         disabled = impl.readOnly,
         variables = impl.variablesFor(node),
         bound = isVarBinding(value) ? value.$var : null;
+    if (bound != null) {
+        return hbox({
+            className: `${CLS}__bindable`,
+            children: [
+                button({
+                    className: `${CLS}__var-chip`,
+                    text: bound,
+                    minimal: true,
+                    title: `Show ${bound}`,
+                    onClick: () => impl.designModel.select({kind: 'variable', id: bound})
+                }),
+                disabled
+                    ? null
+                    : button({
+                          className: `${CLS}__unbind`,
+                          icon: Icon.x(),
+                          minimal: true,
+                          title: 'Use a value',
+                          'aria-label': `Unbind ${bound}`,
+                          onClick: () => commit(impl.unboundValue(node))
+                      })
+            ]
+        });
+    }
     return hbox({
         className: `${CLS}__bindable`,
         children: [
-            bound != null
-                ? select({
-                      className: `${CLS}__bound`,
-                      value: bound,
-                      options: uniq([bound, ...variables]),
-                      disabled,
-                      flex: 1,
-                      onCommit: (v: string) => commit({$var: v})
+            div({
+                className: `${CLS}__value`,
+                children: editorFor({...node, bindable: false}, value, commit, ctx)
+            }),
+            disabled || !variables.length
+                ? null
+                : menuButton({
+                      className: `${CLS}__bind-button`,
+                      icon: Icon.link(),
+                      minimal: true,
+                      title: 'Bind to a variable',
+                      'aria-label': `Bind ${node.label} to a variable`,
+                      menuItems: variables.map(it => ({
+                          text: it,
+                          actionFn: () => commit({$var: it})
+                      }))
                   })
-                : div({
-                      className: `${CLS}__value`,
-                      children: editorFor({...node, bindable: false}, value, commit, ctx)
-                  }),
-            button({
-                icon: bound != null ? Icon.unlink() : Icon.link(),
-                title: bound != null ? 'Use a value' : 'Bind to a variable',
-                minimal: true,
-                disabled: disabled || (bound == null && !variables.length),
-                onClick: () =>
-                    commit(bound != null ? impl.unboundValue(node) : {$var: variables[0]})
-            })
         ]
     });
 }

@@ -79,15 +79,16 @@ describe('ElementInspector', () => {
         const {inspector} = open('p3-morning-report.json', 'posGrid'),
             sections = () => inspector.sections.map(it => [it.label, it.collapsed]);
         expect(sections()).toEqual([
-            [null, false],
             ['Data', false],
+            ['Display', false],
             ['Columns', false],
+            ['Interaction', false],
             ['Style', true]
         ]);
-        expect(inspector.sections[3].nodes.map(it => it.key)).toContain('treeStyle');
-        expect(inspector.sections[0].nodes.map(it => it.key)).toEqual(['source', 'title']);
+        expect(inspector.sections[4].nodes.map(it => it.key)).toContain('treeStyle');
+        expect(inspector.sections[0].nodes[0].key).toBe('source');
         inspector.toggleSection('Style');
-        expect(inspector.sections[3].collapsed).toBe(false);
+        expect(inspector.sections[4].collapsed).toBe(false);
     });
 
     it('opens one column of a field list at a time, in a drawer', () => {
@@ -277,13 +278,15 @@ describe('ElementInspector', () => {
             expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('groupBy');
         });
 
-        it('draws a variable picker for a bound property, and a field picker for a field', () => {
+        it('shows each bound property as its variable', () => {
             const {design} = open(),
                 {container} = render(elementInspector({designModel: design}) as ReactElement);
             expect(container.textContent).not.toContain('Bound to variable');
             expect(
-                container.querySelectorAll('.xh-blueprint-element-inspector__bound').length
-            ).toBe(2);
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__var-chip')].map(
+                    it => it.textContent
+                )
+            ).toEqual(['grouping', 'pnlFilter']);
         });
     });
 
@@ -506,9 +509,42 @@ describe('ElementInspector', () => {
             [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
                 it => it.textContent
             )
-        ).toEqual(['Placement', 'Data (7)', 'Columns (2)', 'Style (10)']);
+        ).toEqual([
+            'Data (7)',
+            'Display (1)',
+            'Columns (2)',
+            'Interaction (1)',
+            'Style (10)',
+            'Placement in positions'
+        ]);
+        // A canvas cell's place in one row.
+        expect(
+            container.querySelectorAll(
+                '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'
+            )
+        ).toHaveLength(4);
         expect(row('Title').className).toContain('__row--inline');
         expect(row('Column state').className).not.toContain('__row--inline');
+    });
+
+    it('shows a bound field as its variable with a way to unbind, and offers to bind the rest', () => {
+        const {design, model} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (label: string) =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
+                    it => it.firstElementChild?.textContent === label
+                );
+        expect(
+            row('Group by').querySelector('.xh-blueprint-element-inspector__var-chip').textContent
+        ).toBe('grouping');
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__bind-button')].map(
+                it =>
+                    it.closest('.xh-blueprint-element-inspector__row').firstElementChild.textContent
+            )
+        ).toEqual(['Title']);
+        fireEvent.click(row('Group by').querySelector('button[aria-label="Unbind grouping"]'));
+        expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
     });
 
     it('draws a labelled editor per property', () => {

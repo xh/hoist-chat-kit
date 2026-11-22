@@ -10,6 +10,22 @@ describe('toEditorSpec', () => {
     const configOf = (name: string) => BUILT_IN_WIDGETS.find(it => it.name === name).config,
         byKey = (nodes: EditorNode[]) => Object.fromEntries(nodes.map(it => [it.key, it]));
 
+    it('puts every config key of every built-in widget in a section, in one order', () => {
+        const ORDER = ['Data', 'Content', 'Display', 'Columns', 'Series', 'Interaction', 'Style'];
+        BUILT_IN_WIDGETS.filter(it => !it.reserved).forEach(spec => {
+            const keys = Object.keys(spec.config?.properties ?? {}),
+                listed = (spec.sections ?? []).flatMap(it => it.keys),
+                labels = (spec.sections ?? []).map(it => it.label);
+            expect({widget: spec.name, missing: keys.filter(k => !listed.includes(k))}).toEqual({
+                widget: spec.name,
+                missing: []
+            });
+            expect(labels.every(it => ORDER.includes(it))).toBe(true);
+            expect(labels).toEqual([...labels].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)));
+            expect(spec.sections.find(it => it.label === 'Style')?.collapsed ?? true).toBe(true);
+        });
+    });
+
     it('makes an editor per property, in schema order, with labels and required flags', () => {
         const nodes = toEditorSpec(configOf('chart'));
         expect(nodes.map(it => it.key).slice(0, 4)).toEqual(['source', 'title', 'type', 'xTitle']);
