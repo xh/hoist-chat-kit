@@ -407,6 +407,22 @@ describe('BlueprintDesignModel', () => {
         ).toBe(9);
     });
 
+    it('adds a widget with other ops that name it, in the same edit', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            version = model.version,
+            {id, issues} = design.addWidget('markdown', 'dashboard', {
+                child: {x: 0, y: 14, w: 4, h: 2},
+                extraOps: newId => [
+                    {op: 'set', path: '/elements/dashboard/config/emptyText', value: newId}
+                ]
+            });
+        expect(issues).toEqual([]);
+        expect(model.blueprint.elements.dashboard.config.emptyText).toBe(id);
+        expect(model.version).toBe(version + 1);
+        model.undo();
+        expect(model.blueprint.elements[id]).toBeUndefined();
+    });
+
     it('moves an element into a container, or before or after another, as one edit', () => {
         const {model, design} = open(loadBlueprint('p3-morning-report.json')),
             ids = (parent: string) => model.blueprint.elements[parent].children.map(it => it.id);

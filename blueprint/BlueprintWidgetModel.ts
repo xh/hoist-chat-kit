@@ -4,6 +4,7 @@ import {computed} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {set} from 'lodash';
 import type {ReactNode} from 'react';
+import {applyOps} from './applyOps';
 import type {BlueprintElement, BlueprintOp, ChildRef} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintSource} from './BlueprintSource';
@@ -140,6 +141,18 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
             error = issues.find(it => it.severity === 'error');
         if (error) blueprintModel.showRefusal(error);
         return !error;
+    }
+
+    /**
+     * Why {@link applyUserEdit} would refuse these ops, or null if it would apply them, applying
+     * nothing. Run mode refuses nothing, as its changes stay transient.
+     */
+    canApplyUserEdit(ops: BlueprintOp[]): string {
+        const {blueprintModel} = this;
+        if (blueprintModel.mode === 'run') return null;
+        const {result, issue} = applyOps(blueprintModel.blueprint ?? {}, ops);
+        if (issue) return issue.message;
+        return blueprintModel.validate(result).find(it => it.severity === 'error')?.message ?? null;
     }
 
     /**

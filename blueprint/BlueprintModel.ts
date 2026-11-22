@@ -546,6 +546,17 @@ export class BlueprintModel extends HoistModel {
         this.transientValues = {...this.transientValues, [path]: value};
     }
 
+    /** True if run-mode changes are held at a path or under it. */
+    hasTransientValues(path: string): boolean {
+        return Object.keys(this.transientValues).some(it => isAtOrUnder(it, path));
+    }
+
+    /** Drop the run-mode changes held at a path or under it, such as to reset a layout. */
+    @action
+    clearTransientValues(path: string) {
+        this.transientValues = omitBy(this.transientValues, (_, it) => isAtOrUnder(it, path));
+    }
+
     getVariable(name: string): BlueprintVariable {
         return this.variables.find(it => it.name === name) ?? null;
     }
@@ -864,3 +875,7 @@ function nothingTo(action: 'undo' | 'redo'): BlueprintEditResult {
 
 // The longest a filled title gets, as a variable's value may be long.
 const MAX_TITLE = 200;
+
+function isAtOrUnder(path: string, prefix: string): boolean {
+    return path === prefix || path.startsWith(`${prefix}/`);
+}

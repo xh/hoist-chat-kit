@@ -307,6 +307,8 @@ export class BlueprintDesignModel extends HoistModel {
             slot?: string;
             /** The child of `parentId` whose reference holds the slot, such as a canvas cell. */
             of?: string;
+            /** More ops for the same edit, given the new element's id, such as a layout naming it. */
+            extraOps?: (id: string) => BlueprintOp[];
         } = {}
     ): BlueprintEditResult & {id?: string} {
         const {blueprint} = this.blueprintModel,
@@ -342,7 +344,8 @@ export class BlueprintDesignModel extends HoistModel {
                     ...(index != null ? {index} : {}),
                     ...(slot !== 'children' ? {slot} : {}),
                     ...(of ? {of} : {})
-                }
+                },
+                ...(opts.extraOps?.(id) ?? [])
             ]),
             id
         };

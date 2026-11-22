@@ -47,6 +47,45 @@ describe('BlueprintWidgetModel', () => {
         return ret;
     };
 
+    it('says why an edit would be refused, applying nothing, and refuses nothing in run mode', () => {
+        const model = open();
+        model.setAccess('write');
+        model.setMode('design');
+        const w = widget(model, 'dashboard'),
+            children = model.blueprint.elements.dashboard.children,
+            overlap = [
+                {
+                    op: 'set',
+                    path: '/elements/dashboard/children',
+                    value: children.map(it => (it.id === 'headline' ? {...it, y: 3} : it))
+                } as const
+            ],
+            version = model.version;
+        expect(w.canApplyUserEdit(overlap)).toMatch(/overlaps/);
+        expect(model.version).toBe(version);
+        expect(
+            w.canApplyUserEdit([{op: 'set', path: '/elements/posGrid/config/title', value: 'P'}])
+        ).toBeNull();
+        model.setMode('run');
+        expect(w.canApplyUserEdit(overlap)).toBeNull();
+    });
+
+    it('holds a reader’s changes under a path until they are cleared', () => {
+        const model = open();
+        model.setMode('run');
+        model.setTransientValue('/elements/dashboard/children', []);
+        model.setTransientValue('/elements/posGrid/config/sortBy', 'mktVal');
+        expect(model.hasTransientValues('/elements/dashboard')).toBe(true);
+        expect(model.hasTransientValues('/elements/dash')).toBe(false);
+
+        model.clearTransientValues('/elements/dashboard');
+        expect(model.hasTransientValues('/elements/dashboard')).toBe(false);
+        expect(model.hasTransientValues('/elements/posGrid')).toBe(true);
+        expect(model.effective.elements.dashboard.children).toEqual(
+            model.blueprint.elements.dashboard.children
+        );
+    });
+
     it("leaves out a bound value that falls outside its prop's enum or range", () => {
         const model = open();
         model.setBlueprint({
