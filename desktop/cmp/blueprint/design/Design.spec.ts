@@ -13,7 +13,6 @@ import {
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
 import {XH} from '@xh/hoist/core';
-import {wait} from '@xh/hoist/promise';
 import {blueprintView} from '../BlueprintView';
 import {layoutGesture} from '../../layout';
 import {OverlayModel} from '../../layout/overlay';
@@ -218,7 +217,7 @@ describe('design mode selection', () => {
         expect(container.querySelector('.xh-blueprint-overlay__tag')).toBeNull();
     });
 
-    it('deletes the widget in a selected view with Del, as its toolbar does', async () => {
+    it('deletes the widget in a selected view with Del', async () => {
         const {design, model} = open('p3-morning-report.json'),
             toast = vi.spyOn(XH, 'toast').mockReturnValue(null);
         onTestFinished(() => toast.mockRestore());
@@ -229,7 +228,7 @@ describe('design mode selection', () => {
         await vi.waitFor(() => expect(model.blueprint.elements).not.toHaveProperty('priceChart'));
     });
 
-    it('marks a selected view at its frame, with a toolbar that names it', () => {
+    it('marks a selected view at its frame with an outline over a tint, and nothing more', () => {
         const {design} = open('p3-morning-report.json'),
             overlay = new OverlayModel(),
             host = document.createElement('div');
@@ -250,30 +249,7 @@ describe('design mode selection', () => {
             );
         expect(mark.target).toBe('[data-blueprint-view="posGrid"]');
         expect(container.querySelector('.xh-blueprint-overlay__outline--view')).not.toBeNull();
-        expect(container.querySelector('.xh-blueprint-selection-toolbar__name').textContent).toBe(
-            'posGrid · Canvas view'
-        );
-    });
-
-    it('sets the toolbar above an element at the top of the blueprint, inside it only at the top of the window', () => {
-        const {design} = open('p3-morning-report.json'),
-            overlay = new OverlayModel();
-        onTestFinished(() => overlay.destroy());
-        design.select({kind: 'element', id: 'overview'});
-        const [mark] = designMarks(design, overlay),
-            toolbarAt = (roomAbove: number) =>
-                render(
-                    mark.render({
-                        x: 0,
-                        y: 0,
-                        width: 100,
-                        height: 50,
-                        area: {width: 500, height: 500},
-                        roomAbove
-                    }) as any
-                ).container.querySelector('.xh-blueprint-selection-toolbar');
-        expect(toolbarAt(80).classList).not.toContain('xh-blueprint-selection-toolbar--inside');
-        expect(toolbarAt(0).classList).toContain('xh-blueprint-selection-toolbar--inside');
+        expect(container.children).toHaveLength(1);
     });
 
     it('draws no marks while a cell or view is moved or resized, and draws them again after', () => {
@@ -290,27 +266,6 @@ describe('design mode selection', () => {
         expect(designMarks(design, overlay)).toEqual([]);
         layoutGesture.end();
         expect(designMarks(design, overlay)).toHaveLength(2);
-    });
-
-    it("keeps a canvas cell's toolbar clear of the cell's header and corner, and no other", () => {
-        const {design} = open('p3-morning-report.json'),
-            overlay = new OverlayModel(),
-            toolbar = () =>
-                render(
-                    designMarks(design, overlay)[0].render({
-                        x: 0,
-                        y: 0,
-                        width: 100,
-                        height: 50,
-                        area: {width: 500, height: 500},
-                        roomAbove: 0
-                    }) as any
-                ).container.querySelector('.xh-blueprint-selection-toolbar');
-        onTestFinished(() => overlay.destroy());
-        design.select({kind: 'element', id: 'overview'});
-        expect(toolbar().classList).not.toContain('xh-blueprint-selection-toolbar--cell');
-        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
-        expect(toolbar().classList).toContain('xh-blueprint-selection-toolbar--cell');
     });
 
     it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', async () => {
@@ -403,7 +358,7 @@ describe('design mode selection', () => {
         expect(host('overview').getAttribute('draggable')).toBeNull();
     });
 
-    it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
+    it('hovers the innermost element under the pointer, with a dashed outline and no tag, as view state', async () => {
         stubRects();
         const {design, model} = open('p3-morning-report.json'),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement),
@@ -415,7 +370,8 @@ describe('design mode selection', () => {
             expect(it).not.toBeNull();
             return it;
         });
-        expect(hover.querySelector('.xh-blueprint-overlay__tag').textContent).toBe('tabs · Tabs');
+        expect(hover.querySelector('.xh-blueprint-overlay__outline--hover')).toBeTruthy();
+        expect(hover.querySelector('.xh-blueprint-overlay__tag')).toBeNull();
         fireEvent.mouseLeave(inner);
         expect(design.hoveredId).toBeNull();
         expect(model.history).toHaveLength(0);
@@ -571,28 +527,6 @@ describe('design mode selection', () => {
             /Remove headline, and the 4 elements in it\?/
         );
         expect(model.blueprint.elements).toHaveProperty('headline');
-    });
-
-    it('shows a toolbar on the selected element, whose parent button selects its parent', async () => {
-        stubRects();
-        const {design, model} = open('p3-morning-report.json'),
-            {container} = render(blueprintView({model, designModel: design}) as ReactElement);
-        design.select({kind: 'element', id: 'overview'});
-        const toolbar = await vi.waitFor(() => {
-            const it = document.body.querySelector('.xh-blueprint-selection-toolbar');
-            expect(it).toBeTruthy();
-            return it;
-        });
-        expect(toolbar.textContent).toContain('overview · Dashboard');
-        expect(toolbar.querySelectorAll('button')).toHaveLength(5);
-        fireEvent.click(toolbar.querySelector('button[title^="Select the parent"]'));
-        expect(design.selectedElementId).toBe('tabs');
-        // Focus goes back to the canvas, so the design keys keep working.
-        await vi.waitFor(() =>
-            expect(document.activeElement).toBe(
-                container.querySelector('.xh-panel__content[tabindex]')
-            )
-        );
     });
 
     it('runs the design keys on the selection, but never from an input', () => {
@@ -812,31 +746,6 @@ describe('design mode selection', () => {
         await removePresetGroupAsync(design, 'posViews');
         expect(confirm.mock.calls[0][0].message).toMatch(/posViewsSelector/);
         expect(model.blueprint.presets).toHaveProperty('posViews');
-    });
-
-    it('returns focus to the canvas only once a toolbar action, such as a confirm, settles', async () => {
-        stubRects();
-        let answer: (ok: boolean) => void;
-        const {design, model} = open('p3-morning-report.json'),
-            confirm = vi
-                .spyOn(XH, 'confirm')
-                .mockReturnValue(new Promise<boolean>(it => (answer = it))),
-            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
-            surface = () => container.querySelector('.xh-panel__content[tabindex]');
-        onTestFinished(() => confirm.mockRestore());
-        design.select({kind: 'element', id: 'overview'});
-        const remove = await vi.waitFor(() => {
-            const it = document.body.querySelector(
-                '.xh-blueprint-selection-toolbar button[title^="Delete"]'
-            );
-            expect(it).toBeTruthy();
-            return it;
-        });
-        fireEvent.click(remove);
-        await wait(20);
-        expect(document.activeElement).not.toBe(surface());
-        answer(false);
-        await vi.waitFor(() => expect(document.activeElement).toBe(surface()));
     });
 
     it('offers to fix a widget that needs config, focusing the field in the Inspector', async () => {
