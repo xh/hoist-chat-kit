@@ -858,6 +858,40 @@ describe('validateBlueprint', () => {
         });
     });
 
+    describe('canvas views', () => {
+        const at = '/elements/dashboard/children/1';
+
+        it('takes a title that reads variables, and a hidden header, on a canvas cell', () => {
+            const bp = p2(),
+                cell = bp.elements.dashboard.children[1] as PlainObject;
+            Object.assign(cell, {title: 'Positions {asOf}', hideHeader: true});
+            expect(codes(bp)).toEqual([]);
+
+            cell.title = 'Positions {nope}';
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+                ['template.unknownRef', `${at}/title`]
+            ]);
+
+            Object.assign(cell, {title: 'Positions', hideHeader: 'yes'});
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+                ['schema.invalid', `${at}/hideHeader`]
+            ]);
+        });
+
+        it('warns of header items in a cell whose header is hidden, since they never show', () => {
+            const bp = loadBlueprint('p3-morning-report.json'),
+                cell = bp.elements.positions.children[2] as PlainObject;
+            cell.hideHeader = true;
+            expect(validate(bp).map(it => [it.code, it.severity, it.path])).toEqual([
+                [
+                    'layout.hiddenHeaderItems',
+                    'warning',
+                    '/elements/positions/children/2/headerItems'
+                ]
+            ]);
+        });
+    });
+
     it('warns of a canvas cell narrower than its widget takes, at its width', () => {
         const bp = p2();
         const cells = bp.elements.dashboard.children as PlainObject[];

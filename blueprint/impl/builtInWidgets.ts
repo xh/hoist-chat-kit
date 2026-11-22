@@ -1210,7 +1210,7 @@ const dashCanvas: WidgetSpec = {
     label: 'Dashboard',
     terms: ['dashboard', 'canvas', 'page', 'layout'],
     guidance:
-        'A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units. Use it as the root of a dashboard, or as the content of a tab.',
+        "A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units, and may give the cell header's title in place of the widget's own, or hideHeader. Use it as the root of a dashboard, or as the content of a tab.",
     category: 'container',
     config: DASH_CANVAS_SCHEMA,
     children: {
@@ -1237,6 +1237,17 @@ const dashCanvas: WidgetSpec = {
                 h: {
                     type: 'integer',
                     minimum: 1
+                },
+                title: {
+                    type: 'string',
+                    maxLength: 60,
+                    'x-template': 'variables',
+                    description: "The cell header's title, in place of the widget's own."
+                },
+                hideHeader: {
+                    type: 'boolean',
+                    default: false,
+                    description: 'True to draw the cell with no header.'
                 }
             }
         },

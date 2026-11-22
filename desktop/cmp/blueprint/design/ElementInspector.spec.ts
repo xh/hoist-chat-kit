@@ -142,7 +142,14 @@ describe('ElementInspector', () => {
 
     it("edits where an element sits in its container, from the container's child schema", () => {
         const {model, inspector} = open('p3-morning-report.json', 'posGrid');
-        expect(inspector.placementNodes.map(it => it.key)).toEqual(['x', 'y', 'w', 'h']);
+        expect(inspector.placementNodes.map(it => it.key)).toEqual([
+            'x',
+            'y',
+            'w',
+            'h',
+            'title',
+            'hideHeader'
+        ]);
         expect(inspector.placementValues).toMatchObject({x: 0, y: 1, w: 8, h: 9});
 
         inspector.commitPlacement('w', 6);

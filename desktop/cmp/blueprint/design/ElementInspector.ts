@@ -360,17 +360,9 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                               impl.slotOptions.length > 1 ? slotEditor(impl) : null,
                               div({
                                   className: `${CLS}__placement-row`,
-                                  children: impl.placementNodes.map(node =>
-                                      propertyRow({
-                                          node,
-                                          value: impl.placementValues[node.key],
-                                          commit: v => impl.commitPlacement(node.key, v),
-                                          ctx: {impl, key: placementKey(node.key)},
-                                          issues: impl.issuesFor(placementKey(node.key)),
-                                          key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
-                                      })
-                                  )
-                              })
+                                  children: placementRows(impl, it => inPlacementRow(impl, it))
+                              }),
+                              ...placementRows(impl, it => !inPlacementRow(impl, it))
                           ]
                       })
                     : null
@@ -380,6 +372,23 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
 });
 
 // One config property's row, with its issues and preset badge.
+// A canvas cell's grid numbers share one row, and its other settings take rows of their own.
+const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>
+    node.kind === 'number' || !impl.placementNodes.some(it => it.kind === 'number');
+
+function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) => boolean) {
+    return impl.placementNodes.filter(filter).map(node =>
+        propertyRow({
+            node,
+            value: impl.placementValues[node.key],
+            commit: v => impl.commitPlacement(node.key, v),
+            ctx: {impl, key: placementKey(node.key)},
+            issues: impl.issuesFor(placementKey(node.key)),
+            key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
+        })
+    );
+}
+
 function configRow(impl: ElementInspectorModel, node: EditorNode) {
     return propertyRow({
         node,

@@ -1316,7 +1316,8 @@ function bindingTypesOf(schema: PlainObject): string[] {
 
 /**
  * A canvas places children freely, so they must not overlap or pass the last column. A cell
- * narrower than its widget takes clips it, which is worth a warning.
+ * narrower than its widget takes clips it, and a hidden header hides its items, which are worth a
+ * warning.
  */
 function checkCanvasLayout(
     el: PlainObject,
@@ -1329,6 +1330,15 @@ function checkCanvasLayout(
         kids = (el.children ?? [])
             .map((c, i) => ({c, i}))
             .filter(({c}) => [c.x, c.y, c.w, c.h].every(Number.isInteger));
+    (el.children ?? []).forEach((c, i) => {
+        if (c.hideHeader === true && c.headerItems?.length) {
+            warn(
+                'layout.hiddenHeaderItems',
+                `${path}/children/${i}/headerItems`,
+                `'${c.id}' hides its header, so its header items never show`
+            );
+        }
+    });
     kids.forEach(({c, i}, k) => {
         const at = `${path}/children/${i}`;
         if (c.x + c.w > cols) {
