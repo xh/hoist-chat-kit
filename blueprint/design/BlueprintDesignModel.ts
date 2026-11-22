@@ -121,6 +121,16 @@ export class BlueprintDesignModel extends HoistModel {
         }
     }
 
+    /** The views each dash container's stacks hide behind others, by container id: view state. */
+    @observableRef accessor hiddenViews: Record<string, string[]> = {};
+
+    @action
+    setHiddenViews(containerId: string, ids: string[]) {
+        if (!isEqual(this.hiddenViews[containerId] ?? [], ids)) {
+            this.hiddenViews = {...this.hiddenViews, [containerId]: ids};
+        }
+    }
+
     /** A field an Inspector should focus, from a widget that needs it set: view state. */
     @observableRef accessor fieldFocus: {id: string; key: string; at: number} = null;
 

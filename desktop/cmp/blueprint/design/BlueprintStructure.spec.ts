@@ -101,6 +101,12 @@ describe('BlueprintStructure', () => {
         expect(structure.isOffscreen('positions')).toBe(true);
         expect(structure.isOffscreen('sectorChart')).toBe(false);
         expect(structure.isOffscreen('tabs')).toBe(false);
+
+        // A dash container's views behind another in their stack.
+        design.setActiveTab('tabs', 'positions');
+        design.setHiddenViews('positions', ['priceChart']);
+        expect(structure.isOffscreen('priceChart')).toBe(true);
+        expect(structure.isOffscreen('posGrid')).toBe(false);
     });
 
     it('filters to the rows whose id matches, keeping their ancestors', () => {

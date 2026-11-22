@@ -169,6 +169,23 @@ export class BlueprintViewModel extends HoistModel {
                     fireImmediately: true
                 },
                 {
+                    // Each dash container's views behind another in their stack, likewise.
+                    track: () => {
+                        blueprintModel.blueprint?.elements;
+                        return [...this.widgets.entries()]
+                            .filter(([, it]) => it.model instanceof DashContainerWidgetModel)
+                            .map(([id, it]): [string, string[]] => [
+                                id,
+                                (it.model as DashContainerWidgetModel).containerModel.viewModels
+                                    .filter(vm => !vm.isActive)
+                                    .map(vm => vm.viewSpec.id)
+                            ]);
+                    },
+                    run: views => views.forEach(([id, ids]) => designModel.setHiddenViews(id, ids)),
+                    equals: 'structural',
+                    fireImmediately: true
+                },
+                {
                     track: () => last(blueprintModel.history),
                     run: entry => {
                         if (entry?.author !== 'architect') return;

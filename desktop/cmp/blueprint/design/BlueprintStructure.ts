@@ -128,10 +128,10 @@ export class BlueprintStructureModel extends HoistModel {
 
     /** True for an element on a tab its container is not showing, as the canvas reports it. */
     isOffscreen(id: string): boolean {
-        const {activeTabs} = this.designModel;
+        const {activeTabs, hiddenViews} = this.designModel;
         for (let it = id, parent = this.parents.get(id); parent;) {
             const active = activeTabs[parent];
-            if (active && active !== it) return true;
+            if ((active && active !== it) || hiddenViews[parent]?.includes(it)) return true;
             it = parent;
             parent = this.parents.get(parent);
         }
