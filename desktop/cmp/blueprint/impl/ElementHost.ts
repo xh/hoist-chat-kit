@@ -1,11 +1,15 @@
 import classNames from 'classnames';
-import {div, placeholder} from '@xh/hoist/cmp/layout';
+import {box, div, placeholder} from '@xh/hoist/cmp/layout';
+import {mask} from '@xh/hoist/cmp/mask';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type React from 'react';
 import type {ReactNode} from 'react';
+import {uniq} from 'lodash';
+import type {BlueprintWidgetModel} from '../../../../blueprint';
+import {variableText} from '../../../../blueprint/impl/variableText';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {selectionToolbar} from '../design/impl/SelectionToolbar';
 import {missingModules} from './highchartsModules';
@@ -138,6 +142,40 @@ function designEmpty(id: string, viewModel: BlueprintViewModel) {
     });
 }
 
+// A data widget over its source: masked while it loads, and naming the values in play when it
+// has no rows.
+function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode) {
+    const {source, blueprintModel} = model;
+    if (category !== 'data' || !source) return body;
+    const noRows =
+            source.hasLoaded &&
+            !source.isLoading &&
+            !source.isWaiting &&
+            source.cube.store.count === 0,
+        inPlay = uniq(
+            JSON.stringify(blueprintModel.blueprint?.sources?.[source.name]?.params ?? {})
+                .match(/"\$var":"([^"]+)"/g)
+                ?.map(it => it.slice(8, -1)) ?? []
+        )
+            .map(name => {
+                const v = blueprintModel.getVariable(name),
+                    text = v ? variableText(v.value, v.decl.type) : '';
+                return text ? `${v.decl.label ?? name} ${text}` : null;
+            })
+            .filter(Boolean);
+    return box({
+        className: 'xh-blueprint-view__data',
+        children: [
+            noRows
+                ? notePlaceholder(
+                      inPlay.length ? `No rows for ${listOf(inPlay)}.` : 'No rows to show.'
+                  )
+                : body,
+            mask({key: 'mask', isDisplayed: source.isLoading, spinner: true})
+        ]
+    });
+}
+
 function renderContent(id: string, viewModel: BlueprintViewModel) {
     const model = viewModel.getWidgetModel(id),
         component = viewModel.getComponent(id);
@@ -204,7 +242,7 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
             children: component({model})
         });
     }
-    return component({model});
+    return dataBody(model, spec?.category, component({model}));
 }
 
 // The height of a dashboard row, so a panel in a reply is as tall as its default size there.

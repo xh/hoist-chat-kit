@@ -319,4 +319,26 @@ describe('design mode selection', () => {
         fireEvent.click(retry);
         await vi.waitFor(() => expect(queryByText('Retry')).toBeNull());
     });
+
+    it('masks a data widget while its source loads, and names the values in play with no rows', async () => {
+        let resolve: (it: {rows: any[]}) => void;
+        const provider = new FakeBlueprintDataProvider({catalog: portfolioCatalog});
+        Object.assign(provider, {subscribe: undefined});
+        provider.loadAsync = () => new Promise(it => (resolve = it));
+        const model = new BlueprintModel({
+            blueprint: loadBlueprint('p1-one-grid.json'),
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: provider,
+            mode: 'run'
+        });
+        onTestFinished(() => model.destroy());
+        const {container, findByText} = render(blueprintView({model}) as ReactElement);
+        await vi.waitFor(() =>
+            expect(container.querySelector('.xh-blueprint-view__data .xh-mask')).toBeTruthy()
+        );
+        resolve({rows: []});
+        expect(await findByText(/^No rows for As of /)).toBeTruthy();
+        expect(container.querySelector('.xh-blueprint-view__data .xh-mask')).toBeNull();
+    });
 });

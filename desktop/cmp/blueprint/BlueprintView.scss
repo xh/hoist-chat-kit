@@ -91,6 +91,16 @@
   }
 }
 
+// A data widget over its source, with its loading mask.
+.xh-blueprint-view__data {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
 // Over an empty container in design mode. Only its buttons take the pointer, so a canvas under it
 // still takes a drop.
 .xh-blueprint-view__design-empty {
