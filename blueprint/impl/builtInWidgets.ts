@@ -384,6 +384,7 @@ const CUBE_GRID_SCHEMA = {
             type: 'array',
             maxItems: 60,
             'x-field': 'any',
+            'x-settings': {in: 'columns', show: ['headerName', 'format', 'renderer']},
             description:
                 'Columns in display order: a field name, or an object with field and optional width, hidden and pinned. Only state: how a column shows goes in columns. The field group names the tree column.',
             items: {
@@ -444,6 +445,7 @@ const CUBE_GRID_SCHEMA = {
                     styles: CELL_STYLE_RULES,
                     headerName: {
                         type: 'string',
+                        title: 'Header',
                         maxLength: 100,
                         'x-template': 'variables',
                         description:

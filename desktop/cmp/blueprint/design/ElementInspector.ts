@@ -5,7 +5,7 @@ import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {isEqual} from 'lodash';
+import {castArray, isEqual, isString, without} from 'lodash';
 import {useEffect, useRef} from 'react';
 import {type BlueprintDesignModel, type EditorNode, toEditorSpec} from '../../../../blueprint';
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
@@ -87,7 +87,18 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     /** The element's editors, from its widget's config schema. */
     get nodes(): EditorNode[] {
-        return toEditorSpec(this.widgetSpec?.config);
+        const ret = toEditorSpec(this.widgetSpec?.config),
+            // A field list edits its settings map's entries in its drawer, so the map shows only
+            // for an entry of a field the list leaves out.
+            folded = ret.filter(it => {
+                const list = ret.find(n => n.kind === 'fieldList' && n.settingsIn?.key === it.key);
+                if (!list) return false;
+                const listed = castArray(this.values[list.key] ?? []).map(n =>
+                    isString(n) ? n : n?.field
+                );
+                return Object.keys(this.values[it.key] ?? {}).every(k => listed.includes(k));
+            });
+        return without(ret, ...folded);
     }
 
     /** The element's config as it shows, with the active presets applied. */

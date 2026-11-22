@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isPlainObject} from 'lodash';
+import {isPlainObject, sortBy} from 'lodash';
 
 /**
  * One editor for one value of a widget's config, from its schema: what to edit it with, and what
@@ -16,7 +16,16 @@ export type EditorNode = EditorBase &
         | {kind: 'stringList'; options?: unknown[]}
         | {kind: 'list'; item: EditorNode}
         | {kind: 'map'; value: EditorNode; keyRole?: FieldRole}
-        | {kind: 'fieldList'; role: FieldRole; settings: EditorNode[]}
+        | {
+              kind: 'fieldList';
+              role: FieldRole;
+              settings: EditorNode[];
+              /**
+               * From `x-settings`: the sibling map that holds more settings for each item, and the
+               * editors of an entry, the ones it shows first leading.
+               */
+              settingsIn?: {key: string; settings: EditorNode[]; shown: number};
+          }
         | {kind: 'oneOf'; options: EditorNode[]}
         | {kind: 'source'}
         | {kind: 'variable'}
@@ -53,13 +62,32 @@ export interface EditorBase {
  * The editors for a widget's config, one per property of its schema, in the schema's order. The
  * registry's annotations pick a kind: `x-source`, `x-field`, `x-filter`, `x-format`, `x-renderer`,
  * `x-action`, `x-variable` and `x-blueprint`. A list of fields whose items may also be objects with settings, such as a grid's
- * columns, is a `fieldList`, and an object keyed freely by field a `map` with a `keyRole`. Any
+ * columns, is a `fieldList`, with an `x-settings` map's entry editors where it names one, and an
+ * object keyed freely by field a `map` with a `keyRole`. Any
  * shape the kit has no editor for is `json`, so every value can be edited.
  */
 export function toEditorSpec(schema: PlainObject): EditorNode[] {
     const props: PlainObject = schema?.properties ?? {},
-        required: string[] = schema?.required ?? [];
-    return Object.entries(props).map(([key, it]) => toNode(it, key, required.includes(key)));
+        required: string[] = schema?.required ?? [],
+        ret = Object.entries(props).map(([key, it]) => toNode(it, key, required.includes(key)));
+    return ret.map(node => {
+        const {in: key, show = []} = node.schema['x-settings'] ?? {},
+            map = key ? ret.find(it => it.key === key) : null,
+            entry = map?.kind === 'map' && map.value.kind === 'group' ? map.value.children : null;
+        if (node.kind !== 'fieldList' || !entry) return node;
+        const shown = sortBy(
+            entry.filter(it => show.includes(it.key)),
+            it => show.indexOf(it.key)
+        );
+        return {
+            ...node,
+            settingsIn: {
+                key,
+                settings: [...shown, ...entry.filter(it => !show.includes(it.key))],
+                shown: shown.length
+            }
+        };
+    });
 }
 
 //------------------
@@ -68,7 +96,9 @@ export function toEditorSpec(schema: PlainObject): EditorNode[] {
 function toNode(schema: PlainObject, key: string, required: boolean): EditorNode {
     const base: EditorBase = {
         key,
-        label: key ? labelOf(key) + (schema['x-unit'] ? ` (${schema['x-unit']})` : '') : null,
+        label: key
+            ? (schema.title ?? labelOf(key)) + (schema['x-unit'] ? ` (${schema['x-unit']})` : '')
+            : null,
         ...(schema.description ? {description: schema.description} : {}),
         required,
         bindable: !!schema['x-binding'] && !schema['x-variable'],

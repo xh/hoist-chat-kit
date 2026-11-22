@@ -189,16 +189,62 @@
     min-width: 0;
   }
 
-  &__column {
+  &__field-list {
     display: flex;
     flex-direction: column;
     gap: var(--xh-spacing-half);
   }
 
+  // One row per field, and the open row's settings in a drawer below it.
+  &__columns {
+    border: var(--xh-border-solid);
+    border-radius: 4px;
+  }
+
+  &__column {
+    display: flex;
+    flex-direction: column;
+
+    & + & {
+      border-top: var(--xh-border-solid);
+    }
+
+    > .xh-blueprint-element-inspector__item-header {
+      gap: 6px;
+      min-height: 30px;
+      padding: 2px 4px 2px 8px;
+    }
+
+    &--open > .xh-blueprint-element-inspector__item-header {
+      background-color: var(--xh-bg-alt);
+    }
+  }
+
+  &__column-label {
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &__column-meta {
+    flex: none;
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
   &__settings {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: var(--xh-spacing-half);
+    padding: 8px 10px 10px 26px;
+    border-top: var(--xh-border-solid);
+    background-color: var(--xh-bg-alt);
+  }
+
+  &__more.xh-button {
+    align-self: flex-start;
   }
 
   &__filter {

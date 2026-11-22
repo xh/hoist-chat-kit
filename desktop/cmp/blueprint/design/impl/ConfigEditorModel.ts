@@ -2,7 +2,7 @@ import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef, runInAction} from '@xh/hoist/mobx';
-import {isEmpty, isString, pickBy, sortBy, uniq} from 'lodash';
+import {isEmpty, isString, omit, pickBy, sortBy, uniq} from 'lodash';
 import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
 import type {
@@ -73,6 +73,18 @@ export abstract class ConfigEditorModel extends HoistModel {
         } else {
             this.refusal = null;
         }
+    }
+
+    /**
+     * Set one setting of a map's entry, such as a column's header in `columns`, or remove it with
+     * `undefined`, as one edit. An entry left empty goes, and so does a map left empty.
+     */
+    commitItemSetting(mapKey: string, item: string, key: string, value: unknown) {
+        const map: PlainObject = this.values[mapKey] ?? {},
+            entry: PlainObject = getOwn(map, item) ?? {},
+            nextEntry = value === undefined ? omit(entry, key) : {...entry, [key]: value},
+            next = isEmpty(nextEntry) ? omit(map, item) : {...map, [item]: nextEntry};
+        this.commit(mapKey, isEmpty(next) ? undefined : next);
     }
 
     /** Refuse a value before it reaches the blueprint, such as JSON that does not parse. */

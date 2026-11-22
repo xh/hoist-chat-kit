@@ -29,6 +29,11 @@ export type BlueprintSchemaExtension = {
     'x-icon'?: boolean;
     /** The unit a number is in, such as `px`, which an editor shows beside it. */
     'x-unit'?: string;
+    /**
+     * On a list of fields, the sibling map keyed by field whose entries hold more settings for each
+     * item, which design mode edits with the item, `show` first.
+     */
+    'x-settings'?: {in: string; show?: string[]};
 };
 
 /**

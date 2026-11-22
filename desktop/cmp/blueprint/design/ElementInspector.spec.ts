@@ -415,6 +415,7 @@ describe('ElementInspector', () => {
                 mktVal: {format: {name: 'mv', precision: 2}, renderer: 'bar'}
             });
             const {container} = render(elementInspector({designModel: design}) as ReactElement);
+            fireEvent.click(container.querySelector('[data-field="mktVal"] [title="Settings"]'));
             expect(
                 container.querySelectorAll('.xh-blueprint-element-inspector__format').length
             ).toBe(1);
@@ -505,6 +506,41 @@ describe('ElementInspector', () => {
         expect(model.blueprint).toBe(before);
     });
 
+    it("opens a column's settings below its row: how it shows, from columns, then its state", () => {
+        const {design, model, inspector} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            columnRow = (field: string) =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__column')].find(
+                    it => it.getAttribute('data-field') === field
+                ),
+            labels = () =>
+                [
+                    ...container.querySelectorAll(
+                        '.xh-blueprint-element-inspector__settings > .xh-blueprint-element-inspector__row > .xh-blueprint-element-inspector__label'
+                    )
+                ].map(it => it.textContent);
+
+        expect(container.querySelector('[data-config-key="columns"]')).toBeNull();
+        fireEvent.click(columnRow('mktVal').querySelector('[title="Settings"]'));
+        expect(labels().slice(0, 6)).toEqual([
+            'Header',
+            'Format',
+            'Renderer',
+            'Width',
+            'Hidden',
+            'Pinned'
+        ]);
+
+        const before = model.history.length;
+        inspector.commitItemSetting('columns', 'mktVal', 'headerName', 'MV');
+        expect(model.blueprint.elements.posGrid.config.columns).toEqual({
+            mktVal: {headerName: 'MV'}
+        });
+        inspector.commitItemSetting('columns', 'mktVal', 'headerName', undefined);
+        expect(model.blueprint.elements.posGrid.config.columns).toBeUndefined();
+        expect(model.history.length).toBe(before + 2);
+    });
+
     it('draws sections as cards with counts, and a one-line value beside its label', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
@@ -519,7 +555,7 @@ describe('ElementInspector', () => {
         ).toEqual([
             'Data (7)',
             'Display (1)',
-            'Columns (2)Preset · P&L view',
+            'Columns (1)Preset · P&L view',
             'Interaction (1)',
             'Style (10)',
             'Placement in positions'
