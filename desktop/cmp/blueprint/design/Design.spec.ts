@@ -233,4 +233,37 @@ describe('design mode selection', () => {
         fireEvent.click(toolbar.querySelector('button[title^="Select the parent"]'));
         expect(design.selectedElementId).toBe('tabs');
     });
+
+    it('runs the design keys on the selection, but never from an input', () => {
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            key = (target: Element, key: string, init: object = {}) =>
+                fireEvent.keyDown(target, {key, ...init});
+        design.select({kind: 'element', id: 'headline'});
+        const canvas = container.querySelector('[data-blueprint-element="overview"]');
+        key(canvas, ']');
+        expect(design.selectedElementId).toBe('sectorChart');
+        key(canvas, 'Escape');
+        expect(design.selectedElementId).toBe('overview');
+        key(canvas, 'Enter');
+        expect(design.selectedElementId).toBe('reportActions');
+
+        design.select({kind: 'element', id: 'sectorChart'});
+        const y = () =>
+            model.blueprint.elements.overview.children.find(it => it.id === 'sectorChart')
+                .y as number;
+        const before = y();
+        key(canvas, 'ArrowDown');
+        key(canvas, 'ArrowDown');
+        key(canvas, 'ArrowUp');
+        expect(y()).toBe(before + 1);
+        expect(model.history).toHaveLength(1);
+        key(canvas, 'z', {ctrlKey: true});
+        expect(y()).toBe(before);
+
+        const input = container.querySelector('.xh-blueprint-view__toolbar input');
+        expect(input).toBeTruthy();
+        key(input, 'Escape');
+        expect(design.selectedElementId).toBe('sectorChart');
+    });
 });

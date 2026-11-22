@@ -1,5 +1,6 @@
 import {grid, GridModel} from '@xh/hoist/cmp/grid';
-import {div, vframe} from '@xh/hoist/cmp/layout';
+import {div} from '@xh/hoist/cmp/layout';
+import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {
     hoistCmp,
     HoistModel,
@@ -12,6 +13,7 @@ import type React from 'react';
 import type {BlueprintDesignModel} from '../../../../blueprint';
 import {slotLists} from '../../../../blueprint/impl/elements';
 import './ElementOutline.scss';
+import {designHotkeys} from './impl/designHotkeys';
 
 export interface ElementOutlineProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -21,6 +23,7 @@ export interface ElementOutlineProps extends HoistProps {
  * The tree of a blueprint's elements, each with its widget, for a designer to see the layout and
  * select an element. Its selection is the design model's. In design mode, a row drags: onto a
  * container to move into it, or onto the top or bottom of any row to move before or after it.
+ * The design keys act on the selection, and the grid's own arrows move between rows.
  */
 export const [ElementOutline, elementOutline] = hoistCmp.withFactory<ElementOutlineProps>({
     displayName: 'BlueprintElementOutline',
@@ -28,8 +31,9 @@ export const [ElementOutline, elementOutline] = hoistCmp.withFactory<ElementOutl
     model: false,
     render({designModel, className}) {
         const impl = useLocalModel(() => new ElementOutlineModel(designModel));
-        return vframe({
+        return panel({
             className,
+            hotkeys: designHotkeys(designModel, {arrows: false}),
             children: grid({model: impl.gridModel})
         });
     }

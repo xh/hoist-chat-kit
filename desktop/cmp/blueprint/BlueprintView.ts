@@ -1,6 +1,7 @@
 import {hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
+import {designHotkeys} from './design/impl/designHotkeys';
 import {blueprintToolbar} from './impl/BlueprintToolbar';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {drillInDialog} from './impl/DrillIn';
@@ -8,8 +9,8 @@ import './BlueprintView.scss';
 
 export interface BlueprintViewProps extends HoistProps<BlueprintModel> {
     /**
-     * The designer's model. In design mode, a click on an element selects it in this model, and
-     * the selected element shows an outline.
+     * The designer's model. In design mode, a click on an element selects it in this model, the
+     * selected element shows an outline and a toolbar, and the design keys act on it.
      */
     designModel?: BlueprintDesignModel;
 }
@@ -25,10 +26,14 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
     model: uses(BlueprintModel),
     render({model, className, designModel}) {
         const impl = useLocalModel(() => new BlueprintViewModel(model, {designModel})),
-            {drillIn} = model;
+            {drillIn} = model,
+            isDesign = !!designModel && model.mode === 'design';
         return panel({
             className,
             tbar: blueprintToolbar({blueprintModel: model}),
+            hotkeys: isDesign ? designHotkeys(designModel) : null,
+            // Focusable, so the design keys work once a click selects an element.
+            contentBoxProps: isDesign ? ({tabIndex: 0} as object) : null,
             children: [
                 impl.renderElement(model.blueprint?.root),
                 // A popover drill-in draws at the control that opened it.

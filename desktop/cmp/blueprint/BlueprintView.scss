@@ -275,3 +275,13 @@
     box-shadow: inset 0 0 0 3px transparent;
   }
 }
+
+.xh-blueprint-design-keys {
+  th {
+    padding-right: var(--xh-spacing-double);
+    font-family: var(--xh-font-family-mono);
+    font-weight: normal;
+    text-align: left;
+    white-space: nowrap;
+  }
+}
