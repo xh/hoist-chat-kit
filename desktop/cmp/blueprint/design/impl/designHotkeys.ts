@@ -123,6 +123,20 @@ const ARROW_RE = /^(shift\+)?(left|right|up|down)$/;
 
 const DESIGN_KEYS: DesignKey[] = [
     {
+        combo: 'e',
+        keys: 'E',
+        label: 'Edit: clicks select',
+        always: true,
+        run: dm => dm.setInteraction('edit')
+    },
+    {
+        combo: 'i',
+        keys: 'I',
+        label: 'Interact: clicks reach the widgets',
+        always: true,
+        run: dm => dm.setInteraction('interact')
+    },
+    {
         combo: 'esc',
         keys: 'Esc',
         label: 'Select the parent, else clear',

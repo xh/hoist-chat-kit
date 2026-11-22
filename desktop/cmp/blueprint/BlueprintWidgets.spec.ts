@@ -925,6 +925,22 @@ describe('blueprint desktop widgets', () => {
             expect(container.querySelector('.xh-tab-switcher--top')).toBeTruthy();
         });
 
+        it("shows no empty text of Hoist's own with no tabs, leaving the one empty state", () => {
+            const model = open({
+                    schema: {blueprint: 1},
+                    root: 'tabs',
+                    elements: {tabs: {component: 'tabContainer', children: []}}
+                } as any),
+                tabs = new TabContainerWidgetModel({
+                    blueprintModel: model,
+                    id: 'tabs',
+                    renderElement: id => div(id)
+                });
+            onTestFinished(() => tabs.destroy());
+            const {container} = render(tabContainerWidget({model: tabs}));
+            expect(container.textContent).not.toContain('No tabs to display');
+        });
+
         it('puts its tabs where its switcher position says', () => {
             const bp = p3();
             bp.elements.tabs.config = {...bp.elements.tabs.config, switcherPosition: 'left'};

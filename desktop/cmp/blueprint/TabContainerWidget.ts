@@ -14,7 +14,9 @@ import {emptyContent} from './impl/layout';
  * reference. The active tab is transient. A tab renders its child only once it is first shown.
  */
 export class TabContainerWidgetModel extends BlueprintWidgetModel<TabContainerWidgetConfig> {
-    @managed readonly tabContainerModel = new TabContainerModel({tabs: []});
+    // No text of Hoist's own while empty: run mode shows the widget's emptyText, design mode its
+    // own empty state.
+    @managed readonly tabContainerModel = new TabContainerModel({tabs: [], emptyText: null});
 
     constructor(config: BlueprintWidgetConfig) {
         super(config);

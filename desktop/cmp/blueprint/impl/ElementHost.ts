@@ -63,6 +63,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
             ...({'data-blueprint-element': id} as object),
             onClick: e => {
+                if (designModel.interaction === 'interact') return;
                 // A click on a canvas cell's header or grip selects its view.
                 const view = viewAt(e.target as HTMLElement, e.currentTarget),
                     target = innermost(e, 'xhSelected');
@@ -70,6 +71,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 designModel.select(view ? {kind: 'view', ...view} : {kind: 'element', id: target});
             },
             onMouseOver: e => {
+                if (designModel.interaction === 'interact') return;
                 const target = innermost(e, 'xhHovered');
                 if (target) designModel.setHovered(target);
             },
