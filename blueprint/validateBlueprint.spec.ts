@@ -37,6 +37,17 @@ describe('validateBlueprint', () => {
             const {blueprint, missing} = exampleBlueprintOf(spec, portfolioCatalog);
             expect(missing).toEqual([]);
             expect(validate(blueprint).filter(it => it.severity === 'error')).toEqual([]);
+            // An input shows its control, so a variable it sets is there.
+            const unset = Object.entries(blueprint.elements)
+                .filter(([, el]) => registry.widgets[el.component]?.value)
+                .filter(
+                    ([id]) =>
+                        !Object.values(blueprint.variables ?? {}).some(
+                            (v: PlainObject) => v.setBy?.element === id
+                        )
+                )
+                .map(([id]) => id);
+            expect(unset).toEqual([]);
         }
     );
 

@@ -2621,12 +2621,43 @@ const EXAMPLE_BLUEPRINTS: Record<string, () => WidgetSpec['exampleBlueprint']> =
     })
 };
 
-export const BUILT_IN_WIDGETS: WidgetSpec[] = WIDGET_SPECS.map(it => ({
-    ...it,
-    ...(EXAMPLE_BLUEPRINTS[it.name] ? {exampleBlueprint: EXAMPLE_BLUEPRINTS[it.name]()} : {}),
-    ...(DEMANDS[it.name] ? {demand: DEMANDS[it.name]} : {}),
-    ...(VALIDATORS[it.name] ? {validate: VALIDATORS[it.name]} : {})
-}));
+// What an example names beyond itself, with a variable for each input in it to set, so the input
+// draws its control.
+const exampleBlueprintFor = (spec: WidgetSpec): WidgetSpec['exampleBlueprint'] => {
+    const ret = EXAMPLE_BLUEPRINTS[spec.name]?.() ?? {},
+        elements = {[spec.name]: spec.example, ...ret.elements},
+        inputs = Object.entries(elements).filter(
+            ([, el]) => WIDGET_SPECS.find(it => it.name === el?.component)?.value
+        );
+    if (!inputs.length) return ret.elements || ret.variables || ret.presets ? ret : null;
+    return {
+        ...ret,
+        variables: {
+            ...Object.fromEntries(
+                inputs.map(([id, el]) => [
+                    `${id}Value`,
+                    {
+                        type: castArray(
+                            WIDGET_SPECS.find(it => it.name === el.component).value.type
+                        )[0],
+                        setBy: {element: id}
+                    }
+                ])
+            ),
+            ...ret.variables
+        }
+    };
+};
+
+export const BUILT_IN_WIDGETS: WidgetSpec[] = WIDGET_SPECS.map(it => {
+    const exampleBlueprint = it.example ? exampleBlueprintFor(it) : null;
+    return {
+        ...it,
+        ...(exampleBlueprint ? {exampleBlueprint} : {}),
+        ...(DEMANDS[it.name] ? {demand: DEMANDS[it.name]} : {}),
+        ...(VALIDATORS[it.name] ? {validate: VALIDATORS[it.name]} : {})
+    };
+});
 
 //------------------
 // Actions
