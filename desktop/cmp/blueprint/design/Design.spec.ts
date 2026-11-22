@@ -18,6 +18,7 @@ import {blueprintView} from '../BlueprintView';
 import {layoutGesture} from '../../layout';
 import {OverlayModel} from '../../layout/overlay';
 import {cellElementAt, viewAt} from '../impl/ElementHost';
+import {altHold} from './impl/altHold';
 import {designHotkeys} from './impl/designHotkeys';
 import {designMarks} from './impl/designOverlay';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
@@ -379,6 +380,27 @@ describe('design mode selection', () => {
         fireEvent.mouseLeave(inner);
         expect(design.hoveredId).toBeNull();
         expect(model.history).toHaveLength(0);
+    });
+
+    it('marks no hover in Interact, or while Alt passes the next click through', () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel(),
+            keys = () => designMarks(design, overlay).map(it => it.key),
+            stop = altHold.follow();
+        onTestFinished(() => {
+            stop();
+            overlay.destroy();
+        });
+        design.setHovered('tabs');
+        expect(keys()).toContain('hover');
+        design.setInteraction('interact');
+        expect(keys()).not.toContain('hover');
+        design.setInteraction('edit');
+        design.setHovered('tabs');
+        window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Alt'}));
+        expect(keys()).not.toContain('hover');
+        window.dispatchEvent(new KeyboardEvent('keyup', {key: 'Alt'}));
+        expect(keys()).toContain('hover');
     });
 
     it("haloes what the Architect's latest edit touched", () => {

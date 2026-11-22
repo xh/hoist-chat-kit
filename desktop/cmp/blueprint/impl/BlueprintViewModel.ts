@@ -51,6 +51,7 @@ import {
     textInputWidget,
     TextInputWidgetModel
 } from '../InputWidgets';
+import {altHold} from '../design/impl/altHold';
 import {designMarks} from '../design/impl/designOverlay';
 import {OverlayModel} from '../../layout/overlay';
 import {elementHost} from './ElementHost';
@@ -151,6 +152,7 @@ export class BlueprintViewModel extends HoistModel {
         if (designModel) {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
             overlay.addMarks('design', () => designMarks(designModel, overlay));
+            this.stopAltHold = altHold.follow();
             this.addReaction(
                 {
                     // Elements move once the change has drawn, as after an edit or a tab switch.
@@ -251,7 +253,10 @@ export class BlueprintViewModel extends HoistModel {
         return drawn?.component ?? this.getSpec(el.component).component ?? null;
     }
 
+    private stopAltHold: () => void = null;
+
     override destroy() {
+        this.stopAltHold?.();
         this.widgets.forEach(it => it.model.destroy());
         this.widgets.clear();
         super.destroy();

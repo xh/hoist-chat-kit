@@ -3,6 +3,7 @@ import classNames from 'classnames';
 import type {BlueprintDesignModel} from '../../../../../blueprint';
 import {layoutGesture} from '../../../layout';
 import type {OverlayBox, OverlayMark, OverlayModel} from '../../../layout/overlay';
+import {altHold} from './altHold';
 import {widgetIcon} from './icons';
 import {selectionToolbar} from './SelectionToolbar';
 import './designOverlay.scss';
@@ -29,8 +30,11 @@ export function designMarks(
     if (blueprintModel.mode !== 'design' || layoutGesture.active) return [];
     const ret: OverlayMark[] = [],
         surface = () => overlay.hostEl?.closest<HTMLElement>('.xh-panel__content[tabindex]');
+    // In Interact, or with Alt held for one click, clicks reach the widgets: nothing marks a hover.
     if (
         hovered &&
+        designModel.interaction === 'edit' &&
+        !altHold.active &&
         hovered !== selected &&
         hovered !== designModel.selectedViewId &&
         blueprintModel.blueprint?.elements?.[hovered]
