@@ -581,6 +581,32 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 2);
     });
 
+    it("reorders an action's steps in a sortable list, one edit each", () => {
+        const {design, model} = open('p2-linked-dashboard.json');
+        design.setConfig('posGrid', '/rowActions', [
+            {
+                label: 'Refresh',
+                action: [{type: 'refresh', sources: ['positions']}, {type: 'refresh'}]
+            }
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        fireEvent.click(
+            container.querySelector('[data-config-key="rowActions"] [title="Settings"]')
+        );
+        const edits = model.history.length;
+        fireEvent.keyDown(
+            container.querySelector(
+                '.xh-blueprint-element-inspector__steps .xh-sortable-list__handle'
+            ),
+            {key: 'ArrowDown', altKey: true}
+        );
+        expect(model.blueprint.elements.posGrid.config.rowActions[0].action).toEqual([
+            {type: 'refresh'},
+            {type: 'refresh', sources: ['positions']}
+        ]);
+        expect(model.history.length).toBe(edits + 1);
+    });
+
     it("draws an openBlueprint's values as rows, each a variable, a row field or a value", () => {
         const {design, model} = open('p2-linked-dashboard.json');
         design.setConfig('posGrid', '/rowActions', [

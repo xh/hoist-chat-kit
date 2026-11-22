@@ -1,6 +1,6 @@
 import {div, hbox, span} from '@xh/hoist/cmp/layout';
 import type {PlainObject} from '@xh/hoist/core';
-import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {
@@ -887,114 +887,114 @@ function actionEditor(
         steps = stepsOf(value),
         commitSteps = (list: PlainObject[]) => commit(joinSteps(list)),
         replace = (i: number, step: PlainObject) =>
-            commitSteps(steps.map((it, j) => (j === i ? step : it))),
-        moved = (from: number, to: number) => {
-            const ret = [...steps];
-            ret.splice(to, 0, ...ret.splice(from, 1));
-            return ret;
+            commitSteps(steps.map((it, j) => (j === i ? step : it)));
+    const stepHeader = (step: PlainObject, i: number) =>
+            hbox({
+                className: `${CLS}__item-header`,
+                children: [
+                    select({
+                        value: step.type,
+                        options: withCurrent(impl.actionOptions, step.type),
+                        disabled,
+                        flex: 1,
+                        onCommit: (type: string) =>
+                            type !== step.type &&
+                            replace(i, {
+                                ...impl.stepStart(type),
+                                ...(step.confirm ? {confirm: true} : {})
+                            })
+                    }),
+                    button({
+                        icon: Icon.delete(),
+                        title: 'Remove',
+                        intent: 'danger',
+                        minimal: true,
+                        disabled: disabled || (node.required && steps.length === 1),
+                        onClick: () => commitSteps(steps.filter((_, j) => j !== i))
+                    })
+                ]
+            }),
+        stepBody = (step: PlainObject, i: number) => {
+            const spec = impl.actionSpec(step.type),
+                locked = impl.confirmLocked(step.type),
+                params = spec ? toEditorSpec(spec.params) : [];
+            return div({
+                className: `${CLS}__step`,
+                children: [
+                    div({className: `${CLS}__description`, children: impl.describeStep(step)}),
+                    // An action's values are literals or variables.
+                    ...params.map(param =>
+                        step.type === 'openBlueprint' && param.key === 'variables'
+                            ? labelled(
+                                  param.label,
+                                  linkValuesEditor(
+                                      (step.variables as PlainObject) ?? {},
+                                      v =>
+                                          replace(
+                                              i,
+                                              isEmpty(v)
+                                                  ? omit(step, 'variables')
+                                                  : {...step, variables: v}
+                                          ),
+                                      ctx
+                                  ),
+                                  [],
+                                  null,
+                                  param.description
+                              )
+                            : propertyRow({
+                                  key: param.key,
+                                  node: {
+                                      ...stepParamNode(step, param, impl),
+                                      bindable: param.kind !== 'variable'
+                                  },
+                                  value: step[param.key],
+                                  commit: v =>
+                                      replace(
+                                          i,
+                                          v === undefined
+                                              ? omit(step, param.key)
+                                              : {...step, [param.key]: v}
+                                      ),
+                                  ctx
+                              })
+                    ),
+                    propertyRow({
+                        key: 'confirm',
+                        node: CONFIRM_NODE,
+                        value: locked || !!step.confirm,
+                        commit: v =>
+                            replace(i, v ? {...step, confirm: true} : omit(step, 'confirm')),
+                        ctx: locked ? {...ctx, locked: true} : ctx
+                    })
+                ]
+            });
         };
     return div({
         className: `${CLS}__list`,
         children: [
-            ...steps.map((step, i) => {
-                const spec = impl.actionSpec(step.type),
-                    locked = impl.confirmLocked(step.type),
-                    params = spec ? toEditorSpec(spec.params) : [];
-                return div({
-                    key: i,
-                    className: `${CLS}__step`,
-                    children: [
-                        hbox({
-                            className: `${CLS}__item-header`,
-                            children: [
-                                select({
-                                    value: step.type,
-                                    options: withCurrent(impl.actionOptions, step.type),
-                                    disabled,
-                                    flex: 1,
-                                    onCommit: (type: string) =>
-                                        type !== step.type &&
-                                        replace(i, {
-                                            ...impl.stepStart(type),
-                                            ...(step.confirm ? {confirm: true} : {})
-                                        })
-                                }),
-                                buttonGroup({
-                                    children: [
-                                        button({
-                                            icon: Icon.arrowUp(),
-                                            title: 'Move up',
-                                            disabled: disabled || i === 0,
-                                            onClick: () => commitSteps(moved(i, i - 1))
-                                        }),
-                                        button({
-                                            icon: Icon.arrowDown(),
-                                            title: 'Move down',
-                                            disabled: disabled || i === steps.length - 1,
-                                            onClick: () => commitSteps(moved(i, i + 1))
-                                        }),
-                                        button({
-                                            icon: Icon.delete(),
-                                            title: 'Remove',
-                                            intent: 'danger',
-                                            disabled:
-                                                disabled || (node.required && steps.length === 1),
-                                            onClick: () =>
-                                                commitSteps(steps.filter((_, j) => j !== i))
-                                        })
-                                    ]
-                                })
-                            ]
-                        }),
-                        div({className: `${CLS}__description`, children: impl.describeStep(step)}),
-                        // An action's values are literals or variables.
-                        ...params.map(param =>
-                            step.type === 'openBlueprint' && param.key === 'variables'
-                                ? labelled(
-                                      param.label,
-                                      linkValuesEditor(
-                                          (step.variables as PlainObject) ?? {},
-                                          v =>
-                                              replace(
-                                                  i,
-                                                  isEmpty(v)
-                                                      ? omit(step, 'variables')
-                                                      : {...step, variables: v}
-                                              ),
-                                          ctx
-                                      ),
-                                      [],
-                                      null,
-                                      param.description
-                                  )
-                                : propertyRow({
-                                      key: param.key,
-                                      node: {
-                                          ...stepParamNode(step, param, impl),
-                                          bindable: param.kind !== 'variable'
-                                      },
-                                      value: step[param.key],
-                                      commit: v =>
-                                          replace(
-                                              i,
-                                              v === undefined
-                                                  ? omit(step, param.key)
-                                                  : {...step, [param.key]: v}
-                                          ),
-                                      ctx
-                                  })
-                        ),
-                        propertyRow({
-                            key: 'confirm',
-                            node: CONFIRM_NODE,
-                            value: locked || !!step.confirm,
-                            commit: v =>
-                                replace(i, v ? {...step, confirm: true} : omit(step, 'confirm')),
-                            ctx: locked ? {...ctx, locked: true} : ctx
-                        })
-                    ]
-                });
-            }),
+            ...(steps.length > 1
+                ? [
+                      sortableList({
+                          key: 'steps',
+                          className: `${CLS}__steps`,
+                          value: steps.map((step, index) => ({key: String(index), index, step})),
+                          itemKey: 'key',
+                          getItemLabel: (row: PlainObject) => impl.describeStep(row.step),
+                          disabled,
+                          compact: true,
+                          onReorder: e => commitSteps(e.items.map((it: PlainObject) => it.step)),
+                          renderItem: (row: PlainObject) => stepHeader(row.step, row.index),
+                          renderDetail: (row: PlainObject) => stepBody(row.step, row.index)
+                      })
+                  ]
+                : steps.map((step, i) =>
+                      div({
+                          key: i,
+                          className: `${CLS}__step-one`,
+                          children: [stepHeader(step, i), stepBody(step, i)]
+                      })
+                  )),
             button({
                 icon: Icon.add(),
                 intent: 'primary',
@@ -1007,7 +1007,6 @@ function actionEditor(
     });
 }
 
-// A setVariable step's value takes the editor of the variable it sets.
 // The values an openBlueprint passes, a row each: a variable, a field of the row in a row action, or
 // a value as written.
 function linkValuesEditor(
@@ -1144,6 +1143,7 @@ function linkValuesEditor(
     });
 }
 
+// A setVariable step's value takes the editor of the variable it sets.
 function stepParamNode(step: PlainObject, param: EditorNode, impl: ConfigEditorModel): EditorNode {
     if (step.type !== 'setVariable' || param.key !== 'value') return param;
     const typed = impl.valueNodeFor(step.variable);
