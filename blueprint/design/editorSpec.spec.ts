@@ -27,6 +27,19 @@ describe('toEditorSpec', () => {
         });
     });
 
+    it("edits a canvas's gap as a pair of numbers, and its packing as picture cards", () => {
+        const nodes = byKey(toEditorSpec(configOf('dashCanvas')));
+        expect(nodes.margin).toMatchObject({kind: 'pair', default: [10, 10]});
+        expect((nodes.margin as any).item).toMatchObject({kind: 'number', min: 0, max: 40});
+        expect(nodes.compact).toMatchObject({
+            kind: 'choice',
+            options: ['vertical', 'horizontal', false],
+            default: 'vertical'
+        });
+        expect((nodes.compact as any).thumbnails.false).toBe('canvas.free');
+        expect(nodes.layoutLocked).toMatchObject({kind: 'boolean', label: 'Rearranging'});
+    });
+
     it("labels a boolean's two values in the order x-labels gives, else On then Off", () => {
         const [plain, hidden, partial] = toEditorSpec({
             type: 'object',

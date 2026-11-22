@@ -495,6 +495,37 @@ const KIT_THUMBNAILS: Record<string, KitGlyph> = {
             rect({key: 'neg', className: `${T}__neg`, x: 43, y: 18, width: 9, height: 8})
         ]
     },
+    // A canvas's packing: cells drawn up to the top, to the left, or where they were put.
+    'canvas.vertical': {
+        box: [60, 36],
+        draw: () =>
+            bars([
+                [2, 2, 26, 14],
+                [32, 2, 26, 9],
+                [2, 19, 26, 9],
+                [32, 14, 26, 14]
+            ])
+    },
+    'canvas.horizontal': {
+        box: [60, 36],
+        draw: () =>
+            bars([
+                [2, 2, 14, 18],
+                [2, 23, 14, 11],
+                [19, 2, 20, 11],
+                [19, 16, 20, 18]
+            ])
+    },
+    'canvas.free': {
+        box: [60, 36],
+        draw: () =>
+            bars([
+                [4, 3, 20, 10],
+                [36, 2, 20, 12],
+                [12, 21, 18, 12],
+                [40, 20, 16, 13]
+            ])
+    },
     'summary.top': {
         box: [60, 36],
         draw: () => [

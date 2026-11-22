@@ -47,9 +47,10 @@ export type BlueprintSchemaExtension = {
     /**
      * On a boolean, the label of each value, the positive state first, such as
      * `{false: 'Show', true: 'Hide'}` for a `hidden` titled "Visible". Design mode shows one segment
-     * per value, in this order. Without it, On then Off.
+     * per value, in this order. Without it, On then Off. On a choice, the label of any option by its
+     * value, such as `{false: 'Free'}`.
      */
-    'x-labels'?: Partial<Record<'true' | 'false', string>>;
+    'x-labels'?: Record<string, string>;
 };
 
 /**

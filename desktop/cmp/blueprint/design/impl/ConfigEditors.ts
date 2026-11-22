@@ -196,6 +196,7 @@ const INLINE_KINDS = [
     'boolean',
     'choice',
     'format',
+    'pair',
     'sort',
     'variable',
     'preset',
@@ -272,7 +273,7 @@ function editorFor(
                             : [{value: null, label: 'Default'}]),
                         ...options.map(it => ({
                             value: it as any,
-                            label: it === false ? 'Off' : labelOf(String(it)),
+                            label: choiceLabel(node, it),
                             preview: thumbnailPreview(node.thumbnails[String(it)])
                         }))
                     ],
@@ -288,7 +289,7 @@ function editorFor(
                     value: value === true ? options[0] : (value ?? node.default ?? false),
                     options: options.map(it => ({
                         value: it as any,
-                        label: it === false ? 'Off' : labelOf(String(it))
+                        label: choiceLabel(node, it)
                     })),
                     disabled,
                     compact: true,
@@ -473,6 +474,8 @@ function editorFor(
             return actionEditor(node, value, commit, ctx);
         case 'sort':
             return sortSummary(value, ctx);
+        case 'pair':
+            return pairEditor(node, value, commit, disabled);
         default:
             return jsonEditor(value, commit, ctx);
     }
@@ -994,6 +997,56 @@ function formatOptionsCard(
         intent: invalid ? ('danger' as const) : null,
         modelConfig: {collapsible: true, defaultCollapsed: isEmpty(options)},
         children: optionsGroup(nodes, options, it => commit(joinNamed(name, it)), ctx)
+    });
+}
+
+// A choice's label: its `x-labels` entry, else Off for false, else its value in words.
+function choiceLabel(node: EditorNode, value: unknown): string {
+    return (
+        node.schema['x-labels']?.[String(value)] ??
+        (value === false ? 'Off' : labelOf(String(value)))
+    );
+}
+
+// Two numbers side by side, across then down, each showing its default while unset. Setting one
+// sets both, the other at its default, and a pair back at its defaults goes unset.
+function pairEditor(
+    node: Extract<EditorNode, {kind: 'pair'}>,
+    value: unknown,
+    commit: (value: unknown) => void,
+    disabled: boolean
+) {
+    const pair = Array.isArray(value) ? value : [],
+        defaults = (Array.isArray(node.default) ? node.default : []) as number[],
+        {item} = node as {item: Extract<EditorNode, {kind: 'number'}>},
+        set = (i: number, v: number) => {
+            const next = [0, 1].map(j =>
+                j === i ? (v ?? defaults[j] ?? null) : (pair[j] ?? defaults[j] ?? null)
+            );
+            commit(
+                next.every(it => it == null) || isEqual(next, defaults)
+                    ? undefined
+                    : next.map(it => it ?? 0)
+            );
+        };
+    return hbox({
+        className: `${CLS}__pair`,
+        children: ['Across', 'Down'].map((label, i) =>
+            numberInput({
+                key: label,
+                value: isNumber(pair[i]) ? pair[i] : null,
+                min: item.min,
+                max: item.max,
+                precision: 0,
+                placeholder: defaults[i] != null ? String(defaults[i]) : label,
+                disabled,
+                flex: 1,
+                width: null,
+                commitOnChange: false,
+                onCommit: (v: number) => set(i, v),
+                ...({'aria-label': label} as object)
+            })
+        )
     });
 }
 

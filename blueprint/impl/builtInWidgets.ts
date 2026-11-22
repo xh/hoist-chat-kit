@@ -53,16 +53,78 @@ const DASH_CANVAS_SCHEMA = {
         columns: {
             type: 'integer',
             minimum: 1,
-            maximum: 24,
+            maximum: 48,
             default: 12,
             description: 'Columns in the grid.'
         },
         rowHeight: {
             type: 'integer',
-            minimum: 20,
+            minimum: 10,
             maximum: 200,
             default: 50,
-            description: 'Height of one row in pixels.'
+            'x-unit': 'px',
+            description: 'Height of one row.'
+        },
+        compact: {
+            enum: ['vertical', 'horizontal', false],
+            default: 'vertical',
+            title: 'Packing',
+            'x-labels': {false: 'Free'},
+            'x-thumbnails': {
+                vertical: 'canvas.vertical',
+                horizontal: 'canvas.horizontal',
+                false: 'canvas.free'
+            },
+            description:
+                'How cells pack: up, left, or not at all, so each stays where it is placed and a drop pushes the cells it lands on down.'
+        },
+        margin: {
+            type: 'array',
+            items: {type: 'integer', minimum: 0, maximum: 40},
+            minItems: 2,
+            maxItems: 2,
+            default: [10, 10],
+            title: 'Cell gap',
+            'x-unit': 'px',
+            description: 'The space between cells, across and down.'
+        },
+        containerPadding: {
+            type: 'array',
+            items: {type: 'integer', minimum: 0, maximum: 40},
+            minItems: 2,
+            maxItems: 2,
+            title: 'Padding',
+            'x-unit': 'px',
+            description: 'The space inside the canvas edge, across and down. Default the cell gap.'
+        },
+        maxRows: {
+            type: 'integer',
+            minimum: 1,
+            title: 'Most rows',
+            description: 'The rows a cell may reach, none below. Default no limit.'
+        },
+        showGridBackground: {
+            type: 'boolean',
+            default: false,
+            title: 'Grid',
+            'x-labels': {true: 'Show', false: 'Hide'},
+            description: 'Draw the grid behind the cells for readers too. Design mode always does.'
+        },
+        preventCollision: {
+            type: 'boolean',
+            default: false,
+            title: 'Drop on a cell',
+            'x-labels': {false: 'Push', true: 'Snap back'},
+            description:
+                'Snap back a move or resize onto another cell, rather than push that cell aside.'
+        },
+        layoutLocked: {
+            type: 'boolean',
+            default: false,
+            title: 'Rearranging',
+            'x-labels': {false: 'Allowed', true: 'Locked'},
+            description:
+                'Stop readers moving and resizing cells. Design mode can still change the layout.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -113,7 +175,15 @@ const DASH_CONTAINER_SCHEMA = {
             description:
                 "Rows and columns of stacks, each stack a set of tabs, each tab a view naming a child: [{type: 'row', content: [{type: 'stack', width: 60, content: [{type: 'view', id: 'grid'}, ...]}, ...]}]. Sizes are percentages of their row or column. Default one stack, a tab per child. A child the layout leaves out joins its first stack."
         },
-        emptyText: EMPTY_TEXT
+        emptyText: EMPTY_TEXT,
+        layoutLocked: {
+            type: 'boolean',
+            default: false,
+            title: 'Rearranging',
+            'x-labels': {false: 'Allowed', true: 'Locked'},
+            description:
+                'Stop readers moving, splitting and resizing views. Design mode can still change the layout.'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -1259,14 +1329,26 @@ const dashCanvas: WidgetSpec = {
     icon: 'layout',
     sections: [
         {label: 'Content', keys: ['emptyText']},
-        {label: 'Display', keys: ['columns', 'rowHeight']}
+        {
+            label: 'Display',
+            keys: [
+                'columns',
+                'rowHeight',
+                'compact',
+                'margin',
+                'containerPadding',
+                'maxRows',
+                'showGridBackground'
+            ]
+        },
+        {label: 'Interaction', keys: ['preventCollision', 'layoutLocked']}
     ],
     summary: "A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root.",
     version: 1,
     label: 'Dashboard',
     terms: ['dashboard', 'canvas', 'page', 'layout'],
     guidance:
-        "A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units, and may give the cell header's title in place of the widget's own, or hideHeader. Every cell has a header unless it hides it, titled by the widget's label where nothing gives a title, so give a cell such as a stat card or a button row hideHeader where a header adds nothing. Use it as the root of a dashboard, or as the content of a tab.",
+        "A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units, and may give the cell header's title in place of the widget's own, or hideHeader. Every cell has a header unless it hides it, titled by the widget's label where nothing gives a title, so give a cell such as a stat card or a button row hideHeader where a header adds nothing. Cells pack upward by default; set compact false only when the user wants each cell to stay exactly where it is placed. Leave the other layout settings unset unless the user asks for them. Use it as the root of a dashboard, or as the content of a tab.",
     category: 'container',
     config: DASH_CANVAS_SCHEMA,
     children: {
@@ -1405,14 +1487,15 @@ const dashContainer: WidgetSpec = {
     icon: 'window',
     sections: [
         {label: 'Content', keys: ['emptyText']},
-        {label: 'Display', keys: ['layout']}
+        {label: 'Display', keys: ['layout']},
+        {label: 'Interaction', keys: ['layoutLocked']}
     ],
     summary: 'Views a user drags into tabs, stacks, rows and columns, and resizes.',
     version: 1,
     label: 'Dash container',
     terms: ['dock', 'docking', 'stacks', 'rearrange', 'tabs and splits', 'split panes'],
     guidance:
-        'Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is rows and columns of stacks of tabs, each tab naming a child, sized in percent. Use tabContainer for plain tabs, and this only where users rearrange or split views side by side.',
+        'Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is rows and columns of stacks of tabs, each tab naming a child, sized in percent. Use tabContainer for plain tabs, and this only where users rearrange or split views side by side. Set layoutLocked only when the user wants the arrangement fixed for readers.',
     category: 'container',
     config: DASH_CONTAINER_SCHEMA,
     presetPaths: ['/layout'],
