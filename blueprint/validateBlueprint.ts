@@ -314,6 +314,29 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
     }
 
+    // A widget cannot draw without a required value, so a variable it reads must start with one:
+    // a default that is not empty, one a resolver computes, or one every preset sets.
+    function checkMayBeNull(key: string, value: unknown, at: string) {
+        const name = isPlainObject(value) ? (value as PlainObject).$var : null,
+            decl = isString(name) ? getOwn(variables, name) : null;
+        if (!decl || decl.setBy === 'resolver') return;
+        const control = `/variables/${name}/default`,
+            group = Object.values<PlainObject>(bp.presets ?? {}).find(g =>
+                g?.controls?.some((c: PlainObject) => c?.path === control)
+            ),
+            defaults: PlainObject[] = group
+                ? Object.values<PlainObject>(group.items ?? {}).map(
+                      it => it?.set?.variables?.[name]?.default
+                  )
+                : [decl.default as PlainObject];
+        if (defaults.every(it => isString(it?.resolver) || !isEmptyValue(it?.value))) return;
+        err(
+            'binding.mayBeNull',
+            at,
+            `${key} is required, but '${name}' may be empty: give it a default`
+        );
+    }
+
     // Variables and their writers.
     const settableFromOutside = new Set<string>();
     for (const [vn, v] of Object.entries(variables)) {
@@ -861,21 +884,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         const required: string[] = spec?.config?.required ?? [];
         Object.entries(props).forEach(([key, prop]) => {
             checkBound(key, prop, cfg[key], `${p}/${key}`);
-            // A widget cannot draw without a required value, so a variable it reads must start with one.
-            const name = isPlainObject(cfg[key]) ? cfg[key].$var : null,
-                decl = isString(name) ? getOwn(variables, name) : null;
-            if (
-                required.includes(key) &&
-                decl &&
-                decl.setBy !== 'resolver' &&
-                (decl.default as PlainObject)?.value == null
-            ) {
-                err(
-                    'binding.mayBeNull',
-                    `${p}/${key}`,
-                    `${key} is required, but '${name}' may be empty: give it a default`
-                );
-            }
+            if (required.includes(key)) checkMayBeNull(key, cfg[key], `${p}/${key}`);
             if (prop?.['x-preset'] && isString(cfg[key]) && !getOwn(bp.presets, cfg[key])) {
                 err('preset.unknownGroup', `${p}/${key}`, `unknown preset group '${cfg[key]}'`);
             }
@@ -887,9 +896,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         if (isString(cfg.groupBy)) need(cfg.groupBy, `${p}/groupBy`, 'dimension');
         if (isArray(cfg.columnState)) {
+            const listed = new Set<string>();
             cfg.columnState.forEach((c: any, i: number) => {
                 const f = isString(c) ? c : c?.field;
                 if (f !== TREE_COLUMN) need(f, `${p}/columnState/${i}`);
+                if (isString(f) && listed.has(f)) {
+                    err('field.duplicate', `${p}/columnState/${i}`, `'${f}' is already a column`);
+                }
+                listed.add(f);
             });
         }
         if (isPlainObject(cfg.columns)) {
@@ -1111,7 +1125,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                         registry.widgets[elements[segs[1]]?.component]?.config?.properties?.[
                             segs[3]
                         ];
-                    if (prop) checkBound(segs[3], prop, o, `${gp}/items/${iname}/set${path}`);
+                    if (prop) {
+                        const at = `${gp}/items/${iname}/set${path}`,
+                            required: string[] =
+                                registry.widgets[elements[segs[1]]?.component]?.config?.required ??
+                                [];
+                        checkBound(segs[3], prop, o, at);
+                        if (required.includes(segs[3])) checkMayBeNull(segs[3], o, at);
+                    }
                 }
             }
         };
@@ -1175,6 +1196,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     }
     return issues;
 }
+
+// No value: null, or an empty string or list.
+const isEmptyValue = (v: unknown) => v == null || v === '' || (isArray(v) && !v.length);
 
 /** A variable's writers, as the elements and outputs its `setBy` names. */
 export function getWriters(decl: PlainObject): PlainObject[] {

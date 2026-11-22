@@ -441,7 +441,9 @@ export class BlueprintRegistry {
                                 ];
                             })
                     ),
+                    // The renderer reads it as written, so it never binds.
                     presentation: {
+                        'x-binding': false,
                         enum: ['panel', ...presentations.map(it => it.name)],
                         description: 'How the widget draws. Default "panel".'
                     }

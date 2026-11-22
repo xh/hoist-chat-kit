@@ -1194,6 +1194,90 @@ describe('validateBlueprint', () => {
         expect(errors()).toEqual([]);
     });
 
+    it("counts a resolver's default, or one every preset sets, as a value, and an empty one as none", () => {
+        const registry = new BlueprintRegistry({
+                widgets: [
+                    {
+                        name: 'acme.meter',
+                        label: 'Meter',
+                        version: 1,
+                        guidance: 'A meter.',
+                        category: 'content',
+                        config: {
+                            type: 'object',
+                            required: ['label'],
+                            properties: {label: {type: 'string'}}
+                        }
+                    }
+                ]
+            }),
+            meter = (variables: object, presets?: object) =>
+                ({
+                    root: 'm',
+                    variables,
+                    ...(presets ? {presets} : {}),
+                    elements: {m: {component: 'acme.meter', config: {label: {$var: 'v'}}}}
+                }) as any,
+            mayBeNull = (bp: object) =>
+                validateBlueprint(bp as any, {catalog: portfolioCatalog, registry})
+                    .filter(it => it.code === 'binding.mayBeNull')
+                    .map(it => it.path);
+        expect(
+            mayBeNull(
+                meter({v: {type: 'localDate', setBy: 'prompt', default: {resolver: 'today'}}})
+            )
+        ).toEqual([]);
+        expect(
+            mayBeNull(meter({v: {type: 'string', setBy: 'prompt', default: {value: ''}}}))
+        ).toEqual(['/elements/m/config/label']);
+        const controlled = (a: unknown, b: unknown) =>
+            meter(
+                {v: {type: 'string', setBy: 'prompt'}},
+                {
+                    g: {
+                        controls: [{path: '/variables/v/default'}],
+                        default: 'a',
+                        items: {
+                            a: {set: {variables: {v: {default: {value: a}}}}},
+                            b: {set: {variables: {v: {default: {value: b}}}}}
+                        }
+                    }
+                }
+            );
+        expect(mayBeNull(controlled('One', 'Two'))).toEqual([]);
+        expect(mayBeNull(controlled('One', null))).toEqual(['/elements/m/config/label']);
+    });
+
+    it('checks a required property bound inside a preset for a variable that may be empty', () => {
+        const bp = p2();
+        bp.variables.kind = {type: 'string', setBy: 'prompt', options: {values: ['bar', 'column']}};
+        delete bp.elements.sectorChart.config.type;
+        bp.presets = {
+            look: {
+                controls: [{path: '/elements/sectorChart/config/type'}],
+                default: 'chosen',
+                items: {
+                    chosen: {set: {elements: {sectorChart: {config: {type: {$var: 'kind'}}}}}},
+                    pie: {set: {elements: {sectorChart: {config: {type: 'pie'}}}}}
+                }
+            }
+        };
+        expect(
+            validate(bp)
+                .filter(it => it.code === 'binding.mayBeNull')
+                .map(it => it.path)
+        ).toEqual(['/presets/look/items/chosen/set/elements/sectorChart/config/type']);
+    });
+
+    it('refuses a column listed twice in columnState', () => {
+        const bp = p2();
+        bp.elements.posGrid.config.columnState = ['mktVal', {field: 'mktVal', width: 80}];
+        expect(validate(bp).map(it => [it.code, it.path])).toContainEqual([
+            'field.duplicate',
+            '/elements/posGrid/config/columnState/1'
+        ]);
+    });
+
     it('takes a binding at a path presets control only inside a preset, checked as a config binding is', () => {
         const bp = p2();
         bp.variables.kind = {

@@ -169,6 +169,18 @@ describe('BlueprintRegistry bindings', () => {
         ]);
     });
 
+    it("keeps a widget's presentation a literal, as the renderer reads it unresolved", () => {
+        const registry = new BlueprintRegistry(),
+            {presentation} = props(registry, 'cubeGrid');
+        if (presentation) expect(presentation['x-binding']).toBe(false);
+        registry.addPresentation('chart', {
+            name: 'acme.card',
+            label: 'Card',
+            guidance: 'A card.'
+        } as any);
+        expect(props(registry, 'chart').presentation['x-binding']).toBe(false);
+    });
+
     it('shows the Architect only the marks that differ from the default', () => {
         const registry = new BlueprintRegistry(),
             tool = ARCHITECT_TOOLS.find(it => it.name === 'describe_registry'),
