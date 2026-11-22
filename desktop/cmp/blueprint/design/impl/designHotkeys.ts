@@ -3,7 +3,7 @@ import {XH} from '@xh/hoist/core';
 import type {useHotkeys} from '@xh/hoist/desktop/hooks';
 import type {BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
 import {childIds} from '../../../../../blueprint/impl/elements';
-import {duplicateElement, removeElementAsync} from './designActions';
+import {duplicateElement, removeSelectionAsync} from './designActions';
 
 type HotkeyConfig = Parameters<typeof useHotkeys>[1][number];
 
@@ -124,6 +124,8 @@ const DESIGN_KEYS: DesignKey[] = [
         keys: 'Esc',
         label: 'Select the parent, else clear',
         run: (dm, id) => {
+            // During a cell drag, Escape cancels the drag instead.
+            if (document.querySelector('.react-draggable-dragging')) return;
             const parent = dm.pathTo(id).at(-1);
             dm.select(parent ? {kind: 'element', id: parent} : null);
         }
@@ -161,16 +163,18 @@ const DESIGN_KEYS: DesignKey[] = [
         combo: 'del',
         keys: 'Del',
         label: 'Delete',
-        run: (dm, id) => {
-            if (isWriter(dm)) removeElementAsync(dm, id).then(it => refuse(dm, it));
+        always: true,
+        run: dm => {
+            if (isWriter(dm)) removeSelectionAsync(dm).then(it => refuse(dm, it));
         }
     },
     {
         combo: 'backspace',
         keys: 'Backspace',
         label: 'Delete',
-        run: (dm, id) => {
-            if (isWriter(dm)) removeElementAsync(dm, id).then(it => refuse(dm, it));
+        always: true,
+        run: dm => {
+            if (isWriter(dm)) removeSelectionAsync(dm).then(it => refuse(dm, it));
         }
     },
     {

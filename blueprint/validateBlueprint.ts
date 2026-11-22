@@ -152,7 +152,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
 
     const elements: Record<string, any> = toLookup(bp.elements),
         variables: Record<string, any> = toLookup(bp.variables),
-        sources: Record<string, any> = toLookup(bp.sources);
+        sources: Record<string, any> = toLookup(bp.sources),
+        // Each element config key a preset group controls, as `id/key`.
+        presetKeys = new Set(
+            Object.values(toLookup(bp.presets))
+                .flatMap((it: any) => (Array.isArray(it?.controls) ? it.controls : []))
+                .map(it => String(it?.path ?? '').split('/'))
+                .filter(segs => segs[1] === 'elements' && segs[3] === 'config' && segs[4])
+                .map(segs => `${segs[2]}/${segs[4]}`)
+        );
 
     // Structure.
     if (!bp.root) {
@@ -183,6 +191,8 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         const isPartial = !!spec.rendersPartial && !!ctx.partialIds?.includes(id);
         for (const e of checkConfig(el.config ?? {}, spec.config, {isPartial})) {
+            // A key that presets control leaves the config, and each preset gives its value.
+            if (e.message.endsWith(' is required') && presetKeys.has(`${id}${e.path}`)) continue;
             err('schema.invalid', `${p}/config${e.path}`, e.message);
         }
         if (!isPartial) {

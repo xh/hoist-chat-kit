@@ -33,7 +33,8 @@ export function checkConfig(
 ): {path: string; message: string}[] {
     return findSchemaErrors(value, schema, {checkNode, isPartial: opts.isPartial}).map(it => ({
         path: toPointer(it.path),
-        message: it.message
+        // A missing key reads as a sentence that names it.
+        message: it.message === 'required' ? `'${it.path.at(-1)}' is required` : it.message
     }));
 }
 

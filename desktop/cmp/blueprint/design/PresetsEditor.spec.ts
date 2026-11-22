@@ -85,6 +85,15 @@ describe('PresetsEditor', () => {
         expect(editor.items[1].isActive).toBe(true);
     });
 
+    it("makes a group over a path the widget requires, such as a chart's type", () => {
+        const {model, design, editor} = open(null);
+        editor.addGroup('/elements/sectorChart/config/type');
+        expect(editor.issues).toEqual([]);
+        expect(design.selection?.kind).toBe('preset');
+        expect(model.blueprint.elements.sectorChart.config).not.toHaveProperty('type');
+        expect(model.effective.elements.sectorChart.config.type).toBe('column');
+    });
+
     it('makes a group, and selects it', () => {
         const {model, design, editor} = open(null);
         editor.addGroup('/elements/posGrid/config/sortBy');

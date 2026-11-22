@@ -93,6 +93,35 @@ function undoToast(designModel: BlueprintDesignModel, id: string) {
     });
 }
 
+/**
+ * Remove whatever is selected, as its kind does: an element as {@link removeElementAsync}, a
+ * preset group as {@link removePresetGroupAsync}, and a source or a variable at once, refused
+ * while anything reads it.
+ *
+ * @returns the issues that refused the removal, if any.
+ */
+export async function removeSelectionAsync(
+    designModel: BlueprintDesignModel
+): Promise<BlueprintIssue[]> {
+    const {selection} = designModel;
+    switch (selection?.kind) {
+        case 'element':
+            return removeElementAsync(designModel, selection.id);
+        case 'preset':
+            return removePresetGroupAsync(designModel, selection.id);
+        case 'source':
+            return designModel
+                .removeSource(selection.id)
+                .issues.filter(it => it.severity === 'error');
+        case 'variable':
+            return designModel
+                .removeVariable(selection.id)
+                .issues.filter(it => it.severity === 'error');
+        default:
+            return [];
+    }
+}
+
 /** Copy an element and its subtree, as one edit, and select the copy, or show why it cannot. */
 export function duplicateElement(designModel: BlueprintDesignModel, id: string) {
     const error = designModel.duplicateElement(id).issues.find(it => it.severity === 'error');

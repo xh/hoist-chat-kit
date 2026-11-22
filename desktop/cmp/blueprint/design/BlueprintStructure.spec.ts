@@ -1,3 +1,4 @@
+import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -149,6 +150,22 @@ describe('BlueprintStructure', () => {
         const del = designHotkeys(design, {arrows: false}).find(it => it.combo === 'del');
         del.onKeyDown({target: null, preventDefault: () => {}} as any);
         expect(model.blueprint.elements).toHaveProperty('posGrid');
+    });
+
+    it('deletes a selected variable with Del too, and refuses one that something reads', async () => {
+        const {model, design} = open(),
+            del = designHotkeys(design, {arrows: false}).find(it => it.combo === 'del'),
+            press = () => del.onKeyDown({target: null, preventDefault: () => {}} as any),
+            {id} = design.addVariable();
+        design.select({kind: 'variable', id});
+        press();
+        await vi.waitFor(() => expect(model.blueprint.variables).not.toHaveProperty(id));
+        const toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
+        onTestFinished(() => toast.mockRestore());
+        design.select({kind: 'variable', id: 'asOf'});
+        press();
+        await vi.waitFor(() => expect(toast).toHaveBeenCalled());
+        expect(model.blueprint.variables).toHaveProperty('asOf');
     });
 
     it('offers a menu of rename, duplicate, move, add and delete for an element', () => {

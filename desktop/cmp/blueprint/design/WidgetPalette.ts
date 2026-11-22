@@ -14,6 +14,7 @@ import type React from 'react';
 import {useEffect, useRef} from 'react';
 import {groupBy, isString, upperFirst} from 'lodash';
 import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../../blueprint';
+import {slotLabel} from '../../../../blueprint/impl/elements';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {paletteDrag} from '../impl/paletteDrag';
 import './WidgetPalette.scss';
@@ -201,9 +202,10 @@ export class WidgetPaletteModel extends HoistModel {
             const title = getOwn(blueprint.elements, id)?.config?.title;
             return isString(title) && title ? title : id;
         };
-        const where = target.slot
-            ? `${nameOf(target.of ?? target.parent)} ${target.slot}`
-            : nameOf(target.parent);
+        const where =
+            target.slot && target.slot !== 'children'
+                ? `${nameOf(target.of ?? target.parent)}'s ${slotLabel(target.slot, !!target.of).toLowerCase()}`
+                : nameOf(target.parent);
         return target.after
             ? `Adds after ${nameOf(target.after)}, in ${where}`
             : `Adds into ${where}`;
