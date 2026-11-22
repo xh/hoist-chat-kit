@@ -7,6 +7,7 @@ import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
 import {sum} from 'lodash';
+import type React from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {
     type BlueprintDesignModel,
@@ -314,14 +315,21 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                           : null
                                   ]
                               })
-                            : button({
+                            : span({
                                   key: id,
-                                  className: `${CLS}__crumb`,
-                                  icon: icon(id),
-                                  text: id,
-                                  minimal: true,
-                                  onClick: () => select(id)
-                              }),
+                                  className: `${CLS}__crumb ${CLS}__crumb--link`,
+                                  role: 'button',
+                                  tabIndex: 0,
+                                  title: `Select ${id}`,
+                                  onClick: () => select(id),
+                                  onKeyDown: (e: React.KeyboardEvent) => {
+                                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      select(id);
+                                  },
+                                  children: [icon(id), id]
+                              } as object),
                     // The steps folded away sit between the first and the rest, in a menu.
                     fold =
                         at === 1 && hidden.length

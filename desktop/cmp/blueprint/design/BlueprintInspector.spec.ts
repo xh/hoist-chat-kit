@@ -106,9 +106,9 @@ describe('BlueprintInspector', () => {
         // The editor's own header gives way to the frame's.
         expect(container.querySelector('.xh-blueprint-element-inspector__header')).toBeNull();
         fireEvent.click(
-            [...container.querySelectorAll('.xh-blueprint-inspector__breadcrumb button')].find(
-                it => it.textContent === 'positions'
-            )
+            [
+                ...container.querySelectorAll('.xh-blueprint-inspector__breadcrumb [role=button]')
+            ].find(it => it.textContent === 'positions')
         );
         expect(design.selectedElementId).toBe('positions');
         design.select({kind: 'variable', id: 'asOf'});

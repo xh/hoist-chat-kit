@@ -21,9 +21,16 @@
     color: var(--xh-text-color);
     border-radius: 4px;
 
-    &.xh-button {
-      min-height: 22px;
-      padding: 3px 7px;
+    &--link {
+      cursor: pointer;
+
+      &:hover {
+        background-color: var(--xh-bg-alt);
+      }
+
+      &:focus-visible {
+        outline: var(--xh-focus-outline);
+      }
     }
 
     &--current {
