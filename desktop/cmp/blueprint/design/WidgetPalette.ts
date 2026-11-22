@@ -179,6 +179,7 @@ export class WidgetPaletteModel extends HoistModel {
                 title: it.summary ?? firstSentence(it.guidance),
                 guidance: it.guidance ?? null,
                 icon: it.icon ?? null,
+                preview: it.preview ?? null,
                 category: it.category,
                 refusal: designModel.addRefusal(it.name, target)
             }))
@@ -281,6 +282,8 @@ export interface PaletteTile {
     title: string;
     guidance: string;
     icon: string;
+    /** Its picture, as `WidgetSpec.preview` gives it. */
+    preview: WidgetSpec['preview'];
     category: string;
     /** Why the add target will not take it, or null. */
     refusal: string;

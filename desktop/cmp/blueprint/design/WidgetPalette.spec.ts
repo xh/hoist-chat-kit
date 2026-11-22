@@ -81,6 +81,25 @@ describe('WidgetPalette', () => {
         );
     });
 
+    it("pictures each tile with its widget's glyph, or its icon where it has none", () => {
+        const {design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            {container} = render(widgetPalette({designModel: design}) as ReactElement),
+            tile = (label: string) =>
+                [...container.querySelectorAll('.xh-blueprint-widget-palette__tile')].find(it =>
+                    it.textContent.startsWith(label)
+                );
+        expect(
+            tile('Grid').querySelector(
+                '.xh-blueprint-widget-palette__tile-preview svg.xh-blueprint-preview'
+            )
+        ).not.toBeNull();
+        expect(
+            container.querySelectorAll(
+                '.xh-blueprint-widget-palette__tile-preview svg.xh-blueprint-preview'
+            ).length
+        ).toBeGreaterThan(20);
+    });
+
     it('searches widgets by name, label and terms', () => {
         const {palette} = open(loadBlueprint('p2-linked-dashboard.json'));
         palette.search = 'pivot';
