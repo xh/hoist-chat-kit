@@ -29,6 +29,11 @@ export interface GridCanvasProps {
     renderItem: (id: string) => ReactNode;
     /** A cell's header, which is also its drag handle. Null for a cell with none. */
     renderHeader?: (id: string) => ReactNode;
+    /**
+     * A grip for a cell with no header, drawn on its frame's top edge, which is then its drag
+     * handle. Null for a cell with none.
+     */
+    renderGrip?: (id: string) => ReactNode;
     /** Attributes for a cell's frame, such as data attributes for hit tests. */
     frameProps?: (id: string) => Record<string, unknown>;
     /** Called once per finished move or resize, with every item it changed. */

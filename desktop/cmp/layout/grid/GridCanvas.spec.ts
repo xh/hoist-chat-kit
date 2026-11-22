@@ -32,6 +32,19 @@ describe('gridCanvas', () => {
         ).toBeNull();
     });
 
+    it('draws a grip as the drag handle of a cell with no header', () => {
+        const {container} = renderCanvas({
+            renderHeader: id => (id === 'posGrid' ? div({className: 'test-header'}) : null),
+            renderGrip: () => div({className: 'test-grip'})
+        });
+        expect(
+            container.querySelector('[data-grid-item="chart"] .xh-layout-grid__grip .test-grip')
+        ).toBeTruthy();
+        expect(
+            container.querySelector('[data-grid-item="posGrid"] .xh-layout-grid__grip')
+        ).toBeNull();
+    });
+
     it('follows the cells it is given, keeping no copy', () => {
         const {container, rerender} = renderCanvas({});
         const before = frameStyle(container, 'chart');

@@ -32,6 +32,7 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
         onChange,
         renderItem,
         renderHeader,
+        renderGrip,
         frameProps,
         onDropOver,
         onDrop,
@@ -56,7 +57,7 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 compactor: noCompactor,
                 dragConfig: {
                     enabled: editable,
-                    handle: `.${CLS}__header`,
+                    handle: `.${CLS}__header, .${CLS}__grip`,
                     cancel: 'button, input, select, textarea, .xh-button, [role=button]',
                     bounded: true
                 },
@@ -85,7 +86,8 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 },
                 innerRef: heightRef,
                 children: cells.map(({id}) => {
-                    const header = renderHeader?.(id);
+                    const header = renderHeader?.(id),
+                        grip = header == null ? renderGrip?.(id) : null;
                     return div({
                         key: id,
                         className: `${CLS}__frame`,
@@ -97,6 +99,9 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                                       className: `${CLS}__header`,
                                       children: header
                                   })
+                                : null,
+                            grip != null
+                                ? div({key: 'grip', className: `${CLS}__grip`, children: grip})
                                 : null,
                             div({key: 'body', className: `${CLS}__body`, children: renderItem(id)})
                         ]

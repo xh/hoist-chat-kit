@@ -153,6 +153,16 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
                     containerPadding: [CANVAS_GAP, CANVAS_GAP],
                     renderItem: id => model.renderElement(id),
                     renderHeader: id => (model.cellHasHeader(id) ? cellHeader({model, id}) : null),
+                    // In design mode a headerless cell moves by a grip, which also selects its view.
+                    renderGrip: id =>
+                        model.isDesign
+                            ? div({
+                                  className: `${CLS}__grip`,
+                                  title: `Move ${id}`,
+                                  ...({'data-blueprint-view-grip': id} as PlainObject),
+                                  children: Icon.gripVertical()
+                              })
+                            : null,
                     frameProps: id => ({
                         'data-blueprint-view': id,
                         'data-blueprint-canvas': model.id
