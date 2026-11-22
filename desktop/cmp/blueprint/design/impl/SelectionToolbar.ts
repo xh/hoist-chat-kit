@@ -3,6 +3,8 @@ import {hoistCmp, type HoistProps, type MenuItemLike} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
+import {wait} from '@xh/hoist/promise';
+import {useRef} from 'react';
 import type {BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
 import {addWidgetAt, duplicateElement, removeElementAsync} from './designActions';
 
@@ -20,7 +22,30 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
     className: 'xh-blueprint-selection-toolbar',
     model: false,
     render({designModel, id, className}) {
-        const {blueprintModel} = designModel,
+        const ref = useRef<HTMLDivElement>(null),
+            // Back to the canvas after an action, so the design keys keep working.
+            refocus = () => {
+                const surface = ref.current?.closest<HTMLElement>('.xh-panel__content[tabindex]');
+                wait().then(() => surface?.focus());
+            },
+            withRefocus = (items: MenuItemLike[]): MenuItemLike[] =>
+                items.map(it =>
+                    typeof it === 'object' && 'text' in it
+                        ? {
+                              ...it,
+                              ...(it.actionFn
+                                  ? {
+                                        actionFn: (...args) => {
+                                            it.actionFn(...args);
+                                            refocus();
+                                        }
+                                    }
+                                  : {}),
+                              ...(it.items ? {items: withRefocus(it.items)} : {})
+                          }
+                        : it
+                ),
+            {blueprintModel} = designModel,
             {registry} = blueprintModel,
             labelOf = (component: string) => registry.widgets[component]?.label ?? component,
             component = blueprintModel.blueprint?.elements?.[id]?.component,
@@ -74,7 +99,12 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
             ];
         return div({
             className,
-            onClick: e => e.stopPropagation(),
+            ref,
+            onClick: e => {
+                e.stopPropagation();
+                // A menu button keeps focus for the menu it opens.
+                if (!(e.target as HTMLElement).closest(`.${CLS}__menu`)) refocus();
+            },
             children: [
                 button({
                     icon: Icon.arrowUp(),
@@ -100,19 +130,21 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                           }),
                           designModel.addPlacesFor(id).length
                               ? menuButton({
+                                    className: `${CLS}__menu`,
                                     icon: Icon.add(),
                                     title: 'Add',
                                     'aria-label': 'Add',
                                     minimal: true,
-                                    menuItems: addItems
+                                    menuItems: () => withRefocus(addItems())
                                 })
                               : null,
                           menuButton({
+                              className: `${CLS}__menu`,
                               icon: Icon.ellipsisVertical(),
                               title: 'More',
                               'aria-label': 'More',
                               minimal: true,
-                              menuItems: moreItems
+                              menuItems: () => withRefocus(moreItems())
                           }),
                           button({
                               icon: Icon.delete(),

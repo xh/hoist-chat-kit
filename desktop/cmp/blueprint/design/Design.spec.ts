@@ -242,6 +242,12 @@ describe('design mode selection', () => {
         expect(toolbar.querySelectorAll('button')).toHaveLength(5);
         fireEvent.click(toolbar.querySelector('button[title^="Select the parent"]'));
         expect(design.selectedElementId).toBe('tabs');
+        // Focus goes back to the canvas, so the design keys keep working.
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(
+                container.querySelector('.xh-panel__content[tabindex]')
+            )
+        );
     });
 
     it('runs the design keys on the selection, but never from an input', () => {

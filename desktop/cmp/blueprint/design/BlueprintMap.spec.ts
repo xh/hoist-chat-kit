@@ -181,4 +181,31 @@ describe('BlueprintMap', () => {
         expect(container.querySelector('svg.xh-blueprint-map__edges')).toBeTruthy();
         expect(model.history).toHaveLength(0);
     });
+
+    it('reads as lanes of options, which the arrows move through and Enter selects', async () => {
+        const {design} = open(),
+            {container} = render(blueprintMap({designModel: design}) as ReactElement),
+            lanes = container.querySelectorAll('[role=listbox]'),
+            options = (lane: Element) =>
+                [...lane.querySelectorAll('[role=option]')] as HTMLElement[];
+        expect(lanes).toHaveLength(3);
+        expect(lanes[0].getAttribute('aria-label')).toBe('Variables');
+        expect(container.querySelectorAll('[role=option][tabindex="0"]')).toHaveLength(1);
+        expect(container.querySelector('svg').getAttribute('aria-hidden')).toBe('true');
+
+        const [fund, asOf] = options(lanes[0]);
+        fund.focus();
+        fireEvent.keyDown(fund, {key: 'ArrowDown'});
+        expect(document.activeElement).toBe(asOf);
+        // Focus previews its trace, as hover does.
+        await vi.waitFor(() => expect(asOf.className).toContain('xh-blueprint-map__node--focus'));
+        fireEvent.keyDown(asOf, {key: 'ArrowRight'});
+        expect(document.activeElement).toBe(options(lanes[1])[0]);
+        fireEvent.keyDown(document.activeElement, {key: 'Enter'});
+        expect(design.selection).toEqual({kind: 'source', id: 'positions'});
+        await vi.waitFor(() =>
+            expect(options(lanes[1])[0].getAttribute('aria-selected')).toBe('true')
+        );
+        expect(asOf.getAttribute('aria-label')).toMatch(/^asOf, .*feeds the selection/);
+    });
 });

@@ -329,7 +329,8 @@ chat answer has none.
 On the canvas, the selected element has a toolbar, and the keys act on it: `?` lists them. A key
 pressed in a widget's own grid, button or input stays with that control. An empty container
 offers to add a widget: give `blueprintView` an `onAddWidget(place)` to open the host's palette
-there, and an `onAskArchitect()` for the empty dashboard's second button. Give `blueprintMap` an
+there, and an `onAskArchitect()` for the empty dashboard's second button. Set the design model's
+`onRequestAdd` to open that palette from the `/` key; the palette then focuses its search. Give `blueprintMap` an
 `onOpenElement(id)` to show an element on the canvas from a double-click. `wiringFor(blueprint,
 selection)` lists what a selection reads and sets, and what reads and sets it.
 

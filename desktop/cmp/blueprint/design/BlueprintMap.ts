@@ -12,6 +12,7 @@ import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
 import classNames from 'classnames';
 import {castArray, isEqual, startCase, uniq} from 'lodash';
+import type React from 'react';
 import {createElement, useLayoutEffect, useRef} from 'react';
 import {
     type BlueprintDesignModel,
@@ -69,6 +70,8 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
                                 vbox({
                                     key: lane.title,
                                     className: `${CLS}__lane`,
+                                    role: 'listbox',
+                                    'aria-label': lane.title,
                                     children: [
                                         div({
                                             className: `${CLS}__lane-title`,
@@ -232,6 +235,15 @@ export class BlueprintMapModel extends HoistModel {
             ret.push({from, to, kind: it.kind, ...(toPort ? {toPort} : {})});
         });
         return ret;
+    }
+
+    /** The one node that takes Tab: the selection's, else the first. */
+    @computed
+    get tabStop(): string {
+        const {selection} = this.designModel,
+            keys = this.lanes.flatMap(it => it.groups.flatMap(g => g.nodes.map(n => n.key))),
+            selected = selection ? this.nodeOf(selection) : null;
+        return keys.includes(selected) ? selected : keys[0];
     }
 
     /** The node a trace starts from: the one under the pointer, else the selection. */
@@ -472,14 +484,26 @@ const mapNode = hoistCmp.factory<
                           designModel.wiring
                       ).waitsFor
                     : [];
+        const isSelected = !!selection && wiringKey(selection) === node.key;
         return div({
             className: classNames(
                 `${CLS}__node`,
                 `${CLS}__node--${node.kind}`,
                 state && `${CLS}__node--${state}`,
-                selection && wiringKey(selection) === node.key && `${CLS}__node--selected`
+                isSelected && `${CLS}__node--selected`
             ),
-            ...({'data-map-node': node.key} as object),
+            ...({
+                'data-map-node': node.key,
+                role: 'option',
+                'aria-selected': isSelected,
+                'aria-label': [node.id, node.detail, STATE_WORDS[state]].filter(Boolean).join(', ')
+            } as object),
+            tabIndex: impl.tabStop === node.key ? 0 : -1,
+            onFocus: () => impl.setHoverKey(node.key),
+            onBlur: () => {
+                if (impl.hoverKey === node.key) impl.setHoverKey(null);
+            },
+            onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => moveFocus(e, impl),
             onClick: () => impl.select(node.key),
             onDoubleClick: () => {
                 impl.select(node.key);
@@ -538,6 +562,44 @@ const COLLECTIONS = {
     preset: 'presets'
 };
 
+// A node's place in the trace, as a screen reader says it.
+const STATE_WORDS: Record<string, string> = {
+    focus: 'traced from here',
+    upstream: 'feeds the selection',
+    downstream: 'fed by the selection',
+    preset: 'controls the selection'
+};
+
+// The arrows move through a lane's options, and across to the next lane. Enter or Space selects.
+function moveFocus(e: React.KeyboardEvent<HTMLElement>, impl: BlueprintMapModel) {
+    const lane = e.currentTarget.closest('[role=listbox]'),
+        lanes = [...(lane?.parentElement?.querySelectorAll('[role=listbox]') ?? [])],
+        options = (it: Element) => [...it.querySelectorAll<HTMLElement>('[role=option]')],
+        mine = options(lane),
+        at = mine.indexOf(e.currentTarget),
+        across = (step: number) => options(lanes[lanes.indexOf(lane) + step] ?? lane)[0],
+        target =
+            e.key === 'ArrowDown'
+                ? mine[at + 1]
+                : e.key === 'ArrowUp'
+                  ? mine[at - 1]
+                  : e.key === 'ArrowRight'
+                    ? across(1)
+                    : e.key === 'ArrowLeft'
+                      ? across(-1)
+                      : null;
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        impl.select(e.currentTarget.dataset.mapNode);
+    } else if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        target.focus();
+        impl.setHoverKey(target.dataset.mapNode);
+    }
+}
+
 const EDGE_STATES = ['none', 'upstream', 'downstream', 'preset', 'dim'];
 
 // One SVG over the lanes, a curve per wire from the boxes last measured, with an arrowhead in the
@@ -549,7 +611,7 @@ const edgeLayer = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
         const {boxes, markerId} = impl;
         return createElement(
             'svg',
-            {className: `${CLS}__edges`},
+            {className: `${CLS}__edges`, 'aria-hidden': true},
             createElement(
                 'defs',
                 {key: 'defs'},

@@ -1,7 +1,7 @@
 import {fireEvent, render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     type Blueprint,
     BlueprintDesignModel,
@@ -67,6 +67,18 @@ describe('WidgetPalette', () => {
         expect(design.showAddTarget).toBe(true);
         palette.setPointerOver(false);
         expect(design.showAddTarget).toBe(false);
+    });
+
+    it("focuses its search when the design asks for Add, as '/' does, and tells the host", async () => {
+        const {design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            onRequestAdd = vi.fn();
+        design.onRequestAdd = onRequestAdd;
+        const {container} = render(widgetPalette({designModel: design}) as ReactElement);
+        design.requestAdd();
+        expect(onRequestAdd).toHaveBeenCalled();
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(container.querySelector('input'))
+        );
     });
 
     it('searches widgets by name, label and terms', () => {

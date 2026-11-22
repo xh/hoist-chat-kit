@@ -121,6 +121,19 @@ export class BlueprintDesignModel extends HoistModel {
         }
     }
 
+    /** The host's Add, opened to search, as from the `/` key. Set by the host. */
+    onRequestAdd: () => void = null;
+
+    /** When Add was last asked for, for a palette to focus its search, even one opening for it. */
+    @observable accessor addRequestedAt = 0;
+
+    /** Ask for Add, to search the widgets: the host opens it, and its palette focuses its search. */
+    @action
+    requestAdd() {
+        this.addRequestedAt = Date.now();
+        this.onRequestAdd?.();
+    }
+
     /** True while the pointer is over the host's palette, for the canvas to outline the add target. */
     @observable accessor showAddTarget = false;
 

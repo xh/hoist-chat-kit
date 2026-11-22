@@ -11,6 +11,7 @@ import {Icon} from '@xh/hoist/icon';
 import {action, bindable, observable} from '@xh/hoist/mobx';
 import classNames from 'classnames';
 import type React from 'react';
+import {useEffect, useRef} from 'react';
 import {groupBy, isString, upperFirst} from 'lodash';
 import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
@@ -30,7 +31,13 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
     className: 'xh-blueprint-widget-palette',
     model: false,
     render({designModel, className}) {
-        const impl = useLocalModel(() => new WidgetPaletteModel(designModel));
+        const impl = useLocalModel(() => new WidgetPaletteModel(designModel)),
+            searchRef = useRef<HTMLInputElement>(null),
+            {addRequestedAt} = designModel;
+        // A request for Add, even one that opened this palette, focuses its search.
+        useEffect(() => {
+            if (addRequestedAt && Date.now() - addRequestedAt < 2000) searchRef.current?.focus();
+        }, [addRequestedAt]);
         return div({
             className,
             onMouseEnter: () => impl.setPointerOver(true),
@@ -39,6 +46,7 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                 textInput({
                     model: impl,
                     bind: 'search',
+                    inputRef: searchRef,
                     placeholder: 'Search widgets',
                     leftIcon: Icon.search(),
                     commitOnChange: true,

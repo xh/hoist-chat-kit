@@ -220,5 +220,12 @@ const DESIGN_KEYS: DesignKey[] = [
         always: true,
         run: dm => dm.blueprintModel.canRedo && refuse(dm, dm.blueprintModel.redo().issues)
     },
+    {
+        combo: '/',
+        keys: '/',
+        label: "Search Add's widgets",
+        always: true,
+        run: dm => isWriter(dm) && dm.requestAdd()
+    },
     {combo: 'shift+/', keys: '?', label: 'This list', always: true, run: () => showDesignKeys()}
 ];
