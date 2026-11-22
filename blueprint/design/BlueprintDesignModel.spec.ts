@@ -936,4 +936,58 @@ describe('BlueprintDesignModel', () => {
         expect(cells()).toEqual(before);
         expect(model.blueprint.elements.overview.config?.columns).toBeUndefined();
     });
+
+    describe('dash container views', () => {
+        const setup = () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                dc = design.addWidget('dashContainer').id,
+                a = design.addWidget('markdown', dc).id,
+                b = design.addWidget('markdown', dc).id;
+            design.setConfig(dc, '/layout', [
+                {
+                    type: 'row',
+                    content: [
+                        {type: 'stack', content: [{type: 'view', id: a}]},
+                        {type: 'stack', content: [{type: 'view', id: b}]}
+                    ]
+                }
+            ]);
+            const layout = () => model.blueprint.elements[dc].config.layout;
+            return {model, design, dc, a, b, layout};
+        };
+
+        it('removes a view its layout names, dropping its emptied stack, in one edit undo restores', () => {
+            const {model, design, a, b, layout} = setup(),
+                before = layout(),
+                edits = model.history.length;
+            expect(errors(design.removeElement(a))).toEqual([]);
+            expect(model.blueprint.elements[a]).toBeUndefined();
+            expect(layout()).toEqual([
+                {type: 'row', content: [{type: 'stack', content: [{type: 'view', id: b}]}]}
+            ]);
+            expect(model.history.length).toBe(edits + 1);
+            model.undo();
+            expect(layout()).toEqual(before);
+        });
+
+        it('drops a view from the layout as it moves out, and keeps the layout for a reorder', () => {
+            const {design, dc, a, b, layout} = setup();
+            expect(errors(design.moveElement(b, dc, {index: 0}))).toEqual([]);
+            expect(JSON.stringify(layout())).toContain(`"${a}"`);
+            expect(errors(design.moveTo(a, 'dashboard', 'into'))).toEqual([]);
+            expect(JSON.stringify(layout())).not.toContain(`"${a}"`);
+        });
+
+        it("takes an Architect's raw removal of a view too, leaving the default once none is left", () => {
+            const {model, a, b, dc} = setup(),
+                result = model.applyEdit({
+                    ops: [
+                        {op: 'removeElement', id: a},
+                        {op: 'removeElement', id: b}
+                    ]
+                });
+            expect(result.issues.filter(it => it.severity === 'error')).toEqual([]);
+            expect(model.blueprint.elements[dc].config).not.toHaveProperty('layout');
+        });
+    });
 });
