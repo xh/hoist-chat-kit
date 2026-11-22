@@ -485,71 +485,93 @@ function listEditor(
     commit: (value: unknown) => void,
     ctx: EditorContext
 ) {
-    const disabled = ctx.impl.readOnly,
-        moved = (from: number, to: number) => {
-            const ret = [...items];
-            ret.splice(to, 0, ...ret.splice(from, 1));
-            return ret;
-        },
+    const {impl} = ctx,
+        disabled = impl.readOnly,
         commitList = (list: unknown[]) =>
-            commit(isEmpty(list) && !node.required ? undefined : list);
+            commit(isEmpty(list) && !node.required ? undefined : list),
+        // Keyed by place, which holds still through a drag.
+        rows = items.map((value, index) => ({key: String(index), index, value}));
     return div({
-        className: `${CLS}__list`,
+        className: `${CLS}__field-list`,
         children: [
-            ...items.map((item, i) =>
-                div({
-                    key: i,
-                    className: `${CLS}__item`,
-                    children: [
-                        hbox({
-                            className: `${CLS}__item-header`,
-                            children: [
-                                div({className: `${CLS}__item-label`, children: `${i + 1}`}),
-                                buttonGroup({
-                                    children: [
-                                        button({
-                                            icon: Icon.arrowUp(),
-                                            title: 'Move up',
-                                            disabled: disabled || i === 0,
-                                            onClick: () => commitList(moved(i, i - 1))
-                                        }),
-                                        button({
-                                            icon: Icon.arrowDown(),
-                                            title: 'Move down',
-                                            disabled: disabled || i === items.length - 1,
-                                            onClick: () => commitList(moved(i, i + 1))
-                                        }),
-                                        button({
-                                            icon: Icon.delete(),
-                                            title: 'Remove',
-                                            intent: 'danger',
-                                            disabled,
-                                            onClick: () =>
-                                                commitList(items.filter((_, j) => j !== i))
-                                        })
-                                    ]
+            rows.length
+                ? sortableList({
+                      className: `${CLS}__columns`,
+                      value: rows,
+                      itemKey: 'key',
+                      getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
+                      disabled,
+                      compact: true,
+                      onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
+                      renderItem: (row: PlainObject) => {
+                          const open = impl.isItemOpen(ctx.key, row.index);
+                          return hbox({
+                              className: classNames(
+                                  `${CLS}__item-header`,
+                                  open && `${CLS}__column--open`
+                              ),
+                              children: [
+                                  span({
+                                      className: `${CLS}__column-label`,
+                                      children: itemLabel(row.value, row.index)
+                                  }),
+                                  button({
+                                      icon: open ? Icon.chevronUp() : Icon.chevronDown(),
+                                      title: 'Settings',
+                                      minimal: true,
+                                      intent: open ? 'primary' : null,
+                                      onClick: () => impl.toggleItem(ctx.key, row.index)
+                                  }),
+                                  button({
+                                      icon: Icon.delete(),
+                                      title: 'Remove',
+                                      intent: 'danger',
+                                      minimal: true,
+                                      disabled,
+                                      onClick: () =>
+                                          commitList(items.filter((_, j) => j !== row.index))
+                                  })
+                              ]
+                          });
+                      },
+                      renderDetail: (row: PlainObject) =>
+                          impl.isItemOpen(ctx.key, row.index)
+                              ? div({
+                                    className: `${CLS}__settings`,
+                                    children: editorFor(
+                                        node.item,
+                                        row.value,
+                                        v =>
+                                            commitList(
+                                                items.map((it, j) => (j === row.index ? v : it))
+                                            ),
+                                        ctx
+                                    )
                                 })
-                            ]
-                        }),
-                        editorFor(
-                            node.item,
-                            item,
-                            v => commitList(items.map((it, j) => (j === i ? v : it))),
-                            ctx
-                        )
-                    ]
-                })
-            ),
+                              : null
+                  })
+                : null,
             button({
                 icon: Icon.add(),
                 intent: 'primary',
                 text: 'Add',
                 minimal: true,
                 disabled,
-                onClick: () => commitList([...items, ctx.impl.newValue(node.item.schema)])
+                onClick: () => {
+                    commitList([...items, impl.newValue(node.item.schema)]);
+                    // A new item opens, for its settings.
+                    if (!impl.isItemOpen(ctx.key, items.length))
+                        impl.toggleItem(ctx.key, items.length);
+                }
             })
         ]
     });
+}
+
+// What a list item shows as: its label, title or name, else its place.
+function itemLabel(value: unknown, index: number): string {
+    const v = value as PlainObject;
+    return (isPlainObject(v) && [v.label, v.title, v.name].find(isString)) || `${index + 1}`;
 }
 
 function mapEditor(

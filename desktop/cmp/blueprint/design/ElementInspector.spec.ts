@@ -427,6 +427,10 @@ describe('ElementInspector', () => {
             const buttons = design.addWidget('buttonGroup');
             design.select({kind: 'element', id: buttons.id});
             const again = render(elementInspector({designModel: design}) as ReactElement);
+            // A list item's editor opens in its drawer.
+            fireEvent.click(
+                again.container.querySelector('[data-config-key="buttons"] [title="Settings"]')
+            );
             expect(
                 again.container.querySelectorAll('.xh-blueprint-element-inspector__step').length
             ).toBeGreaterThan(0);
@@ -440,12 +444,15 @@ describe('ElementInspector', () => {
                     action: {type: 'toolbox.publishToPmPack', fund: 'A', asOf: '2026-11-20'}
                 }
             ]);
-            const locked = render(elementInspector({designModel: design}) as ReactElement),
-                confirm = [
-                    ...locked.container.querySelectorAll('.xh-blueprint-element-inspector__row')
-                ]
-                    .find(it => it.firstElementChild?.textContent === 'Confirm')
-                    .querySelector('input');
+            const locked = render(elementInspector({designModel: design}) as ReactElement);
+            fireEvent.click(
+                locked.container.querySelector('[data-config-key="buttons"] [title="Settings"]')
+            );
+            const confirm = [
+                ...locked.container.querySelectorAll('.xh-blueprint-element-inspector__row')
+            ]
+                .find(it => it.firstElementChild?.textContent === 'Confirm')
+                .querySelector('input');
             expect([confirm.checked, confirm.disabled]).toEqual([true, true]);
         });
     });
@@ -595,6 +602,9 @@ describe('ElementInspector', () => {
                             ?.textContent ?? it.querySelector('input')?.value
                     ]
                 );
+        fireEvent.click(
+            container.querySelector('[data-config-key="rowActions"] [title="Settings"]')
+        );
         expect(rows()).toEqual([
             ['symbol', 'row · symbol'],
             ['asOf', 'asOf'],
