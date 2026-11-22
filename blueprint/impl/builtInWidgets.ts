@@ -94,9 +94,11 @@ const DASH_CONTAINER_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
+        // The container writes it back as the user rearranges it, so it stays a literal.
         layout: {
             type: 'array',
             maxItems: 20,
+            'x-binding': false,
             items: dashLayoutItem(6),
             description:
                 "Rows and columns of stacks, each stack a set of tabs, each tab a view naming a child: [{type: 'row', content: [{type: 'stack', width: 60, content: [{type: 'view', id: 'grid'}, ...]}, ...]}]. Sizes are percentages of their row or column. Default one stack, a tab per child. A child the layout leaves out joins its first stack."
@@ -131,7 +133,8 @@ const PANEL_SCHEMA = {
             description: "Colors a card style panel's border and title."
         },
         collapsible: {type: 'boolean', default: false},
-        collapsed: {type: 'boolean', default: false},
+        // The panel writes it back as the user collapses it, so it stays a literal.
+        collapsed: {type: 'boolean', default: false, 'x-binding': false},
         compactHeader: {type: 'boolean', default: false},
         emptyText: EMPTY_TEXT
     }
@@ -384,6 +387,7 @@ const CUBE_GRID_SCHEMA = {
             type: 'array',
             maxItems: 60,
             'x-field': 'any',
+            'x-binding': false,
             'x-settings': {in: 'columns', show: ['headerName', 'format', 'renderer']},
             description:
                 'Columns in display order: a field name, or an object with field and optional width, hidden and pinned. Only state: how a column shows goes in columns. The field group names the tree column.',
@@ -531,7 +535,9 @@ const CUBE_GRID_SCHEMA = {
                 }
             }
         },
+        // The grid writes it back as the user sorts, so it stays a literal.
         sortBy: {
+            'x-binding': false,
             anyOf: [
                 {
                     type: 'string',

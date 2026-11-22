@@ -7,8 +7,7 @@ import {
     isNumber,
     isPlainObject,
     isString,
-    omit,
-    uniq
+    omit
 } from 'lodash';
 import {
     type Blueprint,
@@ -20,6 +19,7 @@ import {
 import {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
 import type {BlueprintRegistry, SlotAccepts, SlotSpec, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
+import {bindingTypesOf} from './impl/bindable';
 import {checkConfig, checkFilter, templateStrings, toPointer} from './impl/configSchema';
 import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
@@ -1291,32 +1291,6 @@ function describeAccepts(rule: SlotAccepts): string {
 
 function joinAnd(items: string[]): string {
     return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0];
-}
-
-/**
- * The variable types a bound property takes, from its schema, or null where its schema says
- * nothing a variable type matches, as for an object.
- */
-function bindingTypesOf(schema: PlainObject): string[] {
-    if (schema.enum) {
-        return uniq(
-            schema.enum.map((it: unknown) => (typeof it === 'boolean' ? 'bool' : 'string'))
-        );
-    }
-    switch (schema.type) {
-        case 'boolean':
-            return ['bool'];
-        case 'integer':
-            return ['int', 'number'];
-        case 'number':
-            return ['number', 'int'];
-        case 'string':
-            return ['string', 'localDate'];
-        case 'array':
-            return schema.items?.type === 'string' ? ['string[]'] : null;
-        default:
-            return null;
-    }
 }
 
 /**

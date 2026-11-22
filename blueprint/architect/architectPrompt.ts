@@ -122,7 +122,8 @@ Variables:
 - setBy names the only thing that can set it: "prompt" (an input in the blueprint's toolbar, for simple values such as a date), {"element": id} (a widget that shows and sets the value), {"element": id, "output": name} (a widget's runtime state, such as a grid selection; an output can take an argument, such as "field": "symbol"), "action" (buttons), or "resolver" (computed every time from its "compute": {"resolver": ..., "args": {...}}). With no setBy, the variable keeps its default.
 - A filter variable may list several writers, joined with AND. Every other variable has one writer.
 - default is {"value": ...} or {"resolver": ..., "args": {...}}. Resolver args can read other variables with {"$var": name}, but never in a cycle.
-- Config reads a variable with {"$var": name} where the widget's schema allows a binding. There are no expressions.
+- Config reads a variable with {"$var": name}. A property whose value is a boolean, a number, a string, one of an enum or a list of strings takes one, unless its schema says "x-binding": false. A source, a field, a format or other reference never does, nor an object. There are no expressions.
+- Bind a property only when an input or a preset on the page sets its variable.
 - prompt options: {"options": {"values": [...]}}, or {"options": {"source": ..., "field": ...}} for the values of a field over a source's rows.
 
 Filters are Hoist filters: {"field": f, "op": "=", "value": v}, or {"op": "AND", "filters": [...]}. Operators: = != > >= < <= like "not like" begins ends includes excludes. A list value with = means any of. A whole filter or a value can be {"$var": name}. A clause whose bound value is null is dropped.

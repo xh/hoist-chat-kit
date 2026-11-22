@@ -5,6 +5,7 @@ import {castArray, isEmpty, isPlainObject} from 'lodash';
 import {getOwn, toLookup} from './impl/pointer';
 import {findSchemaProblems} from '../impl/SchemaUtils';
 import type {ReactElement, ReactNode} from 'react';
+import {withEffectiveBindings} from './impl/bindable';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintVariable} from './BlueprintVariable';
@@ -461,7 +462,8 @@ export class BlueprintRegistry {
                 !isEmpty(problems),
                 `Widget '${spec.name}' uses unsupported JSON Schema: ${problems.join(', ')}`
             );
-            this.widgets[spec.name] = spec;
+            // Each property's binding made explicit once, for every reader of the schema.
+            this.widgets[spec.name] = {...spec, config: withEffectiveBindings(spec.config)};
         });
     }
 

@@ -292,9 +292,9 @@ describe('validateBlueprint', () => {
             expect(validate(bp)).toEqual([]);
         });
 
-        it('refuses a binding where the schema does not mark x-binding', () => {
+        it('refuses a binding where the schema opts out, as for a value the widget writes back', () => {
             const bp = p2();
-            bp.elements.posGrid.config.groupRowHeight = {$var: 'asOf'};
+            bp.elements.posGrid.config.sortBy = {$var: 'asOf'};
             expect(codes(bp)).toEqual(['schema.invalid']);
         });
 
@@ -1202,11 +1202,11 @@ describe('validateBlueprint', () => {
 
     it('refuses a binding where the schema allows none', () => {
         const bp = p2();
-        bp.elements.sectorChart.config.sortBy = {$var: 'asOf'};
+        bp.elements.posGrid.config.columnState = {$var: 'asOf'};
         (bp.elements.dashboard.children as PlainObject[])[0].w = {$var: 'asOf'};
         expect(validate(bp).map(it => [it.code, it.path, /binding/.test(it.message)])).toEqual([
             ['schema.invalid', '/elements/dashboard/children/0/w', true],
-            ['schema.invalid', '/elements/sectorChart/config/sortBy', true]
+            ['schema.invalid', '/elements/posGrid/config/columnState', true]
         ]);
     });
 

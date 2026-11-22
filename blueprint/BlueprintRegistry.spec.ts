@@ -116,3 +116,66 @@ describe('BlueprintRegistry presentations', () => {
         ).toThrow();
     });
 });
+
+describe('BlueprintRegistry bindings', () => {
+    const props = (registry: BlueprintRegistry, widget: string) =>
+        registry.widgets[widget].config.properties;
+
+    it('lets a property bind by default where a variable type matches its type, unless it opts out', () => {
+        const registry = new BlueprintRegistry(),
+            panel = props(registry, 'panel'),
+            grid = props(registry, 'cubeGrid');
+        expect(panel.style['x-binding']).toBe(true);
+        expect(panel.compactHeader['x-binding']).toBe(true);
+        expect(grid.groupRowHeight['x-binding']).toBe(true);
+        // A value the widget writes back from the user stays a literal.
+        expect(panel.collapsed['x-binding']).toBe(false);
+        expect(grid.sortBy['x-binding']).toBe(false);
+        expect(grid.columnState['x-binding']).toBe(false);
+        expect(props(registry, 'dashContainer').layout['x-binding']).toBe(false);
+        // A reference to the blueprint, or template text, never binds by default.
+        expect(grid.source['x-binding']).toBeUndefined();
+        expect(panel.icon['x-binding']).toBeUndefined();
+        expect(props(registry, 'markdown').text['x-binding']).toBeUndefined();
+    });
+
+    it("applies the same default to an app's widget", () => {
+        const registry = new BlueprintRegistry({
+                widgets: [
+                    {
+                        name: 'acme.ticker',
+                        label: 'Ticker',
+                        guidance: 'A ticker of symbols.',
+                        version: 1,
+                        category: 'data',
+                        config: {
+                            type: 'object',
+                            properties: {
+                                speed: {type: 'number'},
+                                symbols: {type: 'array', items: {type: 'string'}},
+                                fixed: {type: 'boolean', 'x-binding': false},
+                                style: {type: 'object'}
+                            }
+                        }
+                    }
+                ]
+            }),
+            p = props(registry, 'acme.ticker');
+        expect([p.speed, p.symbols, p.fixed, p.style].map(it => it['x-binding'])).toEqual([
+            true,
+            true,
+            false,
+            undefined
+        ]);
+    });
+
+    it('shows the Architect only the marks that differ from the default', () => {
+        const registry = new BlueprintRegistry(),
+            tool = ARCHITECT_TOOLS.find(it => it.name === 'describe_registry'),
+            {panel} = tool.run({kind: 'widget', names: ['panel']}, {registry} as any) as any;
+        expect(panel.config.properties.style).not.toHaveProperty('x-binding');
+        expect(panel.config.properties.collapsed['x-binding']).toBe(false);
+        // A template title keeps its mark, as text binds only where it says so.
+        expect(panel.config.properties.title['x-binding']).toBe(true);
+    });
+});

@@ -8,6 +8,7 @@ import type {DataCatalog, DatasetDef} from '../DataCatalog';
 import type {BlueprintRepository, BlueprintSummary} from '../repository/BlueprintRepository';
 import {isLinkSettableType} from '../impl/linkParams';
 import {applyOps} from '../applyOps';
+import {withDefaultBindingsImplied} from '../impl/bindable';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
 import {fieldUsages} from '../usages';
@@ -232,7 +233,11 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             return Object.fromEntries(
                 names.map((n: string) => {
                     const entry = getOwn(entries, n);
-                    return [n, entry ? {...entry, ...where(n)} : `unknown ${input.kind} '${n}'`];
+                    if (!entry) return [n, `unknown ${input.kind} '${n}'`];
+                    // The prompt states which properties bind by default, so only the exceptions
+                    // show.
+                    const config = entry.config ? withDefaultBindingsImplied(entry.config) : null;
+                    return [n, {...entry, ...(config ? {config} : {}), ...where(n)}];
                 })
             );
         }
