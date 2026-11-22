@@ -69,8 +69,10 @@ export interface DesignAction {
     run?: () => string;
     /** Its choices, for an action that is a menu, such as Wrap in. */
     items?: DesignAction[];
-    /** An action the host carries out with its own UI: `addWidget` opens Add for the container. */
+    /** An action the host carries out with its own UI: `addWidget` offers widgets to add. */
     host?: 'addWidget';
+    /** Where `addWidget` adds: into a container, at its end or after one of its children. */
+    place?: AddPlace;
 }
 
 /** What a drop brings: an element already in the blueprint, or a widget from the palette. */
@@ -409,7 +411,7 @@ export class BlueprintDesignModel extends HoistModel {
         const id = this.newId(component),
             element: BlueprintElement = {component, config},
             place: AddPlace = parentId
-                ? {parent: parentId, slot: opts.slot, of: opts.of}
+                ? {parent: parentId, slot: opts.slot, of: opts.of, after: opts.after}
                 : opts.after
                   ? this.placeAfter(opts.after)
                   : this.addTarget;
@@ -453,6 +455,7 @@ export class BlueprintDesignModel extends HoistModel {
             return [];
         const {id} = sel,
             spec = this.elementSpec(id),
+            at = locate(elements, id),
             isRoot = blueprintModel.blueprint.root === id,
             remove = this.deleteAction(id);
         if (sel.kind === 'view') {
@@ -502,12 +505,32 @@ export class BlueprintDesignModel extends HoistModel {
                           label: 'Add a widget…',
                           icon: 'add',
                           intent: 'primary',
-                          host: 'addWidget'
+                          host: 'addWidget',
+                          place: {parent: id}
+                      } as DesignAction
+                  ]
+                : []),
+            ...(at && this.ordersChildren(at.parent) && at.slot === 'children'
+                ? [
+                      {
+                          id: 'addAfter',
+                          label: 'Add a widget after',
+                          icon: 'add',
+                          host: 'addWidget',
+                          place: {parent: at.parent, after: id}
                       } as DesignAction
                   ]
                 : []),
             remove
         ];
+    }
+
+    // True for a container whose children's order is their order in its list, not a layout's.
+    private ordersChildren(id: string): boolean {
+        const component = getOwn(this.blueprintModel.blueprint?.elements, id)?.component;
+        return (
+            !!this.elementSpec(id)?.children && !['dashCanvas', 'dashContainer'].includes(component)
+        );
     }
 
     // Delete an element and what it holds, asking first when more goes with it, then select its

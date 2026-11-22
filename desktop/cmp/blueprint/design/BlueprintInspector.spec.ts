@@ -62,6 +62,54 @@ describe('BlueprintInspector', () => {
         expect(buttons()[0].getAttribute('title')).toMatch(/root/);
     });
 
+    it('offers a container the widgets it takes in a popover, adding at its end or after a child', async () => {
+        const {model, design} = open(),
+            box = design.addWidget('box', 'positions').id,
+            a = design.addWidget('markdown', box).id,
+            bar = design.addWidget('toolbar', box).id;
+        act(() => design.select({kind: 'element', id: box}));
+        const {container} = render(blueprintInspector({designModel: design}) as ReactElement),
+            button = (text: string) =>
+                [...container.querySelectorAll('.xh-blueprint-inspector__actions .xh-button')].find(
+                    it => it.textContent === text
+                ),
+            tile = (label: string) =>
+                [
+                    ...([...document.querySelectorAll('.xh-blueprint-inspector__add-panel')]
+                        .at(-1)
+                        ?.querySelectorAll('[role="button"]') ?? [])
+                ].find(it => it.textContent.startsWith(label)),
+            kids = () => model.blueprint.elements[box].children.map(it => it.id);
+
+        fireEvent.click(button('Add a widget…'));
+        await vi.waitFor(() =>
+            expect(document.querySelector('.xh-blueprint-inspector__add-panel')).not.toBeNull()
+        );
+        await vi.waitFor(() => expect(tile('Text')).toBeTruthy());
+        fireEvent.click(tile('Text'));
+        expect(kids()).toHaveLength(3);
+        expect(kids()[0]).toBe(a);
+        await vi.waitFor(() =>
+            expect(document.querySelector('.xh-blueprint-inspector__add-panel')).toBeNull()
+        );
+
+        // Beside a child, it adds right after it.
+        act(() => design.select({kind: 'element', id: a}));
+        fireEvent.click(button('Add a widget after'));
+        await vi.waitFor(() => expect(tile('Text')).toBeTruthy());
+        fireEvent.click(tile('Text'));
+        expect(kids()[0]).toBe(a);
+        expect(kids()).toHaveLength(4);
+        expect(kids()[1]).toBe(design.selectedElementId);
+
+        // A container that refuses a widget shows it disabled, with the reason.
+        act(() => design.select({kind: 'element', id: bar}));
+        fireEvent.click(button('Add a widget…'));
+        await vi.waitFor(() => expect(tile('Grid')).toBeTruthy());
+        expect(tile('Grid').getAttribute('aria-disabled')).toBe('true');
+        expect(tile('Grid').getAttribute('title')).toEqual(expect.any(String));
+    });
+
     it('names the selection, its path and what it reads, for every kind', () => {
         const {design, inspector} = open();
         design.select({kind: 'element', id: 'posGrid'});

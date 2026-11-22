@@ -7,7 +7,12 @@ import classNames from 'classnames';
 import type React from 'react';
 import {useEffect, useRef} from 'react';
 import {groupBy, isString, upperFirst} from 'lodash';
-import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../../blueprint';
+import type {
+    AddPlace,
+    BlueprintDesignModel,
+    BlueprintIssue,
+    WidgetSpec
+} from '../../../../blueprint';
 import {slotLabel} from '../../../../blueprint/impl/elements';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {type PaletteAddOpts, paletteDrag} from '../impl/paletteDrag';
@@ -16,6 +21,10 @@ import './WidgetPalette.scss';
 
 export interface WidgetPaletteProps extends HoistProps {
     designModel: BlueprintDesignModel;
+    /** A fixed place to add into, such as the container a popover opened for. */
+    place?: AddPlace;
+    /** Called with the id of a widget once it is added. */
+    onAdded?: (id: string) => void;
 }
 
 /**
@@ -26,14 +35,19 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
     displayName: 'BlueprintWidgetPalette',
     className: 'xh-blueprint-widget-palette',
     model: false,
-    render({designModel, className}) {
-        const impl = useLocalModel(() => new WidgetPaletteModel(designModel)),
-            searchRef = useRef<HTMLInputElement>(null),
+    render({designModel, place, onAdded, className}) {
+        const impl = useLocalModel(() => new WidgetPaletteModel(designModel, place ?? null));
+        impl.onAdded = onAdded ?? null;
+        const searchRef = useRef<HTMLInputElement>(null),
             {addRequestedAt} = designModel;
-        // A request for Add, even one that opened this palette, focuses its search.
+        // A request for Add, even one that opened this palette, focuses its search, as does
+        // opening one for a fixed place.
+        const fixed = !!place;
         useEffect(() => {
-            if (addRequestedAt && Date.now() - addRequestedAt < 2000) searchRef.current?.focus();
-        }, [addRequestedAt]);
+            if (fixed || (addRequestedAt && Date.now() - addRequestedAt < 2000)) {
+                searchRef.current?.focus();
+            }
+        }, [addRequestedAt, fixed]);
         return div({
             className,
             onMouseEnter: () => impl.setPointerOver(true),
@@ -147,8 +161,23 @@ export class WidgetPaletteModel extends HoistModel {
     /** A widget asked for that needs a source first, which the palette offers to add. */
     @observable accessor needsSource: string = null;
 
-    constructor(readonly designModel: BlueprintDesignModel) {
+    /** Called with the id of a widget once it is added, as a popover closes. */
+    onAdded: (id: string) => void = null;
+
+    /**
+     * @param place - a fixed place to add into, such as the container a popover opened for,
+     *      else where the design model adds.
+     */
+    constructor(
+        readonly designModel: BlueprintDesignModel,
+        readonly place: AddPlace = null
+    ) {
         super();
+    }
+
+    /** Where a click adds. */
+    get addPlace(): AddPlace {
+        return this.place ?? this.designModel.addTarget;
     }
 
     /** Text that narrows the widgets by name, label or term. */
@@ -169,7 +198,7 @@ export class WidgetPaletteModel extends HoistModel {
             widgets = Object.values(designModel.blueprintModel.registry.widgets).filter(
                 it => !it.reserved && matches(it)
             ),
-            target = designModel.addTarget,
+            target = this.addPlace,
             byCategory = groupBy(widgets, it => it.category ?? 'other');
         return Object.entries(byCategory).map(([category, specs]) => ({
             category,
@@ -194,7 +223,7 @@ export class WidgetPaletteModel extends HoistModel {
     /** Where a click adds a widget, as a designer reads it. */
     get target(): string {
         const {designModel} = this,
-            target = designModel.addTarget,
+            target = this.addPlace,
             {blueprint} = designModel.blueprintModel;
         if (!target) return blueprint?.root ? null : 'Adds as the root';
         const nameOf = (id: string) => {
@@ -228,7 +257,17 @@ export class WidgetPaletteModel extends HoistModel {
 
     @action
     add(component: string) {
-        this.done(component, this.designModel.addWidget(component));
+        const {place, designModel} = this;
+        this.done(
+            component,
+            place
+                ? designModel.addWidget(component, place.parent, {
+                      ...(place.slot && place.slot !== 'children' ? {slot: place.slot} : {}),
+                      ...(place.of ? {of: place.of} : {}),
+                      ...(place.after ? {after: place.after} : {})
+                  })
+                : designModel.addWidget(component)
+        );
     }
 
     /** Add a widget dropped on a container, where it fell, as one edit. */
@@ -256,7 +295,9 @@ export class WidgetPaletteModel extends HoistModel {
             error = issues.find(it => it.severity === 'error');
         this.needsSource = error && designModel.needsSource(component) ? component : null;
         this.message = this.needsSource ? null : (error?.message ?? null);
-        if (!error) designModel.select({kind: 'element', id});
+        if (error) return;
+        designModel.select({kind: 'element', id});
+        this.onAdded?.(id);
     }
 
     /** Add a source over a dataset, with prompts for what it needs, then the widget waiting on it. */

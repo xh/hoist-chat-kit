@@ -1,9 +1,16 @@
 import {div, filler, hbox, span, vframe} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {
+    hoistCmp,
+    HoistModel,
+    type HoistProps,
+    type PlainObject,
+    useLocalModel
+} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
+import {popover} from '@xh/hoist/kit/blueprint';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
@@ -35,6 +42,7 @@ import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
 import {sourcesEditor} from './SourcesEditor';
 import {variablesEditor} from './VariablesEditor';
+import {widgetPalette} from './WidgetPalette';
 
 export interface BlueprintInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -513,6 +521,15 @@ const actionBar = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>
                     minimal: true,
                     disabled: !!action.disabledReason
                 };
+                if (action.host === 'addWidget') {
+                    return addWidgetButton({
+                        key: action.id,
+                        designModel,
+                        id: selection.id,
+                        action,
+                        buttonProps: props
+                    });
+                }
                 return action.items
                     ? menuButton({
                           ...props,
@@ -527,6 +544,52 @@ const actionBar = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>
             className: `${CLS}__actions`,
             compact: true,
             children: [...rest.map(control), filler(), ...remove.map(control)]
+        });
+    }
+});
+
+// A button that offers the widgets a place takes, in a popover at the button: searchable, each
+// with its picture, any it refuses disabled with the reason. A pick adds there and closes it, and
+// the Add pane stays a way to more.
+const addWidgetButton = hoistCmp.factory<
+    HoistProps & {
+        designModel: BlueprintDesignModel;
+        id: string;
+        action: DesignAction;
+        buttonProps: PlainObject;
+    }
+>({
+    displayName: 'BlueprintAddWidgetButton',
+    model: false,
+    render({designModel, id, action, buttonProps}) {
+        const [isOpen, setIsOpen] = useState(false);
+        return popover({
+            isOpen,
+            onInteraction: (open: boolean) => setIsOpen(open),
+            position: 'bottom-left',
+            minimal: true,
+            popoverClassName: `${CLS}__add-popover`,
+            item: button({...buttonProps, onClick: () => setIsOpen(!isOpen)}),
+            content: div({
+                className: `${CLS}__add-panel`,
+                children: [
+                    widgetPalette({
+                        designModel,
+                        place: action.place,
+                        onAdded: () => setIsOpen(false)
+                    }),
+                    button({
+                        className: `${CLS}__add-more`,
+                        text: 'More in Add pane',
+                        icon: Icon.arrowRight(),
+                        minimal: true,
+                        onClick: () => {
+                            setIsOpen(false);
+                            runDesignActionAsync(designModel, id, action);
+                        }
+                    })
+                ]
+            })
         });
     }
 });

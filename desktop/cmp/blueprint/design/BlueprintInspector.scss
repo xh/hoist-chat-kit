@@ -184,3 +184,24 @@
     }
   }
 }
+
+// The widgets a container takes, in a popover at its Add button, which draws outside the
+// Inspector.
+.xh-blueprint-inspector__add-panel {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-height: 440px;
+
+  > .xh-blueprint-widget-palette {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+.xh-blueprint-inspector__add-more.xh-button {
+  flex: none;
+  justify-content: flex-start;
+  border-top: var(--xh-border-solid);
+}

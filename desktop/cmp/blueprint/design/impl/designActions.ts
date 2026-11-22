@@ -48,7 +48,7 @@ export async function runDesignActionAsync(
     if (action.disabledReason) return action.disabledReason;
     if (action.host === 'addWidget') {
         designModel.select({kind: 'element', id});
-        designModel.selectSlot({parent: id, slot: 'children'});
+        designModel.selectSlot(action.place ?? {parent: id});
         designModel.requestAdd();
         return null;
     }
