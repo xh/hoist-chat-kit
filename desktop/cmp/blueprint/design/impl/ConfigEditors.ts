@@ -156,7 +156,8 @@ const INLINE_KINDS = [
     'preset',
     'source',
     'field',
-    'icon'
+    'icon',
+    'blueprint'
 ];
 
 function isMultiline(node: EditorNode): boolean {
