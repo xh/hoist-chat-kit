@@ -402,6 +402,24 @@ describe('layout and container widgets', () => {
             return {model, design, widget};
         };
 
+        it('draws nothing of its own while empty, and takes its first view anywhere', () => {
+            const {model, design, widget} = designing({
+                tabs: {component: 'dashContainer', children: []}
+            });
+            expect(widget.layout).toEqual([]);
+            paletteDrag.start({
+                component: 'markdown',
+                size: {w: 4, h: 2},
+                add: (parent, opts) => design.addWidget('markdown', parent, opts)
+            });
+            onTestFinished(() => paletteDrag.end());
+            widget.onDropExternal('markdown', {zone: 'root'});
+            const [added] = model.blueprint.elements.tabs.children;
+            expect(widget.layout).toEqual([
+                {type: 'stack', content: [{type: 'view', id: added.id}]}
+            ]);
+        });
+
         it('adds a widget dragged from the palette where it drops, as one edit', () => {
             const {model, design, widget} = designing(container()),
                 version = model.version;

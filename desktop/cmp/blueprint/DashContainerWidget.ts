@@ -29,11 +29,13 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
 
     /**
      * The layout as the config gives it, or one stack with a tab per child. A child the layout
-     * leaves out joins its first stack.
+     * leaves out joins its first stack. With no children, none, so the container draws only a
+     * surface that takes its first view.
      */
     get layout(): DockItem[] {
         const {layout} = this.resolvedConfig,
             views = this.children.map(it => ({type: 'view' as const, id: it.id}));
+        if (!views.length) return [];
         if (!layout) return [{type: 'stack', content: views}];
         const ret = toLayout(layout as PlainObject[]),
             placed = new Set(viewIds(ret)),

@@ -245,6 +245,7 @@ function onTabKey(
 function rootTarget(impl: DockLayoutModel, e: DragEvent): DockTarget {
     const r = impl.rootEl?.getBoundingClientRect();
     if (!r) return null;
+    if (!impl.stacks.length) return {zone: 'root'};
     const {clientX: x, clientY: y} = e;
     if (x - r.left < ROOT_EDGE) return {zone: 'root-left'};
     if (r.right - x < ROOT_EDGE) return {zone: 'root-right'};

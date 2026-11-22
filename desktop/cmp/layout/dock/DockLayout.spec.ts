@@ -180,6 +180,21 @@ describe('dockLayout', () => {
             expect(onChange).not.toHaveBeenCalled();
         });
 
+        it('takes an external drag anywhere in an empty layout, which draws no stack', () => {
+            const onDropExternal = vi.fn(),
+                model = dragModel({
+                    layout: [],
+                    editable: true,
+                    externalDrag: () => 'chart-widget',
+                    onDropExternal
+                });
+            expect(model.dragOver({zone: 'root'})).toBe(true);
+            model.dropHere();
+            expect(onDropExternal).toHaveBeenCalledWith('chart-widget', {zone: 'root'});
+            const {container} = renderLayout({layout: []});
+            expect(container.querySelector('[role=tablist]')).toBeNull();
+        });
+
         it('takes an external drag the host names, as one new view where it drops', () => {
             const onDropExternal = vi.fn(),
                 model = dragModel({
