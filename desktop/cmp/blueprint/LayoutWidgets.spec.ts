@@ -1,7 +1,7 @@
 import {render, screen} from '@testing-library/react';
 import type {PlainObject} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {
     type Blueprint,
@@ -603,6 +603,33 @@ describe('layout and container widgets', () => {
                     canvas.canvasModel.viewModels.find(it => it.viewSpec.id === id);
             return {model, view, canvas, cell};
         };
+
+        it('cancels a cell drag on Escape, which never reaches the design keys', () => {
+            const {canvas} = cells('design'),
+                edit = vi.spyOn(canvas, 'applyUserEdit'),
+                outer = vi.fn(),
+                moved = () =>
+                    canvas.canvasModel.layout.map((it, idx) =>
+                        idx === 2 ? {...it, x: it.x + 1} : it
+                    );
+            document.addEventListener('keydown', outer);
+            onTestFinished(() => document.removeEventListener('keydown', outer));
+
+            canvas.startDrag();
+            document.body.dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})
+            );
+            canvas.endDrag();
+            canvas.canvasModel.onRglLayoutChange(moved());
+            expect(outer).not.toHaveBeenCalled();
+            expect(edit).not.toHaveBeenCalled();
+
+            // Without Escape, the same drag is an edit.
+            canvas.startDrag();
+            canvas.endDrag();
+            canvas.canvasModel.onRglLayoutChange(moved());
+            expect(edit).toHaveBeenCalledTimes(1);
+        });
 
         it("hands a panel's title, icon and header items to its cell, and draws it frameless there", () => {
             const {view, canvas, cell} = cells();

@@ -85,6 +85,33 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         );
     }
 
+    /** Note a cell drag starting, which Escape then cancels. */
+    startDrag() {
+        this.dragCancelled = false;
+        window.addEventListener('keydown', this.onDragKey, true);
+    }
+
+    endDrag() {
+        window.removeEventListener('keydown', this.onDragKey, true);
+    }
+
+    override destroy() {
+        this.endDrag();
+        super.destroy();
+    }
+
+    // True once Escape cancels the drag in progress, until its layout comes back.
+    private dragCancelled = false;
+
+    // Escape ends the drag, which then puts the cell back, and never reaches the design keys.
+    private onDragKey = (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return;
+        e.stopPropagation();
+        e.preventDefault();
+        this.dragCancelled = true;
+        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+    };
+
     private get isDesign(): boolean {
         return this.blueprintModel.mode === 'design';
     }
@@ -221,6 +248,11 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         const {children} = this;
         // A drop in progress writes its siblings with the widget it adds.
         if (state.some(it => it.viewSpecId === DROP_VIEW_ID)) return;
+        if (this.dragCancelled) {
+            this.dragCancelled = false;
+            this.loadChildren();
+            return;
+        }
         if (state.length !== children.length) return;
         if (isEqual(toPlacement(state), toPlacement(fromChildren(children)))) return;
         // A cell keeps its other keys, such as its header items.
@@ -267,7 +299,13 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
             flex: 1,
             position: 'relative',
             children: [
-                dashCanvas({model: model.canvasModel}),
+                dashCanvas({
+                    model: model.canvasModel,
+                    rglOptions: {
+                        onDragStart: () => model.startDrag(),
+                        onDragStop: () => model.endDrag()
+                    }
+                }),
                 empty ? div({className: `${className}__empty`, children: empty}) : null
             ]
         });

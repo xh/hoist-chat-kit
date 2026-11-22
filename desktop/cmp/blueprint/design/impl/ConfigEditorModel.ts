@@ -106,10 +106,6 @@ export abstract class ConfigEditorModel extends HoistModel {
         return node.required ? this.newValue(node.schema) : undefined;
     }
 
-    /**
-     * A badge for a property that presets control, naming the group and the active preset, which
-     * an edit of it changes. Null for any other property.
-     */
     /** Called with a preset group's name when a badge opens it, for the host to show the group. */
     onShowPresetGroup: (name: string) => void = null;
 
@@ -134,6 +130,10 @@ export abstract class ConfigEditorModel extends HoistModel {
         return {group: control.group, itemLabel: item?.label ?? control.item};
     }
 
+    /**
+     * A badge for a property that presets control, naming the group and the active preset, which
+     * an edit of it changes. Null for any other property.
+     */
     badgeFor(key: string): string {
         const {blueprintModel} = this.designModel,
             control = blueprintModel.getPresetControl(this.pathOf(key));

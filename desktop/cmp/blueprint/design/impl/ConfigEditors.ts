@@ -463,6 +463,7 @@ function bindableEditor(
                     text: bound,
                     minimal: true,
                     title: `Show ${bound}`,
+                    'aria-label': `Show variable ${bound}`,
                     onClick: () => impl.designModel.select({kind: 'variable', id: bound})
                 }),
                 disabled

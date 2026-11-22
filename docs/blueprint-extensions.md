@@ -99,7 +99,7 @@ editors what a value means:
 | `x-preset` | The name of one of the blueprint's preset groups | Checks the name |
 | `x-blueprint` | The id of a stored blueprint of the same type | Offers a picker over the repository's list |
 | `x-unit` | The unit of a number, such as `px` | Shows it beside the editor |
-| `x-icon` | A Font Awesome icon name | Picks it from a list of icons, or takes a name typed in |
+| `x-icon` | A Font Awesome icon name | Picks it from a list of icons, or takes a name typed in. Only an icon the app registers with Font Awesome draws |
 | `x-starter: false` | An optional property | Leaves it out of a new widget's config |
 
 - Give a property JSON Schema's `default`, not a sentence. Design mode shows an unset property at
