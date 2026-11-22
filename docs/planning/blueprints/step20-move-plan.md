@@ -149,6 +149,11 @@ These exist only for the `blueprints` branches, and go in the move PR:
 
 Once the move lands, nothing points at a sibling checkout.
 
+Until then, every chat kit typecheck and spec run on `blueprints` runs against the sibling
+hoist-react `blueprints`, never the installed `@xh/hoist`. Merge 0f14d8d's commit body claims a pass
+against the 91.0.0 release, which is wrong. After the revert, run the gates against the published
+package before trusting them.
+
 ### D20-8. Versioning, upgrade notes, and what apps change (J)
 
 - **hoist-react version:** Blueprints and chat ship in the major that `develop` holds, now

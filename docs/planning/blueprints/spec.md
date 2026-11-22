@@ -278,9 +278,12 @@ The first widgets, for the scenarios. Step 11 adds many more, listed in
   supply its own choices and its own input.
 - An app variable type declares the field type its values match, such as `fund` matching
   `string`. A `fund` variable can then bind to a parameter or a filter on a `string` field.
-- Config reads a variable one way: `{"$var": "asOf"}`. Config holds no expressions. Each
-  widget's schema marks the paths that accept a binding, and the foundation checks that the
-  variable's type matches.
+- Config reads a variable one way: `{"$var": "asOf"}`. Config holds no expressions. A property
+  whose value is a boolean, number, string, enum or string list binds to a variable unless its
+  schema says `x-binding: false`, and the foundation checks that the variable's type matches. A
+  reference, template text or an object never binds by default. A path presets control is bound
+  inside each preset, never in config. A required property bound to a variable needs a default
+  (`binding.mayBeNull`). See decision 181.
 - Resolvers, such as `today`, `previousBusinessDay`, `dateOffset` or `userPref`, come from a closed
   registry that apps can extend. A resolver's arguments can read other variables. The validator
   refuses a cycle with the code `variable.cycle`, and the foundation computes dependent variables
@@ -743,7 +746,7 @@ Two places declare what can vary:
   variable's default. Each path has one place for its value and its flag.
 - A personalization sits on whatever it replaces. On a controlled path, the foundation keeps a
   user's personalization per preset, so a change to the columns of "Full values" stays with "Full
-  values".
+  values". A bound path is not personalizable at its path. Users change it through its variable.
 - Presets can control a variable's default, for example to switch between approved funds.
 - The UI marks each value that a personalization replaces, and offers a reset to the value
   beneath it. A prompted variable shows the mark on its input in the toolbar.
@@ -1238,6 +1241,8 @@ These are in the spec but not yet in a step. Each needs only a priority, unless 
 
 - Paging and very large results, as a capability a dataset declares.
 - A mobile renderer, which shows a container's children in list order.
+- A constrained dashboard mode (decision 180): the blueprint manages layout and state, and users add and remove views from a predefined library, as with today's DashCanvas and DashContainer, with views owning their own config UI.
+- Printing and PDF (John, Nov 22): a print mode for blueprints (fixed page width, page breaks and keep-together hints, running headers and footers with variables, grids printed in full, charts at print resolution, inputs replaced by their values), a ready signal once every source has loaded and drawn, and PDF generation by a server-side headless browser (for example Playwright on hoist-core) rendering the blueprint as the requesting user. It suits a print report type (decision 159) and actions such as publishing a report, and scheduled reports. Prior art: John has built this for a client app: a short-lived token authenticates the headless session as the user, Playwright runs on the Grails backend and prints through its built-in PDF API, and a cap limits concurrent renders. Rendering suits separate, likely non-primary, instances. Other XH apps have more elaborate report systems to borrow from. Open: what renders and what doesn't, how presets behave, whether print is a document setting or only a rendering mode, and for a scheduled report whose data it shows. Power BI subscriptions show the owner's data and Metabase renders signed out, so rendering once per recipient, as that recipient, is the stronger design.
 - A hoist-core data backend that runs a blueprint's source requests on the server, with the catalogs,
   so joins and time-series collection happen on server hardware and the browser gets the exact
   shape it needs.
