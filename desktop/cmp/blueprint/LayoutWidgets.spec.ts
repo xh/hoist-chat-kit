@@ -561,7 +561,7 @@ describe('layout and container widgets', () => {
             expect(widget.hiddenViews).toEqual(['a']);
         });
 
-        it('refuses a layout item with a key GoldenLayout state may hold but a blueprint may not', () => {
+        it('refuses a layout item with a key a blueprint layout does not take, such as a title', () => {
             const issues = validateBlueprint(
                 {
                     schema: {blueprint: 1},

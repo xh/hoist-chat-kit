@@ -71,8 +71,8 @@ const TAB_CONTAINER_SCHEMA = {
     properties: {emptyText: EMPTY_TEXT}
 } as const satisfies BlueprintSchema;
 
-// A GoldenLayout item, to a fixed depth as schemas here take no $ref. Only the keys a blueprint
-// keeps: GoldenLayout sets a title as HTML.
+// A dash layout item, to a fixed depth as schemas here take no $ref: its shape, sizes and views.
+// Titles come from child references, never from the layout.
 function dashLayoutItem(depth: number): BlueprintSchema {
     return {
         type: 'object',
@@ -99,7 +99,7 @@ const DASH_CONTAINER_SCHEMA = {
             maxItems: 20,
             items: dashLayoutItem(6),
             description:
-                "GoldenLayout's rows, columns, stacks and views: [{type: 'row', content: [{type: 'view', id: 'grid'}, ...]}]. Each view names a child. Default one stack, a tab per child."
+                "Rows and columns of stacks, each stack a set of tabs, each tab a view naming a child: [{type: 'row', content: [{type: 'stack', width: 60, content: [{type: 'view', id: 'grid'}, ...]}, ...]}]. Sizes are percentages of their row or column. Default one stack, a tab per child. A child the layout leaves out joins its first stack."
         },
         emptyText: EMPTY_TEXT
     }
@@ -1356,9 +1356,9 @@ const dashContainer: WidgetSpec = {
     summary: 'Views a user drags into tabs, stacks, rows and columns, and resizes.',
     version: 1,
     label: 'Dash container',
-    terms: ['dock', 'golden layout', 'stacks', 'rearrange', 'tabs and splits'],
+    terms: ['dock', 'docking', 'stacks', 'rearrange', 'tabs and splits', 'split panes'],
     guidance:
-        "Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is GoldenLayout's own: rows and columns of stacks of views, each view naming a child. Use tabContainer for plain tabs, and this only where users rearrange.",
+        'Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is rows and columns of stacks of tabs, each tab naming a child, sized in percent. Use tabContainer for plain tabs, and this only where users rearrange or split views side by side.',
     category: 'container',
     config: DASH_CONTAINER_SCHEMA,
     presetPaths: ['/layout'],
@@ -1381,13 +1381,24 @@ const dashContainer: WidgetSpec = {
                 {
                     type: 'row',
                     content: [
-                        {type: 'view', id: 'posGrid'},
-                        {type: 'view', id: 'chart'}
+                        {
+                            type: 'stack',
+                            width: 60,
+                            content: [
+                                {type: 'view', id: 'posGrid'},
+                                {type: 'view', id: 'ordersGrid'}
+                            ]
+                        },
+                        {type: 'stack', width: 40, content: [{type: 'view', id: 'chart'}]}
                     ]
                 }
             ]
         },
-        children: [{id: 'posGrid'}, {id: 'chart'}]
+        children: [
+            {id: 'posGrid', title: 'Positions'},
+            {id: 'ordersGrid', title: 'Orders'},
+            {id: 'chart', title: 'Sectors'}
+        ]
     }
 };
 
@@ -2439,7 +2450,7 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
               ]
             : [])
     ],
-    // A layout is GoldenLayout's own state, so it takes a size cap, and each view names a child.
+    // A layout takes a size cap, and each view names a child.
     dashContainer: (cfg, {blueprint, id}) => {
         if (!cfg.layout) return [];
         const children = (blueprint.elements?.[id]?.children ?? []).map(it => it.id),
@@ -2599,7 +2610,13 @@ const EXAMPLE_BLUEPRINTS: Record<string, () => WidgetSpec['exampleBlueprint']> =
             posGrid: exampleOf('cubeGrid')
         }
     }),
-    dashContainer: () => ({elements: {posGrid: exampleOf('cubeGrid'), chart: exampleOf('chart')}}),
+    dashContainer: () => ({
+        elements: {
+            posGrid: exampleOf('cubeGrid'),
+            ordersGrid: exampleOf('cubeGrid'),
+            chart: exampleOf('chart')
+        }
+    }),
     panel: () => ({elements: {exposureGrid: exampleOf('cubeGrid')}}),
     box: () => ({
         elements: {
