@@ -168,7 +168,8 @@ drag starts after the pointer moves 5 pixels, so a click on a tab still selects 
 other half. A root-edge drop gives the new side a third. Every split keeps its children's sizes
 summing to 100.
 
-**Preview.** While a zone is active, the kit draws:
+**Preview.** While a zone is active, the kit's overlay layer draws the preview, not the
+container, so all marks have one home:
 - for center and edge zones, a translucent box over the area the view would take, in the style
   of the canvas drop placeholder (`--xh-intent-primary-trans1` with a dashed border);
 - for a tab strip, an insertion bar between the tabs.
@@ -186,10 +187,12 @@ by that child. Both happen in the same edit as the move.
 
 **Keyboard alternatives** (R18, R19). Every drag placement has a keyboard path, through the
 model, with no drag:
-- **Alt+Left and Alt+Right** on a focused tab move it within its strip (R18).
+- **Alt+Up and Alt+Down** on a focused tab move it earlier or later in its strip (R18). These
+  are the keys that move an element in its slot on the canvas, in Structure and in toolbars, and
+  they do not clash with the browser's Alt+Left for Back.
 - **Move to** in the view's menu and the Structure row menu lists each stack by its tabs, and
   each side of each stack: "Into Positions and Orders", "Split right of Positions". That covers
-  every zone except the tab strip index, which Alt+arrows covers.
+  every zone except the tab strip index, which Alt+Up and Alt+Down cover.
 - **Arrow keys** on a focused split divider resize it, through the split component.
 
 Each one is one edit, as a drag is.
