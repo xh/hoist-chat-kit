@@ -31,6 +31,10 @@ Publishes a SNAPSHOT build to npm on every push to `develop`. The version comes 
 unique. Snapshots publish under the `next` dist-tag, so `latest` does not move. Lint, type check,
 tests and the package check run first, and a failure in any of them blocks the publish.
 
+Before it publishes, the job runs `pnpm changelog snapshot`. It writes the unreleased fragments in
+`changelog.d/` under the snapshot heading of the published `CHANGELOG.md`, so a snapshot lists what
+it holds. The change is never committed.
+
 The workflow can also run by hand for any branch, with two optional inputs:
 
 - **Version** - overrides the version from `package.json`. `-SNAPSHOT` is appended if missing.
@@ -85,9 +89,10 @@ leaves it there, and 2.0.0 moves it to `3.0.0-SNAPSHOT`.
 1. Make sure `develop` is green in CI and holds everything the release needs.
 2. Pick the version. A release with breaking changes is the major version that `develop` holds.
    Any other release is the next minor or patch from the latest `v*` tag, such as `1.1.0`.
-3. On `develop`, set the topmost `CHANGELOG.md` heading to the release version and today's date,
-   as in `## 1.1.0 - 2026-11-20`. For a major release, also set the `Released` date in that
-   version's upgrade notes. Commit and push.
+3. On `develop`, run `pnpm changelog release <version>`, as in `pnpm changelog release 1.1.0`. It
+   assembles the fragments in `changelog.d/` into a new `## 1.1.0 - <today>` block in
+   `CHANGELOG.md` and deletes them. Review and curate the block. For a major release, also set the
+   `Released` date in that version's upgrade notes. Commit and push.
 4. Fast-forward `main` to `develop` and push it:
    ```bash
    git switch main && git merge --ff-only develop && git push
@@ -96,22 +101,22 @@ leaves it there, and 2.0.0 moves it to `3.0.0-SNAPSHOT`.
    ```bash
    gh workflow run deployRelease.yml --ref main -f version=1.1.0 -f is-hotfix=false
    ```
-6. Back on `develop`, put a snapshot heading back on top of `CHANGELOG.md`, then push:
-   - After a major release, bump `package.json` to the next major `-SNAPSHOT` version, and add a
-     matching `## {version} - unreleased` heading.
-   - After a minor or patch release, leave `package.json` as it is, and add back the heading for
-     the snapshot it holds, above the new release entry.
+6. After a major release, bump `package.json` on `develop` to the next major `-SNAPSHOT` version,
+   then push. The `release` command already rolled the changelog's snapshot heading forward to
+   match. A minor or patch release leaves both alone. `release` refuses a minor or patch while a
+   fragment has a `💥 Breaking Changes` section.
 
 ### Cut a hotfix
 
 A hotfix patches a release that is no longer the latest.
 
 1. Branch from the release tag: `git switch -c hotfix/1.0.x v1.0.0`.
-2. Cherry-pick or make the fix, add a `## 1.0.1 - {date}` entry to `CHANGELOG.md`, and push the
-   branch.
+2. Cherry-pick or make the fix, add its fragment, run `pnpm changelog release 1.0.1`, and push
+   the branch.
 3. Run **Deploy Release** from the hotfix branch with the patch version and **Is Hotfix** checked.
    It publishes under the `hotfix` dist-tag, so `latest` does not move.
-4. Merge the fix forward into `develop`, with a changelog entry under the current line too.
+4. Merge the fix forward into `develop`. If the same fix landed on `develop`, delete its matching
+   fragment there, or the next release lists it twice.
 
 A patch to the latest release is an ordinary release, cut from `main`.
 

@@ -18,7 +18,7 @@ catalog format. See [How Agents Read These Docs](#how-agents-read-these-docs).
 | Documentation index | `docs/README.md` | Every doc, with a description and key topics, plus a "Quick Reference by Task" table |
 | Doc registry | `docs/doc-registry.json` | The same catalog, in the JSON schema that Hoist Docs reads |
 | Root README | `README.md` | What the kit is, how to install it in an app, and where the docs start |
-| CHANGELOG | `CHANGELOG.md` | One entry per change that an app developer can see |
+| CHANGELOG | `changelog.d/` fragments, assembled into `CHANGELOG.md` at release | One entry per change that an app developer can see |
 
 Doc comments in the code are the API reference. Write them on every exported class, interface,
 config property, and public method. The READMEs explain how the parts fit together. They do not

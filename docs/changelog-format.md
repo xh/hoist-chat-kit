@@ -3,10 +3,42 @@
 Reference for writing and reviewing entries in the Hoist Chat Kit `CHANGELOG.md`. The kit follows
 the hoist-react changelog conventions, so an entry here reads like one there.
 
+## Where Entries Go
+
+Write new entries in a **changelog fragment**, not in `CHANGELOG.md`. Each pull request adds a
+markdown file in [`changelog.d/`](../changelog.d/README.md), named for its branch. The fragment holds
+the release body without its `##` heading: the same `###` section headers and bullets described
+below. A release assembles every fragment into `CHANGELOG.md` under the real version number, so pull
+requests never conflict over `CHANGELOG.md` and a late merge cannot land under a shipped version.
+
+```markdown
+### 🐞 Bug Fixes
+
+* Fixed `ChatModel` dropping a queued message when the transport reconnected.
+```
+
+- `pnpm changelog add fix "<text>"` adds a one-line entry to `changelog.d/<branch>.md`. It finds
+  the section from a short name, such as `fix`, `feature`, `tech` or `breaking`, and wraps the line.
+- `pnpm changelog new` creates an empty `changelog.d/<branch>.md` for a longer entry. Or create the
+  file yourself.
+- `pnpm changelog check` validates the fragments. CI runs the same check on each pull request, and
+  shows the entries that the pull request adds in the job summary.
+- A fragment uses only the section headers listed in `changelog.d/config.json`. You can leave the
+  emoji off a header. The release adds it.
+- Leave release-level content out of fragments: the `(upgrade difficulty: ...)` suffix, the
+  upgrade-notes sentence, the `Requires @xh/hoist` line, and `####` topic groups. The release
+  curator adds them.
+- To change an unreleased entry, edit its fragment, even one that another pull request added. To
+  correct a released entry, edit `CHANGELOG.md`.
+- `pnpm changelog preview` prints the next release as it will be assembled.
+
+The `xh-changelog` command behind these scripts ships with `@xh/hoist-dev-utils`. See its README
+section "Changelog fragments".
+
 ## Entry Structure
 
-Every major version entry uses this structure. Minor and patch releases use whichever sections
-apply.
+Every major version entry in `CHANGELOG.md` uses this structure once the release is curated. Minor
+and patch releases use whichever sections apply.
 
 ```markdown
 ## {VERSION} - {YYYY-MM-DD}
@@ -51,10 +83,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ```
 
 The topmost heading on `develop` is always the next major version with a `-SNAPSHOT` suffix, as in
-`## 2.0.0-SNAPSHOT - unreleased`. New entries go under it. At release time, the heading becomes
-the release version and date, which is a minor or patch version when nothing breaks. After the
-release, a snapshot heading goes back on top. See
-[Cut a release](./build-and-publish.md#cut-a-release).
+`## 2.0.0-SNAPSHOT - unreleased`. It stays empty. Entries wait in `changelog.d/` until a release
+assembles them below it. See [Cut a release](./build-and-publish.md#cut-a-release).
 
 ## Section Headers
 
@@ -168,7 +198,8 @@ newer Hoist release:
 
 - Raise the `@xh/hoist` range in `peerDependencies` in `package.json`.
 - Update the version in the README's Installation section.
-- State the new minimum in the changelog entry, as a standalone line under the version heading.
+- State the new minimum in a `💥 Breaking Changes` bullet in your fragment. When the release is
+  curated, the curator also adds it as a standalone line under the version heading.
 
 Set the floor only to what the kit genuinely cannot run without. That is normally the release the
 kit's tests run against.

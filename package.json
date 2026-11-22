@@ -47,7 +47,8 @@
     "test:ui": "vitest --ui",
     "build": "node scripts/check-package.mjs",
     "prepare": "husky",
-    "prepack": "hoist-docs-build --root . --file hoist-docs/index.json.gz"
+    "prepack": "hoist-docs-build --root . --file hoist-docs/index.json.gz",
+    "changelog": "xh-changelog"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,mts}": [
