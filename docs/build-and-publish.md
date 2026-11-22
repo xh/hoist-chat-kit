@@ -92,7 +92,8 @@ leaves it there, and 2.0.0 moves it to `3.0.0-SNAPSHOT`.
 3. On `develop`, run `pnpm changelog release <version>`, as in `pnpm changelog release 1.1.0`. It
    assembles the fragments in `changelog.d/` into a new `## 1.1.0 - <today>` block in
    `CHANGELOG.md` and deletes them. Review and curate the block. For a major release, also set the
-   `Released` date in that version's upgrade notes. Commit and push.
+   `Released` date in that version's upgrade notes. Commit and push. Deploy Release fails if
+   `CHANGELOG.md` lacks the version or fragments are left over.
 4. Fast-forward `main` to `develop` and push it:
    ```bash
    git switch main && git merge --ff-only develop && git push
