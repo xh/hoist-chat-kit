@@ -13,6 +13,8 @@ import {
     moveView
 } from '../layout';
 import {emptyContent, resetLayoutButton} from './impl/layout';
+import {containerAt} from './design/impl/dropTargets';
+import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 
 /**
@@ -112,14 +114,32 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
 
     /** The widget a palette drag carries, while this container may take it, or null. */
     externalDrag(): string {
-        const {mode, access} = this.blueprintModel;
-        return mode === 'design' && access === 'write'
-            ? (paletteDrag.current?.component ?? null)
-            : null;
+        const {mode, access} = this.blueprintModel,
+            source = currentDropSource();
+        if (mode !== 'design' || access !== 'write' || !source) return null;
+        return 'widget' in source ? source.widget : source.element;
     }
 
-    /** Add the palette drag's widget as a new view at a target, with the layout, as one edit. */
+    /** True if a drag over a point is this container's: not over a container inside a view. */
+    acceptsDragAt(e: DragEvent): boolean {
+        const el = containerAt(e.target as Element, this.blueprintModel, currentDropSource());
+        return el?.dataset.blueprintElement === this.id;
+    }
+
+    /**
+     * Drop the drag as a new view at a target, with the layout, as one edit: a palette widget
+     * added, or an element moved here.
+     */
     onDropExternal(_key: string, target: DockTarget) {
+        const moving = elementDrag.current;
+        if (moving) {
+            elementDrag.end();
+            moving.designModel.dropAt(
+                {element: moving.element},
+                {container: this.id, layoutWith: id => insertView(this.layout, id, target)}
+            );
+            return;
+        }
         const drag = paletteDrag.current;
         paletteDrag.end();
         drag?.add(this.id, {
@@ -164,6 +184,7 @@ export const [DashContainerWidget, dashContainerWidget] = hoistCmp.withFactory({
                         onChange: (layout, change) => model.noteLayout(layout, change),
                         canMove: (id, target) => model.canMove(id, target),
                         externalDrag: () => model.externalDrag(),
+                        acceptsDragAt: e => model.acceptsDragAt(e),
                         onDropExternal: (key, target) => model.onDropExternal(key, target),
                         active: model.shown,
                         onHiddenChange: ids => model.setHiddenViews(ids)

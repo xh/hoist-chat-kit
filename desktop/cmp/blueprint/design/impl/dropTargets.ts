@@ -1,18 +1,8 @@
-import type {BlueprintModel} from '../../../../../blueprint';
-
-/** What a drag carries: an element of the blueprint, or a widget of the registry to add. */
-export type DropSource = {element: string} | {widget: string};
-
-/** Where a drop lands: a container, and its place among the container's children as they are now. */
-export interface DropPlaceTarget {
-    container: string;
-    /** The index to insert at, counting the dragged element where it is already a child. */
-    index?: number;
-}
+import type {BlueprintModel, DropSource, DropTarget} from '../../../../../blueprint';
 
 /** Where a drag over a blueprint would drop, and how to show it. */
 export interface DropPlace {
-    target: DropPlaceTarget;
+    target: DropTarget;
     /** Why the container refuses it, or null. */
     refusal: string;
     /** The container's element on the page. */
@@ -39,22 +29,18 @@ export function dropPlaceAt(
     source: DropSource,
     x: number,
     y: number,
-    canDropAt: (source: DropSource, target: DropPlaceTarget) => string
+    canDropAt: (source: DropSource, target: DropTarget) => string
 ): DropPlace {
     const hit = document.elementFromPoint(x, y);
     if (!hit || !host.contains(hit)) return null;
-    const dragged = 'element' in source ? elementEl(host, source.element) : null;
-    let el = wrapperOf(dragged?.contains(hit) ? dragged.parentElement : hit);
-    while (el && !layoutOf(blueprintModel, el.dataset.blueprintElement)) {
-        el = wrapperOf(el.parentElement);
-    }
+    const el = containerAt(hit, blueprintModel, source);
     if (!el) return null;
 
     const container = el.dataset.blueprintElement,
         layout = layoutOf(blueprintModel, container),
         box = el.getBoundingClientRect(),
         pointer = {x: x - box.left, y: y - box.top},
-        refuse = (target: DropPlaceTarget) => canDropAt(source, target);
+        refuse = (target: DropTarget) => canDropAt(source, target);
     if (layout === 'own') {
         const target = {container};
         return {target, refusal: refuse(target), containerEl: el, ownDrop: true, pointer};
@@ -74,9 +60,35 @@ export function dropPlaceAt(
     };
 }
 
+/**
+ * The wrapper of the deepest container holding a point of the page, never the dragged element or
+ * one inside it, or null. A canvas or a dash container takes a drag only where it is this one.
+ */
+export function containerAt(
+    hit: Element,
+    blueprintModel: BlueprintModel,
+    source: DropSource
+): HTMLElement {
+    const start = wrapperOf(hit),
+        dragged = source && 'element' in source ? findWrapper(start, source.element) : null;
+    let el = dragged ? wrapperOf(dragged.parentElement) : start;
+    while (el && !layoutOf(blueprintModel, el.dataset.blueprintElement)) {
+        el = wrapperOf(el.parentElement);
+    }
+    return el;
+}
+
 //------------------
 // Implementation
 //------------------
+// The wrapper of an element among a wrapper and its ancestors, or null.
+function findWrapper(from: HTMLElement, id: string): HTMLElement {
+    for (let el = from; el; el = wrapperOf(el.parentElement)) {
+        if (el.dataset.blueprintElement === id) return el;
+    }
+    return null;
+}
+
 const ELEMENT = '[data-blueprint-element]';
 
 type Layout = 'row' | 'column' | 'grid' | 'tabs' | 'own';
@@ -127,7 +139,7 @@ function tabsPlace(
     y: number,
     pointer: DropPlace['pointer'],
     box: DOMRect,
-    refuse: (target: DropPlaceTarget) => string
+    refuse: (target: DropTarget) => string
 ): DropPlace {
     const container = el.dataset.blueprintElement,
         strip = hit.closest('[role=tablist]'),

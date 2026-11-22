@@ -19,6 +19,7 @@ import {layoutGesture} from '../../layout';
 import {OverlayModel} from '../../layout/overlay';
 import {cellElementAt, viewAt} from '../impl/ElementHost';
 import {altHold} from './impl/altHold';
+import {paletteDrag} from '../impl/paletteDrag';
 import {designHotkeys} from './impl/designHotkeys';
 import {designMarks} from './impl/designOverlay';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
@@ -410,6 +411,90 @@ describe('design mode selection', () => {
         expect(keys()).not.toContain('hover');
         window.dispatchEvent(new KeyboardEvent('keyup', {key: 'Alt'}));
         expect(keys()).toContain('hover');
+    });
+
+    it('previews a drop at a point, and drops a dragged widget there with a line marking the place', async () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'page',
+                    elements: {
+                        page: {
+                            component: 'box',
+                            config: {direction: 'row'},
+                            children: [{id: 'a'}, {id: 'b'}]
+                        },
+                        a: {component: 'markdown', config: {text: 'A'}},
+                        b: {component: 'markdown', config: {text: 'B'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model});
+        onTestFinished(() => {
+            design.destroy();
+            model.destroy();
+            paletteDrag.end();
+        });
+        const {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            el = (id: string) =>
+                container.querySelector<HTMLElement>(`[data-blueprint-element="${id}"]`),
+            rect = (id: string, x: number, width: number) => {
+                el(id).getBoundingClientRect = () =>
+                    ({
+                        left: x,
+                        right: x + width,
+                        top: 0,
+                        bottom: 100,
+                        width,
+                        height: 100
+                    }) as DOMRect;
+            },
+            was = document.elementFromPoint;
+        rect('page', 0, 300);
+        rect('a', 0, 150);
+        rect('b', 150, 150);
+        document.elementFromPoint = () => el('b');
+        onTestFinished(() => {
+            document.elementFromPoint = was;
+        });
+        // Hoist lists a model once it has settled.
+        const view = await vi.waitFor(() => {
+            const it = XH.getModels<BlueprintViewModel>('BlueprintViewModel').find(
+                m => m.blueprintModel === model
+            );
+            expect(it).toBeTruthy();
+            return it;
+        });
+
+        expect(view.previewDrop({widget: 'markdown'}, 260, 50)).toEqual({
+            container: 'page',
+            index: 2,
+            refusal: null
+        });
+
+        paletteDrag.start({component: 'markdown', size: {w: 6, h: 1}, add: () => null});
+        const fire = (type: string) => {
+            const e = new Event(type, {bubbles: true, cancelable: true});
+            Object.assign(e, {clientX: 260, clientY: 50, dataTransfer: {dropEffect: 'none'}});
+            el('b').dispatchEvent(e);
+            return e;
+        };
+        expect(fire('dragover').defaultPrevented).toBe(true);
+        expect(view.dropPreview.target).toEqual({container: 'page', index: 2});
+        await vi.waitFor(() =>
+            expect(document.body.querySelector('.xh-blueprint-drop__line--row')).toBeTruthy()
+        );
+
+        fire('drop');
+        expect(view.dropPreview).toBeNull();
+        const children = model.blueprint.elements.page.children.map(it => it.id);
+        expect(children).toHaveLength(3);
+        expect(design.selectedElementId).toBe(children[2]);
     });
 
     it("haloes what the Architect's latest edit touched", () => {

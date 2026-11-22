@@ -256,6 +256,7 @@ function rootTarget(impl: DockLayoutModel, e: DragEvent): DockTarget {
 
 function allow(impl: DockLayoutModel, e: DragEvent, target: DockTarget, barX?: number) {
     if ((!impl.dragging && !impl.external) || !target) return;
+    if (!impl.dragging && impl.props.acceptsDragAt?.(e.nativeEvent) === false) return;
     e.stopPropagation();
     if (impl.dragOver(target, barX)) {
         e.preventDefault();
