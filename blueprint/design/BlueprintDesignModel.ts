@@ -646,11 +646,7 @@ export class BlueprintDesignModel extends HoistModel {
             spec = this.elementSpec(id),
             parentSpec = parent ? this.elementSpec(parent) : null;
         if (!spec || !parentSpec?.children) return [];
-        const takes = (rule: SlotAccepts) =>
-                !rule ||
-                (!rule.categories && !rule.widgets) ||
-                !!rule.categories?.includes(spec.category) ||
-                !!rule.widgets?.includes(spec.name),
+        const takes = (rule: SlotAccepts) => accepts(rule, spec),
             ret: {slot: string; of?: string}[] = [];
         if (takes(parentSpec.children.accepts)) ret.push({slot: 'children'});
         Object.entries(parentSpec.slots ?? {}).forEach(([slot, it]) => {
@@ -663,6 +659,83 @@ export class BlueprintDesignModel extends HoistModel {
                 .forEach(ref => ret.push({slot, of: ref.id}));
         });
         return ret;
+    }
+
+    /** The element before or after one in the slot list that holds it, or null at its end. */
+    siblingOf(id: string, step: -1 | 1): string {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            at = locate(elements, id);
+        if (!at) return null;
+        const list = slotLists(elements[at.parent]).find(
+            it => it.slot === at.slot && it.of === at.of
+        );
+        return list?.refs[at.index + step]?.id ?? null;
+    }
+
+    /**
+     * The places a designer can add a widget from an element, with the widgets each takes: the
+     * element's own children and slots, if it is a container, then its cell's slots, such as a
+     * canvas cell's header.
+     */
+    addPlacesFor(id: string): {place: AddPlace; label: string; widgets: string[]}[] {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            spec = this.elementSpec(id),
+            parent = parentOf(elements, id),
+            parentSpec = parent ? this.elementSpec(parent) : null,
+            widgets = Object.values(this.blueprintModel.registry.widgets).filter(
+                it => !it.reserved
+            ),
+            placeOf = (place: AddPlace, label: string, rule: SlotAccepts) => ({
+                place,
+                label,
+                widgets: widgets.filter(it => accepts(rule, it)).map(it => it.name)
+            });
+        if (!spec) return [];
+        return [
+            ...(spec.children
+                ? [placeOf({parent: id, slot: 'children'}, `Add to ${id}`, spec.children.accepts)]
+                : []),
+            ...Object.entries(spec.slots ?? {}).map(([slot, it]) =>
+                placeOf({parent: id, slot}, `Add to ${id} ${slot}`, it.accepts)
+            ),
+            ...Object.entries(parentSpec?.children?.slots ?? {}).map(([slot, it]) =>
+                placeOf(
+                    {parent, slot, of: id},
+                    `Add to ${id} ${slot === 'headerItems' ? 'header' : slot}`,
+                    it.accepts
+                )
+            )
+        ].filter(it => it.widgets.length);
+    }
+
+    /**
+     * Put an element in a new panel, in one edit, and select the panel. The panel takes the
+     * element's place, with its cell's slots such as header items, and the element's title.
+     */
+    wrapInPanel(id: string): BlueprintEditResult & {id?: string} {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            at = locate(elements, id),
+            spec = this.elementSpec(id);
+        if (!at || !spec) return refused(`'${id}' has no container to wrap it in.`);
+        const panelId = this.newId('panel'),
+            title = elements[id].config?.title,
+            parent = cloneDeep(elements[at.parent]);
+        slotLists(parent)
+            .find(it => it.slot === at.slot && it.of === at.of)
+            .refs.find(it => it.id === id).id = panelId;
+        const ret = this.edit(`Wrap ${spec.label} in a panel`, [
+            {
+                op: 'set',
+                path: `/elements/${panelId}`,
+                value: {component: 'panel', config: title != null ? {title} : {}, children: [{id}]}
+            },
+            ...(title != null
+                ? [{op: 'remove', path: `/elements/${id}/config/title`} as BlueprintOp]
+                : []),
+            {op: 'set', path: `/elements/${at.parent}`, value: parent}
+        ]);
+        if (!ret.issues.some(isError)) this.select({kind: 'element', id: panelId});
+        return {...ret, id: panelId};
     }
 
     /** Move an element to another slot of its container, at its end, as one edit. */
@@ -1279,6 +1352,16 @@ export class BlueprintDesignModel extends HoistModel {
 }
 
 const isError = (it: {severity: string}) => it.severity === 'error';
+
+// True if a slot's rule takes a widget. No rule takes every widget.
+function accepts(rule: SlotAccepts, spec: WidgetSpec): boolean {
+    return (
+        !rule ||
+        (!rule.categories && !rule.widgets) ||
+        !!rule.categories?.includes(spec.category) ||
+        !!rule.widgets?.includes(spec.name)
+    );
+}
 
 // A refusal the design model makes itself, at the path of what it names, if any.
 function refused(message: string, path = ''): BlueprintEditResult & {id?: string} {

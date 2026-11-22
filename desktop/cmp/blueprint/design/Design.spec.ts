@@ -17,6 +17,7 @@ import {blueprintView} from '../BlueprintView';
 import {cellElementAt} from '../impl/ElementHost';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {ElementOutlineModel} from './ElementOutline';
+import {removeElementAsync} from './impl/designActions';
 
 /**
  * A designer sees the element tree, and selects an element there or by a click in the blueprint.
@@ -182,5 +183,54 @@ describe('design mode selection', () => {
         expect(view.haloIds).toEqual(['posGrid']);
         design.setConfig('sectorChart', '/title', 'Sectors');
         expect(view.haloIds).toEqual(['posGrid']);
+    });
+
+    it('removes a lone element at once with a toast to undo, and asks first when more goes', async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(false),
+            toast = vi.spyOn(XH, 'toast').mockReturnValue(null);
+        onTestFinished(() => {
+            confirm.mockRestore();
+            toast.mockRestore();
+        });
+        design.select({kind: 'element', id: 'sectorChart'});
+        await removeElementAsync(design, 'sectorChart');
+        expect(confirm).not.toHaveBeenCalled();
+        expect(model.blueprint.elements).not.toHaveProperty('sectorChart');
+        // The next sibling, else the one before.
+        expect(design.selectedElementId).toBe('regionChart');
+        await removeElementAsync(design, 'regionChart');
+        expect(design.selectedElementId).toBe('headline');
+        const [[first], [latest]] = toast.mock.calls as any[];
+        expect(first.message).toBe('Removed sectorChart.');
+        // An older toast undoes nothing once another edit came after it.
+        const warning = vi.spyOn(XH, 'warningToast').mockReturnValue(null);
+        onTestFinished(() => warning.mockRestore());
+        first.actionButtonProps.onClick();
+        expect(warning).toHaveBeenCalled();
+        expect(model.blueprint.elements).not.toHaveProperty('regionChart');
+        latest.actionButtonProps.onClick();
+        expect(model.blueprint.elements).toHaveProperty('regionChart');
+
+        await removeElementAsync(design, 'headline');
+        expect(confirm.mock.calls[0][0].message).toMatch(
+            /Remove headline, and the 4 elements in it\?/
+        );
+        expect(model.blueprint.elements).toHaveProperty('headline');
+    });
+
+    it('shows a toolbar on the selected element, whose parent button selects its parent', async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement);
+        design.select({kind: 'element', id: 'overview'});
+        const toolbar = await vi.waitFor(() => {
+            const it = container.querySelector('.xh-blueprint-selection-toolbar');
+            expect(it).toBeTruthy();
+            return it;
+        });
+        expect(toolbar.textContent).toContain('overview · Dashboard');
+        expect(toolbar.querySelectorAll('button')).toHaveLength(5);
+        fireEvent.click(toolbar.querySelector('button[title^="Select the parent"]'));
+        expect(design.selectedElementId).toBe('tabs');
     });
 });

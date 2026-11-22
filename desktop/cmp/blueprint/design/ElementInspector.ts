@@ -1,5 +1,5 @@
 import {div, filler, hbox, placeholder} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
@@ -7,16 +7,12 @@ import {action, observableRef} from '@xh/hoist/mobx';
 import classNames from 'classnames';
 import {isEqual} from 'lodash';
 import type {ReactNode} from 'react';
-import {
-    type BlueprintDesignModel,
-    type BlueprintRemoval,
-    type EditorNode,
-    toEditorSpec
-} from '../../../../blueprint';
+import {type BlueprintDesignModel, type EditorNode, toEditorSpec} from '../../../../blueprint';
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, listOf, propertyRow} from './impl/ConfigEditors';
+import {CLS, propertyRow} from './impl/ConfigEditors';
+import {removeElementAsync} from './impl/designActions';
 
 export interface ElementInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -102,19 +98,10 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     /**
      * Remove an element, the selected one by default, with everything inside it and what names
-     * it, in one edit, once the user confirms what goes.
+     * it, in one edit. See `removeElementAsync`.
      */
     async removeAsync(id: string = this.elementId) {
-        const {designModel} = this,
-            message = removalMessage(id, designModel.describeRemoval(id)),
-            ok = await XH.confirm({
-                title: 'Remove',
-                message,
-                confirmProps: {text: 'Remove', intent: 'danger'}
-            });
-        if (!ok) return;
-        const {issues} = designModel.removeElement(id),
-            errors = issues.filter(it => it.severity === 'error');
+        const errors = await removeElementAsync(this.designModel, id);
         if (errors.length) this.refuseWith(ELEMENT_KEY, errors);
     }
 
@@ -510,30 +497,4 @@ function tabsEditor(impl: ElementInspectorModel) {
             })
         ]
     });
-}
-
-// What removing an element takes with it, for the user to confirm.
-function removalMessage(id: string, removal: BlueprintRemoval): string {
-    const inside = removal.elements.length - 1,
-        sentences = [
-            inside
-                ? `Remove ${id}, and the ${inside} element${inside > 1 ? 's' : ''} in it?`
-                : `Remove ${id}?`
-        ];
-    const {removedVariables: gone, unboundVariables: unbound, presetPaths} = removal;
-    if (gone.length)
-        sentences.push(
-            `Variable${gone.length > 1 ? 's' : ''} ${listOf(gone)} ${gone.length > 1 ? 'go' : 'goes'} too.`
-        );
-    if (unbound.length) {
-        sentences.push(
-            `${listOf(unbound)} ${unbound.length > 1 ? 'lose a writer' : 'loses a writer'}, and keep${unbound.length > 1 ? '' : 's'} its other writers or its default.`
-        );
-    }
-    if (presetPaths.length) {
-        sentences.push(
-            `Presets stop setting ${presetPaths.length} path${presetPaths.length > 1 ? 's' : ''} in it.`
-        );
-    }
-    return sentences.join(' ');
 }

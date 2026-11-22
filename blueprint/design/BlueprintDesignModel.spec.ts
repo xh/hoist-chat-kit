@@ -103,6 +103,58 @@ describe('BlueprintDesignModel', () => {
             expect(model.blueprint.presets.posViews.controls).toHaveLength(1);
         });
 
+        it('names the sibling before or after an element in its slot', () => {
+            const {design} = p3();
+            expect(design.siblingOf('posGrid', 1)).toBe('priceChart');
+            expect(design.siblingOf('posGrid', -1)).toBe('pnlButtons');
+            expect(design.siblingOf('groupChooser', -1)).toBeNull();
+            expect(design.siblingOf('tabs', 1)).toBeNull();
+        });
+
+        it('offers the places to add into from an element: its own slots and its cell header', () => {
+            const {design, model} = p3(),
+                {registry} = model,
+                [cellHeader] = design.addPlacesFor('posGrid');
+            expect(design.addPlacesFor('posGrid')).toHaveLength(1);
+            expect(cellHeader.place).toEqual({
+                parent: 'positions',
+                slot: 'headerItems',
+                of: 'posGrid'
+            });
+            expect(cellHeader.widgets.length).toBeGreaterThan(0);
+            expect(cellHeader.widgets.every(it => registry.widgets[it].category === 'input')).toBe(
+                true
+            );
+            const [children] = design.addPlacesFor('positions');
+            expect(children.place).toEqual({parent: 'positions', slot: 'children'});
+            expect(children.widgets).toContain('chart');
+        });
+
+        it('wraps an element in a panel in one edit, which takes its place, title and cell header', () => {
+            const {design, model} = p3();
+            design.setConfig('posGrid', '/title', 'Book');
+            const {id, issues} = design.wrapInPanel('posGrid'),
+                {elements} = model.blueprint,
+                cell = elements.positions.children.find(it => it.id === id);
+            expect(issues.filter(it => it.severity === 'error')).toEqual([]);
+            expect(elements[id]).toMatchObject({
+                component: 'panel',
+                config: {title: 'Book'},
+                children: [{id: 'posGrid'}]
+            });
+            expect(elements.posGrid.config.title).toBeUndefined();
+            expect(cell).toMatchObject({
+                x: 0,
+                y: 1,
+                w: 8,
+                h: 9,
+                headerItems: [{id: 'posViewsSelector'}]
+            });
+            expect(design.selectedElementId).toBe(id);
+            model.undo();
+            expect(model.blueprint.elements[id]).toBeUndefined();
+        });
+
         it('tracks the hovered element as view state, never an edit', () => {
             const {model, design} = p3();
             design.setHovered('posGrid');

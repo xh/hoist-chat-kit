@@ -91,6 +91,33 @@
   }
 }
 
+// Inside the selected element's top edge, as a cell clips what lies outside it.
+.xh-blueprint-selection-toolbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  color: var(--xh-white);
+  background-color: var(--xh-intent-primary);
+
+  &__name {
+    padding: 0 var(--xh-spacing-half);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .xh-button.xh-button--minimal {
+    min-height: 20px;
+    min-width: 20px;
+    padding: 0 2px;
+    color: var(--xh-white) !important;
+  }
+}
+
 // A canvas cell is its widget's frame: a plain header with the title, and in design mode the
 // element's id beside it. Outranks Hoist's own cell header rules.
 .xh-blueprint-dash-canvas

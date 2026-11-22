@@ -4,6 +4,7 @@ import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type React from 'react';
 import type {BlueprintViewModel} from './BlueprintViewModel';
+import {selectionToolbar} from '../design/impl/SelectionToolbar';
 import {missingModules} from './highchartsModules';
 
 const DESIGN_ELEMENT = 'xh-blueprint-view__design-element';
@@ -61,7 +62,12 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             onMouseLeave: () => {
                 if (designModel.hoveredId === id) designModel.setHovered(null);
             },
-            children: content
+            children: [
+                content,
+                designModel.selectedElementId === id
+                    ? selectionToolbar({key: 'selection-toolbar', designModel, id})
+                    : null
+            ]
         });
     }
 });
