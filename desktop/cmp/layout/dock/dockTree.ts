@@ -16,11 +16,15 @@ export interface DockItem {
 /** Where in a stack a view lands: as a tab, or in a new stack split off at an edge. */
 export type DockZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
 
-/** A stack, named by a view in it, and where in it a view lands, or an edge of the whole layout. */
+/**
+ * A stack, named by a view in it, and where in it a view lands, or an edge of the whole layout, or
+ * anywhere in a layout with no views yet.
+ */
 export type DockTarget =
     | {view: string; zone: DockZone}
     | {view: string; zone: 'tab'; index: number}
-    | {zone: 'root-left' | 'root-right' | 'root-top' | 'root-bottom'};
+    | {zone: 'root-left' | 'root-right' | 'root-top' | 'root-bottom'}
+    | {zone: 'root'};
 
 /** How deep a layout may nest, and how many items a split or stack may hold, as a blueprint allows. */
 export const MAX_DOCK_DEPTH = 6,
@@ -73,7 +77,7 @@ export function stacksOf(layout: DockItem[]): string[][] {
 //------------------
 const EDGE_DIR = {left: 'row', right: 'row', top: 'column', bottom: 'column'} as const,
     STACK_ZONES: string[] = ['center', 'left', 'right', 'top', 'bottom'],
-    ROOT_ZONES: string[] = ['root-left', 'root-right', 'root-top', 'root-bottom'];
+    ROOT_ZONES: string[] = ['root', 'root-left', 'root-right', 'root-top', 'root-bottom'];
 
 // The whole layout's holder, which has no direction and sizes nothing.
 const ROOT = 'root';
@@ -95,6 +99,9 @@ function tryMove(
         if (isNew && findStackOf(root, viewId)) return {refusal: 'The layout already shows it.'};
         if (!isNew && !from) return {refusal: 'There is no such view to move.'};
         if ('view' in target && !to) return {refusal: 'There is no such place.'};
+        if (target.zone === 'root' && stacksOf(root.content).length) {
+            return {refusal: 'Drop it on a stack, or at an edge of the layout.'};
+        }
         if (
             !isNew &&
             to === from &&
@@ -150,6 +157,10 @@ function mostItems(items: DockItem[]): number {
 }
 
 function place(root: DockItem, to: DockItem, target: DockTarget, view: DockItem) {
+    if (target.zone === 'root') {
+        root.content = [{type: 'stack', content: [view]}];
+        return;
+    }
     if (!('view' in target)) return splitRoot(root, target.zone, view);
     if (target.zone === 'tab') {
         to.content.splice(Math.max(0, Math.min(target.index, to.content.length)), 0, view);

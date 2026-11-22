@@ -82,6 +82,13 @@ describe('dock tree moves, exhaustively', () => {
         expect(stacksIds(next)).toEqual([['a', 'c'], ['b']]);
     });
 
+    it('places the first view of an empty layout anywhere in it, and only there', () => {
+        expect(insertView([], 'a', {zone: 'root'})).toEqual([{type: 'stack', content: [v('a')]}]);
+        expect(dockMoveRefusal(LAYOUTS['one stack'], 'new', {zone: 'root'}, true)).toBe(
+            'Drop it on a stack, or at an edge of the layout.'
+        );
+    });
+
     it('refuses a zone that is not one, or a tab with no index', () => {
         const layout = LAYOUTS['a row of stacks'];
         expect(dockMoveRefusal(layout, 'a', {view: 'c', zone: 'middle'} as any)).toBe(
