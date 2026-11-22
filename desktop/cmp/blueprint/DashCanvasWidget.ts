@@ -19,6 +19,8 @@ import {
 } from '../layout';
 import {widgetIcon} from './design/impl/icons';
 import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
+import {containerAt} from './design/impl/dropTargets';
+import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 
 /**
@@ -134,16 +136,44 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     /** True while a palette drag is in progress and the blueprint is open for design. */
     get takesDrop(): boolean {
         const {mode, access} = this.blueprintModel;
-        return !!paletteDrag.current && mode === 'design' && access === 'write';
+        return !!currentDropSource() && mode === 'design' && access === 'write';
     }
 
-    /** The size of a palette drag's cell, or false to refuse any other drag, or outside design. */
-    onDropOver(): {w: number; h: number} | false {
-        return this.takesDrop ? paletteDrag.current.size : false;
+    /**
+     * The size of the cell a drag would make, or false to refuse it: outside design, or over a
+     * container inside a cell, which takes the drag itself.
+     */
+    onDropOver(e?: DragEvent): {w: number; h: number} | false {
+        const source = currentDropSource();
+        if (!this.takesDrop) return false;
+        if (
+            e &&
+            containerAt(e.target as Element, this.blueprintModel, source)?.dataset
+                .blueprintElement !== this.id
+        ) {
+            return false;
+        }
+        if ('widget' in source) return paletteDrag.current.size;
+        const {blueprint, registry} = this.blueprintModel,
+            size =
+                registry.widgets[blueprint?.elements?.[source.element]?.component]?.size?.default;
+        return {w: size?.w ?? 4, h: size?.h ?? 2};
     }
 
-    /** Add the palette drag's widget where it fell, with the other cells as the drop left them. */
+    /**
+     * Drop the drag where it fell: a palette widget, with the other cells as the drop left them,
+     * or an element moved here, as one edit.
+     */
     onDrop(place: Omit<GridCell, 'id'>, siblings: GridCell[]) {
+        const moving = elementDrag.current;
+        if (moving) {
+            elementDrag.end();
+            moving.designModel.dropAt(
+                {element: moving.element},
+                {container: this.id, cell: pick(place, 'x', 'y', 'w', 'h')}
+            );
+            return;
+        }
         const drag = paletteDrag.current;
         paletteDrag.end();
         drag?.add(this.id, {
@@ -271,7 +301,7 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
                         'data-blueprint-canvas': model.id
                     }),
                     onChange: (cells, change) => model.onCellsChange(cells, change),
-                    onDropOver: () => model.onDropOver(),
+                    onDropOver: e => model.onDropOver(e),
                     onDrop: (place, siblings) => model.onDrop(place, siblings)
                 }),
                 empty ? div({className: `${className}__empty`, children: empty}) : null,

@@ -48,6 +48,11 @@ export interface DockLayoutProps {
      */
     externalDrag?: () => string;
     /** Add a new view for an external drag's key at a target, as one change. */
+    /**
+     * For an external drag, false to leave the drag at a point to something inside a view, such
+     * as a container there, which then gets it. Default true.
+     */
+    acceptsDragAt?: (e: DragEvent) => boolean;
     onDropExternal?: (key: string, target: DockTarget) => void;
     /** Why an external drag may not drop at a target, or null if it may. */
     canDropExternal?: (key: string, target: DockTarget) => string;

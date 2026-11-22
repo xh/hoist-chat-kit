@@ -8,6 +8,8 @@ import {
     type BlueprintDesignModel,
     BlueprintWidgetModel,
     type BlueprintModel,
+    type DropSource,
+    type DropTarget,
     type WidgetSpec
 } from '../../../../blueprint';
 import {parentOf} from '../../../../blueprint/impl/elements';
@@ -52,6 +54,10 @@ import {
     TextInputWidgetModel
 } from '../InputWidgets';
 import {altHold} from '../design/impl/altHold';
+import {dropMarks} from '../design/impl/dropMarks';
+import {type DropPlace, dropPlaceAt} from '../design/impl/dropTargets';
+import {currentDropSource, elementDrag} from '../design/impl/elementDrag';
+import {paletteDrag} from './paletteDrag';
 import {designMarks} from '../design/impl/designOverlay';
 import {OverlayModel} from '../../layout/overlay';
 import {elementHost} from './ElementHost';
@@ -153,6 +159,8 @@ export class BlueprintViewModel extends HoistModel {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
             overlay.addMarks('design', () => designMarks(designModel, overlay));
             this.stopAltHold = altHold.follow();
+            overlay.addMarks('drop', () => dropMarks(this.dropPreview));
+            this.stopDropFollow = this.followDrops();
             this.addReaction(
                 {
                     // Elements move once the change has drawn, as after an edit or a tab switch.
@@ -254,8 +262,86 @@ export class BlueprintViewModel extends HoistModel {
     }
 
     private stopAltHold: () => void = null;
+    private stopDropFollow: () => void = null;
+
+    private dropPlace(source: DropSource, x: number, y: number): DropPlace {
+        const {designModel, overlay, blueprintModel} = this,
+            host = overlay.hostEl;
+        if (!host || !designModel || blueprintModel.mode !== 'design') return null;
+        return dropPlaceAt(host, blueprintModel, source, x, y, (s, t) =>
+            designModel.canDropAt(s, t)
+        );
+    }
+
+    @action
+    private setDropPreview(place: DropPlace) {
+        this.dropPreview = place;
+    }
+
+    // Follow drags over the page: preview where one would drop on the blueprint, and drop it there.
+    // A canvas or a dash container takes its own, so only its outline shows here.
+    private followDrops(): () => void {
+        const host = () => this.overlay.hostEl,
+            over = (e: DragEvent) => {
+                const source = currentDropSource();
+                if (!source || !host()?.contains(e.target as Node))
+                    return this.setDropPreview(null);
+                const place = this.dropPlace(source, e.clientX, e.clientY);
+                this.setDropPreview(place);
+                if (!place || place.ownDrop) return;
+                if (place.refusal) {
+                    e.dataTransfer.dropEffect = 'none';
+                } else {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                }
+            },
+            drop = (e: DragEvent) => {
+                const source = currentDropSource(),
+                    place = source && this.dropPreview;
+                this.setDropPreview(null);
+                if (!place || place.ownDrop || place.refusal) return;
+                e.preventDefault();
+                paletteDrag.end();
+                elementDrag.end();
+                this.designModel.dropAt(source, place.target);
+            },
+            leave = (e: DragEvent) => {
+                const to = e.relatedTarget as Node;
+                if (!to || !host()?.contains(to)) this.setDropPreview(null);
+            },
+            end = () => {
+                this.setDropPreview(null);
+                elementDrag.end();
+            };
+        document.addEventListener('dragover', over);
+        document.addEventListener('drop', drop);
+        document.addEventListener('dragleave', leave);
+        document.addEventListener('dragend', end);
+        return () => {
+            document.removeEventListener('dragover', over);
+            document.removeEventListener('drop', drop);
+            document.removeEventListener('dragleave', leave);
+            document.removeEventListener('dragend', end);
+        };
+    }
+
+    /**
+     * Where a drag of an element or a palette widget would drop at a point of the page, without
+     * dropping: its container and place there, and why it would be refused. The same place a drag
+     * shows and drops at, for a test or a script, such as `XH.getModels('BlueprintViewModel')` from
+     * DevTools. Null over no container.
+     */
+    previewDrop(source: DropSource, x: number, y: number): DropTarget & {refusal: string} {
+        const place = this.dropPlace(source, x, y);
+        return place ? {...place.target, refusal: place.refusal} : null;
+    }
+
+    /** The drop a drag over the blueprint would make, which the overlay shows. */
+    @observableRef accessor dropPreview: DropPlace = null;
 
     override destroy() {
+        this.stopDropFollow?.();
         this.stopAltHold?.();
         this.widgets.forEach(it => it.model.destroy());
         this.widgets.clear();

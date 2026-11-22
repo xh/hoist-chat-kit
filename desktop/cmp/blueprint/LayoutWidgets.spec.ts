@@ -13,6 +13,7 @@ import {
     BlueprintModel,
     validateBlueprint
 } from '../../../blueprint';
+import {elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 import {blueprintView} from './BlueprintView';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
@@ -418,6 +419,41 @@ describe('layout and container widgets', () => {
             expect(widget.layout).toEqual([
                 {type: 'stack', content: [{type: 'view', id: added.id}]}
             ]);
+        });
+
+        it('moves an element dragged onto it in as a view, leaving a drag over a container in a view to that container', () => {
+            const {model, design, widget} = designing({
+                    tabs: {component: 'dashContainer', children: [{id: 'a'}, {id: 'b'}]},
+                    a: {component: 'box', children: [{id: 'note'}]},
+                    note: {component: 'markdown', config: {text: 'Note'}},
+                    b: emptyPanel('B')
+                }),
+                wrapper = (id: string, parent?: HTMLElement) => {
+                    const el = document.createElement('div');
+                    el.dataset.blueprintElement = id;
+                    parent?.appendChild(el);
+                    return el;
+                },
+                tabs = wrapper('tabs'),
+                a = wrapper('a', tabs),
+                note = wrapper('note', a),
+                at = (target: HTMLElement) =>
+                    widget.acceptsDragAt({target} as unknown as DragEvent);
+            onTestFinished(() => elementDrag.end());
+            elementDrag.start({element: 'note', designModel: design});
+            expect(widget.externalDrag()).toBe('note');
+            expect(at(tabs)).toBe(true);
+            expect(at(note)).toBe(false);
+
+            widget.onDropExternal('note', {view: 'b', zone: 'right'});
+            expect(elementDrag.current).toBeNull();
+            expect(model.blueprint.elements.tabs.children.map(it => it.id)).toEqual([
+                'a',
+                'b',
+                'note'
+            ]);
+            expect(widget.layout.flatMap(stackIds)).toContain('note');
+            expect(design.selectedElementId).toBe('note');
         });
 
         it('adds a widget dragged from the palette where it drops, as one edit', () => {

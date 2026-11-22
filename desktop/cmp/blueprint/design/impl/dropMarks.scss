@@ -1,0 +1,75 @@
+// A drag over a blueprint: the target container, and where the drop would insert.
+.xh-blueprint-drop {
+  &__outline {
+    position: absolute;
+    inset: 0;
+    border: 1px dashed var(--xh-intent-primary-trans2);
+    border-radius: 2px;
+
+    &--refused {
+      border-color: var(--xh-intent-danger);
+    }
+  }
+
+  // A 2px line between children, with 6px caps across each end.
+  &__line {
+    position: absolute;
+    background-color: var(--xh-intent-primary);
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      background-color: var(--xh-intent-primary);
+    }
+
+    &--row {
+      width: 2px;
+
+      &::before,
+      &::after {
+        left: -2px;
+        width: 6px;
+        height: 2px;
+      }
+
+      &::before {
+        top: 0;
+      }
+
+      &::after {
+        bottom: 0;
+      }
+    }
+
+    &--column {
+      height: 2px;
+
+      &::before,
+      &::after {
+        top: -2px;
+        width: 2px;
+        height: 6px;
+      }
+
+      &::before {
+        left: 0;
+      }
+
+      &::after {
+        right: 0;
+      }
+    }
+  }
+
+  &__refusal {
+    position: absolute;
+    padding: 2px 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--xh-intent-danger-text-color);
+    border: 1px solid var(--xh-intent-danger);
+    border-radius: 3px;
+    background-color: var(--xh-bg);
+  }
+}

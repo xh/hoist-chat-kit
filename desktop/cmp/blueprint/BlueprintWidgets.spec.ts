@@ -4,6 +4,7 @@ import type {ReactElement} from 'react';
 import {hoistCmp, uses, XH, type PlainObject} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {pick} from 'lodash';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     loadBlueprint,
@@ -23,6 +24,7 @@ import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroup
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
+import {elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 import {GroupingChooserWidgetModel} from './GroupingChooserWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from './TabContainerWidget';
@@ -1050,6 +1052,54 @@ describe('blueprint desktop widgets', () => {
             paletteDrag.start({component: 'chart', size: {w: 4, h: 6}, add: () => {}});
             model.setMode('run');
             expect(canvas.onDropOver()).toBe(false);
+        });
+
+        it('moves an element dragged onto it into a cell, leaving a drag over a container in a cell to that container', () => {
+            const model = open({
+                    schema: {blueprint: 1},
+                    root: 'page',
+                    elements: {
+                        page: {
+                            component: 'dashCanvas',
+                            children: [{id: 'inner', x: 0, y: 0, w: 6, h: 4}]
+                        },
+                        inner: {component: 'box', children: [{id: 'note'}]},
+                        note: {component: 'markdown', config: {text: 'Note'}}
+                    }
+                } as Blueprint),
+                design = new BlueprintDesignModel({blueprintModel: model}),
+                canvas = widget(DashCanvasWidgetModel, model, 'page'),
+                wrapper = (id: string, parent?: HTMLElement) => {
+                    const el = document.createElement('div');
+                    el.dataset.blueprintElement = id;
+                    parent?.appendChild(el);
+                    return el;
+                },
+                page = wrapper('page'),
+                inner = wrapper('inner', page),
+                note = wrapper('note', inner),
+                over = (target: HTMLElement) => canvas.onDropOver({target} as unknown as DragEvent);
+            onTestFinished(() => {
+                design.destroy();
+                elementDrag.end();
+            });
+            elementDrag.start({element: 'note', designModel: design});
+
+            // Sized as its widget starts.
+            expect(over(page)).toEqual(
+                pick(model.registry.widgets.markdown.size.default, 'w', 'h')
+            );
+            // Over the note itself, the drag is the box's to take.
+            expect(over(note)).toBe(false);
+
+            canvas.onDrop({x: 6, y: 0, w: 4, h: 2}, []);
+            expect(elementDrag.current).toBeNull();
+            expect(model.blueprint.elements.page.children.map(it => it.id)).toEqual([
+                'inner',
+                'note'
+            ]);
+            expect(model.blueprint.elements.inner.children).toEqual([]);
+            expect(design.selectedElementId).toBe('note');
         });
 
         it('turns a move into one edit of its children, in reading order', () => {
