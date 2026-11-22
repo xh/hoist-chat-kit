@@ -19,7 +19,8 @@ interface DesignKey {
 
 /**
  * The design keys, for a canvas or Structure to bind with a panel's `hotkeys`. They act on the
- * selected element, and never while focus is in an input, which keeps its own keys.
+ * selected element in design mode only, and never while focus is in an input, which keeps its own
+ * keys.
  */
 export function designHotkeys(
     designModel: BlueprintDesignModel,
@@ -40,6 +41,7 @@ export function designHotkeys(
             label,
             group: 'Design',
             onKeyDown: (e: KeyboardEvent) => {
+                if (designModel.blueprintModel.mode !== 'design') return;
                 if (fromWidgets && (e.target as Element)?.closest?.(INTERACTIVE)) return;
                 const id = designModel.selectedElementId;
                 if (!id && !always) return;

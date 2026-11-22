@@ -34,8 +34,11 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
     render({id, blueprintViewModel: viewModel}) {
         const content = renderContent(id, viewModel),
             {designModel} = viewModel;
-        if (!designModel || viewModel.blueprintModel.mode !== 'design') return content;
-        const label =
+        if (!designModel) return content;
+        // A designer wraps each element in run mode too, so switching modes neither remounts a
+        // widget nor moves it. Only design mode marks it and takes the pointer.
+        const isDesign = viewModel.blueprintModel.mode === 'design',
+            label =
                 viewModel.blueprintModel.registry.widgets[
                     viewModel.blueprintModel.blueprint?.elements?.[id]?.component
                 ]?.label,
@@ -46,6 +49,13 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 native[flag] = true;
                 return cellElementAt(e.target as HTMLElement, e.currentTarget) ?? id;
             };
+        if (!isDesign) {
+            return div({
+                className: DESIGN_ELEMENT,
+                ...({'data-blueprint-element': id} as object),
+                children: [content, null, null]
+            });
+        }
         return div({
             className: classNames(
                 DESIGN_ELEMENT,

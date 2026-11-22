@@ -42,7 +42,8 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
         return panel({
             className,
             tbar: blueprintToolbar({blueprintModel: model}),
-            hotkeys: isDesign ? designHotkeys(designModel, {fromWidgets: true}) : null,
+            // Bound in run mode too, where they do nothing, so switching modes remounts nothing.
+            hotkeys: designModel ? designHotkeys(designModel, {fromWidgets: true}) : null,
             // Focusable, so the design keys work once a click selects an element.
             contentBoxProps: isDesign ? ({tabIndex: 0} as object) : null,
             children: [

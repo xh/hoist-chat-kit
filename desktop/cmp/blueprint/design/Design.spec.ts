@@ -152,7 +152,7 @@ describe('design mode selection', () => {
         expect(cellElementAt(cell.querySelector('.body') as HTMLElement, host)).toBeNull();
     });
 
-    it('selects the innermost element a click lands on, and outlines it, in design mode only', () => {
+    it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', () => {
         // A tab container draws its first tab, the overview canvas, inside it.
         const {design, model} = open('p3-morning-report.json'),
             {container, rerender} = render(
@@ -166,9 +166,18 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBe('overview');
         expect(container.querySelector('.xh-blueprint-view__design-element--selected')).toBe(inner);
 
+        // Run mode keeps the same elements, so switching remounts no widget and moves nothing.
+        const widget = inner.firstElementChild;
         model.setMode('run');
         rerender(blueprintView({model, designModel: design}) as ReactElement);
-        expect(wrappers()).toEqual([]);
+        expect(container.querySelector('.xh-blueprint-view__design-element--selected')).toBeNull();
+        expect(inner.isConnected).toBe(true);
+        expect(inner.firstElementChild).toBe(widget);
+        fireEvent.click(inner);
+        expect(design.selectedElementId).toBe('overview');
+        design.select(null);
+        fireEvent.click(inner);
+        expect(design.selectedElementId).toBeNull();
     });
 
     it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
