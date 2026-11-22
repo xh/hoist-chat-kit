@@ -910,4 +910,30 @@ describe('BlueprintDesignModel', () => {
         design.removeElement('sectorChart');
         expect(design.selection).toBeNull();
     });
+
+    it("rescales a canvas's cells with its columns, in one edit that one undo restores", () => {
+        const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+            cells = () =>
+                model.blueprint.elements.overview.children.map(({id, x, y, w, h}) => [
+                    id,
+                    x,
+                    y,
+                    w,
+                    h
+                ]),
+            before = cells(),
+            edits = model.history.length;
+        expect(errors(design.setConfig('overview', '/columns', 6))).toEqual([]);
+        expect(model.blueprint.elements.overview.config.columns).toBe(6);
+        expect(cells()).toEqual([
+            ['reportActions', 0, 0, 6, 1],
+            ['headline', 0, 1, 6, 2],
+            ['sectorChart', 0, 3, 3, 6],
+            ['regionChart', 3, 3, 3, 6]
+        ]);
+        expect(model.history.length).toBe(edits + 1);
+        model.undo();
+        expect(cells()).toEqual(before);
+        expect(model.blueprint.elements.overview.config?.columns).toBeUndefined();
+    });
 });

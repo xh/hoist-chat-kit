@@ -23,6 +23,7 @@ import type {
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
+import {CANVAS_COLUMNS, rescaleCells} from '../impl/canvasCells';
 import {childIds, locate, parentOf, slotLabel, slotLists} from '../impl/elements';
 import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
@@ -1231,12 +1232,27 @@ export class BlueprintDesignModel extends HoistModel {
                 value === undefined
                     ? {op: 'remove', path: target}
                     : {op: 'set', path: target, value};
-        return this.edit(configEditLabel(id, spec.config, path), [op]);
+        return this.edit(configEditLabel(id, spec.config, path), [
+            op,
+            ...this.rescaleOps(id, path, value)
+        ]);
     }
 
     //------------------
     // Implementation
     //------------------
+    // A canvas's new column count rescales its cells in the same edit, so they stay on the grid.
+    private rescaleOps(id: string, path: string, value: unknown): BlueprintOp[] {
+        const el = getOwn(this.blueprintModel.blueprint?.elements, id);
+        if (el?.component !== 'dashCanvas' || path !== '/columns' || !el.children) return [];
+        const from = (el.config?.columns as number) ?? CANVAS_COLUMNS,
+            to = (value as number) ?? CANVAS_COLUMNS,
+            children = rescaleCells(el.children, from, to);
+        return children === el.children
+            ? []
+            : [{op: 'set', path: `/elements/${id}/children`, value: children}];
+    }
+
     // The operations that point a source at a dataset, dropping what names the old one's fields.
     private datasetOps(
         name: string,

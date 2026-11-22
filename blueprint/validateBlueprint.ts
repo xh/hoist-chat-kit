@@ -23,6 +23,7 @@ import {bindingTypesOf} from './impl/bindable';
 import {checkConfig, checkFilter, templateStrings, toPointer} from './impl/configSchema';
 import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
+import {CANVAS_COLUMNS} from './impl/canvasCells';
 import {slotLists} from './impl/elements';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
@@ -1359,7 +1360,7 @@ function checkCanvasLayout(
     warn: (code: string, path: string, message: string) => void,
     specOf: (id: string) => WidgetSpec
 ) {
-    const cols = el.config?.columns ?? 12,
+    const cols = el.config?.columns ?? CANVAS_COLUMNS,
         kids = (el.children ?? [])
             .map((c, i) => ({c, i}))
             .filter(({c}) => [c.x, c.y, c.w, c.h].every(Number.isInteger));
@@ -1372,13 +1373,14 @@ function checkCanvasLayout(
             );
         }
     });
+    const outside = kids.filter(({c}) => c.x + c.w > cols).map(({c}) => `'${c.id}'`);
     kids.forEach(({c, i}, k) => {
         const at = `${path}/children/${i}`;
         if (c.x + c.w > cols) {
             err(
                 'layout.outOfBounds',
                 at,
-                `'${c.id}' reaches column ${c.x + c.w}, past the last of ${cols}`
+                `'${c.id}' reaches column ${c.x + c.w}, past the last of ${cols}. Rescale the x and w of ${outside.join(', ')} to fit ${cols} columns, in proportion, so each x + w is at most ${cols}`
             );
         }
         const minW = specOf(c.id)?.size?.min?.w;
