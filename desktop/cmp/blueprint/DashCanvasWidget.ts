@@ -40,17 +40,24 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
 
     /**
      * Each cell's title, by ID: its reference's `title`, else its child's, with bindings and
-     * variables resolved. Null for a cell with none.
+     * variables resolved, else its widget's label, else its ID.
      */
     get titles(): Record<string, string> {
         const {blueprintModel} = this,
+            {registry} = blueprintModel,
             elements = blueprintModel.blueprint?.elements ?? {};
         return Object.fromEntries(
             this.children.map(ref => {
-                const title = blueprintModel.resolveTitle(
-                    (ref.title as string) ?? elements[ref.id]?.config?.title
-                );
-                return [ref.id, title == null || title === '' ? null : String(title)];
+                const element = elements[ref.id],
+                    title = blueprintModel.resolveTitle(
+                        (ref.title as string) ?? element?.config?.title
+                    );
+                return [
+                    ref.id,
+                    title == null || title === ''
+                        ? (registry.widgets[element?.component]?.label ?? ref.id)
+                        : String(title)
+                ];
             })
         );
     }
@@ -74,17 +81,22 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         );
     }
 
-    /** True if a cell draws a header: not hidden, and with a title or header items. */
+    /**
+     * True if a cell draws a header, which it moves by: always, unless it hides it, when it moves
+     * by a grip in design mode.
+     */
     cellHasHeader(id: string): boolean {
         const ref = this.children.find(it => it.id === id);
-        if (!ref || ref.hideHeader) return false;
-        return this.titles[id] != null || this.cellHeaderRefs[id]?.length > 0;
+        return !!ref && !ref.hideHeader;
     }
 
     /** A cell's header items: in design mode its element's id first, then its own items. */
     headerItemsFor(id: string): ReactNode[] {
         return [
-            this.isDesign ? span({key: '_id', className: `${CLS}__cell-id`, children: id}) : null,
+            // A cell titled by its ID already shows it.
+            this.isDesign && this.titles[id] !== id
+                ? span({key: '_id', className: `${CLS}__cell-id`, children: id})
+                : null,
             ...(this.cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))
         ].filter(Boolean);
     }
@@ -245,7 +257,7 @@ const cellHeader = hoistCmp.factory<HoistProps & {model: DashCanvasWidgetModel; 
                 element?.config?.icon
                     ? Icon.icon({faName: element.config.icon, ...props})
                     : widgetIcon(registry.widgets[element?.component], props),
-                title != null ? span({className: `${CLS}__cell-title`, children: title}) : null,
+                span({className: `${CLS}__cell-title`, children: title}),
                 div({className: `${CLS}__cell-items`, children: model.headerItemsFor(id)})
             ]
         });

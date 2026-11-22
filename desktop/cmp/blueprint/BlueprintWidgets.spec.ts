@@ -1062,13 +1062,14 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.cells.find(it => it.id === 'headline').y).toBe(0);
         });
 
-        it('shows a header only for a child with a title, and follows edits to titles', () => {
+        it("heads every cell, titled by its child's title, else its widget's label, following edits", () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
 
             expect(canvas.cellHasHeader('sectorChart')).toBe(true);
             expect(canvas.titles.sectorChart).toBe('Day P&L by Sector');
-            expect(canvas.cellHasHeader('posGrid')).toBe(false);
+            expect(canvas.cellHasHeader('posGrid')).toBe(true);
+            expect(canvas.titles.posGrid).toBe(model.registry.widgets.cubeGrid.label);
 
             model.applyEdit({
                 ops: [

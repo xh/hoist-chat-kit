@@ -812,15 +812,16 @@ describe('layout and container widgets', () => {
             expect(header.querySelector('svg')).toBeTruthy();
         });
 
-        it('hides the header of a cell with no title and no header items', () => {
+        it('heads a cell with no title anywhere, by its widget label, so it can still move', () => {
             const {canvas, view} = cells();
-            expect(canvas.cellHasHeader('tiles')).toBe(false);
+            expect(canvas.cellHasHeader('tiles')).toBe(true);
+            expect(canvas.titles.tiles).toBe(view.blueprintModel.registry.widgets.tileFrame.label);
             const {container} = renderCanvas(view);
             expect(
                 container.querySelector(
-                    '[data-blueprint-view="tiles"] [data-blueprint-view-header]'
-                )
-            ).toBeNull();
+                    '[data-blueprint-view="tiles"] [data-blueprint-view-header] .xh-blueprint-dash-canvas__cell-title'
+                ).textContent
+            ).toBe(canvas.titles.tiles);
         });
 
         it('shows the column grid and element ids in design mode only', () => {
@@ -849,8 +850,9 @@ describe('layout and container widgets', () => {
             });
             expect(iconOf()).toBeTruthy();
             expect(iconOf()).not.toBe('chart-line');
-            // A cell with no header stays without one, id or not.
-            expect(design.canvas.cellHasHeader('tiles')).toBe(false);
+            // A cell with no title still takes a header, with its id beside its widget label.
+            expect(design.canvas.cellHasHeader('tiles')).toBe(true);
+            expect((design.canvas.headerItemsFor('tiles')[0] as any).props.children).toBe('tiles');
         });
 
         function renderCanvas(view: BlueprintViewModel) {
