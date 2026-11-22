@@ -7,7 +7,7 @@ import {
     type DockItem,
     type DockTarget,
     type DockZone,
-    insertView,
+    dockMoveRefusal,
     moveView,
     stacksOf
 } from './dockTree';
@@ -176,13 +176,10 @@ export class DockLayoutModel extends HoistModel {
         if (!dragging && !external) return false;
         const key = `${dragging ?? external}|${JSON.stringify(target)}`;
         if (!this.verdicts.has(key)) {
-            const placed = dragging
-                    ? moveView(layout, dragging, target)
-                    : insertView(layout, NEW_VIEW, target),
-                nowhere = placed ? null : 'The view has nowhere to go there.';
+            const placed = dockMoveRefusal(layout, dragging ?? NEW_VIEW, target, !dragging);
             this.verdicts.set(
                 key,
-                nowhere ??
+                placed ??
                     (dragging
                         ? canMove?.(dragging, target)
                         : canDropExternal?.(external, target)) ??

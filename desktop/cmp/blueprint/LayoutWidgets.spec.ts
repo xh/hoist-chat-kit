@@ -1,6 +1,7 @@
 import {act, render, screen} from '@testing-library/react';
 import type {PlainObject} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {cloneDeep} from 'lodash';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
@@ -434,6 +435,61 @@ describe('layout and container widgets', () => {
             ]);
             expect(widget.layout.flatMap(stackIds)).toContain(added);
             expect(paletteDrag.current).toBeNull();
+        });
+
+        it('moves every view to every place without a pointer, refusing with a reason or leaving a valid blueprint', () => {
+            const elements = {
+                    tabs: {
+                        component: 'dashContainer',
+                        config: {
+                            layout: [
+                                {
+                                    type: 'row',
+                                    content: [
+                                        {type: 'view', id: 'a'},
+                                        {
+                                            type: 'column',
+                                            content: [
+                                                {type: 'stack', content: [{type: 'view', id: 'b'}]},
+                                                {type: 'view', id: 'c'}
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        children: [{id: 'a'}, {id: 'b'}, {id: 'c'}]
+                    },
+                    a: emptyPanel('A'),
+                    b: emptyPanel('B'),
+                    c: emptyPanel('C')
+                },
+                zones = ['center', 'left', 'right', 'top', 'bottom'] as const,
+                roots = ['root-left', 'root-right', 'root-top', 'root-bottom'] as const;
+            for (const id of ['a', 'b', 'c']) {
+                for (const target of [
+                    ...['a', 'b', 'c'].flatMap(view => [
+                        ...zones.map(zone => ({view, zone})),
+                        {view, zone: 'tab' as const, index: 0}
+                    ]),
+                    ...roots.map(zone => ({zone}))
+                ]) {
+                    const {model, widget} = designing(cloneDeep(elements)),
+                        version = model.version,
+                        refusal = widget.moveView(id, target);
+                    if (refusal) {
+                        expect(model.version, `${id} → ${JSON.stringify(target)}`).toBe(version);
+                    } else {
+                        expect(model.version, `${id} → ${JSON.stringify(target)}`).toBe(
+                            version + 1
+                        );
+                        expect(
+                            model.issues.filter(it => it.severity === 'error'),
+                            `${id} → ${JSON.stringify(target)}`
+                        ).toEqual([]);
+                    }
+                }
+            }
         });
 
         it('says why a move would be refused, and allows a valid one', () => {

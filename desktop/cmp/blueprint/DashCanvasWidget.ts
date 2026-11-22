@@ -116,14 +116,51 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
 
     /** Write moved or resized cells to the child references, as one edit, in reading order. */
     onCellsChange(changed: GridCell[]) {
-        const byId = new Map(changed.map(it => [it.id, it])),
-            next = sortBy(
-                this.children.map(ref =>
-                    byId.has(ref.id) ? {...ref, ...pick(byId.get(ref.id), 'x', 'y', 'w', 'h')} : ref
-                ),
-                ['y', 'x']
-            );
-        this.applyUserEdit([{op: 'set', path: `/elements/${this.id}/children`, value: next}]);
+        this.applyUserEdit([
+            {op: 'set', path: `/elements/${this.id}/children`, value: this.childrenWith(changed)}
+        ]);
+    }
+
+    /**
+     * Move or resize a cell as a drag does, as one edit, or transient in run mode. Returns why it
+     * was refused, or null: a place off the grid, under the cell's minimum size, or over another
+     * cell, as free placement never overlaps. For tests and tools that drive the canvas without a
+     * pointer, such as `XH.getModels('DashCanvasWidgetModel')` from DevTools.
+     */
+    moveCell(id: string, place: Partial<Omit<GridCell, 'id'>>): string {
+        const {cells} = this,
+            cell = cells.find(it => it.id === id);
+        if (!cell) return `There is no cell '${id}'.`;
+        const next = {...cell, ...pick(place, 'x', 'y', 'w', 'h')},
+            columns = (this.resolvedConfig.columns as number) ?? 12,
+            {x, y, w, h} = next;
+        if (![x, y, w, h].every(Number.isInteger) || x < 0 || y < 0 || x + w > columns) {
+            return `'${id}' must lie on the grid, within its ${columns} columns.`;
+        }
+        if (w < (cell.minW ?? 1) || h < (cell.minH ?? 1)) {
+            return `'${id}' is at least ${cell.minW ?? 1} by ${cell.minH ?? 1}.`;
+        }
+        const over = cells.find(
+            it => it.id !== id && x < it.x + it.w && it.x < x + w && y < it.y + it.h && it.y < y + h
+        );
+        if (over) return `'${id}' would overlap '${over.id}'.`;
+        const refusal = this.canApplyUserEdit([
+            {op: 'set', path: `/elements/${this.id}/children`, value: this.childrenWith([next])}
+        ]);
+        if (refusal) return refusal;
+        this.onCellsChange([next]);
+        return null;
+    }
+
+    // The child references with cells moved, in reading order.
+    private childrenWith(changed: GridCell[]): ChildRef[] {
+        const byId = new Map(changed.map(it => [it.id, it]));
+        return sortBy(
+            this.children.map(ref =>
+                byId.has(ref.id) ? {...ref, ...pick(byId.get(ref.id), 'x', 'y', 'w', 'h')} : ref
+            ),
+            ['y', 'x']
+        );
     }
 }
 
