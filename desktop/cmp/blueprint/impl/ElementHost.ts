@@ -11,6 +11,7 @@ import {uniq} from 'lodash';
 import {type BlueprintWidgetModel, variableLabel, type WidgetSpec} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
+import {altHold} from '../design/impl/altHold';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {missingModules} from './highchartsModules';
 
@@ -64,6 +65,14 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             ...({'data-blueprint-element': id} as object),
             onClick: e => {
                 if (designModel.interaction === 'interact') return;
+                // Alt held passes one click through to the widget, and past the elements around it.
+                const native = e.nativeEvent as MouseEvent & {xhPassed?: boolean};
+                if (native.xhPassed) return;
+                if (altHold.active) {
+                    native.xhPassed = true;
+                    altHold.consume();
+                    return;
+                }
                 // A click on a canvas cell's header or grip selects its view.
                 const view = viewAt(e.target as HTMLElement, e.currentTarget),
                     target = innermost(e, 'xhSelected');
@@ -71,7 +80,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 designModel.select(view ? {kind: 'view', ...view} : {kind: 'element', id: target});
             },
             onMouseOver: e => {
-                if (designModel.interaction === 'interact') return;
+                if (designModel.interaction === 'interact' || altHold.active) return;
                 const target = innermost(e, 'xhHovered');
                 if (target) designModel.setHovered(target);
             },

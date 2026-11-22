@@ -362,6 +362,15 @@ describe('design mode selection', () => {
         expect(design.interaction).toBe('edit');
         fireEvent.click(inner);
         expect(design.selectedElementId).toBe('overview');
+
+        // Alt held in Edit lets one click through to the widget, selecting nothing.
+        design.select(null);
+        fireEvent.keyDown(window, {key: 'Alt'});
+        fireEvent.click(inner);
+        expect(design.selection).toBeNull();
+        fireEvent.click(inner);
+        expect(design.selectedElementId).toBe('overview');
+        fireEvent.keyUp(window, {key: 'Alt'});
     });
 
     it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
