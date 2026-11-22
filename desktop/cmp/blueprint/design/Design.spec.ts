@@ -1,4 +1,4 @@
-import {fireEvent, render} from '@testing-library/react';
+import {fireEvent, render, within} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -492,6 +492,28 @@ describe('design mode selection', () => {
         expect(onAddWidget).toHaveBeenCalledWith({parent: 'canvas', slot: 'children'});
         fireEvent.click(getByText('Ask the Architect'));
         expect(onAskArchitect).toHaveBeenCalled();
+    });
+
+    it('shows an empty container one quiet empty state over its own surface, with a way to add', () => {
+        // jsdom has no layout: the canvas waits for a measured width before it draws cells.
+        const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+        onTestFinished(() => spy.mockRestore());
+        const {model, design} = open('p2-linked-dashboard.json'),
+            dc = design.addWidget('dashContainer').id,
+            onAddWidget = vi.fn(),
+            {container} = render(
+                blueprintView({model, designModel: design, onAddWidget}) as ReactElement
+            ),
+            host = container.querySelector(`[data-blueprint-element="${dc}"]`),
+            empties = host.querySelectorAll('.xh-blueprint-view__design-empty');
+        expect(empties).toHaveLength(1);
+        const [empty] = empties as unknown as HTMLElement[];
+        expect(empty.parentElement).toBe(host);
+        // No inline position, which would stack it below the container rather than over it.
+        expect(empty.style.position).toBe('');
+        expect(empty.classList).toContain('xh-blueprint-view__design-empty--quiet');
+        fireEvent.click(within(empty).getByText('Add a widget to this container'));
+        expect(onAddWidget).toHaveBeenCalledWith({parent: dc, slot: 'children'});
     });
 
     it('shows a source that failed to load in its widget, with Retry', async () => {

@@ -488,7 +488,7 @@ export class BlueprintDesignModel extends HoistModel {
     removeElement(id: string): BlueprintEditResult {
         const spec = this.elementSpec(id);
         if (!spec) return refused(`There is no element '${id}'.`);
-        return this.edit(`Remove ${spec.label}`, this.removalOps([id]));
+        return this.edit(`Remove ${id}`, this.removalOps([id]));
     }
 
     /**

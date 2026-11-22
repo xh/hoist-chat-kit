@@ -155,15 +155,23 @@ function designEmpty(id: string, viewModel: BlueprintViewModel) {
             designModel.select({kind: 'element', id});
             onAddWidget?.({parent: id, slot: 'children'});
         };
-    return placeholder({
+    // A plain div, not a Hoist placeholder, whose inline `position: relative` would put it below
+    // the container's own surface rather than over it.
+    return div({
         key: 'design-empty',
-        className: 'xh-blueprint-view__design-empty',
+        className: classNames(
+            'xh-blueprint-view__design-empty',
+            !isRoot && 'xh-blueprint-view__design-empty--quiet'
+        ),
         children: [
-            isRoot ? div({key: 'text', children: 'This dashboard is empty.'}) : null,
+            div({
+                key: 'text',
+                children: isRoot ? 'This dashboard is empty.' : 'Drag a widget here, or'
+            }),
             canEdit
                 ? button({
                       key: 'add',
-                      text: isRoot ? 'Add a widget' : `Add to ${id}`,
+                      text: isRoot ? 'Add a widget' : 'Add a widget to this container',
                       icon: Icon.add(),
                       minimal: true,
                       onClick: addWidget
