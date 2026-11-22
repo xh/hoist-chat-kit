@@ -8,9 +8,11 @@ import {
     type Blueprint,
     type BlueprintElement,
     type ChildRef,
+    BlueprintDesignModel,
     BlueprintModel,
     validateBlueprint
 } from '../../../blueprint';
+import {paletteDrag} from './impl/paletteDrag';
 import {blueprintView} from './BlueprintView';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {dashContainerWidget, DashContainerWidgetModel} from './DashContainerWidget';
@@ -375,6 +377,87 @@ describe('layout and container widgets', () => {
                 onTestFinished(() => ret.destroy());
                 return {model, widget: ret};
             };
+
+        const designing = (elements: Record<string, BlueprintElement>) => {
+            const model = new BlueprintModel({
+                    blueprint: {schema: {blueprint: 1}, root: 'tabs', elements},
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode: 'design',
+                    access: 'write'
+                }),
+                design = new BlueprintDesignModel({blueprintModel: model}),
+                widget = new DashContainerWidgetModel({
+                    blueprintModel: model,
+                    id: 'tabs',
+                    renderElement: () => null
+                });
+            onTestFinished(() => {
+                widget.destroy();
+                design.destroy();
+                model.destroy();
+            });
+            return {model, design, widget};
+        };
+
+        it('adds a widget dragged from the palette where it drops, as one edit', () => {
+            const {model, design, widget} = designing(container()),
+                version = model.version;
+            expect(widget.externalDrag()).toBeNull();
+            paletteDrag.start({
+                component: 'markdown',
+                size: {w: 4, h: 2},
+                add: (parent, opts) => design.addWidget('markdown', parent, opts)
+            });
+            onTestFinished(() => paletteDrag.end());
+            expect(widget.externalDrag()).toBe('markdown');
+
+            widget.onDropExternal('markdown', {view: 'b', zone: 'right'});
+            const added = model.blueprint.elements.tabs.children.at(-1).id;
+            expect(model.version).toBe(version + 1);
+            expect(widget.layout).toEqual([
+                {
+                    type: 'row',
+                    content: [
+                        {
+                            type: 'stack',
+                            width: 50,
+                            content: [
+                                {type: 'view', id: 'a'},
+                                {type: 'view', id: 'b'}
+                            ]
+                        },
+                        {type: 'stack', width: 50, content: [{type: 'view', id: added}]}
+                    ]
+                }
+            ]);
+            expect(widget.layout.flatMap(stackIds)).toContain(added);
+            expect(paletteDrag.current).toBeNull();
+        });
+
+        it('says why a move would be refused, and allows a valid one', () => {
+            const {widget} = designing(container());
+            expect(widget.canMove('b', {view: 'a', zone: 'left'})).toBeNull();
+        });
+
+        it("resets a reader's rearrangement, and offers to only once there is one", () => {
+            const {model, widget} = open(container());
+            expect(widget.isRearranged).toBe(false);
+            widget.noteLayout([
+                {
+                    type: 'column',
+                    content: [
+                        {type: 'view', id: 'b'},
+                        {type: 'view', id: 'a'}
+                    ]
+                }
+            ]);
+            expect(widget.isRearranged).toBe(true);
+            widget.resetLayout();
+            expect(widget.isRearranged).toBe(false);
+            expect(model.effective.elements.tabs.config.layout).toBeUndefined();
+        });
 
         it('offers a view per child, titled by its reference or its title', () => {
             const {widget} = open(container());
@@ -780,3 +863,7 @@ describe('layout and container widgets', () => {
         });
     });
 });
+
+function stackIds(item: PlainObject): string[] {
+    return item.type === 'view' ? [item.id] : (item.content ?? []).flatMap(stackIds);
+}

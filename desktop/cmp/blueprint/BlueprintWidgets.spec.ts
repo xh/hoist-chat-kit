@@ -1039,6 +1039,21 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.cellHasHeader('ordersGrid')).toBe(false);
         });
 
+        it("resets a reader's moves, and offers to only once there are some", () => {
+            const model = open(loadBlueprint('p2-linked-dashboard.json'));
+            model.setMode('run');
+            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                headline = canvas.cells.find(it => it.id === 'headline');
+            expect(canvas.isRearranged).toBe(false);
+            canvas.onCellsChange([{...headline, y: 14}]);
+            expect(canvas.isRearranged).toBe(true);
+            expect(model.version).toBe(1);
+
+            canvas.resetLayout();
+            expect(canvas.isRearranged).toBe(false);
+            expect(canvas.cells.find(it => it.id === 'headline').y).toBe(0);
+        });
+
         it('follows an edit that adds a child', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard');

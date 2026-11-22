@@ -5,7 +5,7 @@ import {pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {BlueprintWidgetModel, type ChildRef, type DashCanvasWidgetConfig} from '../../../blueprint';
 import {gridCanvas, type GridCell} from '../layout';
-import {CANVAS_GAP, emptyContent} from './impl/layout';
+import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
 
 /**
@@ -107,6 +107,16 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         });
     }
 
+    /** True if a reader has moved or resized cells, which {@link resetLayout} undoes. */
+    get isRearranged(): boolean {
+        return this.blueprintModel.hasTransientValues(`/elements/${this.id}/children`);
+    }
+
+    /** Drop a reader's rearrangement, back to the blueprint's placement. */
+    resetLayout() {
+        this.blueprintModel.clearTransientValues(`/elements/${this.id}/children`);
+    }
+
     /** Write moved or resized cells to the child references, as one edit, in reading order. */
     onCellsChange(changed: GridCell[]) {
         const byId = new Map(changed.map(it => [it.id, it])),
@@ -151,7 +161,8 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
                     onDropOver: () => model.onDropOver(),
                     onDrop: (place, siblings) => model.onDrop(place, siblings)
                 }),
-                empty ? div({className: `${className}__empty`, children: empty}) : null
+                empty ? div({className: `${className}__empty`, children: empty}) : null,
+                resetLayoutButton({omit: !model.isRearranged, onClick: () => model.resetLayout()})
             ]
         });
     }

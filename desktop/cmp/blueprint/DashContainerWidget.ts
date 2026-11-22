@@ -1,9 +1,11 @@
+import {box} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEqual, pick} from 'lodash';
 import {BlueprintWidgetModel, type DashContainerWidgetConfig} from '../../../blueprint';
-import {type DockItem, dockLayout} from '../layout';
-import {emptyContent} from './impl/layout';
+import {type DockItem, dockLayout, type DockTarget, insertView, moveView} from '../layout';
+import {emptyContent, resetLayoutButton} from './impl/layout';
+import {paletteDrag} from './impl/paletteDrag';
 
 /**
  * The `dashContainer` widget: a dock layout of splits and tab stacks, with a view per child, laid
@@ -65,6 +67,47 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
         if (!layout?.length || isEqual(toLayout(layout), this.layout)) return;
         this.setConfig('/layout', layout);
     }
+
+    /** Why moving a view to a target would be refused, or null if it would apply. */
+    canMove(id: string, target: DockTarget): string {
+        const next = moveView(this.layout, id, target);
+        return next
+            ? this.canApplyUserEdit([{op: 'set', path: this.layoutPath, value: next}])
+            : null;
+    }
+
+    /** The widget a palette drag carries, while this container may take it, or null. */
+    externalDrag(): string {
+        const {mode, access} = this.blueprintModel;
+        return mode === 'design' && access === 'write'
+            ? (paletteDrag.current?.component ?? null)
+            : null;
+    }
+
+    /** Add the palette drag's widget as a new view at a target, with the layout, as one edit. */
+    onDropExternal(_key: string, target: DockTarget) {
+        const drag = paletteDrag.current;
+        paletteDrag.end();
+        drag?.add(this.id, {
+            extraOps: id => [
+                {op: 'set', path: this.layoutPath, value: insertView(this.layout, id, target)}
+            ]
+        });
+    }
+
+    /** True if a reader has rearranged the views, which {@link resetLayout} undoes. */
+    get isRearranged(): boolean {
+        return this.blueprintModel.hasTransientValues(this.layoutPath);
+    }
+
+    /** Drop a reader's rearrangement, back to the blueprint's layout. */
+    resetLayout() {
+        this.blueprintModel.clearTransientValues(this.layoutPath);
+    }
+
+    private get layoutPath(): string {
+        return `/elements/${this.id}/config/layout`;
+    }
 }
 
 export const [DashContainerWidget, dashContainerWidget] = hoistCmp.withFactory({
@@ -74,15 +117,28 @@ export const [DashContainerWidget, dashContainerWidget] = hoistCmp.withFactory({
     render({model, className}) {
         return (
             emptyContent(model) ??
-            dockLayout({
+            box({
                 className,
-                layout: model.layout,
-                editable: true,
-                renderView: id => model.renderElement(id),
-                viewTitle: id => model.titles[id],
-                onChange: layout => model.noteLayout(layout),
-                active: model.shown,
-                onHiddenChange: ids => model.setHiddenViews(ids)
+                flex: 1,
+                position: 'relative',
+                children: [
+                    dockLayout({
+                        layout: model.layout,
+                        editable: true,
+                        renderView: id => model.renderElement(id),
+                        viewTitle: id => model.titles[id],
+                        onChange: layout => model.noteLayout(layout),
+                        canMove: (id, target) => model.canMove(id, target),
+                        externalDrag: () => model.externalDrag(),
+                        onDropExternal: (key, target) => model.onDropExternal(key, target),
+                        active: model.shown,
+                        onHiddenChange: ids => model.setHiddenViews(ids)
+                    }),
+                    resetLayoutButton({
+                        omit: !model.isRearranged,
+                        onClick: () => model.resetLayout()
+                    })
+                ]
             })
         );
     }

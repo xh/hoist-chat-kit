@@ -142,6 +142,40 @@ describe('dockLayout', () => {
             expect(onChange).not.toHaveBeenCalled();
         });
 
+        it('takes an external drag the host names, as one new view where it drops', () => {
+            const onDropExternal = vi.fn(),
+                model = dragModel({
+                    editable: true,
+                    externalDrag: () => 'chart-widget',
+                    onDropExternal
+                });
+            expect(model.dragOver({view: 'chart', zone: 'right'})).toBe(true);
+            model.dropHere();
+            expect(onDropExternal).toHaveBeenCalledWith('chart-widget', {
+                view: 'chart',
+                zone: 'right'
+            });
+        });
+
+        it('refuses an external drag where the host says no, and ignores one it does not name', () => {
+            const onDropExternal = vi.fn(),
+                canDropExternal = vi.fn(() => 'No grids in here.'),
+                model = dragModel({
+                    editable: true,
+                    externalDrag: () => 'grid',
+                    onDropExternal,
+                    canDropExternal
+                });
+            expect(model.dragOver({view: 'chart', zone: 'center'})).toBe(false);
+            expect(model.drop.refusal).toBe('No grids in here.');
+            model.dropHere();
+            expect(onDropExternal).not.toHaveBeenCalled();
+
+            const none = dragModel({editable: true, externalDrag: () => null, onDropExternal});
+            expect(none.dragOver({view: 'chart', zone: 'center'})).toBe(false);
+            expect(none.drop).toBeNull();
+        });
+
         it('makes no drop once the drag ends, as a cancel does', () => {
             const onChange = vi.fn(),
                 model = dragModel({onChange, editable: true});

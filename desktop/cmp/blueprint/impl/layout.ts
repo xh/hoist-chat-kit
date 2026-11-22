@@ -1,4 +1,7 @@
 import {box, placeholder} from '@xh/hoist/cmp/layout';
+import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
+import {Icon} from '@xh/hoist/icon';
 import type {ReactNode} from 'react';
 import type {BlueprintWidgetModel, ChildRef} from '../../../../blueprint';
 
@@ -63,3 +66,21 @@ const OWN_SIZE = ['separator', 'toolbar'];
 
 // Text that takes its own height in a column, unless its reference gives it a flex share to scroll.
 const TEXT = ['markdown', 'callout'];
+
+/** A reader's way back from a layout they rearranged: shown over its container's corner. */
+export const resetLayoutButton = hoistCmp.factory<HoistProps & {onClick: () => void}>({
+    displayName: 'BlueprintResetLayoutButton',
+    model: false,
+    render({onClick}) {
+        return box({
+            className: 'xh-blueprint-reset-layout',
+            style: {position: 'absolute', top: 4, right: 4, zIndex: 5},
+            children: button({
+                icon: Icon.reset(),
+                text: 'Reset layout',
+                outlined: true,
+                onClick
+            })
+        });
+    }
+});
