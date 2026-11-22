@@ -453,6 +453,14 @@ describe('blueprint data widgets', () => {
             expect(label).not.toContain('<');
         });
 
+        it('draws a total outside its range at the end of its arc, and labels the real total', async () => {
+            const gauge = widget(GaugeWidgetModel, open(withGauge({min: 500})), 'gauge');
+            await vi.waitFor(() => expect(gauge.chartModel.series[0]?.data).toEqual([500]));
+            // The label reads the real total, whatever the arc draws.
+            const {formatter} = gauge.chartModel.series[0].dataLabels;
+            expect(formatter.call({y: 500})).toBe(formatter.call({y: 9e9}));
+        });
+
         it('draws its own title, escaped, where its parent draws none, as in a box', async () => {
             const bp = withGauge({title: 'Gross <b>exposure</b>'});
             bp.elements.row = {component: 'box', children: [{id: 'gauge'}]};

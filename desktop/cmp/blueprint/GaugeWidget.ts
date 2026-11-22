@@ -2,7 +2,7 @@ import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
-import {escape, sortBy} from 'lodash';
+import {clamp, escape, sortBy} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -105,13 +105,13 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
             {
                 type: 'solidgauge',
                 name: escape(source.fieldLabel(value)),
-                data: [total],
+                // A total outside the range fills the arc to its end, never past it.
+                data: [total == null ? null : clamp(total, min, max)],
                 dataLabels: {
                     borderWidth: 0,
                     y: -24,
-                    formatter: function (this: any) {
-                        return escape(String(formatValue(this.y, def, opts, catalog, true) ?? ''));
-                    }
+                    formatter: () =>
+                        escape(String(formatValue(total, def, opts, catalog, true) ?? ''))
                 }
             } as any
         ]);

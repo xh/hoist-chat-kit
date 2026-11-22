@@ -1970,7 +1970,7 @@ const gauge: WidgetSpec = {
         config: {
             source: 'positions',
             title: 'Gross exposure',
-            value: 'mktVal',
+            value: 'grossExposure',
             max: 1000000000,
             stops: [
                 {at: 0.7, color: '#55bf3b'},
