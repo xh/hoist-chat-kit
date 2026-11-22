@@ -30,6 +30,10 @@
     gap: var(--xh-spacing-half);
   }
 
+  &__row--offscreen {
+    opacity: 0.55;
+  }
+
   &__icon {
     color: var(--xh-text-color-muted);
   }

@@ -111,6 +111,16 @@ export class BlueprintDesignModel extends HoistModel {
         this.slotTarget = place;
     }
 
+    /** The tab each tab container on the canvas shows, by container id: view state, never an edit. */
+    @observableRef accessor activeTabs: Record<string, string> = {};
+
+    @action
+    setActiveTab(containerId: string, tabId: string) {
+        if (this.activeTabs[containerId] !== tabId) {
+            this.activeTabs = {...this.activeTabs, [containerId]: tabId};
+        }
+    }
+
     /** The slot selected with {@link selectSlot}, or null. */
     @observableRef accessor slotTarget: AddPlace = null;
 

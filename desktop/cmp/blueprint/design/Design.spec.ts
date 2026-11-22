@@ -119,6 +119,8 @@ describe('design mode selection', () => {
         expect(tabs.tabContainerModel.activeTabId).not.toBe(ordersTab);
         design.select({kind: 'element', id: 'ordersGrid'});
         expect(tabs.tabContainerModel.activeTabId).toBe(ordersTab);
+        // Reported to the design model, for Structure to dim the other tabs' elements.
+        expect(design.activeTabs.tabs).toBe(ordersTab);
     });
 
     it('brings the selection into view when the canvas mounts, as after the Map', () => {

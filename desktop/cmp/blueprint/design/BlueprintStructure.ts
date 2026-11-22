@@ -13,12 +13,12 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
-import {bindable} from '@xh/hoist/mobx';
+import {bindable, computed} from '@xh/hoist/mobx';
 import classNames from 'classnames';
 import type React from 'react';
 import type {ReactElement} from 'react';
 import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../../blueprint';
-import {slotLabel, slotLists} from '../../../../blueprint/impl/elements';
+import {parentMap, slotLabel, slotLists} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
 import {selectionMenu} from './impl/designActions';
@@ -83,7 +83,7 @@ export class BlueprintStructureModel extends HoistModel {
         this.gridModel = new GridModel({
             treeMode: true,
             hideHeaders: true,
-            expandLevel: 3,
+            expandLevel: -1,
             emptyText: 'Nothing matches.',
             store: {fields: ['name', 'label', 'kind', 'count', 'place', 'component']},
             contextMenu: agParams => {
@@ -126,6 +126,24 @@ export class BlueprintStructureModel extends HoistModel {
                 fireImmediately: true
             }
         );
+    }
+
+    /** True for an element on a tab its container is not showing, as the canvas reports it. */
+    isOffscreen(id: string): boolean {
+        const {activeTabs} = this.designModel;
+        for (let it = id, parent = this.parents.get(id); parent;) {
+            const active = activeTabs[parent];
+            if (active && active !== it) return true;
+            it = parent;
+            parent = this.parents.get(parent);
+        }
+        return false;
+    }
+
+    // Each element's container, built once per blueprint.
+    @computed
+    private get parents(): Map<string, string> {
+        return parentMap(this.designModel.blueprintModel.blueprint?.elements);
     }
 
     /** The menu of a row: rename, duplicate, move, add into and delete, as its kind allows. */
@@ -425,7 +443,10 @@ export class BlueprintStructureModel extends HoistModel {
                 it => it.path === base || it.path?.startsWith(`${base}/`)
             );
         return hbox({
-            className: `${CLS}__row`,
+            className: classNames(
+                `${CLS}__row`,
+                kind === 'element' && this.isOffscreen(name) && `${CLS}__row--offscreen`
+            ),
             children: [
                 iconFor(kind, component, blueprintModel.registry.widgets[component]?.category),
                 span({className: `${CLS}__name`, children: name}),

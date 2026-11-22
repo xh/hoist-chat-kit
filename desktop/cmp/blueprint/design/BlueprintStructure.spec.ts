@@ -65,6 +65,16 @@ describe('BlueprintStructure', () => {
         expect([empty.data.name, empty.children.length]).toEqual(['Cell header', 0]);
     });
 
+    it('marks the elements on tabs not showing, as the canvas reports them', () => {
+        const {design, structure} = open();
+        expect(structure.isOffscreen('posGrid')).toBe(false);
+        design.setActiveTab('tabs', 'overview');
+        expect(structure.isOffscreen('posGrid')).toBe(true);
+        expect(structure.isOffscreen('positions')).toBe(true);
+        expect(structure.isOffscreen('sectorChart')).toBe(false);
+        expect(structure.isOffscreen('tabs')).toBe(false);
+    });
+
     it('filters to the rows whose id matches, keeping their ancestors', () => {
         const {structure} = open();
         structure.filterText = 'price';

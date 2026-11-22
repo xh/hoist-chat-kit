@@ -154,6 +154,21 @@ export class BlueprintViewModel extends HoistModel {
                     fireImmediately: true
                 },
                 {
+                    // Each tab container's tab, for Structure to dim the elements not showing.
+                    track: () => {
+                        blueprintModel.blueprint?.elements;
+                        return [...this.widgets.entries()]
+                            .filter(([, it]) => it.model instanceof TabContainerWidgetModel)
+                            .map(([id, it]) => [
+                                id,
+                                (it.model as TabContainerWidgetModel).tabContainerModel.activeTabId
+                            ]);
+                    },
+                    run: tabs => tabs.forEach(([id, tab]) => designModel.setActiveTab(id, tab)),
+                    equals: 'structural',
+                    fireImmediately: true
+                },
+                {
                     track: () => last(blueprintModel.history),
                     run: entry => {
                         if (entry?.author !== 'architect') return;
