@@ -7,7 +7,12 @@ import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isEqual, isString, without} from 'lodash';
 import {useEffect, useRef} from 'react';
-import {type BlueprintDesignModel, type EditorNode, toEditorSpec} from '../../../../blueprint';
+import {
+    type BlueprintDesignModel,
+    type EditorNode,
+    labelOf,
+    toEditorSpec
+} from '../../../../blueprint';
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
@@ -240,7 +245,12 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     commitPlacement(key: string, value: unknown) {
-        const {issues} = this.designModel.setChildPlacement(this.elementId, {[key]: value}),
+        const {elementId: id, canvasId} = this,
+            {issues} = this.designModel.setChildPlacement(
+                id,
+                {[key]: value},
+                `${id}${canvasId ? ' view' : ''}: ${labelOf(key).toLowerCase()}`
+            ),
             errors = issues.filter(it => it.severity === 'error');
         if (errors.length) this.refuseWith(placementKey(key), errors);
     }
@@ -436,7 +446,9 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                     : button({
                           className: `${CLS}__remove`,
                           icon: Icon.delete(),
-                          text: `Remove ${impl.elementId}`,
+                          text: impl.isView
+                              ? `Remove ${impl.elementId} and its view`
+                              : `Remove ${impl.elementId}`,
                           intent: 'danger',
                           minimal: true,
                           onClick: () => impl.removeAsync()

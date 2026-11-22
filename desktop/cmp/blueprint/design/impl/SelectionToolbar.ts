@@ -161,9 +161,11 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                               onClick: () =>
                                   after(
                                       refuse(
-                                          designModel.setChildPlacement(id, {
-                                              hideHeader: hidden ? undefined : true
-                                          }).issues
+                                          designModel.setChildPlacement(
+                                              id,
+                                              {hideHeader: hidden ? undefined : true},
+                                              `${id} view: ${hidden ? 'show' : 'hide'} header`
+                                          ).issues
                                       )
                                   )
                           }),

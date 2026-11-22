@@ -157,7 +157,7 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.positions.children.find(it => it.id === 'posGrid')).toEqual(
             {id: 'posGrid', x: 0, y: 1, w: 6, h: 9, headerItems: [{id: 'posViewsSelector'}]}
         );
-        expect(model.history.at(-1).description).toMatch(/posGrid: placement/);
+        expect(model.history.at(-1).description).toBe('posGrid view: w');
 
         inspector.commitPlacement('h', undefined);
         expect(inspector.issuesFor('$placement.h')[0].message).toMatch(/required/);
@@ -619,6 +619,10 @@ describe('ElementInspector', () => {
         expect(cell().hideHeader).toBe(true);
         expect(cell().headerItems).toEqual([{id: 'posViewsSelector'}]);
         expect(model.history.length).toBe(before + 1);
+        expect(model.history.at(-1).description).toBe('posGrid view: hide header');
+        expect(container.querySelector('.xh-blueprint-element-inspector__remove').textContent).toBe(
+            'Remove posGrid and its view'
+        );
     });
 
     it("folds a widget's canvas view settings into a section, with a way to select the view", () => {
