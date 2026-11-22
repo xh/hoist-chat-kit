@@ -51,6 +51,27 @@ export interface AddPlace {
     after?: string;
 }
 
+/** What a drop brings: an element already in the blueprint, or a widget from the palette. */
+export type DropSource = {element: string} | {widget: string};
+
+/** Where a drop lands: a container, and its place there. */
+export interface DropTarget {
+    container: string;
+    /** Its place in the slot, counting the slot as it stands. Default the end. */
+    index?: number;
+    /** Default `children`. */
+    slot?: string;
+    /** The child of the container whose reference holds the slot, such as a canvas cell. */
+    of?: string;
+    /** Its footprint on a canvas: x, y, w and h. */
+    cell?: PlainObject;
+    /**
+     * A dash container's layout once the dropped element's view is in it, given that element's
+     * id, as the dock computes it for the zone the drop is in.
+     */
+    layoutWith?: (id: string) => PlainObject[];
+}
+
 export interface BlueprintRemoval {
     /** The element and every element inside it, the element first. */
     elements: string[];
@@ -342,8 +363,20 @@ export class BlueprintDesignModel extends HoistModel {
             of?: string;
             /** More ops for the same edit, given the new element's id, such as a layout naming it. */
             extraOps?: (id: string) => BlueprintOp[];
+            /** Its place in the slot. Default the end, or after `after`. */
+            index?: number;
         } = {}
     ): BlueprintEditResult & {id?: string} {
+        const plan = this.planAdd(component, parentId, opts);
+        return 'issues' in plan ? plan : {...this.edit(plan.description, plan.ops), id: plan.id};
+    }
+
+    // The ops that add a widget, with its new id, or why it cannot be added. See addWidget.
+    private planAdd(
+        component: string,
+        parentId: string,
+        opts: Parameters<BlueprintDesignModel['addWidget']>[2] = {}
+    ): {description: string; ops: BlueprintOp[]; id: string} | BlueprintEditResult {
         const {blueprint} = this.blueprintModel,
             spec = this.widgetSpec(component);
         if (!spec) return refused(`There is no widget '${component}'.`);
@@ -360,13 +393,14 @@ export class BlueprintDesignModel extends HoistModel {
                   : this.addTarget;
         if (!place) {
             if (blueprint?.root) return refused('Select a container to add the widget to.');
-            return {...this.edit(`Add ${spec.label}`, [{op: 'addElement', id, element}]), id};
+            return {description: `Add ${spec.label}`, ops: [{op: 'addElement', id, element}], id};
         }
         const {parent, slot = 'children', of, after} = place,
             child = opts.child ?? (slot === 'children' ? this.placeChild(parent, spec) : null),
-            index = after ? this.indexAfter(place, after) : null;
+            index = opts.index ?? (after ? this.indexAfter(place, after) : null);
         return {
-            ...this.edit(`Add ${spec.label}`, [
+            description: `Add ${spec.label}`,
+            ops: [
                 ...(opts.siblings ? [this.replaceSiblingsOp(parent, opts.siblings)] : []),
                 {
                     op: 'addElement',
@@ -379,7 +413,88 @@ export class BlueprintDesignModel extends HoistModel {
                     ...(of ? {of} : {})
                 },
                 ...(opts.extraOps?.(id) ?? [])
-            ]),
+            ],
+            id
+        };
+    }
+
+    /**
+     * Why a drop could not land, applying nothing: a sentence for the user, or null if it would.
+     * See {@link dropAt}.
+     */
+    canDropAt(source: DropSource, target: DropTarget): string {
+        return this.dryRun(this.planDrop(source, target))[0]?.message ?? null;
+    }
+
+    /**
+     * Drop a palette widget, or move an element, into a container at a place, as one edit, and
+     * select what landed. The same edit a drag ends with, for a test or a script to make without
+     * a pointer.
+     *
+     * @returns why it could not land, or null.
+     */
+    dropAt(source: DropSource, target: DropTarget): string {
+        const plan = this.planDrop(source, target);
+        if ('issues' in plan) return plan.issues[0]?.message ?? 'It cannot go there.';
+        const errors = this.edit(plan.description, plan.ops).issues.filter(isError);
+        if (errors.length) return errors[0].message;
+        this.select({kind: 'element', id: plan.id});
+        return null;
+    }
+
+    // The ops of a drop, with the id of what lands, or why it cannot.
+    private planDrop(
+        source: DropSource,
+        {container, index, slot = 'children', of, cell, layoutWith}: DropTarget
+    ): {description: string; ops: BlueprintOp[]; id: string} | BlueprintEditResult {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            layoutOps = (id: string): BlueprintOp[] =>
+                layoutWith
+                    ? [
+                          {
+                              op: 'set',
+                              path: `/elements/${container}/config/layout`,
+                              value: layoutWith(id)
+                          }
+                      ]
+                    : [];
+        if (!getOwn(elements, container)) return refused(`There is no element '${container}'.`);
+        if (!this.elementSpec(container)?.children) {
+            return refused(`${container} holds no widgets.`);
+        }
+        if ('widget' in source) {
+            return this.planAdd(source.widget, container, {
+                slot,
+                of,
+                index,
+                ...(cell ? {child: cell} : {}),
+                extraOps: layoutOps
+            });
+        }
+        const id = source.element,
+            spec = this.elementSpec(id);
+        if (!spec) return refused(`There is no element '${id}'.`);
+        if (this.subtree(id).includes(container)) return refused(`${id} cannot go inside itself.`);
+        const from = locate(elements, id),
+            sameSlot = from?.parent === container && from.slot === slot && from.of === of,
+            child =
+                cell ?? (sameSlot || slot !== 'children' ? null : this.placeChild(container, spec)),
+            // An index counts the slot as it is, the moved element included where it already sits.
+            at = index != null && sameSlot && from.index < index ? index - 1 : index;
+        return {
+            description: `Move ${id}`,
+            ops: [
+                {
+                    op: 'moveElement',
+                    id,
+                    parent: container,
+                    ...(child ? {child} : {}),
+                    ...(at != null ? {index: at} : {}),
+                    ...(slot !== 'children' ? {slot} : {}),
+                    ...(of ? {of} : {})
+                },
+                ...layoutOps(id)
+            ],
             id
         };
     }
