@@ -18,7 +18,7 @@ import {
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
-import {selectChip} from './impl/ConfigEditors';
+import {selectChip} from './impl/chips';
 import {refuse, selectionMenu} from './impl/designActions';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
