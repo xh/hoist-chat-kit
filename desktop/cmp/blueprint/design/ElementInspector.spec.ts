@@ -68,7 +68,7 @@ describe('ElementInspector', () => {
 
         inspector.commit('title', 'Positions');
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
-        expect(model.history.at(-1)).toMatchObject({author: 'user', description: 'Grid: title'});
+        expect(model.history.at(-1)).toMatchObject({author: 'user', description: 'posGrid: title'});
 
         inspector.commit('title', undefined);
         expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('title');
@@ -579,6 +579,34 @@ describe('ElementInspector', () => {
         expect(actions().map(it => it.label)).toEqual(['B', 'C', 'A']);
     });
 
+    it('keeps an open drawer on its item through a reorder and its undo', async () => {
+        const {design, model} = open('p2-linked-dashboard.json');
+        design.setConfig('posGrid', '/rowActions', [
+            {label: 'A', action: {type: 'refresh'}},
+            {label: 'B', action: {type: 'refresh'}},
+            {label: 'C', action: {type: 'refresh'}}
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            openLabel = () =>
+                container.querySelector(
+                    '.xh-blueprint-element-inspector__column--open .xh-blueprint-element-inspector__column-label'
+                )?.textContent;
+        fireEvent.click(
+            container.querySelector('[data-config-key="rowActions"] [title="Settings"]')
+        );
+        expect(openLabel()).toBe('A');
+        fireEvent.keyDown(
+            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__handle'),
+            {key: 'ArrowDown', altKey: true}
+        );
+        await wait();
+        expect(openLabel()).toBe('A');
+        model.undo();
+        await wait();
+        expect((model.blueprint.elements.posGrid.config.rowActions as any[])[0].label).toBe('A');
+        expect(openLabel()).toBe('A');
+    });
+
     it('draws a column listed twice, as a preset may hold one, for the user to remove', () => {
         const {design, model} = open();
         const bp = structuredClone(model.blueprint) as any;
@@ -601,6 +629,7 @@ describe('ElementInspector', () => {
             altKey: true
         });
         expect(ids()).toEqual([before[1], before[0], ...before.slice(2)]);
+        expect(model.history.at(-1).description).toBe(`Move ${before[0]} later`);
     });
 
     it('reorders the columns with a drag or the keyboard, one edit each', () => {
@@ -838,7 +867,7 @@ describe('ElementInspector', () => {
         expect(row('Column state').className).not.toContain('__row--inline');
     });
 
-    it('shows a bound field as its variable with a way to unbind, and offers to bind the rest', () => {
+    it('shows a bound field as its variable with a way to unbind, and offers to bind the rest', async () => {
         const {design, model} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = (label: string) =>
@@ -862,6 +891,8 @@ describe('ElementInspector', () => {
         fireEvent.keyDown(chip, {key: 'Delete'});
         expect(model.history.length).toBe(edits + 1);
         expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
+        // Focus stays in the row, on the editor that took the chip's place.
+        await vi.waitFor(() => expect(row('Group by').contains(document.activeElement)).toBe(true));
     });
 
     it('says where users change a bound value that they could change in its place', () => {

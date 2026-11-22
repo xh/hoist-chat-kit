@@ -17,6 +17,7 @@ import {
     textInput
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {wait} from '@xh/hoist/promise';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {
     castArray,
@@ -447,7 +448,22 @@ function bindableEditor(
                     // A bound value changes through its variable, so it is not personalized here.
                     label: `Set by variable ${bound}, which a user changes in its place, not here. Show the variable.`,
                     onSelect: () => impl.designModel.select({kind: 'variable', id: bound}),
-                    onRemove: disabled ? null : () => commit(impl.unboundValue(node)),
+                    onRemove: disabled
+                        ? null
+                        : e => {
+                              // Focus stays in the row, on the editor that takes the chip's place.
+                              const row = (e.currentTarget as HTMLElement).closest(
+                                  '[data-config-key]'
+                              );
+                              commit(impl.unboundValue(node));
+                              wait().then(() =>
+                                  row
+                                      ?.querySelector<HTMLElement>(
+                                          'input, textarea, [tabindex="0"], button'
+                                      )
+                                      ?.focus()
+                              );
+                          },
                     removeHint: 'Delete unbinds.'
                 }),
                 // Where users could change it in place, say that the variable now takes their changes.
@@ -517,7 +533,7 @@ function listEditor(
         disabled = impl.readOnly,
         commitList = (list: unknown[]) =>
             commit(isEmpty(list) && !node.required ? undefined : list),
-        keys = impl.keysFor(scope, items.length),
+        keys = impl.keysFor(scope, items),
         rows = items.map((value, index) => ({key: keys[index], index, value}));
     return div({
         className: `${CLS}__field-list`,
@@ -530,10 +546,7 @@ function listEditor(
                       getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
                       disabled,
                       compact: true,
-                      onReorder: e => {
-                          impl.moveKey(scope, e.fromIndex, e.toIndex);
-                          commitList(e.items.map((it: PlainObject) => it.value));
-                      },
+                      onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
                       renderItem: (row: PlainObject) => {
                           const open = impl.isItemOpen(scope, row.key);
                           return hbox({
@@ -559,10 +572,8 @@ function listEditor(
                                       intent: 'danger',
                                       minimal: true,
                                       disabled,
-                                      onClick: () => {
-                                          impl.removeKey(scope, row.index);
-                                          commitList(items.filter((_, j) => j !== row.index));
-                                      }
+                                      onClick: () =>
+                                          commitList(items.filter((_, j) => j !== row.index))
                                   })
                               ]
                           });
@@ -592,8 +603,9 @@ function listEditor(
                 disabled,
                 onClick: () => {
                     // A new item opens, for its settings.
-                    const key = impl.addKey(scope);
-                    commitList([...items, impl.newValue(node.item.schema)]);
+                    const item = impl.newValue(node.item.schema),
+                        key = impl.addKey(scope, item);
+                    commitList([...items, item]);
                     if (!impl.isItemOpen(scope, key)) impl.toggleItem(scope, key);
                 }
             })
@@ -926,7 +938,7 @@ function actionEditor(
         disabled = impl.readOnly,
         steps = stepsOf(value),
         stepScope = `${scopeOf(ctx)}/steps`,
-        keys = impl.keysFor(stepScope, steps.length),
+        keys = impl.keysFor(stepScope, steps),
         commitSteps = (list: PlainObject[]) => commit(joinSteps(list)),
         replace = (i: number, step: PlainObject) =>
             commitSteps(steps.map((it, j) => (j === i ? step : it)));
@@ -952,10 +964,7 @@ function actionEditor(
                         intent: 'danger',
                         minimal: true,
                         disabled: disabled || (node.required && steps.length === 1),
-                        onClick: () => {
-                            impl.removeKey(stepScope, i);
-                            commitSteps(steps.filter((_, j) => j !== i));
-                        }
+                        onClick: () => commitSteps(steps.filter((_, j) => j !== i))
                     })
                 ]
             }),
@@ -1028,10 +1037,7 @@ function actionEditor(
                           getItemLabel: (row: PlainObject) => impl.describeStep(row.step),
                           disabled,
                           compact: true,
-                          onReorder: e => {
-                              impl.moveKey(stepScope, e.fromIndex, e.toIndex);
-                              commitSteps(e.items.map((it: PlainObject) => it.step));
-                          },
+                          onReorder: e => commitSteps(e.items.map((it: PlainObject) => it.step)),
                           renderItem: (row: PlainObject) => stepHeader(row.step, row.index),
                           renderDetail: (row: PlainObject) => stepBody(row.step, row.index)
                       })
@@ -1049,10 +1055,7 @@ function actionEditor(
                 text: steps.length ? 'Add a step' : 'Add an action',
                 minimal: true,
                 disabled: disabled || steps.length >= MAX_STEPS || !impl.defaultActionType,
-                onClick: () => {
-                    impl.addKey(stepScope);
-                    commitSteps([...steps, impl.stepStart(impl.defaultActionType)]);
-                }
+                onClick: () => commitSteps([...steps, impl.stepStart(impl.defaultActionType)])
             })
         ]
     });

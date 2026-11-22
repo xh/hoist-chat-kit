@@ -894,7 +894,7 @@ describe('BlueprintDesignModel', () => {
         const {model, design} = open(loadBlueprint('p3-morning-report.json'));
         expect(errors(design.setConfig('posGrid', '/title', 'Positions'))).toEqual([]);
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
-        expect(model.history.at(-1).description).toBe('Grid: title');
+        expect(model.history.at(-1).description).toBe('posGrid: title');
 
         design.setConfig('posGrid', '/columnState', ['mktVal']);
         expect(

@@ -1,4 +1,4 @@
-import {chip} from '@xh/hoist/cmp/chip';
+import {chip, type ChipEvent} from '@xh/hoist/cmp/chip';
 import type {Intent} from '@xh/hoist/core';
 import classNames from 'classnames';
 
@@ -27,7 +27,7 @@ export function selectChip({
     /** Its accessible name and tooltip, where more than its text. */
     label?: string;
     onSelect?: () => void;
-    onRemove?: () => void;
+    onRemove?: (e: ChipEvent) => void;
     /** What Delete does, for its name and tooltip, such as "Delete unbinds.". */
     removeHint?: string;
 }) {
@@ -49,7 +49,7 @@ export function selectChip({
             ...(onRemove ? {'aria-keyshortcuts': 'Delete Backspace'} : {})
         },
         onClick: onSelect ? () => onSelect() : null,
-        onRemove: onRemove ? () => onRemove() : null,
+        onRemove: onRemove ? e => onRemove(e) : null,
         children: text
     });
 }

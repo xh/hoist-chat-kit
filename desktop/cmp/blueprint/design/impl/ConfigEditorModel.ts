@@ -2,7 +2,7 @@ import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef, runInAction} from '@xh/hoist/mobx';
-import {isEmpty, isString, omit, pickBy, sortBy, uniq} from 'lodash';
+import {isEmpty, isEqual, isString, omit, pickBy, sortBy, uniq} from 'lodash';
 import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
 import type {
@@ -49,42 +49,40 @@ export abstract class ConfigEditorModel extends HoistModel {
     }
 
     /**
-     * A key for each item of a list, by its scope, that stays with the item as the list reorders,
-     * so a row keeps its node, its focus and its open drawer. A list whose length changes from
-     * outside, as on an undo, takes new keys.
+     * A key for each item of a list, by its scope, that stays with the item however the list
+     * changes, so a row keeps its node, its focus and its open drawer: through a reorder, a removal,
+     * an undo, or a refused edit. An item takes the key of an equal item from before, else, in a
+     * list that kept its length, the key of its place, as an item edited in place does.
      */
-    keysFor(scope: string, length: number): string[] {
-        let ret = this.listKeys.get(scope);
-        if (ret?.length !== length) {
-            ret = Array.from({length}, () => `k${++this.keySeq}`);
-            this.listKeys.set(scope, ret);
-        }
-        return ret;
+    keysFor(scope: string, values: unknown[]): string[] {
+        const prev = this.listKeys.get(scope) ?? {keys: [], values: []},
+            used = new Set<number>(),
+            matched = values.map(v => {
+                const i = prev.values.findIndex((pv, j) => !used.has(j) && isEqual(pv, v));
+                if (i < 0) return null;
+                used.add(i);
+                return prev.keys[i];
+            }),
+            keys = matched.map(
+                (key, i) =>
+                    key ??
+                    (values.length === prev.values.length && !used.has(i)
+                        ? (used.add(i), prev.keys[i])
+                        : `k${++this.keySeq}`)
+            );
+        this.listKeys.set(scope, {keys, values});
+        return keys;
     }
 
-    /** Move a list's key as its item moves. */
-    moveKey(scope: string, from: number, to: number) {
-        const keys = [...(this.listKeys.get(scope) ?? [])];
-        keys.splice(to, 0, ...keys.splice(from, 1));
-        this.listKeys.set(scope, keys);
-    }
-
-    /** Drop a list's key as its item goes. */
-    removeKey(scope: string, index: number) {
-        this.listKeys.set(
-            scope,
-            (this.listKeys.get(scope) ?? []).filter((_, i) => i !== index)
-        );
-    }
-
-    /** Add a key for an item added at the end of a list, and return it. */
-    addKey(scope: string): string {
-        const key = `k${++this.keySeq}`;
-        this.listKeys.set(scope, [...(this.listKeys.get(scope) ?? []), key]);
+    /** A key for an item about to be added at the end of a list, so it can open as it lands. */
+    addKey(scope: string, value: unknown): string {
+        const prev = this.listKeys.get(scope) ?? {keys: [], values: []},
+            key = `k${++this.keySeq}`;
+        this.listKeys.set(scope, {keys: [...prev.keys, key], values: [...prev.values, value]});
         return key;
     }
 
-    private readonly listKeys = new Map<string, string[]>();
+    private readonly listKeys = new Map<string, {keys: string[]; values: unknown[]}>();
     private keySeq = 0;
 
     constructor(readonly designModel: BlueprintDesignModel) {

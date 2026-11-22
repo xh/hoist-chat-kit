@@ -542,9 +542,15 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** Move an element to another container, or to another place in its own, as one edit. */
     moveElement(id: string, parentId: string, opts: {child?: PlainObject; index?: number} = {}) {
-        const spec = this.elementSpec(id);
-        if (!spec) return refused(`There is no element '${id}'.`);
-        return this.edit(`Move ${spec.label}`, [
+        if (!this.elementSpec(id)) return refused(`There is no element '${id}'.`);
+        const at = locate(this.blueprintModel.blueprint.elements, id),
+            where =
+                at?.parent === parentId && opts.index != null
+                    ? opts.index < at.index
+                        ? ' earlier'
+                        : ' later'
+                    : ` to ${parentId}`;
+        return this.edit(`Move ${id}${where}`, [
             {op: 'moveElement', id, parent: parentId, ...opts}
         ]);
     }
@@ -740,19 +746,16 @@ export class BlueprintDesignModel extends HoistModel {
             ),
             index = at.index + step;
         if (index < 0 || index >= (list?.refs.length ?? 0)) return {issues: []};
-        return this.edit(
-            `Move ${this.elementSpec(id)?.label ?? id} ${step < 0 ? 'earlier' : 'later'}`,
-            [
-                {
-                    op: 'moveElement',
-                    id,
-                    parent: at.parent,
-                    index,
-                    ...(at.slot !== 'children' ? {slot: at.slot} : {}),
-                    ...(at.of ? {of: at.of} : {})
-                }
-            ]
-        );
+        return this.edit(`Move ${id} ${step < 0 ? 'earlier' : 'later'}`, [
+            {
+                op: 'moveElement',
+                id,
+                parent: at.parent,
+                index,
+                ...(at.slot !== 'children' ? {slot: at.slot} : {}),
+                ...(at.of ? {of: at.of} : {})
+            }
+        ]);
     }
 
     // The ops of a move, or why it cannot be made.
@@ -1228,7 +1231,10 @@ export class BlueprintDesignModel extends HoistModel {
                 value === undefined
                     ? {op: 'remove', path: target}
                     : {op: 'set', path: target, value};
-        return this.edit(`${spec.label}: ${path.slice(1)}`, [op]);
+        // Named for the element and the property, as its editor labels it, such as "posGrid: group by".
+        const key = path.split('/')[1],
+            prop = getOwn<PlainObject>(spec.config?.properties, key);
+        return this.edit(`${id}: ${(prop?.title ?? labelOf(key)).toLowerCase()}`, [op]);
     }
 
     //------------------
