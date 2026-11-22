@@ -132,6 +132,16 @@ describe('design mode selection', () => {
         expect(design.activeTabs.tabs).toBe(ordersTab);
     });
 
+    it('brings a selected canvas view into view, activating the tab that holds it', () => {
+        const {design, model} = open('p3-morning-report.json'),
+            view = new BlueprintViewModel(model, {designModel: design});
+        onTestFinished(() => view.destroy());
+        const tabs = view.getWidgetModel('tabs') as any;
+        expect(tabs.tabContainerModel.activeTabId).toBe('overview');
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        expect(tabs.tabContainerModel.activeTabId).toBe('positions');
+    });
+
     it('brings the selection into view when the canvas mounts, as after the Map', () => {
         const {design, model} = open('p3-morning-report.json');
         design.select({kind: 'element', id: 'ordersGrid'});

@@ -165,7 +165,8 @@ export class BlueprintViewModel extends HoistModel {
                 {
                     // Also on mounting, so a canvas shown after another view, such as the Map,
                     // shows the selection.
-                    track: () => designModel.selectedElementId,
+                    // A selected view shows through its widget, on whatever tab holds it.
+                    track: () => designModel.selectedElementId ?? designModel.selectedViewId,
                     run: id => this.bringIntoView(id),
                     fireImmediately: true
                 },
