@@ -140,8 +140,11 @@ renderer reads it as it is, so **blueprints need no migration**.
   The candidate is react-resizable-panels (MIT). Its separators are focusable and move by
   keyboard. Check the license and version when D-L3 is decided. The alternative is a splitter
   built on Hoist's resizable `Panel`, which is less code to add but has no keyboard support.
-- **Tabs:** Hoist's `TabContainer`, which already reports `activeTabId` (R5) and switches by
-  keyboard through Blueprint's tabs (R18). Its tab order comes from the node.
+- **Tabs:** tab stacks of the primitives' own markup, not Hoist's `TabContainer` (accepted on
+  review). Docking needs each tab as a drag source, and Alt+Up and Alt+Down need the tab markup,
+  which `TabContainer`'s switcher does not expose. The stacks keep the tab roles, one tab stop per
+  stack, and the arrow, Home and End keys. Each reports the view it shows (R5), and its tab order
+  comes from the node.
 - **Docking** keeps GoldenLayout's placement: drag between stacks, onto edges to split, and into
   tab strips. The next section gives the full behavior.
 - **Header items** are React nodes in the stack's tab strip (R10).

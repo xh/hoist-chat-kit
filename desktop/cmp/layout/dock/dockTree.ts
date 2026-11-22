@@ -39,19 +39,20 @@ export function moveView(layout: DockItem[], viewId: string, target: DockTarget)
     ) {
         return null;
     }
-
     const [moved] = from.content.splice(indexOfView(from, viewId), 1);
-    if ('view' in target) {
-        if (target.zone === 'tab') {
-            to.content.splice(Math.max(0, Math.min(target.index, to.content.length)), 0, moved);
-        } else if (target.zone === 'center') {
-            to.content.push(moved);
-        } else {
-            splitAt(root, to, target.zone, moved);
-        }
-    } else {
-        splitRoot(root, target.zone, moved);
-    }
+    place(root, to, target, moved);
+    return normalize(root).content;
+}
+
+/**
+ * The layout with a new view placed at a target, as {@link moveView} would place it, or null if the
+ * layout already holds the view or lacks the target.
+ */
+export function insertView(layout: DockItem[], viewId: string, target: DockTarget): DockItem[] {
+    const root = {type: ROOT, content: cloneDeep(layout ?? [])} as unknown as DockItem,
+        to = 'view' in target ? findStackOf(root, target.view) : null;
+    if (findStackOf(root, viewId) || ('view' in target && !to)) return null;
+    place(root, to, target, {type: 'view', id: viewId});
     return normalize(root).content;
 }
 
@@ -73,6 +74,17 @@ const EDGE_DIR = {left: 'row', right: 'row', top: 'column', bottom: 'column'} as
 
 // The whole layout's holder, which has no direction and sizes nothing.
 const ROOT = 'root';
+
+function place(root: DockItem, to: DockItem, target: DockTarget, view: DockItem) {
+    if (!('view' in target)) return splitRoot(root, target.zone, view);
+    if (target.zone === 'tab') {
+        to.content.splice(Math.max(0, Math.min(target.index, to.content.length)), 0, view);
+    } else if (target.zone === 'center') {
+        to.content.push(view);
+    } else {
+        splitAt(root, to, target.zone, view);
+    }
+}
 
 function sizeKey(type: DockItem['type']): 'width' | 'height' {
     return type === 'column' ? 'height' : 'width';
