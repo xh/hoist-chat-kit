@@ -2,8 +2,11 @@ import classNames from 'classnames';
 import {div} from '@xh/hoist/cmp/layout';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import type React from 'react';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {missingModules} from './highchartsModules';
+
+const DESIGN_ELEMENT = 'xh-blueprint-view__design-element';
 
 const listOf = (items: string[]) =>
     items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0];
@@ -22,23 +25,41 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         const content = renderContent(id, viewModel),
             {designModel} = viewModel;
         if (!designModel || viewModel.blueprintModel.mode !== 'design') return content;
-        // The innermost element under a click is the one it selects.
+        const label =
+                viewModel.blueprintModel.registry.widgets[
+                    viewModel.blueprintModel.blueprint?.elements?.[id]?.component
+                ]?.label,
+            // The innermost element under the pointer is the one it hovers or selects.
+            innermost = (e: React.MouseEvent<HTMLElement>, flag: 'xhSelected' | 'xhHovered') => {
+                const native = e.nativeEvent as MouseEvent & Record<string, boolean>;
+                if (native[flag]) return null;
+                native[flag] = true;
+                return cellElementAt(e.target as HTMLElement, e.currentTarget) ?? id;
+            };
         return div({
             className: classNames(
-                'xh-blueprint-view__design-element',
-                designModel.selectedElementId === id &&
-                    'xh-blueprint-view__design-element--selected',
-                viewModel.getWidgetModel(id)?.isTooNarrow &&
-                    'xh-blueprint-view__design-element--too-narrow'
+                DESIGN_ELEMENT,
+                designModel.selectedElementId === id && `${DESIGN_ELEMENT}--selected`,
+                designModel.hoveredId === id && `${DESIGN_ELEMENT}--hovered`,
+                designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
+                viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
+                viewModel.getWidgetModel(id)?.isTooNarrow && `${DESIGN_ELEMENT}--too-narrow`
             ),
-            // Read by cellElementAt, and by a selection that scrolls into view.
-            ...({'data-blueprint-element': id} as object),
+            // Read by cellElementAt, by a selection that scrolls into view, and by the name tag.
+            ...({
+                'data-blueprint-element': id,
+                'data-blueprint-tag': label ? `${id} · ${label}` : id
+            } as object),
             onClick: e => {
-                const native = e.nativeEvent as MouseEvent & {xhSelected?: boolean};
-                if (native.xhSelected) return;
-                native.xhSelected = true;
-                const inCell = cellElementAt(e.target as HTMLElement, e.currentTarget);
-                designModel.select({kind: 'element', id: inCell ?? id});
+                const target = innermost(e, 'xhSelected');
+                if (target) designModel.select({kind: 'element', id: target});
+            },
+            onMouseOver: e => {
+                const target = innermost(e, 'xhHovered');
+                if (target) designModel.setHovered(target);
+            },
+            onMouseLeave: () => {
+                if (designModel.hoveredId === id) designModel.setHovered(null);
             },
             children: content
         });

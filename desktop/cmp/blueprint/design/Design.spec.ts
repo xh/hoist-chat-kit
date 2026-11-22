@@ -153,4 +153,34 @@ describe('design mode selection', () => {
         rerender(blueprintView({model, designModel: design}) as ReactElement);
         expect(wrappers()).toEqual([]);
     });
+
+    it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            inner = [...container.querySelectorAll('.xh-blueprint-view__design-element')].at(-1);
+        fireEvent.mouseOver(inner);
+        expect(design.hoveredId).toBe('overview');
+        await vi.waitFor(() =>
+            expect(container.querySelector('.xh-blueprint-view__design-element--hovered')).toBe(
+                inner
+            )
+        );
+        expect(inner.getAttribute('data-blueprint-tag')).toBe('overview · Dashboard');
+        fireEvent.mouseLeave(inner);
+        expect(design.hoveredId).toBeNull();
+        expect(model.history).toHaveLength(0);
+    });
+
+    it("haloes what the Architect's latest edit touched", () => {
+        const {design, model} = open('p3-morning-report.json'),
+            view = new BlueprintViewModel(model, {designModel: design});
+        onTestFinished(() => view.destroy());
+        model.applyEdit({
+            author: 'architect',
+            ops: [{op: 'set', path: '/elements/posGrid/config/title', value: 'Book'}]
+        });
+        expect(view.haloIds).toEqual(['posGrid']);
+        design.setConfig('sectorChart', '/title', 'Sectors');
+        expect(view.haloIds).toEqual(['posGrid']);
+    });
 });

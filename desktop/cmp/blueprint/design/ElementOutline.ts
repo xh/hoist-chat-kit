@@ -129,6 +129,10 @@ export class ElementOutlineModel extends HoistModel {
                 e.dataTransfer.setData('text/plain', id);
             },
             onDragEnd: () => (this.dragging = null),
+            onMouseEnter: () => this.designModel.setHovered(id),
+            onMouseLeave: () => {
+                if (this.designModel.hoveredId === id) this.designModel.setHovered(null);
+            },
             onDragOver: (e: React.DragEvent) => {
                 if (!this.dragging || this.dragging === id) return;
                 e.preventDefault();

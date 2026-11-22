@@ -10,11 +10,55 @@
 
   // In design mode, each element fills its place as it would without this wrapper.
   &__design-element {
+    position: relative;
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
     min-width: 0;
+
+    // The wash and the halo draw over the widget, which paints its own background.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    &--hovered:not(&--selected) {
+      outline: 1px dashed var(--xh-intent-primary);
+      outline-offset: -1px;
+    }
+
+    // The name tag sits inside the top edge, as a cell clips what lies outside it.
+    &--hovered::before {
+      content: attr(data-blueprint-tag);
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      padding: 0 var(--xh-spacing-half);
+      font-size: 11px;
+      line-height: 16px;
+      white-space: nowrap;
+      color: var(--xh-white);
+      background-color: var(--xh-intent-primary);
+      pointer-events: none;
+    }
+
+    &--reader::after {
+      background-color: var(--xh-intent-primary-trans1);
+    }
+
+    &--halo::after {
+      box-shadow: inset 0 0 0 3px var(--xh-intent-primary-trans2);
+      animation: xh-blueprint-halo 4s ease-out forwards;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
+    }
 
     &--selected {
       outline: 2px solid var(--xh-intent-primary);
@@ -193,4 +237,14 @@
 // A stat card's value steps to its compact form and shrinks, rather than end in an ellipsis.
 .xh-blueprint-stat-card .xh-stat-card__value-primary {
   text-overflow: clip;
+}
+
+@keyframes xh-blueprint-halo {
+  from {
+    box-shadow: inset 0 0 0 3px var(--xh-intent-primary-trans2);
+  }
+
+  to {
+    box-shadow: inset 0 0 0 3px transparent;
+  }
 }

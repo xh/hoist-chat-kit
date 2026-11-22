@@ -1,5 +1,5 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
-import {action, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {
     castArray,
@@ -96,19 +96,39 @@ export class BlueprintDesignModel extends HoistModel {
         this.hoveredId = id;
     }
 
-    /** The elements that read the source, variable or preset group selected, such as for a wash. */
+    /**
+     * The elements that read the source, variable or preset group selected, such as for a wash. A
+     * source's readers include those of each source that joins it.
+     */
+    @computed
     get readerIds(): string[] {
         const {kind, id} = this.selection ?? {},
             bp = this.blueprintModel.blueprint ?? {},
             elements = Object.entries(bp.elements ?? {});
         switch (kind) {
-            case 'source':
+            case 'source': {
+                // A source that joins another shows its fields too.
+                const sources = new Set([id]);
+                let more = true;
+                while (more) {
+                    more = false;
+                    Object.entries(bp.sources ?? {}).forEach(([name, it]) => {
+                        if (!sources.has(name) && it.joins?.some(j => sources.has(j.source))) {
+                            sources.add(name);
+                            more = true;
+                        }
+                    });
+                }
                 return elements
-                    .filter(
-                        ([, el]) =>
-                            el.config?.source === id || readsInTemplates(el.config, 'source', id)
+                    .filter(([, el]) =>
+                        [...sources].some(
+                            it =>
+                                el.config?.source === it ||
+                                readsInTemplates(el.config, 'source', it)
+                        )
                     )
                     .map(([it]) => it);
+            }
             case 'variable':
                 return this.readersOf(id).filter(it => getOwn(bp.elements, it));
             case 'preset':

@@ -71,6 +71,9 @@ describe('BlueprintDesignModel', () => {
                     'sectorChart'
                 ].sort()
             );
+            const joined = open(loadBlueprint('p8-joined-positions.json')).design;
+            joined.select({kind: 'source', id: 'funds'});
+            expect(joined.readerIds).toEqual(['posGrid']);
             design.select({kind: 'variable', id: 'grouping'});
             expect(design.readerIds).toContain('posGrid');
             expect(design.readerIds).not.toContain('groupChooser');

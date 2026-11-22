@@ -1,5 +1,7 @@
 import {HoistModel, XH, type ElementFactory} from '@xh/hoist/core';
+import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
+import {last} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     type BlueprintDesignModel,
@@ -85,11 +87,6 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
 };
 
 /**
- * Holds one widget model per element, for the element's life, so a widget keeps its model while
- * its config changes. Creates and destroys models as elements come and go, outside of rendering,
- * so a render only looks them up.
- */
-/**
  * Draws a widget that sizes to its content outside a dashboard, as in a chat answer: its title, if
  * any, its content, and the height in pixels that the content takes. The host's own chrome, such as
  * a border and a header, adds to that height.
@@ -100,6 +97,11 @@ export type BlueprintPanelFrame = (props: {
     children: ReactNode;
 }) => ReactNode;
 
+/**
+ * Holds one widget model per element, for the element's life, so a widget keeps its model while
+ * its config changes. Creates and destroys models as elements come and go, outside of rendering,
+ * so a render only looks them up.
+ */
 export class BlueprintViewModel extends HoistModel {
     readonly blueprintModel: BlueprintModel;
     /** How the host frames a panel in an answer. Null for a Hoist panel. */
@@ -107,6 +109,9 @@ export class BlueprintViewModel extends HoistModel {
     /** The designer's selection and changes, for an element to show and take in design mode. */
     readonly designModel: BlueprintDesignModel;
     private readonly widgets = new Map<string, {component: string; model: BlueprintWidgetModel}>();
+
+    /** The elements the Architect's latest edit touched, haloed for a few seconds after it lands. */
+    @observableRef accessor haloIds: string[] = [];
 
     constructor(
         blueprintModel: BlueprintModel,
@@ -128,11 +133,29 @@ export class BlueprintViewModel extends HoistModel {
         const {designModel} = this;
         if (designModel) {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
-            this.addReaction({
-                track: () => designModel.selectedElementId,
-                run: id => this.bringIntoView(id)
-            });
+            this.addReaction(
+                {
+                    track: () => designModel.selectedElementId,
+                    run: id => this.bringIntoView(id)
+                },
+                {
+                    track: () => last(blueprintModel.history),
+                    run: entry => {
+                        if (entry?.author !== 'architect') return;
+                        const ids = designModel.lastArchitectTouched;
+                        this.setHalo(ids);
+                        wait(HALO_MS).then(() => {
+                            if (this.haloIds === ids) this.setHalo([]);
+                        });
+                    }
+                }
+            );
         }
+    }
+
+    @action
+    setHalo(ids: string[]) {
+        this.haloIds = ids;
     }
 
     /** Activate each tab that holds an element, then scroll it into view. */
@@ -217,3 +240,6 @@ function pickDefined(spec: WidgetSpec): Pick<WidgetSpec, 'model' | 'component'> 
     if (spec?.component) ret.component = spec.component;
     return ret;
 }
+
+// How long the Architect's halo shows. The CSS fades it over the same time.
+const HALO_MS = 4000;
