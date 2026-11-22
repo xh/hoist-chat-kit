@@ -252,7 +252,6 @@ export abstract class ConfigEditorModel extends HoistModel {
             .map(it => ({value: it.name, label: source.fieldLabel(it.name)}));
     }
 
-    /** A field's label, through the source. */
     /** A field's format and renderer from its catalog field and kind, before a widget's own. */
     inheritedDisplay(name: string): {format: unknown; renderer: unknown} {
         const field = this.source?.fields[name];
@@ -266,6 +265,12 @@ export abstract class ConfigEditorModel extends HoistModel {
         };
     }
 
+    /** A field's type, through the source, or null. */
+    fieldType(name: string): string {
+        return this.source?.fields[name]?.type ?? null;
+    }
+
+    /** A field's label, through the source. */
     fieldLabel(name: string): string {
         return this.source?.fieldLabel(name) ?? name;
     }
@@ -295,6 +300,8 @@ export abstract class ConfigEditorModel extends HoistModel {
             field: it.name,
             displayName: source.fieldLabel(it.name),
             fieldType: (FILTER_FIELD_TYPES.includes(it.type) ? it.type : 'auto') as FieldType,
+            // Hoist takes a date field only with a parser for what the user types.
+            ...(it.type === 'date' ? {valueParser: parseDate} : {}),
             ...(it.isDimension
                 ? {
                       values: sortBy(
@@ -305,10 +312,6 @@ export abstract class ConfigEditorModel extends HoistModel {
         }));
     }
 
-    /**
-     * The named formats a format can use: the catalogs', then the blueprint's own. A name the
-     * blueprint redefines, or adds, says so.
-     */
     /** A named format's options, from the blueprint's own formats or else a catalog's, or null. */
     formatDefinition(name: string): PlainObject {
         if (!name) return null;
@@ -320,6 +323,10 @@ export abstract class ConfigEditorModel extends HoistModel {
         );
     }
 
+    /**
+     * The named formats a format can use: the catalogs', then the blueprint's own. A name the
+     * blueprint redefines, or adds, says so.
+     */
     get formatOptions(): Option[] {
         const {blueprint, catalogs} = this.designModel.blueprintModel,
             own = blueprint?.formats ?? {},
@@ -458,6 +465,12 @@ export abstract class ConfigEditorModel extends HoistModel {
 //------------------
 const MAX_FILTER_VALUES = 1000,
     FILTER_FIELD_TYPES = ['string', 'number', 'int', 'bool', 'date', 'localDate'];
+
+// A typed date, such as 2026-11-20, as a Date, or null if it reads as none.
+function parseDate(input: string): Date {
+    const ret = new Date(input);
+    return isNaN(ret.getTime()) ? null : ret;
+}
 
 function walkStrings(value: unknown, fn: (s: string) => void) {
     if (isString(value)) return fn(value);

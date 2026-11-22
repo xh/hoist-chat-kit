@@ -84,14 +84,21 @@ const FORMAT_OPTIONS = toEditorSpec({
 
 // The format options only a number takes, and those only a date takes.
 const NUMBER_OPTIONS = ['precision', 'scale', 'ledger', 'colorSpec', 'label'],
-    DATE_OPTIONS = ['date', 'pattern'];
+    DATE_OPTIONS = ['date', 'pattern'],
+    NUMBER_TYPES = ['number', 'int'],
+    DATE_TYPES = ['date', 'localDate'];
 
-// The options that fit a format, a number's or a date's by the options it and its named
-// definition set, or all of them where those say neither or both.
-function formatOptionNodes(definition: PlainObject, options: PlainObject): EditorNode[] {
+// The options that fit a format: a number's or a date's, by the type of the field it formats where
+// known, else by the options it and its named definition set, or all of them where those say
+// neither or both.
+function formatOptionNodes(
+    definition: PlainObject,
+    options: PlainObject,
+    fieldType: string
+): EditorNode[] {
     const keys = Object.keys({...definition, ...options}),
-        isDate = keys.some(it => DATE_OPTIONS.includes(it)),
-        isNumber = keys.some(it => NUMBER_OPTIONS.includes(it));
+        isDate = DATE_TYPES.includes(fieldType) || keys.some(it => DATE_OPTIONS.includes(it)),
+        isNumber = NUMBER_TYPES.includes(fieldType) || keys.some(it => NUMBER_OPTIONS.includes(it));
     if (isDate === isNumber) return FORMAT_OPTIONS;
     const others = isDate ? NUMBER_OPTIONS : DATE_OPTIONS;
     return FORMAT_OPTIONS.filter(it => !others.includes(it.key));
@@ -119,6 +126,8 @@ export interface EditorContext {
     inherited?: {format?: unknown; renderer?: unknown};
     // Where in the config the editor sits, for the open state and keys of its lists. Default key.
     scope?: string;
+    // The type of the field a setting belongs to, such as a column's, which a format's options fit.
+    fieldType?: string;
 }
 
 const scopeOf = (ctx: EditorContext) => ctx.scope ?? ctx.key;
@@ -138,7 +147,8 @@ export interface RowProps {
 export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
     return div({
         key,
-        ...({'data-config-key': node.key} as object),
+        // Named for its label, so each control in it reads with the property it sets.
+        ...({'data-config-key': node.key, role: 'group', 'aria-label': node.label} as object),
         // A one-line value sits beside its label. A structure takes the row's full width.
         className: classNames(
             `${CLS}__row`,
@@ -435,8 +445,16 @@ function editorFor(
                         disabled,
                         onCommit: (i: number) => {
                             if (i === at) return;
-                            ctx.impl.chooseVariant(scope, i);
                             const next = switchedValue(value, node.options[i], node, ctx);
+                            // A list whose first item the other form cannot take stays a list.
+                            if (next === undefined && Array.isArray(value) && value.length) {
+                                ctx.impl.refuse(
+                                    ctx.key,
+                                    `${variantLabel(node.options[i])} cannot take ${JSON.stringify(value[0])}. Edit the list first.`
+                                );
+                                return;
+                            }
+                            ctx.impl.chooseVariant(scope, i);
                             if (next !== undefined || value !== undefined) commit(next);
                         },
                         children: node.options.map((it, i) =>
@@ -820,7 +838,13 @@ function fieldListEditor(
                         value: mapped[setting.key],
                         commit: v =>
                             impl.commitItemSetting(settingsIn.key, entry.field, setting.key, v),
-                        ctx: {...ctx, key: settingsIn.key, scope: itemScope, inherited},
+                        ctx: {
+                            ...ctx,
+                            key: settingsIn.key,
+                            scope: itemScope,
+                            inherited,
+                            fieldType: impl.fieldType(entry.field)
+                        },
                         issues: impl.itemSettingIssues(settingsIn.key, entry.field, setting.key)
                     });
             return div({
@@ -942,10 +966,20 @@ function formatOptionsCard(
     invalid: boolean
 ) {
     const {name, options} = splitNamed(value),
+        nodes = formatOptionNodes(
+            ctx.impl.formatDefinition(name ?? splitNamed(ctx.inherited?.format).name),
+            options,
+            ctx.fieldType
+        ),
+        // Each option set, by its label and the value as its editor shows it: "color none".
         summary = FORMAT_OPTIONS.filter(it => options[it.key] !== undefined)
-            .map(({key}) => {
-                const v = options[key];
-                return v === true ? key : v === false ? `${key} off` : `${key} ${v}`;
+            .map(node => {
+                const v = options[node.key],
+                    shown =
+                        node.kind === 'boolean'
+                            ? node.labels.find(it => it.value === v)?.label
+                            : String(v);
+                return `${node.label} ${shown}`.toLowerCase();
             })
             .join(' · ');
     return card({
@@ -959,15 +993,7 @@ function formatOptionsCard(
         ],
         intent: invalid ? ('danger' as const) : null,
         modelConfig: {collapsible: true, defaultCollapsed: isEmpty(options)},
-        children: optionsGroup(
-            formatOptionNodes(
-                ctx.impl.formatDefinition(name ?? splitNamed(ctx.inherited?.format).name),
-                options
-            ),
-            options,
-            it => commit(joinNamed(name, it)),
-            ctx
-        )
+        children: optionsGroup(nodes, options, it => commit(joinNamed(name, it)), ctx)
     });
 }
 
@@ -1573,12 +1599,13 @@ export function sectionCard({
     onToggle?: () => void;
     children: ReactNode[];
 }) {
+    // The title and count are the toggle for assistive tech. A click anywhere on the band, outside
+    // the badge, also toggles.
     const toggle = onToggle
         ? {
               role: 'button',
               tabIndex: 0,
               'aria-expanded': !collapsed,
-              onClick: onToggle,
               onKeyDown: (e: React.KeyboardEvent) => {
                   if (e.key !== 'Enter' && e.key !== ' ') return;
                   e.preventDefault();
@@ -1595,10 +1622,18 @@ export function sectionCard({
                     `${CLS}__card-header`,
                     onToggle && `${CLS}__card-header--toggle`
                 ),
-                ...toggle,
+                onClick: onToggle,
                 children: [
-                    span({className: `${CLS}__card-title`, children: title}),
-                    count != null ? span({className: `${CLS}__card-count`, children: count}) : null,
+                    span({
+                        className: `${CLS}__card-toggle`,
+                        ...toggle,
+                        children: [
+                            span({className: `${CLS}__card-title`, children: title}),
+                            count != null
+                                ? span({className: `${CLS}__card-count`, children: count})
+                                : null
+                        ]
+                    } as object),
                     badge
                         ? span({
                               className: `${CLS}__card-badge-box`,
@@ -1616,11 +1651,12 @@ export function sectionCard({
                     onToggle
                         ? span({
                               className: `${CLS}__card-chevron`,
+                              'aria-hidden': true,
                               children: collapsed ? Icon.chevronRight() : Icon.chevronDown()
-                          })
+                          } as object)
                         : null
                 ]
-            } as object),
+            }),
             collapsed ? null : div({className: `${CLS}__card-body`, children})
         ]
     });

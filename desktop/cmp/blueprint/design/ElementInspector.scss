@@ -80,11 +80,21 @@
 
     &--toggle {
       cursor: pointer;
+    }
+  }
 
-      &:focus-visible {
-        outline: var(--xh-focus-outline);
-        outline-offset: -2px;
-      }
+  // The title and count, which take the band's free width and its focus.
+  &__card-toggle {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 8px;
+    align-items: center;
+    align-self: stretch;
+    min-width: 0;
+
+    &:focus-visible {
+      outline: var(--xh-focus-outline);
+      outline-offset: -2px;
     }
   }
 
@@ -108,7 +118,6 @@
 
   &__card-chevron {
     display: inline-flex;
-    margin-left: auto;
     color: var(--xh-text-color-muted);
   }
 

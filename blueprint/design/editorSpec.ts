@@ -1,6 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isPlainObject, sortBy} from 'lodash';
-import {getOwn} from '../impl/pointer';
+import {labelOf} from '../impl/labels';
+
+export {labelOf};
 
 /**
  * One editor for one value of a widget's config, from its schema: what to edit it with, and what
@@ -215,26 +217,6 @@ function isStringArray(schema: PlainObject): boolean {
 // A variant a kind switch can offer: one input, not a structure.
 function isSimple(node: EditorNode): boolean {
     return ['text', 'number', 'boolean', 'choice', 'stringList'].includes(node.kind);
-}
-
-/**
- * How an edit of a config property names itself for undo, as its editor labels it, such as
- * "posGrid: sort by".
- * @internal
- */
-export function configEditLabel(id: string, config: PlainObject, path: string): string {
-    const key = path.split('/')[1],
-        prop = getOwn<PlainObject>(config?.properties, key);
-    return `${id}: ${(prop?.title ?? labelOf(key)).toLowerCase()}`;
-}
-
-/**
- * A property's label from its key, as `sortBy` reads "Sort by".
- * @internal
- */
-export function labelOf(key: string): string {
-    const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
-    return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 // A boolean's segments in the order its labels give, else On then Off.

@@ -9,8 +9,8 @@ import type {BlueprintElement, BlueprintOp, ChildRef} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintSource} from './BlueprintSource';
 import type {BlueprintVariable} from './BlueprintVariable';
-import {configEditLabel} from './design/editorSpec';
 import {parentOf} from './impl/elements';
+import {configEditLabel} from './impl/labels';
 import {templateStrings} from './impl/configSchema';
 import {fitsProp} from './validateBlueprint';
 

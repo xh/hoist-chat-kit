@@ -27,7 +27,7 @@ import {childIds, locate, parentOf, slotLabel, slotLists} from '../impl/elements
 import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
-import {configEditLabel, labelOf} from './editorSpec';
+import {configEditLabel, labelOf} from '../impl/labels';
 import {starterConfig} from './starterConfig';
 import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring';
 

@@ -445,6 +445,25 @@ describe('ElementInspector', () => {
             ).toEqual(['precision', 'scale', 'ledger', 'colorSpec', 'label', 'nullDisplay']);
         });
 
+        it("offers a date column's format only a date's options, before any is set", () => {
+            const {design} = open('p2-linked-dashboard.json', 'posGrid'),
+                grid = design.addWidget('cubeGrid');
+            design.setConfig(grid.id, '/source', 'orders');
+            design.setConfig(grid.id, '/columnState', ['time']);
+            design.select({kind: 'element', id: grid.id});
+            const {container} = render(elementInspector({designModel: design}) as ReactElement);
+            fireEvent.click(container.querySelector('[data-field="time"] [title="Settings"]'));
+            const card = container.querySelector(
+                '[data-config-key="format"] > .xh-blueprint-element-inspector__format-options'
+            );
+            fireEvent.click(card.querySelector('.xh-card__collapsible-header'));
+            expect(
+                [...card.querySelectorAll('[data-config-key]')].map(it =>
+                    it.getAttribute('data-config-key')
+                )
+            ).toEqual(['date', 'pattern', 'nullDisplay']);
+        });
+
         it('draws a format picker, a renderer picker and an action editor', () => {
             const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
             design.setConfig('posGrid', '/columns', {
@@ -871,6 +890,48 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
     });
 
+    it('refuses to switch a list to one value its first item does not fit, keeping the list', () => {
+        const registry = scenarioRegistry();
+        registry.addWidgets({
+            name: 'acme.tags',
+            label: 'Tags',
+            guidance: 'Tags.',
+            version: 1,
+            category: 'content',
+            config: {
+                type: 'object',
+                properties: {
+                    tags: {anyOf: [{enum: ['a', 'b']}, {type: 'array', items: {type: 'string'}}]}
+                }
+            }
+        } as any);
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'tags',
+                    elements: {tags: {component: 'acme.tags', config: {tags: ['c']}}}
+                } as any,
+                catalog: portfolioCatalog,
+                registry,
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model});
+        onTestFinished(() => {
+            design.destroy();
+            model.destroy();
+        });
+        design.select({kind: 'element', id: 'tags'});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = () => container.querySelector('[data-config-key="tags"]');
+        fireEvent.click(row().querySelectorAll('.xh-button-group button')[0]);
+        expect(model.blueprint.elements.tags.config.tags).toEqual(['c']);
+        expect(row().querySelector('.xh-blueprint-element-inspector__issue').textContent).toMatch(
+            /cannot take "c"/
+        );
+    });
+
     describe('sort by', () => {
         const setup = (initial: unknown) => {
             const {design, model} = open('p2-linked-dashboard.json');
@@ -1019,15 +1080,20 @@ describe('ElementInspector', () => {
                 [
                     ...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')
                 ].find(it => it.textContent.startsWith('Style')),
+            toggle = () => band().querySelector('.xh-blueprint-element-inspector__card-toggle'),
             styleRow = () => container.querySelector('[data-config-key="stripeRows"]');
-        expect(band().getAttribute('role')).toBe('button');
-        expect(band().getAttribute('aria-expanded')).toBe('false');
-        fireEvent.click(band().querySelector('.xh-blueprint-element-inspector__card-count'));
-        expect(band().getAttribute('aria-expanded')).toBe('true');
+        expect(band().getAttribute('role')).toBeNull();
+        expect(toggle().getAttribute('role')).toBe('button');
+        expect(toggle().getAttribute('aria-expanded')).toBe('false');
+        fireEvent.click(band().querySelector('.xh-blueprint-element-inspector__card-chevron'));
+        expect(toggle().getAttribute('aria-expanded')).toBe('true');
         expect(styleRow()).not.toBeNull();
-        fireEvent.keyDown(band(), {key: 'Enter'});
+        // Each row is a group named for its property, so its controls read with it.
+        expect(styleRow().getAttribute('role')).toBe('group');
+        expect(styleRow().getAttribute('aria-label')).toBe('Stripe rows');
+        fireEvent.keyDown(toggle(), {key: 'Enter'});
         expect(styleRow()).toBeNull();
-        fireEvent.keyDown(band(), {key: ' '});
+        fireEvent.keyDown(toggle(), {key: ' '});
         expect(styleRow()).not.toBeNull();
     });
 
@@ -1088,6 +1154,8 @@ describe('ElementInspector', () => {
         expect(badge.closest('.xh-blueprint-element-inspector__card-header').textContent).toContain(
             'Columns'
         );
+        // The badge sits beside the band's toggle, not inside it.
+        expect(badge.closest('[role="button"][aria-expanded]')).toBeNull();
         expect(badge.textContent).toBe('Preset · P&L view');
         fireEvent.click(badge);
         expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
