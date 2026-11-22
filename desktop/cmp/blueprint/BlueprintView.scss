@@ -160,3 +160,32 @@
   display: flex;
   pointer-events: none;
 }
+
+// Text that may run past its frame, and in design mode offers to grow its cell.
+.xh-blueprint-clip-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+
+  &__content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__fade {
+    position: absolute;
+    inset: auto 0 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    height: 40px;
+    background: linear-gradient(transparent, var(--xh-bg));
+  }
+}
+
+// A stat card's value steps to its compact form and shrinks, rather than end in an ellipsis.
+.xh-blueprint-stat-card .xh-stat-card__value-primary {
+  text-overflow: clip;
+}

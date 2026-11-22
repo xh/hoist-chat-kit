@@ -2,6 +2,9 @@ import {box, placeholder} from '@xh/hoist/cmp/layout';
 import type {ReactNode} from 'react';
 import type {BlueprintWidgetModel, ChildRef} from '../../../../blueprint';
 
+/** The gap between a canvas's cells, and around them, in pixels. */
+export const CANVAS_GAP = 8;
+
 /** The container's `emptyText` while it has no children, or null. */
 export function emptyContent(
     model: BlueprintWidgetModel,

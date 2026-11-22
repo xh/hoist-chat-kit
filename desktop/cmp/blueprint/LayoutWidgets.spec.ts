@@ -14,6 +14,7 @@ import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {DashContainerWidgetModel} from './DashContainerWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {elementFromContent} from '@xh/hoist/utils/react';
+import {MarkdownWidgetModel} from './MarkdownWidget';
 import {PanelWidgetModel} from './PanelWidget';
 
 /**
@@ -611,6 +612,56 @@ describe('layout and container widgets', () => {
             expect(idItem.props.className).toBe('xh-blueprint-dash-canvas__cell-id');
             // A cell with no header stays without one, id or not.
             expect(design.cell('tiles').viewSpec.hidePanelHeader).toBe(true);
+        });
+    });
+
+    describe('clipped text', () => {
+        const textCell = (mode: 'run' | 'design') => {
+            const model = new BlueprintModel({
+                    blueprint: {
+                        root: 'canvas',
+                        elements: {
+                            canvas: {
+                                component: 'dashCanvas',
+                                children: [{id: 'note', x: 0, y: 0, w: 6, h: 1}]
+                            },
+                            note: {component: 'markdown', config: {text: 'A long note'}}
+                        }
+                    },
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode,
+                    access: 'write'
+                }),
+                note = new MarkdownWidgetModel({
+                    blueprintModel: model,
+                    id: 'note',
+                    renderElement: () => null
+                });
+            onTestFinished(() => {
+                note.destroy();
+                model.destroy();
+            });
+            return {model, note};
+        };
+
+        it('offers to grow a clipped text cell in design mode, by its overflow, in one edit', () => {
+            const {model, note} = textCell('design');
+            expect(note.canGrow).toBe(false);
+            note.setOverflow(70);
+            expect(note.canGrow).toBe(true);
+            const before = model.history.length;
+            note.makeTaller();
+            // 70px past a 50px row and an 8px gap takes two more rows.
+            expect(model.blueprint.elements.canvas.children[0].h).toBe(3);
+            expect(model.history.length).toBe(before + 1);
+        });
+
+        it('never offers to grow in run mode', () => {
+            const {note} = textCell('run');
+            note.setOverflow(70);
+            expect(note.canGrow).toBe(false);
         });
     });
 

@@ -1478,7 +1478,7 @@ const markdown: WidgetSpec = {
     guidance: `Markdown text, such as a heading, a note or a summary with live figures. ${TEMPLATE_GUIDANCE}`,
     category: 'content',
     config: MARKDOWN_SCHEMA,
-    size: {default: {w: 6, h: 3}, min: {w: 2, h: 1}},
+    size: {default: {w: 6, h: 1}, min: {w: 2, h: 1}},
     example: {
         component: 'markdown',
         config: {source: 'positions', text: '## {fund}\nP&L today: **{pnlDay}**'}

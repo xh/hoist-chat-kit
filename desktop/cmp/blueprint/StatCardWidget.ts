@@ -1,10 +1,11 @@
-import {fragment, span} from '@xh/hoist/cmp/layout';
+import {box, fragment, span} from '@xh/hoist/cmp/layout';
 import {sparkline} from '@xh/hoist/cmp/sparkline';
 import {statCard} from '@xh/hoist/cmp/statcard';
 import {hoistCmp, type Intent, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
 import {fmtNumber} from '@xh/hoist/format';
-import {computed, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
+import {useOnResize} from '@xh/hoist/utils/react';
 import {isFinite, max, mean, min, sum, uniq} from 'lodash';
 import type {ReactNode} from 'react';
 import {
@@ -34,6 +35,13 @@ export interface StatCardContent {
  */
 export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConfig> {
     @managed @observableRef accessor view: View = null;
+    /** The card's width in pixels, as it last drew, or null before it draws. */
+    @observable accessor width: number = null;
+
+    @action
+    setWidth(width: number) {
+        this.width = width;
+    }
 
     constructor(config: BlueprintWidgetConfig) {
         super(config);
@@ -68,11 +76,22 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
                       )
                     : root[name],
             value = rollUp(def.name),
-            display = fieldDisplay(def, source.displayOf(def.name, {format: config.format}), {
-                catalog,
-                blueprint,
-                registry
-            }),
+            // A narrow card steps a number to its compact form, such as 3.96b, before its text
+            // shrinks, so its value never cuts short.
+            isCompact = this.width != null && this.width < COMPACT_BELOW,
+            display = fieldDisplay(
+                def,
+                source.displayOf(
+                    def.name,
+                    {format: config.format},
+                    isCompact ? {format: {scale: 'auto'}} : null
+                ),
+                {
+                    catalog,
+                    blueprint,
+                    registry
+                }
+            ),
             deltaDef = source.fields[config.deltaField];
         return {
             title: config.label ?? source.fieldLabel(def.name),
@@ -149,7 +168,8 @@ export const [StatCardWidget, statCardWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-stat-card',
     model: uses(StatCardWidgetModel),
     render({model, className}) {
-        return statCard({className, flex: 1, ...model.card});
+        const ref = useOnResize(({width}) => model.setWidth(width));
+        return box({ref, flex: 1, item: statCard({className, flex: 1, ...model.card})});
     }
 });
 
@@ -157,6 +177,9 @@ export const [StatCardWidget, statCardWidget] = hoistCmp.withFactory({
 // Implementation
 //------------------
 const INVERTED_COLORS = {pos: 'xh-neg-val', neg: 'xh-pos-val', neutral: 'xh-neutral-val'};
+
+// The width below which a card shows a number in its compact form.
+const COMPACT_BELOW = 200;
 
 function aggregate(values: unknown[], agg: string): unknown {
     const present = values.filter(it => it != null),

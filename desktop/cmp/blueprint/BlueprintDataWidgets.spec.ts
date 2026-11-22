@@ -125,6 +125,16 @@ describe('blueprint data widgets', () => {
             expect(text(pnl.card.value)).toMatch(/^4/);
         });
 
+        it('steps a number to its compact form in a narrow card, rather than cut it short', async () => {
+            const model = open(),
+                gross = widget(StatCardWidgetModel, model, 'headlineGrossExposure');
+            await vi.waitFor(() => expect(text(gross.card.value)).toMatch(/^0\.0m/));
+            gross.setWidth(120);
+            expect(text(gross.card.value)).toMatch(/^450/);
+            gross.setWidth(400);
+            expect(text(gross.card.value)).toMatch(/^0\.0m/);
+        });
+
         it('computes an agg it names over the rows', async () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             bp.elements.headlinePnlDay.config = {

@@ -1,6 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
-import {observableRef} from '@xh/hoist/mobx';
+import {action, observable, observableRef} from '@xh/hoist/mobx';
+import {parentOf} from '../../../../blueprint/impl/elements';
+import {CANVAS_GAP} from './layout';
 import {
     type BlueprintSource,
     type BlueprintWidgetConfig,
@@ -35,6 +37,39 @@ export class TemplateWidgetModel<
             equals: 'shallow',
             fireImmediately: true
         });
+    }
+
+    /** How far the text runs past its frame, in pixels, as it last drew. */
+    @observable accessor overflow = 0;
+
+    @action
+    setOverflow(px: number) {
+        this.overflow = Math.max(0, Math.round(px));
+    }
+
+    /** True in design mode for clipped text in a canvas cell, which can grow to show it all. */
+    get canGrow(): boolean {
+        return (
+            this.overflow > 0 &&
+            this.blueprintModel.mode === 'design' &&
+            this.parentElement?.component === 'dashCanvas'
+        );
+    }
+
+    /** Grow the text's canvas cell by enough rows to show it all, in one edit. */
+    makeTaller() {
+        const parent = this.parentElement,
+            canvasId = parentOf(this.blueprintModel.blueprint.elements, this.id),
+            rowStep = ((parent?.config?.rowHeight as number) ?? 50) + CANVAS_GAP,
+            rows = Math.ceil(this.overflow / rowStep);
+        if (!this.canGrow || !rows) return;
+        const children = parent.children.map(it =>
+            it.id === this.id ? {...it, h: (it.h as number) + rows} : it
+        );
+        this.applyUserEdit(
+            [{op: 'set', path: `/elements/${canvasId}/children`, value: children}],
+            `${this.id}: make taller`
+        );
     }
 
     /** A plain text template from the config, with each reference replaced by its value. */

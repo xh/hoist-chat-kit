@@ -16,7 +16,7 @@ import {
     type DashCanvasWidgetConfig,
     type ChildRef
 } from '../../../blueprint';
-import {emptyContent} from './impl/layout';
+import {CANVAS_GAP, emptyContent} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
 
 /** The view a palette drag places on a canvas until the widget it carries is added. */
@@ -38,8 +38,8 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             columns,
             rowHeight,
             compact: false,
-            margin: [8, 8],
-            containerPadding: [8, 8],
+            margin: [CANVAS_GAP, CANVAS_GAP],
+            containerPadding: [CANVAS_GAP, CANVAS_GAP],
             showGridBackground: this.isDesign,
             // Unlocked for palette drops only: every view spec still refuses add and remove.
             contentLocked: false,
