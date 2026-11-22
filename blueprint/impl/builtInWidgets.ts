@@ -1556,6 +1556,7 @@ const inputSpec = (
         | 'value'
         | 'icon'
         | 'sections'
+        | 'example'
     >
 ): WidgetSpec => ({
     version: 1,
@@ -1563,7 +1564,7 @@ const inputSpec = (
     size: INPUT_SIZE,
     ...spec,
     guidance: `${spec.guidance} It shows and sets the variable whose setBy names it.`,
-    example: {component: spec.name, config: {label: spec.label}}
+    example: spec.example ?? {component: spec.name, config: {label: spec.label}}
 });
 
 const select = inputSpec({
@@ -1648,6 +1649,7 @@ const switchInput = inputSpec({
 const slider = inputSpec({
     name: 'slider',
     icon: 'arrowsLeftRight',
+    example: {component: 'slider', config: {label: 'Weight', min: 0, max: 100}},
     sections: [
         {label: 'Content', keys: ['label']},
         {label: 'Interaction', keys: ['min', 'max', 'step']}
@@ -1663,6 +1665,7 @@ const slider = inputSpec({
 const filterChooser = inputSpec({
     name: 'filterChooser',
     icon: 'filter',
+    example: {component: 'filterChooser', config: {source: 'positions', label: 'Filter'}},
     sections: [
         {label: 'Data', keys: ['source', 'fields']},
         {label: 'Content', keys: ['label']}
@@ -2566,34 +2569,61 @@ const exampleOf = (name: string, config: PlainObject = {}): PlainObject => {
     return {...example, config: {...example.config, ...config}};
 };
 
-// The elements each container's example names, from the other widgets' own examples.
-const EXAMPLE_ELEMENTS: Record<string, () => Record<string, PlainObject>> = {
-    dashCanvas: () => ({posGrid: exampleOf('cubeGrid')}),
+// What each example names beyond itself: a container's children, from the other widgets' own
+// examples, and the variables and preset groups an example reads.
+const EXAMPLE_BLUEPRINTS: Record<string, () => WidgetSpec['exampleBlueprint']> = {
+    dashCanvas: () => ({elements: {posGrid: exampleOf('cubeGrid')}}),
     tabContainer: () => ({
-        overview: {component: 'dashCanvas', children: [{id: 'posGrid', x: 0, y: 0, w: 12, h: 6}]},
-        detail: exampleOf('markdown'),
-        posGrid: exampleOf('cubeGrid')
+        elements: {
+            overview: {
+                component: 'dashCanvas',
+                children: [{id: 'posGrid', x: 0, y: 0, w: 12, h: 6}]
+            },
+            detail: exampleOf('markdown'),
+            posGrid: exampleOf('cubeGrid')
+        }
     }),
-    dashContainer: () => ({posGrid: exampleOf('cubeGrid'), chart: exampleOf('chart')}),
-    panel: () => ({exposureGrid: exampleOf('cubeGrid')}),
+    dashContainer: () => ({elements: {posGrid: exampleOf('cubeGrid'), chart: exampleOf('chart')}}),
+    panel: () => ({elements: {exposureGrid: exampleOf('cubeGrid')}}),
     box: () => ({
-        posGrid: exampleOf('cubeGrid'),
-        divider: {component: 'separator'},
-        sectorChart: exampleOf('chart')
+        elements: {
+            posGrid: exampleOf('cubeGrid'),
+            divider: {component: 'separator'},
+            sectorChart: exampleOf('chart')
+        }
     }),
     toolbar: () => ({
-        regionSelect: exampleOf('select', {label: 'Region'}),
-        asOfInput: exampleOf('dateInput', {label: 'As of'})
+        elements: {
+            regionSelect: exampleOf('select', {label: 'Region'}),
+            asOfInput: exampleOf('dateInput', {label: 'As of'})
+        }
     }),
     tileFrame: () => ({
-        mktValCard: exampleOf('statCard'),
-        pnlDayCard: exampleOf('statCard', {field: 'pnlDay'})
+        elements: {
+            mktValCard: exampleOf('statCard'),
+            pnlDayCard: exampleOf('statCard', {field: 'pnlDay'})
+        }
+    }),
+    callout: () => ({variables: {asOf: {type: 'localDate', setBy: 'prompt'}}}),
+    propertyTable: () => ({variables: {fund: {type: 'string', setBy: 'prompt'}}}),
+    presetSelector: () => ({
+        variables: {view: {type: 'string', label: 'View'}},
+        presets: {
+            gridViews: {
+                label: 'Views',
+                controls: [{path: '/variables/view/default'}],
+                items: {
+                    pnl: {label: 'P&L', set: {variables: {view: {default: {value: 'pnl'}}}}},
+                    risk: {label: 'Risk', set: {variables: {view: {default: {value: 'risk'}}}}}
+                }
+            }
+        }
     })
 };
 
 export const BUILT_IN_WIDGETS: WidgetSpec[] = WIDGET_SPECS.map(it => ({
     ...it,
-    ...(EXAMPLE_ELEMENTS[it.name] ? {exampleElements: EXAMPLE_ELEMENTS[it.name]()} : {}),
+    ...(EXAMPLE_BLUEPRINTS[it.name] ? {exampleBlueprint: EXAMPLE_BLUEPRINTS[it.name]()} : {}),
     ...(DEMANDS[it.name] ? {demand: DEMANDS[it.name]} : {}),
     ...(VALIDATORS[it.name] ? {validate: VALIDATORS[it.name]} : {})
 }));

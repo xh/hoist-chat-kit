@@ -52,10 +52,15 @@ export interface WidgetSpec {
     config: PlainObject;
     example?: PlainObject;
     /**
-     * For a container, the elements its `example`'s child references name, by ID, so that the
-     * example renders on its own, such as in a registry browser.
+     * What the `example` names beyond itself, so that it renders on its own, such as in a registry
+     * browser: a container's child elements by ID, and any variables or preset groups. A host
+     * renders `{root: name, ...exampleBlueprint, elements: {[name]: example, ...elements}}`.
      */
-    exampleElements?: Record<string, PlainObject>;
+    exampleBlueprint?: {
+        elements?: Record<string, PlainObject>;
+        variables?: Record<string, PlainObject>;
+        presets?: Record<string, PlainObject>;
+    };
     /**
      * Groups of config keys the inspector shows under a heading each, in order, after the keys no
      * group lists. A group starts folded where `collapsed` is set.

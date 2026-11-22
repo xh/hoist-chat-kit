@@ -29,7 +29,10 @@ describe('toEditorSpec', () => {
 
     it('gives each built-in example the elements its child references name', () => {
         BUILT_IN_WIDGETS.filter(it => it.example).forEach(spec => {
-            const elements = {[spec.name]: spec.example, ...(spec.exampleElements ?? {})},
+            const elements = {
+                    [spec.name]: spec.example,
+                    ...(spec.exampleBlueprint?.elements ?? {})
+                },
                 missing = Object.values(elements)
                     .flatMap((el: any) => childIds(el))
                     .filter(id => !Object.hasOwn(elements, id));

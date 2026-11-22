@@ -30,6 +30,47 @@ describe('validateBlueprint', () => {
         codes = (bp: Blueprint) => validate(bp).map(it => it.code),
         p2 = () => loadBlueprint('p2-linked-dashboard.json');
 
+    it.each(Object.values(registry.widgets).filter(it => it.example && !it.reserved && !it.app))(
+        "renders the built-in $name's example on its own, as a registry browser assembles it",
+        spec => {
+            const {elements = {}, ...rest} = spec.exampleBlueprint ?? {},
+                all: PlainObject = {[spec.name]: spec.example, ...elements},
+                datasets = [
+                    ...new Set(
+                        Object.values(all)
+                            .map((it: PlainObject) => it.config?.source)
+                            .filter(it => typeof it === 'string')
+                    )
+                ] as string[],
+                // Each source loads with its required dates prompted.
+                sources = Object.fromEntries(
+                    datasets.map(ds => [
+                        ds,
+                        {
+                            dataset: ds,
+                            params: Object.fromEntries(
+                                Object.entries(portfolioCatalog.getDataset(ds)?.params ?? {})
+                                    .filter(
+                                        ([, it]: [string, any]) =>
+                                            it.required && it.type === 'localDate'
+                                    )
+                                    .map(([name]) => [name, {$var: name}])
+                            )
+                        }
+                    ])
+                ),
+                dates = Object.values(sources).flatMap(it => Object.keys(it.params)),
+                variables = {
+                    ...Object.fromEntries(
+                        dates.map(it => [it, {type: 'localDate', setBy: 'prompt'}])
+                    ),
+                    ...rest.variables
+                },
+                bp = {...rest, root: spec.name, elements: all, sources, variables} as Blueprint;
+            expect(validate(bp).filter(it => it.severity === 'error')).toEqual([]);
+        }
+    );
+
     it.each(scenarioFiles().filter(f => loadBlueprint(f).elements))(
         'passes the scenario blueprint %s',
         file => {

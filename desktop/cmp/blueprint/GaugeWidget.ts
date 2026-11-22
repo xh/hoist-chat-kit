@@ -60,7 +60,10 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
 
     private updateChart() {
         const {view, source, chartModel} = this,
-            {value, title, min = 0, max = 100, stops, format} = this.resolvedConfig,
+            {value, title, stops, format} = this.resolvedConfig,
+            // A bound min or max can resolve to null, which a default would not catch.
+            min = (this.resolvedConfig.min as number) ?? 0,
+            max = (this.resolvedConfig.max as number) ?? 100,
             def = source?.fields[value];
         if (!view || !def) {
             chartModel.setSeries([]);
