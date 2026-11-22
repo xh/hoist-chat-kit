@@ -164,7 +164,8 @@ export function wiringFor(
         into = adjacency.into.get(key) ?? [],
         out = adjacency.out.get(key) ?? [],
         refOf = (node: BlueprintSelection, edge: WiringEdge): WiringRef => ({
-            kind: node.kind,
+            // The graph holds no views: a view's wiring is its element's.
+            kind: node.kind as WiringRef['kind'],
             id: node.id,
             ...(edge.label ? {label: edge.label} : {})
         });
@@ -178,7 +179,7 @@ export function wiringFor(
         selection.kind === 'preset'
             ? out
                   .filter(it => it.kind === 'preset')
-                  .map(it => ({kind: it.to.kind, id: it.to.id, path: it.path}))
+                  .map(it => ({kind: it.to.kind as WiringRef['kind'], id: it.to.id, path: it.path}))
             : into.filter(it => it.kind === 'preset').map(it => refOf(it.from, it));
 
     if (selection.kind === 'variable') {

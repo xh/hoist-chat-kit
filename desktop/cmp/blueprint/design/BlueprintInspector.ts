@@ -228,7 +228,8 @@ export class BlueprintInspectorModel extends HoistModel {
         // An input cancelled with Escape still commits as it blurs on its way out.
         if (!this.renaming) return;
         this.setRenaming(false);
-        if (!selection || selection.kind === 'preset' || !to || to === selection.id) return;
+        if (!selection || !to || to === selection.id) return;
+        if (selection.kind === 'preset' || selection.kind === 'view') return;
         refuse(designModel, designModel.renameId(selection.kind, selection.id, to).issues);
     }
 }
@@ -401,7 +402,7 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                 div({
                     className: `${CLS}__icon-box`,
                     children: partIcon(
-                        selection.kind,
+                        selection.kind === 'view' ? 'element' : selection.kind,
                         designModel.blueprintModel.registry.widgets[
                             designModel.blueprintModel.blueprint?.elements?.[selection.id]
                                 ?.component

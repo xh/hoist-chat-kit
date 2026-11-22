@@ -33,8 +33,10 @@ import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring
 
 /** What a designer has selected: an element, a variable, a source or a preset group. */
 export interface BlueprintSelection {
-    kind: 'element' | 'variable' | 'source' | 'preset';
+    kind: 'element' | 'variable' | 'source' | 'preset' | 'view';
     id: string;
+    /** For a `view`, the canvas whose cell it is. */
+    of?: string;
 }
 
 /** What removing an element takes with it, for the user to confirm. */
@@ -280,6 +282,22 @@ export class BlueprintDesignModel extends HoistModel {
     /** The ID of the selected element, or null. */
     get selectedElementId(): string {
         return this.selection?.kind === 'element' ? this.selection.id : null;
+    }
+
+    /** The ID of the element whose canvas view is selected, or null. */
+    get selectedViewId(): string {
+        return this.selection?.kind === 'view' ? this.selection.id : null;
+    }
+
+    /** The canvas view (cell) that holds an element, or null for one in no canvas. */
+    viewOf(id: string): {id: string; of: string} {
+        const elements = this.blueprintModel.blueprint?.elements ?? {},
+            parent = parentOf(elements, id);
+        return parent &&
+            getOwn(elements, parent)?.component === 'dashCanvas' &&
+            elements[parent].children?.some(it => it.id === id)
+            ? {id, of: parent}
+            : null;
     }
 
     /**
@@ -1359,7 +1377,8 @@ export class BlueprintDesignModel extends HoistModel {
         });
     }
 
-    private exists({kind, id}: BlueprintSelection): boolean {
+    private exists({kind, id, of}: BlueprintSelection): boolean {
+        if (kind === 'view') return this.viewOf(id)?.of === of;
         const bp = this.blueprintModel.blueprint,
             coll = {
                 element: 'elements',

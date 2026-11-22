@@ -49,6 +49,23 @@ describe('BlueprintDesignModel', () => {
         expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
     });
 
+    it('selects a canvas view: the cell that holds an element, which exists while the cell does', () => {
+        const {design, model} = open(loadBlueprint('p3-morning-report.json'));
+        expect(design.viewOf('posGrid')).toEqual({id: 'posGrid', of: 'positions'});
+        // A tab's child and the root sit in no canvas cell.
+        expect(design.viewOf('positions')).toBeNull();
+        expect(design.viewOf('tabs')).toBeNull();
+
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        expect(design.selectedViewId).toBe('posGrid');
+        expect(design.selectedElementId).toBeNull();
+
+        // Removing the element takes its cell, so the selection goes.
+        design.removeElement('posGrid');
+        expect(model.blueprint.elements).not.toHaveProperty('posGrid');
+        expect(design.selection).toBeNull();
+    });
+
     describe('editing calls for the canvas', () => {
         const p3 = () => open(loadBlueprint('p3-morning-report.json'));
         const cellOf = (model: BlueprintModel, id: string) =>

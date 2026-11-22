@@ -199,7 +199,7 @@ export function selectionMenu(
                     message: `New id for ${id}`,
                     input: {initialValue: id}
                 });
-                if (to && to !== id && kind !== 'preset') {
+                if (to && to !== id && kind !== 'preset' && kind !== 'view') {
                     refuse(designModel, designModel.renameId(kind, id, to).issues);
                 }
             }
