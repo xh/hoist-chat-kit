@@ -300,6 +300,9 @@ describe('BlueprintLink', () => {
     });
 
     describe('BlueprintDocumentModel.openLinkAsync', () => {
+        // A draft saved over the one openDocument leaves, at version 3.
+        const draft = (blueprint: Blueprint) => ({blueprint, base: 3, renames: []});
+
         it('opens the version a link names, with its values', async () => {
             const {doc, model, id} = await openDocument('write');
             const ret = await doc.openLinkAsync({id, version: '1', top: '4'});
@@ -317,6 +320,35 @@ describe('BlueprintLink', () => {
             expect((toast.mock.calls[0][0] as ToastSpec).message).toContain(
                 'latest published version'
             );
+        });
+
+        it('opens a draft stored in an older form, upgraded', async () => {
+            const {doc, model, id, repository} = await openDocument('write'),
+                old = structuredClone(BLUEPRINT) as any;
+            old.elements.posGrid.config.summaryRow = true;
+            expect((await repository.saveDraftAsync(id, draft(old))).issues).toEqual([]);
+            expect(await doc.openAsync(id, {as: 'draft'})).toEqual([]);
+            expect(model.blueprint.elements.posGrid.config).toMatchObject({showSummary: 'top'});
+            expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('summaryRow');
+        });
+
+        it('says why a draft link opened the publish when the draft fails to validate', async () => {
+            const toast = vi.spyOn(XH, 'warningToast').mockReturnValue(null),
+                warn = vi.spyOn(console, 'warn').mockReturnValue(null),
+                {doc, id, repository} = await openDocument('write'),
+                broken = structuredClone(BLUEPRINT) as any;
+            onTestFinished(() => warn.mockRestore());
+            broken.elements.posGrid.config.stripeRows = 'yes';
+            expect((await repository.saveDraftAsync(id, draft(broken))).issues).toEqual([]);
+
+            const ret = await doc.openLinkAsync({id, draft: ''});
+            expect(ret.issues).toEqual([]);
+            expect(doc.document).toMatchObject({kind: 'publish', version: 2});
+            const message = String((toast.mock.calls[0][0] as ToastSpec).message);
+            expect(message).toMatch(/^The draft did not open: /);
+            expect(message).toContain('/elements/posGrid/config/stripeRows');
+            expect(message).not.toContain('may not open');
+            expect(warn).toHaveBeenCalled();
         });
 
         it('names ignored values in one notice', async () => {
@@ -426,5 +458,5 @@ async function openDocument(access: 'read' | 'write') {
         doc.destroy();
         model.destroy();
     });
-    return {doc, model, id};
+    return {doc, model, id, repository};
 }

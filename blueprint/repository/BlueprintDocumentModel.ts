@@ -7,6 +7,7 @@ import {type BlueprintLinkParams, parseBlueprintLink} from '../BlueprintLink';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import type {DataCatalog} from '../DataCatalog';
+import {upgradeBlueprint} from '../impl/upgrade';
 import {validateBlueprint} from '../validateBlueprint';
 import {
     type BlueprintAccessSpec,
@@ -123,7 +124,9 @@ export class BlueprintDocumentModel extends HoistModel {
         }
 
         const {blueprintModel} = this,
-            blueprint = this.migrate ? this.migrate(record.blueprint) : record.blueprint,
+            blueprint = upgradeBlueprint(
+                this.migrate ? this.migrate(record.blueprint) : record.blueprint
+            ),
             checked = blueprintModel.validate(blueprint);
         // Checked before the model changes, so a refused blueprint leaves the open one as it was.
         if (hasErrors(checked)) return checked;
@@ -150,12 +153,13 @@ export class BlueprintDocumentModel extends HoistModel {
         const {id, open} = parseBlueprintLink(params);
         if (!id) return {issues: [refusal('The link names no blueprint.')], problems: []};
         let issues = await this.openAsync(id, open),
-            isFallback = false;
+            fallback: string = null;
         if (hasErrors(issues) && needsWrite(open)) {
-            const latest = await this.openAsync(id, {as: 'publish'});
+            const refused = issues.filter(it => it.severity === 'error'),
+                latest = await this.openAsync(id, {as: 'publish'});
             if (!hasErrors(latest)) {
+                fallback = fallbackNotice(open, refused);
                 issues = latest;
-                isFallback = true;
             }
         }
         if (hasErrors(issues)) return {issues, problems: []};
@@ -166,9 +170,7 @@ export class BlueprintDocumentModel extends HoistModel {
                 parseBlueprintLink(params, model.blueprint, model.registry)
             ),
             notice = [
-                isFallback
-                    ? 'Showing the latest published version, as the link names one you may not open.'
-                    : null,
+                fallback,
                 problems.length ? `Some link values were ignored: ${problems.join(' ')}` : null
             ].filter(Boolean);
         if (notice.length) XH.warningToast({message: notice.join(' ')});
@@ -291,7 +293,9 @@ export class BlueprintDocumentModel extends HoistModel {
             const source = await this.openRecordAsync(document.id, from ?? {as: 'publish'});
             if (!source) return null;
             const {registry, catalog} = into,
-                blueprint = this.migrate ? this.migrate(source.blueprint) : source.blueprint,
+                blueprint = upgradeBlueprint(
+                    this.migrate ? this.migrate(source.blueprint) : source.blueprint
+                ),
                 errors = validateBlueprint(blueprint, {catalog, registry}).filter(
                     it => it.severity === 'error'
                 );
@@ -524,6 +528,21 @@ function staleRefusal(): BlueprintIssue {
 
 function hasErrors(issues: BlueprintIssue[]): boolean {
     return issues.some(it => it.severity === 'error');
+}
+
+// Why a link to the draft or an older publish opened the latest publish instead: the user may not
+// open it, or it does not validate, which the console details in full.
+function fallbackNotice(open: BlueprintOpenOptions, refused: BlueprintIssue[]): string {
+    if (refused.every(it => it.code === 'edit.notAllowed')) {
+        return 'Showing the latest published version, as the link names one you may not open.';
+    }
+    console.warn(
+        `Blueprints: the ${open.as === 'draft' ? 'draft' : 'version'} the link names did not open.`,
+        refused.map(it => `${it.code} at ${it.path || '/'}: ${it.message}`)
+    );
+    const [first] = refused,
+        what = open.as === 'draft' ? 'The draft' : `Version ${open.version}`;
+    return `${what} did not open: ${first.message}${first.path ? ` (at ${first.path})` : ''}${refused.length > 1 ? `, and ${refused.length - 1} more` : ''}. Showing the latest publish.`;
 }
 
 function refusal(message: string): BlueprintIssue {
