@@ -1079,13 +1079,14 @@ describe('BlueprintDesignModel', () => {
                 action = (id: string, actionId: string) =>
                     design.designActions({kind: 'element', id}).find(it => it.id === actionId);
             expect(ids('posGrid')).toEqual(['duplicate', 'wrap', 'delete']);
-            expect(ids('dashboard')).toEqual(['duplicate', 'wrap', 'addWidget', 'delete']);
+            expect(ids('dashboard')).toEqual(['addWidget', 'duplicate', 'wrap', 'delete']);
             expect(action('dashboard', 'duplicate').disabledReason).toMatch(/root/);
             const toolbar = action('posGrid', 'wrap').items.find(it => it.id === 'wrap:toolbar');
             expect(toolbar.disabledReason).toEqual(expect.any(String));
             expect(
                 action('posGrid', 'wrap').items.find(it => it.id === 'wrap:panel').disabledReason
             ).toBeNull();
+            expect(action('posGrid', 'wrap').items.map(it => it.id)).toContain('wrap:box');
             model.setAccess('read');
             expect(ids('posGrid')).toEqual([]);
         });

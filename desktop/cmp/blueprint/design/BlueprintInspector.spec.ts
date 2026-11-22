@@ -57,9 +57,10 @@ describe('BlueprintInspector', () => {
 
         // A container also offers to add a widget to it, and the root cannot be duplicated.
         act(() => design.select({kind: 'element', id: 'tabs'}));
-        expect(buttons().map(it => it.textContent)).toContain('Add a widget…');
-        expect((buttons()[0] as HTMLButtonElement).disabled).toBe(true);
-        expect(buttons()[0].getAttribute('title')).toMatch(/root/);
+        // A container's own action leads, in primary.
+        expect(buttons()[0].textContent).toBe('Add a widget…');
+        expect((buttons()[1] as HTMLButtonElement).disabled).toBe(true);
+        expect(buttons()[1].getAttribute('title')).toMatch(/root/);
     });
 
     it('offers a container the widgets it takes in a popover, adding at its end or after a child', async () => {

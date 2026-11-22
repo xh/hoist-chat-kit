@@ -327,6 +327,11 @@ describe('design mode selection', () => {
         fireEvent.click(inner);
         expect(design.selectedElementId).toBe('overview');
         fireEvent.keyUp(window, {key: 'Alt'});
+
+        // The key's state on the click itself counts too, as when its key-up was lost.
+        design.select(null);
+        fireEvent.click(inner, {altKey: true});
+        expect(design.selection).toBeNull();
     });
 
     it('opens the design menu on a right-click in Edit, for what it lands on, and leaves it to the widget in Interact', async () => {

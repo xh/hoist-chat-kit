@@ -443,9 +443,9 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
-     * The actions on a selection, in the order a bar or menu shows them: for an element, Duplicate,
-     * Wrap in, Add a widget for a container, then Delete; for a canvas view, its header's toggle,
-     * then Delete. None for a user who may not edit.
+     * The actions on a selection, in the order a bar or menu shows them: for an element, its own,
+     * such as Add a widget for a container, then Duplicate and Wrap in, then Delete; for a canvas
+     * view, its header's toggle, then Delete. None for a user who may not edit.
      */
     designActions(sel: BlueprintSelection): DesignAction[] {
         const {blueprintModel} = this,
@@ -483,21 +483,6 @@ export class BlueprintDesignModel extends HoistModel {
             run: () => this.wrapIn(id, widget)
         }));
         return [
-            {
-                id: 'duplicate',
-                label: 'Duplicate',
-                icon: 'copy',
-                shortcut: 'Ctrl+D',
-                disabledReason: isRoot ? 'The root cannot be duplicated.' : null,
-                run: () => this.duplicateElement(id).issues.find(isError)?.message ?? null
-            },
-            {
-                id: 'wrap',
-                label: 'Wrap in',
-                icon: 'box',
-                disabledReason: isRoot ? 'The root has no container to wrap it in.' : null,
-                items: wraps
-            },
             ...(spec?.children
                 ? [
                       {
@@ -521,6 +506,21 @@ export class BlueprintDesignModel extends HoistModel {
                       } as DesignAction
                   ]
                 : []),
+            {
+                id: 'duplicate',
+                label: 'Duplicate',
+                icon: 'copy',
+                shortcut: 'Ctrl+D',
+                disabledReason: isRoot ? 'The root cannot be duplicated.' : null,
+                run: () => this.duplicateElement(id).issues.find(isError)?.message ?? null
+            },
+            {
+                id: 'wrap',
+                label: 'Wrap in',
+                icon: 'box',
+                disabledReason: isRoot ? 'The root has no container to wrap it in.' : null,
+                items: wraps
+            },
             remove
         ];
     }
@@ -1171,7 +1171,7 @@ export class BlueprintDesignModel extends HoistModel {
     /** The container widgets an element can be wrapped in, by name, with why each refuses, if it does. */
     wrapOptions(id: string): {widget: string; label: string; refusal: string}[] {
         return Object.values(this.blueprintModel.registry.widgets)
-            .filter(it => it.category === 'container' && it.children && !it.reserved)
+            .filter(it => it.children && !it.reserved)
             .map(it => ({widget: it.name, label: it.label, refusal: this.canWrapIn(id, it.name)}));
     }
 

@@ -79,7 +79,8 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 // Alt held passes one click through to the widget, and past the elements around it.
                 const native = e.nativeEvent as MouseEvent & {xhPassed?: boolean};
                 if (native.xhPassed) return;
-                if (altHold.active) {
+                // The key's state on the click itself too, in case its key-up was lost.
+                if (altHold.active || e.altKey) {
                     native.xhPassed = true;
                     altHold.consume();
                     return;
@@ -91,7 +92,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 designModel.select(view ? {kind: 'view', ...view} : {kind: 'element', id: target});
             },
             onMouseOver: e => {
-                if (designModel.interaction === 'interact' || altHold.active) return;
+                if (designModel.interaction === 'interact' || altHold.active || e.altKey) return;
                 const target = innermost(e, 'xhHovered');
                 if (target) designModel.setHovered(target);
             },
@@ -102,7 +103,12 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             // own menu, which it keeps for Interact and an Alt click.
             onContextMenuCapture: (e: React.MouseEvent) => {
                 const native = e.nativeEvent as MouseEvent & {xhMenu?: boolean};
-                if (native.xhMenu || designModel.interaction === 'interact' || altHold.active) {
+                if (
+                    native.xhMenu ||
+                    designModel.interaction === 'interact' ||
+                    altHold.active ||
+                    e.altKey
+                ) {
                     return;
                 }
                 native.xhMenu = true;
