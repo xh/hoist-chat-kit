@@ -73,6 +73,32 @@ describe('dockLayout', () => {
         expect(change).toEqual({kind: 'move', id: 'orders'});
     });
 
+    it('keeps focus on a tab it reorders, so the next Alt+arrow moves it again', () => {
+        let ret: ReturnType<typeof render>;
+        const onChange = (next: DockItem[]) =>
+            ret.rerender(layout({layout: next, onChange, editable: true}));
+        act(() => {
+            ret = render(layout({onChange, editable: true}));
+        });
+        onTestFinished(() => ret.unmount());
+        const {container} = ret;
+        tab(container, 'orders').focus();
+
+        act(() => {
+            fireEvent.keyDown(tab(container, 'orders'), {key: 'ArrowUp', altKey: true});
+        });
+        expect(document.activeElement).toBe(tab(container, 'orders'));
+        expect(selected(container)).toEqual(['orders', 'chart']);
+
+        act(() => {
+            fireEvent.keyDown(document.activeElement, {key: 'ArrowDown', altKey: true});
+        });
+        expect(document.activeElement).toBe(tab(container, 'orders'));
+        expect(
+            [...container.querySelectorAll('[role=tab]')].map(it => it.textContent).slice(0, 2)
+        ).toEqual(['Positions', 'Orders']);
+    });
+
     it('stops a key it handles, so it never reaches the keys around it', () => {
         const outer = vi.fn(),
             {container} = renderLayout({editable: true});

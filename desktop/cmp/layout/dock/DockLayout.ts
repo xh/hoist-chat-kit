@@ -8,7 +8,14 @@ import {
     separator
 } from '@xh/hoist/kit/react-resizable-panels';
 import classNames from 'classnames';
-import {type DragEvent, type KeyboardEvent, type ReactElement, useEffect, useRef} from 'react';
+import {
+    type DragEvent,
+    type KeyboardEvent,
+    type ReactElement,
+    useEffect,
+    useLayoutEffect,
+    useRef
+} from 'react';
 import {overlayHost, OVERLAY_LAYERS} from '../overlay';
 import './DockLayout.scss';
 import {DockLayoutModel, type DockLayoutProps, tabIndexAt, zoneAt} from './DockLayoutModel';
@@ -38,6 +45,7 @@ export const dockLayout = hoistCmp.factory<HoistProps & DockLayoutProps>({
         useShowActive(impl, active);
         useReportHidden(impl, onHiddenChange);
         usePreviewMarks(impl);
+        useRestoreFocus(impl);
 
         const body = div({
             ref: (el: HTMLDivElement) => {
@@ -284,6 +292,18 @@ function useShowActive(impl: DockLayoutModel, active: string[]) {
     useEffect(() => {
         (active ?? []).forEach(id => impl.activate(id));
     }, [impl, active]);
+}
+
+// Focus a tab a keyboard move asked to keep focused, once the layout has drawn again.
+function useRestoreFocus(impl: DockLayoutModel) {
+    useLayoutEffect(() => {
+        const id = impl.pendingFocus;
+        if (!id) return;
+        const el = impl.rootEl?.querySelector<HTMLElement>(`[role=tab][data-dock-view="${id}"]`);
+        if (!el) return;
+        impl.pendingFocus = null;
+        if (document.activeElement !== el) el.focus();
+    });
 }
 
 // Tell a host which views no tab shows, when that changes.
