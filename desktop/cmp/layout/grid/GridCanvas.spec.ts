@@ -176,11 +176,11 @@ describe('gridCanvas', () => {
             expect(
                 at([
                     {i: 'posGrid', x: 0, y: 4, w: 6, h: 4},
-                    {i: 'chart', x: 6, y: 8, w: 6, h: 4}
+                    {i: 'chart', x: 6, y: 4, w: 6, h: 4}
                 ])
             ).toEqual([
                 {i: 'posGrid', x: 0, y: 0, w: 6, h: 4},
-                {i: 'chart', x: 6, y: 8, w: 6, h: 4}
+                {i: 'chart', x: 6, y: 4, w: 6, h: 4}
             ]);
         });
 
@@ -213,6 +213,13 @@ describe('gridCanvas', () => {
             model.setProps({cells: CELLS, onChange});
             return model;
         }
+    });
+
+    it('places a cell no lower than the first free row below the others', () => {
+        expect(placeCell(CELLS, {id: 'chart', x: 6, y: 200, w: 6, h: 4})).toEqual([
+            {id: 'posGrid', x: 0, y: 0, w: 6, h: 4},
+            {id: 'chart', x: 6, y: 4, w: 6, h: 4}
+        ]);
     });
 
     it('places a cell as a drop would, moving the cells it lands on down', () => {

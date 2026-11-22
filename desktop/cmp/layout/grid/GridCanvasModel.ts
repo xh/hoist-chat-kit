@@ -60,8 +60,9 @@ export interface GridCanvasProps {
 }
 
 /**
- * The cells with one placed as a move or resize leaves it: it keeps the place given, and each cell
- * it lands on moves down as far as it must, in reading order. A pointer gesture places cells so.
+ * The cells with one placed as a move or resize leaves it: it keeps the place given, but no lower
+ * than the first free row below the others, and each cell it lands on moves down as far as it
+ * must, in reading order. A pointer gesture places cells so.
  */
 export function placeCell(cells: GridCell[], placed: GridCell): GridCell[] {
     const ret = cells.map(it =>
@@ -190,9 +191,13 @@ const DROPPING = '__dropping-elem__';
 
 type Box = {x: number; y: number; w: number; h: number};
 
-// Move each item down below any placed item it overlaps: the pinned one first, then in reading order.
+// Move each item down below any placed item it overlaps: the pinned one first, no lower than the
+// others' bottom, then the rest in reading order.
 function pushApart<T extends Box>(items: T[], idOf: (it: T) => string, pinned: string) {
-    const placed: T[] = [];
+    const placed: T[] = [],
+        pin = items.find(it => idOf(it) === pinned),
+        bottom = Math.max(0, ...items.filter(it => it !== pin).map(it => it.y + it.h));
+    if (pin) pin.y = Math.min(pin.y, bottom);
     sortBy(items, it => (idOf(it) === pinned ? 0 : 1), 'y', 'x').forEach(it => {
         for (let hit = hitOf(placed, it); hit; hit = hitOf(placed, it)) it.y = hit.y + hit.h;
         placed.push(it);

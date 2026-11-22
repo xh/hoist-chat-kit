@@ -1107,11 +1107,15 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.moveCell('nothing', {x: 0})).toMatch(/no cell/);
             expect(model.version).toBe(version);
 
-            expect(canvas.moveCell('headline', {y: 30, w: 6})).toBeNull();
+            // A place past the others lands on the first free row below them.
+            const bottom = Math.max(
+                ...canvas.cells.filter(it => it.id !== 'headline').map(it => it.y + it.h)
+            );
+            expect(canvas.moveCell('headline', {y: 300, w: 6})).toBeNull();
             expect(model.version).toBe(version + 1);
-            expect(canvas.cells.find(it => it.id === 'headline')).toMatchObject({y: 30, w: 6});
+            expect(canvas.cells.find(it => it.id === 'headline')).toMatchObject({y: bottom, w: 6});
             expect(model.undoDescription).toBe('Resize headline');
-            expect(canvas.moveCell('headline', {y: 40})).toBeNull();
+            expect(canvas.moveCell('headline', {x: 6})).toBeNull();
             expect(model.undoDescription).toBe('Move headline');
         });
 
