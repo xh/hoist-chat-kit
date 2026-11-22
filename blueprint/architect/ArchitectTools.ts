@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isPlainObject, pickBy, uniq} from 'lodash';
+import {castArray, isArray, isEmpty, isPlainObject, pickBy, uniq} from 'lodash';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, BlueprintOp} from '../Blueprint';
 import type {BlueprintDataProvider} from '../BlueprintDataProvider';
 import type {BlueprintAccess, BlueprintMode} from '../Blueprint';
@@ -45,6 +45,11 @@ export interface ArchitectTarget {
     setVariable?(name: string, value: unknown): unknown;
     /** The repository `openBlueprint` opens from, which `list_blueprints` lists. */
     readonly drillInRepository?: BlueprintRepository;
+    /**
+     * A field's value as its catalog format shows it, such as `982.2m`, for the model to quote.
+     * Null for a value with no such text. Without it, results carry raw values only.
+     */
+    formatFieldValue?(dataset: string, field: string, value: unknown): string;
 }
 
 /**
@@ -298,7 +303,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
     {
         name: 'query_dataset',
         description:
-            'Query a dataset to look at its data, for example to answer a question. Returns an artifact: an id, columns, the first rows and the total row count. A chat answer can show the artifact with {"artifact": id} as a source.',
+            'Query a dataset to look at its data, for example to answer a question. Returns an artifact: an id, columns, the first rows, the total row count, and, as text, each row\'s numbers and dates formatted as the app shows them. Quote the text, not the raw values. A chat answer can show the artifact with {"artifact": id} as a source.',
         parameters: {
             type: 'object',
             required: ['dataset', 'params'],
@@ -315,7 +320,24 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
         isAvailable: target => !!target.dataProvider,
         run: async (input, target, ctx) => {
             const {dataset, requested, rows, totalRows} = await runDatasetQueryAsync(input, target),
-                id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`;
+                id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`,
+                shown = rows.slice(0, 50),
+                // Each number and date as the app shows it, where that differs from the raw value.
+                text = target.formatFieldValue
+                    ? formattedRows(
+                          shown.map(row =>
+                              Object.fromEntries(
+                                  requested
+                                      .filter(n => FORMATTED_TYPES.includes(dataset.fields[n].type))
+                                      .map(n => [
+                                          n,
+                                          target.formatFieldValue(dataset.name, n, row[n])
+                                      ])
+                                      .filter(([n, it]) => it != null && it !== String(row[n]))
+                              )
+                          )
+                      )
+                    : null;
             target.artifacts[id] = dataset.name;
             ctx?.addArtifact?.(
                 {
@@ -342,7 +364,8 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                     const {name, label, type, kind} = dataset.fields[n];
                     return {name, label, type, kind};
                 }),
-                rows: rows.slice(0, 50),
+                rows: shown,
+                ...(text ? {text} : {}),
                 totalRows
             };
         }
@@ -493,6 +516,11 @@ const REGISTRY_KINDS: Record<string, keyof ArchitectTarget['registry']> = {
 };
 
 let artifactSeq = 0;
+
+// The field types whose values the app formats, which a result gives as text to quote.
+const FORMATTED_TYPES = ['number', 'int', 'date', 'localDate'];
+
+const formattedRows = (rows: PlainObject[]) => (rows.some(it => !isEmpty(it)) ? rows : null);
 
 // A field type as a chat data column's type.
 const COLUMN_TYPES: Record<string, string> = {

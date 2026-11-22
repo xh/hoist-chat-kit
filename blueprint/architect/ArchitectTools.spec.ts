@@ -312,6 +312,45 @@ describe('Architect tools', () => {
         ).rejects.toThrow(/requires parameter 'asOf'/);
     });
 
+    it('gives each row its numbers and dates formatted as the catalog formats them, to quote', async () => {
+        const model = open(),
+            art = await run(
+                'query_dataset',
+                {
+                    dataset: 'positions',
+                    params: {asOf: '2026-07-01'},
+                    fields: ['mktVal'],
+                    groupBy: ['sector'],
+                    sortBy: 'mktVal|desc',
+                    top: 2
+                },
+                model
+            );
+        expect(art.text).toHaveLength(2);
+        expect(Object.keys(art.text[0])).toEqual(['mktVal']);
+        expect(art.text[0].mktVal).toBe(
+            model.formatFieldValue('positions', 'mktVal', art.rows[0].mktVal)
+        );
+        expect(art.text[0].mktVal).not.toContain('<');
+        expect(art.text[0].mktVal).not.toBe(String(art.rows[0].mktVal));
+
+        // A target that cannot format leaves the text out.
+        const bare = await run(
+            'query_dataset',
+            {dataset: 'positions', params: {asOf: '2026-07-01'}, fields: ['mktVal'], top: 1},
+            Object.assign(Object.create(model), {formatFieldValue: undefined})
+        );
+        expect(bare).not.toHaveProperty('text');
+
+        // Nor does a result with nothing to format.
+        const names = await run(
+            'query_dataset',
+            {dataset: 'positions', params: {asOf: '2026-07-01'}, fields: ['sector'], top: 3},
+            model
+        );
+        expect(names).not.toHaveProperty('text');
+    });
+
     it("runs a query's request again to the same rows, as an answer does for its artifact", async () => {
         const model = open(),
             request = {

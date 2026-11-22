@@ -29,6 +29,7 @@ import {
 import {upgradeSlots} from './impl/elements';
 import {resolveBindings, resolveFilter} from './impl/bindings';
 import {fillTemplate} from './impl/template';
+import {formatValue, resolveFormat} from './impl/formats';
 import {variableText} from './impl/variableText';
 import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
@@ -628,6 +629,16 @@ export class BlueprintModel extends HoistModel {
                   }
                 : {})
         });
+    }
+
+    /** A dataset field's value as its catalog format shows it, as plain text, or null. */
+    formatFieldValue(dataset: string, field: string, value: unknown): string {
+        const catalog = this.catalogs.find(it => it.getDataset(dataset)),
+            def = catalog?.getDataset(dataset)?.fields[field];
+        if (!def || value == null) return null;
+        const opts = resolveFormat(def, [], {catalog, blueprint: this.blueprint}),
+            ret = formatValue(value, def, opts, catalog, true);
+        return typeof ret === 'string' ? ret.replace(/<[^>]*>/g, '') : null;
     }
 
     /** Ask the view to open a blueprint as a drill-in, as `openBlueprint` does. */
