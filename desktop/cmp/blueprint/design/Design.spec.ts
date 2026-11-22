@@ -273,6 +273,27 @@ describe('design mode selection', () => {
         expect(toolbarAt(0).classList).toContain('xh-blueprint-selection-toolbar--inside');
     });
 
+    it("keeps a canvas cell's toolbar clear of the cell's header and corner, and no other", () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel(),
+            toolbar = () =>
+                render(
+                    designMarks(design, overlay)[0].render({
+                        x: 0,
+                        y: 0,
+                        width: 100,
+                        height: 50,
+                        area: {width: 500, height: 500},
+                        roomAbove: 0
+                    }) as any
+                ).container.querySelector('.xh-blueprint-selection-toolbar');
+        onTestFinished(() => overlay.destroy());
+        design.select({kind: 'element', id: 'overview'});
+        expect(toolbar().classList).not.toContain('xh-blueprint-selection-toolbar--cell');
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        expect(toolbar().classList).toContain('xh-blueprint-selection-toolbar--cell');
+    });
+
     it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', async () => {
         stubRects();
         // A tab container draws its first tab, the overview canvas, inside it.

@@ -10,7 +10,8 @@ const CLS = 'xh-blueprint-overlay',
     // The room a tag or the toolbar needs above its target, up to the window's top, or it draws
     // just inside.
     TAG_ROOM = 22,
-    TOOLBAR_ROOM = 32;
+    TOOLBAR_ROOM = 32,
+    CELL = '[data-blueprint-view';
 
 /**
  * Design mode's marks over a blueprint: the hovered element's dashed outline and name tag, and
@@ -52,7 +53,7 @@ export function designMarks(
     if (view && blueprintModel.blueprint?.elements?.[view]) {
         ret.push({
             key: 'selection',
-            target: `[data-blueprint-view="${CSS.escape(view)}"]`,
+            target: `${CELL}="${CSS.escape(view)}"]`,
             render: box => [
                 div({key: 'outline', className: `${CLS}__outline ${CLS}__outline--view`}),
                 selectionToolbar({
@@ -60,6 +61,7 @@ export function designMarks(
                     designModel,
                     id: view,
                     isView: true,
+                    inCell: true,
                     inside: box.roomAbove < TOOLBAR_ROOM,
                     surface
                 })
@@ -67,15 +69,17 @@ export function designMarks(
         });
     }
     if (selected && blueprintModel.blueprint?.elements?.[selected]) {
+        const target = targetOf(selected, overlay);
         ret.push({
             key: 'selection',
-            target: targetOf(selected, overlay),
+            target,
             render: box => [
                 div({key: 'outline', className: `${CLS}__outline ${CLS}__outline--selected`}),
                 selectionToolbar({
                     key: 'toolbar',
                     designModel,
                     id: selected,
+                    inCell: target.startsWith(CELL),
                     inside: box.roomAbove < TOOLBAR_ROOM,
                     surface
                 })
@@ -90,7 +94,7 @@ export function designMarks(
 //------------------
 // An element's canvas cell where it has one, so its marks frame the header too, else its wrapper.
 function targetOf(id: string, overlay: OverlayModel): string {
-    const cell = `[data-blueprint-view="${CSS.escape(id)}"]`;
+    const cell = `${CELL}="${CSS.escape(id)}"]`;
     return overlay.hostEl?.querySelector(cell)
         ? cell
         : `[data-blueprint-element="${CSS.escape(id)}"]`;

@@ -76,6 +76,18 @@
     border-bottom: 2px solid var(--xh-intent-primary);
   }
 
+  // On a canvas cell: clear of its top-left resize corner, and inside it below its header, which
+  // drags the cell, rather than over it.
+  &--cell {
+    left: 14px;
+  }
+
+  &--cell#{&}--inside {
+    top: 28px;
+    border-top: 2px solid var(--xh-intent-primary);
+    border-radius: 5px;
+  }
+
   &__name {
     display: inline-flex;
     align-items: center;

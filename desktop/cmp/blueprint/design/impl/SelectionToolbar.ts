@@ -16,6 +16,8 @@ interface SelectionToolbarProps extends HoistProps {
     inside?: boolean;
     /** True for the canvas view that holds the element, rather than the element. */
     isView?: boolean;
+    /** True on a canvas cell, to keep clear of the cell's header, which drags, and its corners. */
+    inCell?: boolean;
     /** The canvas to give focus back to once an action settles. */
     surface: () => HTMLElement;
 }
@@ -29,7 +31,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
     displayName: 'BlueprintSelectionToolbar',
     className: 'xh-blueprint-selection-toolbar',
     model: false,
-    render({designModel, id, inside, isView, surface: getSurface, className}) {
+    render({designModel, id, inside, isView, inCell, surface: getSurface, className}) {
         // Back to the canvas once an action settles, so the design keys keep working, and a
         // dialog it opens, such as a confirm, keeps focus until then.
         const after = (result: unknown) => {
@@ -120,7 +122,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                 }
             ];
         return div({
-            className: classNames(className, inside && `${CLS}--inside`),
+            className: classNames(className, inside && `${CLS}--inside`, inCell && `${CLS}--cell`),
             onClick: e => e.stopPropagation(),
             children: [
                 span({
