@@ -353,6 +353,30 @@ export class BlueprintModel extends HoistModel {
         });
     }
 
+    /**
+     * Apply an edit that continues the latest one, such as another nudge of the same cell: the two
+     * become one history entry and one undo step. With any change since the latest edit, such as
+     * an undo, it applies as an edit of its own.
+     */
+    @action
+    foldEdit(edit: BlueprintEdit): BlueprintEditResult {
+        const prev = last(this.undoStack);
+        if (
+            !prev ||
+            prev.version !== this.version ||
+            last(this.history)?.version !== this.version
+        ) {
+            return this.applyEdit(edit);
+        }
+        return this.commitEdit(edit, entry => {
+            const merged = {...entry, before: prev.before, ops: diffOps(prev.before, entry.after)};
+            this.undoStack = [...dropRight(this.undoStack), merged];
+            this.redoStack = [];
+            // The edit just committed replaces the one it continues.
+            this.history = [...this.history.slice(0, -2), {...last(this.history), ops: merged.ops}];
+        });
+    }
+
     /** True if an edit can be undone now: there is one, and the user may edit. See {@link undo}. */
     get canUndo(): boolean {
         return this.mode === 'design' && this.undoStack.length > 0;

@@ -69,6 +69,9 @@ export class BlueprintDesignModel extends HoistModel {
     /** The selection, or null. It clears when what it names is gone. */
     @observableRef accessor selection: BlueprintSelection = null;
 
+    /** The element under the pointer on the canvas, in the outline or the map: view state, never an edit. */
+    @observableRef accessor hoveredId: string = null;
+
     constructor(config: {blueprintModel: BlueprintModel}) {
         super();
         const {blueprintModel} = config;
@@ -85,6 +88,32 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     select(selection: BlueprintSelection) {
         this.selection = selection;
+    }
+
+    @action
+    setHovered(id: string) {
+        this.hoveredId = id;
+    }
+
+    /** An element's ancestors, root first. */
+    pathTo(id: string): string[] {
+        const elements = this.blueprintModel.blueprint?.elements ?? {},
+            ret: string[] = [];
+        for (let it = parentOf(elements, id); it; it = parentOf(elements, it)) ret.unshift(it);
+        return ret;
+    }
+
+    /** The elements the Architect's last edit added or changed, that are still there. */
+    get lastArchitectTouched(): string[] {
+        const edit = [...this.blueprintModel.history]
+                .reverse()
+                .find(it => it.author === 'architect'),
+            elements = this.blueprintModel.blueprint?.elements ?? {},
+            ids = (edit?.ops ?? []).flatMap(op => [
+                'path' in op ? elementOfPath(op.path) : null,
+                op.op === 'addElement' || op.op === 'moveElement' ? op.id : null
+            ]);
+        return uniq(ids.filter(it => it && getOwn(elements, it)));
     }
 
     /**
@@ -353,6 +382,159 @@ export class BlueprintDesignModel extends HoistModel {
      * and takes a free one in another, as {@link addWidget} would give it.
      */
     moveTo(id: string, targetId: string, where: 'into' | 'before' | 'after'): BlueprintEditResult {
+        const plan = this.planMove(id, targetId, where);
+        return 'issues' in plan ? plan : this.edit(plan.description, plan.ops);
+    }
+
+    /** The issues {@link moveTo} would meet, applying nothing: none if the move would apply. */
+    canMoveTo(id: string, targetId: string, where: 'into' | 'before' | 'after'): BlueprintIssue[] {
+        const plan = this.planMove(id, targetId, where);
+        if ('issues' in plan) return plan.issues.filter(isError);
+        const {result, issue} = applyOps(this.blueprintModel.blueprint ?? {}, plan.ops);
+        return issue ? [issue] : this.blueprintModel.validate(result).filter(isError);
+    }
+
+    /**
+     * Copy an element and everything inside it, with fresh ids, in one edit, and select the copy.
+     * On a canvas the copy takes the first free place at the same size. Elsewhere it goes right
+     * after the element, in the same slot.
+     */
+    duplicateElement(id: string): BlueprintEditResult & {id?: string} {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            at = locate(elements, id);
+        if (!at || !this.elementSpec(id)) return refused(`'${id}' has no container to copy into.`);
+        const ids: Record<string, string> = {},
+            taken = new Set(Object.keys(elements));
+        this.subtree(id).forEach(it => {
+            const component = elements[it].component;
+            let n = 1;
+            while (taken.has(`${component}${n}`)) n++;
+            ids[it] = `${component}${n}`;
+            taken.add(ids[it]);
+        });
+        const copyOf = (el: BlueprintElement): BlueprintElement => {
+                const ret = cloneDeep(el);
+                slotLists(ret).forEach(({refs}) => refs.forEach(ref => (ref.id = ids[ref.id])));
+                return ret;
+            },
+            parent = elements[at.parent],
+            ref = slotLists(parent)
+                .find(it => it.slot === at.slot && it.of === at.of)
+                ?.refs.find(it => it.id === id),
+            {id: _id, ...placement} = (ref ?? {id}) as PlainObject,
+            onCanvas = at.slot === 'children' && Number.isInteger(placement.x),
+            child = onCanvas
+                ? {
+                      ...placement,
+                      ...firstFreePlace(
+                          parent.children ?? [],
+                          parent.config?.columns ?? 12,
+                          placement.w,
+                          placement.h
+                      )
+                  }
+                : at.slot === 'children'
+                  ? placement
+                  : null,
+            copyId = ids[id],
+            ops: BlueprintOp[] = [
+                {
+                    op: 'addElement',
+                    id: copyId,
+                    element: copyOf(elements[id]),
+                    parent: at.parent,
+                    ...(child ? {child} : {}),
+                    ...(onCanvas ? {} : {index: at.index + 1}),
+                    ...(at.slot !== 'children' ? {slot: at.slot} : {}),
+                    ...(at.of ? {of: at.of} : {})
+                },
+                ...this.subtree(id)
+                    .slice(1)
+                    .map((it): BlueprintOp => ({
+                        op: 'set',
+                        path: `/elements/${ids[it]}`,
+                        value: copyOf(elements[it])
+                    }))
+            ],
+            ret = this.edit(`Duplicate ${this.elementSpec(id).label}`, ops);
+        if (!ret.issues.some(isError)) this.select({kind: 'element', id: copyId});
+        return {...ret, id: copyId};
+    }
+
+    /**
+     * Move or resize a canvas cell by whole grid units. Calls on the same cell within a second, with
+     * no other edit between, fold into one edit, so a run of arrow keys undoes in one step.
+     */
+    nudgeChild(
+        id: string,
+        {dx = 0, dy = 0, dw = 0, dh = 0}: {dx?: number; dy?: number; dw?: number; dh?: number}
+    ): BlueprintEditResult {
+        const {blueprintModel} = this,
+            elements = blueprintModel.blueprint?.elements ?? {},
+            parent = parentOf(elements, id),
+            children = parent ? elements[parent].children : [],
+            index = children.findIndex(it => it.id === id),
+            cell = children[index] as PlainObject;
+        if (!cell || !Number.isInteger(cell.x)) return refused(`'${id}' is not in a canvas cell.`);
+        const columns = elements[parent].config?.columns ?? 12,
+            w = Math.min(columns, Math.max(1, cell.w + dw)),
+            h = Math.max(1, cell.h + dh),
+            next: PlainObject = {
+                ...cell,
+                x: Math.min(columns - w, Math.max(0, cell.x + dx)),
+                y: Math.max(0, cell.y + dy),
+                w,
+                h
+            },
+            {id: _cellId, ...child} = next,
+            last = this.lastNudge,
+            fold =
+                last?.id === id &&
+                Date.now() - last.at < NUDGE_FOLD_MS &&
+                last.version === blueprintModel.version,
+            edit = {
+                base: blueprintModel.version,
+                author: 'user',
+                description: `${dw || dh ? 'Resize' : 'Move'} ${this.elementSpec(id)?.label ?? id}`,
+                ops: [{op: 'moveElement', id, parent, child, index} as BlueprintOp]
+            },
+            ret = fold ? blueprintModel.foldEdit(edit) : blueprintModel.applyEdit(edit);
+        if (!ret.issues.some(isError)) {
+            this.lastNudge = {id, at: Date.now(), version: blueprintModel.version};
+        }
+        return ret;
+    }
+
+    /** Move an element one place earlier or later in the slot list that holds it. */
+    reorder(id: string, step: -1 | 1): BlueprintEditResult {
+        const at = locate(this.blueprintModel.blueprint?.elements, id);
+        if (!at) return refused(`'${id}' is not in a container.`);
+        const list = slotLists(this.blueprintModel.blueprint.elements[at.parent]).find(
+                it => it.slot === at.slot && it.of === at.of
+            ),
+            index = at.index + step;
+        if (index < 0 || index >= (list?.refs.length ?? 0)) return {issues: []};
+        return this.edit(
+            `Move ${this.elementSpec(id)?.label ?? id} ${step < 0 ? 'earlier' : 'later'}`,
+            [
+                {
+                    op: 'moveElement',
+                    id,
+                    parent: at.parent,
+                    index,
+                    ...(at.slot !== 'children' ? {slot: at.slot} : {}),
+                    ...(at.of ? {of: at.of} : {})
+                }
+            ]
+        );
+    }
+
+    // The ops of a move, or why it cannot be made.
+    private planMove(
+        id: string,
+        targetId: string,
+        where: 'into' | 'before' | 'after'
+    ): {description: string; ops: BlueprintOp[]} | BlueprintEditResult {
         const {elements} = this.blueprintModel.blueprint ?? {},
             spec = this.elementSpec(id);
         if (!spec || !getOwn(elements, targetId))
@@ -375,17 +557,20 @@ export class BlueprintDesignModel extends HoistModel {
             from = locate(elements, id),
             sameSlot = from?.parent === parent && from.slot === slot && from.of === of,
             child = sameSlot || slot !== 'children' ? null : this.placeChild(parent, spec);
-        return this.edit(`Move ${spec.label}`, [
-            {
-                op: 'moveElement',
-                id,
-                parent,
-                ...(child ? {child} : {}),
-                ...(index != null ? {index} : {}),
-                ...(slot !== 'children' ? {slot} : {}),
-                ...(of ? {of} : {})
-            }
-        ]);
+        return {
+            description: `Move ${spec.label}`,
+            ops: [
+                {
+                    op: 'moveElement',
+                    id,
+                    parent,
+                    ...(child ? {child} : {}),
+                    ...(index != null ? {index} : {}),
+                    ...(slot !== 'children' ? {slot} : {}),
+                    ...(of ? {of} : {})
+                }
+            ]
+        };
     }
 
     /**
@@ -874,6 +1059,9 @@ export class BlueprintDesignModel extends HoistModel {
         ]);
     }
 
+    // The last nudge, which a nudge of the same cell soon after folds into.
+    private lastNudge: {id: string; at: number; version: number} = null;
+
     private edit(description: string, ops: BlueprintOp[]): BlueprintEditResult {
         const {blueprintModel} = this;
         return blueprintModel.applyEdit({
@@ -1112,3 +1300,6 @@ const REVEALED_KINDS: Record<string, BlueprintSelection['kind']> = {
     sources: 'source',
     presets: 'preset'
 };
+
+// How soon a nudge of the same cell must follow to fold into the last.
+const NUDGE_FOLD_MS = 1000;

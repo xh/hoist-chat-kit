@@ -49,6 +49,81 @@ describe('BlueprintDesignModel', () => {
         expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
     });
 
+    describe('editing calls for the canvas', () => {
+        const p3 = () => open(loadBlueprint('p3-morning-report.json'));
+        const cellOf = (model: BlueprintModel, id: string) =>
+            Object.values(model.blueprint.elements)
+                .flatMap(it => it.children ?? [])
+                .find(it => it.id === id) as any;
+
+        it('tracks the hovered element as view state, never an edit', () => {
+            const {model, design} = p3();
+            design.setHovered('posGrid');
+            expect(design.hoveredId).toBe('posGrid');
+            expect(model.history).toHaveLength(0);
+        });
+
+        it('dry-runs a move, applying nothing', () => {
+            const {model, design} = p3();
+            expect(design.canMoveTo('positions', 'posGrid', 'into').map(it => it.code)).toEqual([
+                'edit.refused'
+            ]);
+            expect(design.canMoveTo('priceChart', 'groupChooser', 'before')).toEqual([]);
+            expect(model.history).toHaveLength(0);
+        });
+
+        it('duplicates an element and its subtree with fresh ids, in one edit, and selects the copy', () => {
+            const {model, design} = p3(),
+                before = Object.keys(model.blueprint.elements).length,
+                headlineKids = model.blueprint.elements.headline.children.length,
+                ret = design.duplicateElement('headline');
+            expect(ret.issues.filter(it => it.severity === 'error')).toEqual([]);
+            const copy = model.blueprint.elements[ret.id];
+            expect(copy.component).toBe('tileFrame');
+            expect(copy.children).toHaveLength(headlineKids);
+            expect(
+                copy.children.every(
+                    it => !model.blueprint.elements.headline.children.some(o => o.id === it.id)
+                )
+            ).toBe(true);
+            expect(Object.keys(model.blueprint.elements)).toHaveLength(before + 1 + headlineKids);
+            expect(model.history).toHaveLength(1);
+            expect(design.selection).toEqual({kind: 'element', id: ret.id});
+            model.undo();
+            expect(model.blueprint.elements[ret.id]).toBeUndefined();
+        });
+
+        it('nudges a canvas cell by whole units, folding repeats within a second into one edit', () => {
+            const {model, design} = p3(),
+                w = cellOf(model, 'posGrid').w;
+            design.nudgeChild('posGrid', {dw: -1});
+            design.nudgeChild('posGrid', {dw: -1});
+            expect(cellOf(model, 'posGrid').w).toBe(w - 2);
+            expect(model.history).toHaveLength(1);
+            model.undo();
+            expect(cellOf(model, 'posGrid').w).toBe(w);
+        });
+
+        it('moves an element one place earlier or later in its slot', () => {
+            const {model, design} = p3(),
+                order = () => model.blueprint.elements.tabs.children.map(it => it.id);
+            design.reorder('positions', -1);
+            expect(order()).toEqual(['positions', 'overview', 'orders']);
+            design.reorder('positions', 1);
+            expect(order()).toEqual(['overview', 'positions', 'orders']);
+        });
+
+        it("names an element's ancestors, root first, and what the Architect's last edit touched", () => {
+            const {model, design} = p3();
+            expect(design.pathTo('posGrid')).toEqual(['tabs', 'positions']);
+            model.applyEdit({
+                author: 'architect',
+                ops: [{op: 'set', path: '/elements/posGrid/config/title', value: 'Held'}]
+            });
+            expect(design.lastArchitectTouched).toEqual(['posGrid']);
+        });
+    });
+
     it('has no design mode for a chat answer', () => {
         expect(() => open(loadBlueprint('w3-segment-1.json'), {isAnswer: true})).toThrow(
             /answer has no design mode/
