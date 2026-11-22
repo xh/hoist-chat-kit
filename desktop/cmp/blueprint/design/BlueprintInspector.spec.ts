@@ -51,7 +51,11 @@ describe('BlueprintInspector', () => {
         expect(inspector.breadcrumb).toEqual([]);
         expect(inspector.subtitle).toBe('dataset prices · reads symbol, priceStart, asOf');
         design.select({kind: 'variable', id: 'yearStart'});
-        expect(inspector.subtitle).toBe('localDate · reads asOf');
+        expect(inspector.subtitle).toBe('Local date · computed by yearStart · reads asOf');
+        design.select({kind: 'variable', id: 'asOf'});
+        expect(inspector.subtitle).toBe('Local date · prompt');
+        design.select({kind: 'variable', id: 'grouping'});
+        expect(inspector.subtitle).toBe('List of text · set by groupChooser');
         design.select({kind: 'preset', id: 'posViews'});
         expect(inspector.subtitle).toBe('Columns');
     });

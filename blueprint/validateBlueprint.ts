@@ -54,6 +54,30 @@ export const BUILT_IN_VARIABLE_TYPES = [
     'period'
 ];
 
+/** A variable type in users' words, such as `Local date`, or `List of text` for `string[]`. */
+export function variableTypeLabel(
+    registry: Pick<BlueprintRegistry, 'variableTypes'>,
+    type: string
+): string {
+    if (type?.endsWith('[]'))
+        return `List of ${variableTypeLabel(registry, type.slice(0, -2)).toLowerCase()}`;
+    const app = registry.variableTypes[type];
+    if (app) return app.label ?? app.name.split('.').at(-1);
+    return TYPE_LABELS[type] ?? type;
+}
+
+const TYPE_LABELS: Record<string, string> = {
+    string: 'Text',
+    number: 'Number',
+    int: 'Whole number',
+    bool: 'Yes or no',
+    date: 'Date and time',
+    localDate: 'Local date',
+    filter: 'Filter',
+    dateRange: 'Date range',
+    period: 'Period'
+};
+
 /** True if a variable of one type can stand for a value of another: the same, or an app type of it. */
 export function variableTypeMatches(
     registry: Pick<BlueprintRegistry, 'variableTypes'>,

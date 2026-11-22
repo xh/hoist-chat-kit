@@ -5,11 +5,12 @@ import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
-import {Fragment, createElement} from 'react';
+import {Fragment, createElement, useEffect, useRef} from 'react';
 import {
     type BlueprintDesignModel,
     type BlueprintIssue,
     type BlueprintSelection,
+    variableTypeLabel,
     wiringFor
 } from '../../../../blueprint';
 import './BlueprintInspector.scss';
@@ -97,12 +98,33 @@ export class BlueprintInspectorModel extends HoistModel {
                           ? `dataset ${blueprint.sources[id].dataset}`
                           : null
                       : selection.kind === 'variable'
-                        ? (blueprint.variables[id]?.label ?? blueprint.variables[id]?.type)
+                        ? this.variableWhat(id)
                         : blueprint.presets?.[id]?.label,
             reads = wiringFor(blueprint, selection, designModel.wiring).reads.map(it => it.id);
         return [what, reads.length ? `reads ${reads.join(', ')}` : null]
             .filter(Boolean)
             .join(' · ');
+    }
+
+    // A variable's type in users' words, then what sets it.
+    private variableWhat(name: string): string {
+        const {blueprint, registry} = this.designModel.blueprintModel,
+            decl = blueprint.variables[name];
+        if (!decl) return null;
+        const writers = wiringFor(blueprint, {kind: 'variable', id: name}, this.designModel.wiring)
+                .setBy.filter(it => it.kind === 'element')
+                .map(it => it.id),
+            setBy =
+                decl.setBy === 'prompt'
+                    ? 'prompt'
+                    : decl.setBy === 'resolver'
+                      ? `computed by ${decl.compute?.resolver}`
+                      : writers.length
+                        ? `set by ${writers.join(', ')}`
+                        : decl.setBy
+                          ? null
+                          : 'constant';
+        return [variableTypeLabel(registry, decl.type), setBy].filter(Boolean).join(' · ');
     }
 
     /** The issues at the selection's path, or inside it. */
@@ -197,7 +219,15 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
     model: false,
     render({impl}) {
         const {selection, designModel} = impl,
-            items = selectionMenu(designModel, selection);
+            items = selectionMenu(designModel, selection),
+            renameRef = useRef<HTMLInputElement>(null);
+        // Focused and selected as it appears, so typing replaces the id and Enter or Esc acts.
+        useEffect(() => {
+            if (impl.renaming) {
+                renameRef.current?.focus();
+                renameRef.current?.select();
+            }
+        }, [impl.renaming]);
         return hbox({
             className: `${CLS}__header`,
             children: [
@@ -210,8 +240,7 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                                   key: selection.id,
                                   className: `${CLS}__rename`,
                                   value: selection.id,
-                                  autoFocus: true,
-                                  selectOnFocus: true,
+                                  inputRef: renameRef,
                                   width: '100%',
                                   onCommit: (to: string) => impl.rename(to),
                                   onKeyDown: (e: KeyboardEvent) => {

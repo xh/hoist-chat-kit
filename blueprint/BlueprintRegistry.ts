@@ -189,6 +189,8 @@ export interface WidgetSize {
 /** An app variable type, such as `fund`. */
 export interface VariableTypeSpec {
     name: string;
+    /** The name users see, such as "Fund". Default the last part of `name`. */
+    label?: string;
     /** The field type its values match, so it can bind a parameter or filter of that type. */
     matches: string;
     guidance?: string;
