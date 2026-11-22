@@ -59,6 +59,7 @@ export {
 export * from './design/BlueprintDesignModel';
 export * from './design/editorSpec';
 export * from './design/wiring';
+export * from './exampleBlueprint';
 export * from './repository/BlueprintRepository';
 export * from './repository/BlueprintDocumentModel';
 export * from './repository/InMemoryBlueprintRepository';

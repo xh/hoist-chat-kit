@@ -12,6 +12,7 @@ import type {Blueprint} from './Blueprint';
 import {applyOps} from './applyOps';
 import {BlueprintRegistry} from './BlueprintRegistry';
 import {DataCatalog} from './DataCatalog';
+import {exampleBlueprintOf} from './exampleBlueprint';
 import {validateBlueprint} from './validateBlueprint';
 
 /**
@@ -33,43 +34,20 @@ describe('validateBlueprint', () => {
     it.each(Object.values(registry.widgets).filter(it => it.example && !it.reserved && !it.app))(
         "renders the built-in $name's example on its own, as a registry browser assembles it",
         spec => {
-            const {elements = {}, ...rest} = spec.exampleBlueprint ?? {},
-                all: PlainObject = {[spec.name]: spec.example, ...elements},
-                datasets = [
-                    ...new Set(
-                        Object.values(all)
-                            .map((it: PlainObject) => it.config?.source)
-                            .filter(it => typeof it === 'string')
-                    )
-                ] as string[],
-                // Each source loads with its required dates prompted.
-                sources = Object.fromEntries(
-                    datasets.map(ds => [
-                        ds,
-                        {
-                            dataset: ds,
-                            params: Object.fromEntries(
-                                Object.entries(portfolioCatalog.getDataset(ds)?.params ?? {})
-                                    .filter(
-                                        ([, it]: [string, any]) =>
-                                            it.required && it.type === 'localDate'
-                                    )
-                                    .map(([name]) => [name, {$var: name}])
-                            )
-                        }
-                    ])
-                ),
-                dates = Object.values(sources).flatMap(it => Object.keys(it.params)),
-                variables = {
-                    ...Object.fromEntries(
-                        dates.map(it => [it, {type: 'localDate', setBy: 'prompt'}])
-                    ),
-                    ...rest.variables
-                },
-                bp = {...rest, root: spec.name, elements: all, sources, variables} as Blueprint;
-            expect(validate(bp).filter(it => it.severity === 'error')).toEqual([]);
+            const {blueprint, missing} = exampleBlueprintOf(spec, portfolioCatalog);
+            expect(missing).toEqual([]);
+            expect(validate(blueprint).filter(it => it.severity === 'error')).toEqual([]);
         }
     );
+
+    it('names the child references an example leaves to nothing', () => {
+        const {blueprint, missing} = exampleBlueprintOf(
+            {name: 'box', example: {component: 'box', children: [{id: 'a'}, {id: 'b'}]}},
+            portfolioCatalog
+        );
+        expect(blueprint).toBeNull();
+        expect(missing).toEqual(['a', 'b']);
+    });
 
     it.each(scenarioFiles().filter(f => loadBlueprint(f).elements))(
         'passes the scenario blueprint %s',
