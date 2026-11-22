@@ -1,7 +1,7 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {div, fragment} from '@xh/hoist/cmp/layout';
 import type {ReactElement} from 'react';
-import {hoistCmp, uses, XH} from '@xh/hoist/core';
+import {hoistCmp, uses, XH, type PlainObject} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -13,13 +13,12 @@ import {
 } from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
 import {BlueprintModel, InMemoryBlueprintRepository} from '../../../blueprint';
-import {elementFromContent} from '@xh/hoist/utils/react';
 import {blueprintView} from './BlueprintView';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroupInputWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {CubeGridWidgetModel} from './CubeGridWidget';
-import {DashCanvasWidgetModel, DROP_VIEW_ID} from './DashCanvasWidget';
+import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {paletteDrag} from './impl/paletteDrag';
 import {GroupingChooserWidgetModel} from './GroupingChooserWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from './TabContainerWidget';
@@ -938,15 +937,14 @@ describe('blueprint desktop widgets', () => {
     });
 
     describe('dashCanvas', () => {
-        it('places each child as its reference says, and opens without an edit', async () => {
-            const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
-                layout = canvas.canvasModel.state.map(it => ({id: it.viewSpecId, ...it.layout}));
+        const place = ({id, x, y, w, h}: PlainObject) => ({id, x, y, w, h});
 
-            expect(layout).toEqual(
-                expect.arrayContaining(
-                    model.blueprint.elements.dashboard.children.map(it => ({...it}))
-                )
+        it('places each child as its reference says, and opens without an edit', () => {
+            const model = open(loadBlueprint('p2-linked-dashboard.json')),
+                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
+
+            expect(canvas.cells.map(place)).toEqual(
+                model.blueprint.elements.dashboard.children.map(place)
             );
             expect(model.version).toBe(1);
         });
@@ -963,16 +961,12 @@ describe('blueprint desktop widgets', () => {
                 {id: 'regionPick'}
             ];
             const model = open(bp),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
-                view = () => canvas.canvasModel.viewModels.find(it => it.viewSpec.id === 'posGrid');
-            expect(view().viewSpec.hidePanelHeader).toBe(false);
-            expect(view().headerItems).toHaveLength(1);
+                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
+            expect(canvas.cellHasHeader('posGrid')).toBe(true);
+            expect(canvas.cellHeaderRefs.posGrid).toEqual([{id: 'regionPick'}]);
 
-            canvas.canvasModel.loadState(
-                canvas.canvasModel.state.map(it =>
-                    it.viewSpecId === 'posGrid' ? {...it, layout: {...it.layout, y: 20}} : it
-                )
-            );
+            const posGrid = canvas.cells.find(it => it.id === 'posGrid');
+            canvas.onCellsChange([{...posGrid, y: 20}]);
             const cell = model.blueprint.elements.dashboard.children.find(
                 it => it.id === 'posGrid'
             );
@@ -983,7 +977,7 @@ describe('blueprint desktop widgets', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
                 drops: unknown[] = [];
-            expect(canvas.onDragOver()).toBe(false);
+            expect(canvas.onDropOver()).toBe(false);
 
             paletteDrag.start({
                 component: 'chart',
@@ -991,16 +985,10 @@ describe('blueprint desktop widgets', () => {
                 drop: (...args) => drops.push(args)
             });
             onTestFinished(() => paletteDrag.end());
-            expect(canvas.onDragOver()).toEqual({w: 4, h: 6});
+            expect(canvas.onDropOver()).toEqual({w: 4, h: 6});
 
-            // As the canvas's drop does: a view of the drop's spec where it fell.
-            const view = (canvas.canvasModel as any).addViewInternal(DROP_VIEW_ID, {
-                layout: {x: 0, y: 14, w: 4, h: 6}
-            });
-            canvas.onDropDone(view);
-            expect(canvas.canvasModel.viewModels.map(it => it.viewSpec.id)).not.toContain(
-                DROP_VIEW_ID
-            );
+            canvas.onDrop({x: 0, y: 14, w: 4, h: 6}, canvas.cells.map(place));
+            expect(paletteDrag.current).toBeNull();
             const [[canvasId, child, siblings]] = drops as any[];
             expect([canvasId, child]).toEqual(['dashboard', {x: 0, y: 14, w: 4, h: 6}]);
             expect(siblings.map(it => it.id).sort()).toEqual([
@@ -1010,19 +998,17 @@ describe('blueprint desktop widgets', () => {
                 'sectorChart'
             ]);
             expect(model.version).toBe(1);
-            expect(canvas.canvasModel.viewSpecs.map(it => it.id)).not.toContain(DROP_VIEW_ID);
 
+            paletteDrag.start({component: 'chart', size: {w: 4, h: 6}, drop: () => {}});
             model.setMode('run');
-            expect(canvas.onDragOver()).toBe(false);
+            expect(canvas.onDropOver()).toBe(false);
         });
 
         it('turns a move into one edit of its children, in reading order', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
-                state = canvas.canvasModel.state.map(it =>
-                    it.viewSpecId === 'headline' ? {...it, layout: {...it.layout, y: 14}} : it
-                );
-            canvas.canvasModel.loadState(state);
+                headline = canvas.cells.find(it => it.id === 'headline');
+            canvas.onCellsChange([{...headline, y: 14}]);
 
             expect(model.version).toBe(2);
             expect(model.blueprint.elements.dashboard.children.map(it => it.id)).toEqual([
@@ -1033,33 +1019,28 @@ describe('blueprint desktop widgets', () => {
             ]);
         });
 
-        it('snaps back to the document when the edit for a move is refused', () => {
+        it('leaves the document as it was when the edit for a move is refused', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
-                state = canvas.canvasModel.state.map(it =>
-                    it.viewSpecId === 'headline' ? {...it, layout: {...it.layout, y: 3}} : it
-                );
+                headline = canvas.cells.find(it => it.id === 'headline');
             const toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
             onTestFinished(() => toast.mockRestore());
-            canvas.canvasModel.loadState(state);
+            canvas.onCellsChange([{...headline, y: 3}]);
 
             expect(toast).toHaveBeenCalledWith(
                 expect.objectContaining({message: expect.stringMatching(/overlaps/)})
             );
             expect(model.version).toBe(1);
-            const headline = canvas.canvasModel.state.find(it => it.viewSpecId === 'headline');
-            expect(headline.layout.y).toBe(0);
+            expect(canvas.cells.find(it => it.id === 'headline').y).toBe(0);
         });
 
         it('shows a header only for a child with a title, and follows edits to titles', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
-                view = (id: string) =>
-                    canvas.canvasModel.viewModels.find(it => it.viewSpec.id === id);
+                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
 
-            expect(view('sectorChart').viewSpec.hidePanelHeader).toBe(false);
-            expect(view('sectorChart').title).toBe('Day P&L by Sector');
-            expect(view('posGrid').viewSpec.hidePanelHeader).toBe(true);
+            expect(canvas.cellHasHeader('sectorChart')).toBe(true);
+            expect(canvas.titles.sectorChart).toBe('Day P&L by Sector');
+            expect(canvas.cellHasHeader('posGrid')).toBe(false);
 
             model.applyEdit({
                 ops: [
@@ -1067,10 +1048,23 @@ describe('blueprint desktop widgets', () => {
                     {op: 'set', path: '/elements/posGrid/config/title', value: 'Positions'}
                 ]
             });
-            expect(view('sectorChart').title).toBe('P&L');
-            expect(view('posGrid').viewSpec.hidePanelHeader).toBe(false);
-            expect(view('posGrid').title).toBe('Positions');
+            expect(canvas.titles.sectorChart).toBe('P&L');
+            expect(canvas.cellHasHeader('posGrid')).toBe(true);
+            expect(canvas.titles.posGrid).toBe('Positions');
             expect(model.version).toBe(2);
+        });
+
+        it("titles a cell by its reference's title over its child's, and hides a header it hides", () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json'),
+                ref = (id: string) =>
+                    bp.elements.dashboard.children.find(it => it.id === id) as PlainObject;
+            ref('sectorChart').title = 'Sectors';
+            ref('ordersGrid').title = 'Orders';
+            ref('ordersGrid').hideHeader = true;
+            const canvas = widget(DashCanvasWidgetModel, open(bp), 'dashboard');
+
+            expect(canvas.titles.sectorChart).toBe('Sectors');
+            expect(canvas.cellHasHeader('ordersGrid')).toBe(false);
         });
 
         it('follows an edit that adds a child', () => {
@@ -1087,7 +1081,7 @@ describe('blueprint desktop widgets', () => {
                     }
                 ]
             });
-            expect(canvas.canvasModel.state.map(it => it.viewSpecId)).toContain('extra');
+            expect(canvas.cells.map(it => it.id)).toContain('extra');
         });
     });
 
@@ -1134,16 +1128,11 @@ describe('blueprint desktop widgets', () => {
         expect(panel.style.height).toBe('calc(300px + var(--xh-title-compact-height))');
     });
 
-    it('renders a dashCanvas child as DashCanvasView renders view content', async () => {
-        const viewModel = new BlueprintViewModel(open(loadBlueprint('p2-linked-dashboard.json'))),
-            canvas = viewModel.getWidgetModel('dashboard') as DashCanvasWidgetModel,
-            spec = canvas.canvasModel.viewSpecs.find(it => it.id === 'headline');
+    it('renders a dashCanvas child through the view model, as the canvas does', () => {
+        const viewModel = new BlueprintViewModel(open(loadBlueprint('p2-linked-dashboard.json')));
         onTestFinished(() => viewModel.destroy());
 
-        // DashCanvasView passes its own model to the content as `viewModel`.
-        const {container} = render(
-            elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel})
-        );
+        const {container} = render(viewModel.renderElement('headline') as ReactElement);
         expect(container.querySelector('.xh-blueprint-tile-frame')).toBeTruthy();
     });
 

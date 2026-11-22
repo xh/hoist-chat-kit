@@ -156,41 +156,43 @@
   }
 }
 
-// A canvas cell is its widget's frame: a plain header with the title, and in design mode the
-// element's id beside it. Outranks Hoist's own cell header rules.
-.xh-blueprint-dash-canvas
-  .xh-dash-canvas
-  .react-grid-item
-  > .xh-dash-tab
-  > .xh-panel__inner
-  > .xh-panel-header {
+// A canvas cell's header: its title, then in design mode the element's id, which gives way first,
+// then its header items.
+.xh-blueprint-dash-canvas__cell-header {
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--xh-spacing-half);
+  min-width: 0;
   height: 28px;
+  padding: 0 var(--xh-spacing-half);
   background-color: var(--xh-bg);
   border-bottom: var(--xh-border-solid);
+}
 
-  // The title wins the room: the design id truncates first. Hoist sets the title's flex inline.
-  .xh-panel-header__title {
-    flex: 0 0 auto !important;
-    max-width: 70%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--xh-text-color);
-  }
+.xh-blueprint-dash-canvas__cell-title {
+  flex: 0 0 auto;
+  max-width: 70%;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--xh-text-color);
+}
 
-  .xh-panel-header__items {
-    flex: 1 1 0;
-    min-width: 0;
-    justify-content: flex-end;
-  }
+.xh-blueprint-dash-canvas__cell-items {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--xh-spacing-half);
+  min-width: 0;
 }
 
 .xh-blueprint-dash-canvas__cell-id {
   flex: 0 1000 auto;
   min-width: 0;
   margin-right: auto;
-  padding-left: var(--xh-spacing-half);
   overflow: hidden;
   font-family: var(--xh-font-family-mono);
   font-size: 11px;

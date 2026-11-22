@@ -178,3 +178,5 @@ Screenshots: /tmp/claude-1000/-home-john-xh-worktrees-blueprints-toolbox/695fb87
 4. Open a drill-in dialog (P3, double-click a symbol row), then resize the window: the dialog refits (ck 4ff3f9a). tb checked it under viewport emulation (818px wide: 736x549; full size: 1100x839).
 5. K8: drag a palette widget onto a dashCanvas cell. It lands where dropped, and undo removes it.
 6. K9: drag outline rows into a container, and before or after a row. A refusal shows under the tree.
+5. Escape cancels a real canvas cell drag: start dragging a cell, press Escape, and the cell returns with no edit (DevTools can't hold a pointer).
+6. hoist-react Chip and SortableList (hoist-ui-components): in Toolbox's demo pages and round 2's sortable lists, a pointer drag reorders, a move across lists (desktop GroupingChooser, mobile ColChooser) doesn't crash, a long list auto-scrolls while dragging, and touch drag works on mobile.

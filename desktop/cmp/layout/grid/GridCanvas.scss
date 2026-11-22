@@ -1,0 +1,43 @@
+.xh-layout-grid {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: auto;
+
+  &__background {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  &__frame {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--xh-bg);
+    border: var(--xh-border-solid);
+  }
+
+  &__header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    min-width: 0;
+  }
+
+  &--editable &__header {
+    cursor: move;
+  }
+
+  &__body {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .react-grid-placeholder {
+    background-color: var(--xh-intent-primary-trans1);
+    border: 1px dashed var(--xh-intent-primary);
+    opacity: 1;
+  }
+}
