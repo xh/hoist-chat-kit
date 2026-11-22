@@ -17,7 +17,8 @@ export function selectChip({
     text,
     label,
     onSelect,
-    onRemove
+    onRemove,
+    removeHint
 }: {
     key?: string | number;
     className?: string;
@@ -27,7 +28,12 @@ export function selectChip({
     label?: string;
     onSelect?: () => void;
     onRemove?: () => void;
+    /** What Delete does, for its name and tooltip, such as "Delete unbinds.". */
+    removeHint?: string;
 }) {
+    const name = [label, onRemove ? (removeHint ?? 'Delete removes it.') : null]
+        .filter(Boolean)
+        .join(' ');
     return chip({
         key,
         className: classNames('xh-font-family-mono', className),
@@ -36,8 +42,12 @@ export function selectChip({
         intent: INTENTS[kind] ?? null,
         // Hoist has no purple intent.
         color: kind === 'preset' ? 'var(--xh-purple)' : null,
-        title: label,
-        domAttrs: label ? {'aria-label': label} : null,
+        title: name || null,
+        // Its remove button is hidden from assistive tech, so the chip says which keys remove it.
+        domAttrs: {
+            ...(name ? {'aria-label': name} : {}),
+            ...(onRemove ? {'aria-keyshortcuts': 'Delete Backspace'} : {})
+        },
         onClick: onSelect ? () => onSelect() : null,
         onRemove: onRemove ? () => onRemove() : null,
         children: text

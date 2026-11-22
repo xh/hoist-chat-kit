@@ -149,8 +149,7 @@
         display: contents;
       }
 
-      .xh-blueprint-element-inspector__bind-button.xh-button,
-      .xh-blueprint-element-inspector__unbind.xh-button {
+      .xh-blueprint-element-inspector__bind-button.xh-button {
         width: 26px;
         min-width: 26px;
         padding: 0;
@@ -221,11 +220,6 @@
     display: flex;
     align-items: center;
     gap: var(--xh-spacing-half);
-  }
-
-  &__unbind.xh-button {
-    min-height: 20px;
-    min-width: 20px;
   }
 
   // Shown on hover or focus, so a column of fields stays quiet, and muted until its own hover.

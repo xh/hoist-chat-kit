@@ -30,19 +30,62 @@ export abstract class ConfigEditorModel extends HoistModel {
     @observableRef accessor resets: Record<string, number> = {};
 
     /** The item of each list whose settings are open, by the list's key. One at a time. */
-    @observableRef accessor openItems: Record<string, number> = {};
+    @observableRef accessor openItems: Record<string, string> = {};
     /** The stored blueprints an `x-blueprint` param may name, once loaded. Null until then. */
     @observableRef accessor blueprintOptions: Option[] = null;
     private loadingBlueprints = false;
 
-    isItemOpen(key: string, index: number): boolean {
-        return this.openItems[key] === index;
+    /** True for the open item of a list, by the list's scope and the item's key. */
+    isItemOpen(scope: string, itemKey: string): boolean {
+        return this.openItems[scope] === itemKey;
     }
 
     @action
-    toggleItem(key: string, index: number) {
-        this.openItems = {...this.openItems, [key]: this.isItemOpen(key, index) ? null : index};
+    toggleItem(scope: string, itemKey: string) {
+        this.openItems = {
+            ...this.openItems,
+            [scope]: this.isItemOpen(scope, itemKey) ? null : itemKey
+        };
     }
+
+    /**
+     * A key for each item of a list, by its scope, that stays with the item as the list reorders,
+     * so a row keeps its node, its focus and its open drawer. A list whose length changes from
+     * outside, as on an undo, takes new keys.
+     */
+    keysFor(scope: string, length: number): string[] {
+        let ret = this.listKeys.get(scope);
+        if (ret?.length !== length) {
+            ret = Array.from({length}, () => `k${++this.keySeq}`);
+            this.listKeys.set(scope, ret);
+        }
+        return ret;
+    }
+
+    /** Move a list's key as its item moves. */
+    moveKey(scope: string, from: number, to: number) {
+        const keys = [...(this.listKeys.get(scope) ?? [])];
+        keys.splice(to, 0, ...keys.splice(from, 1));
+        this.listKeys.set(scope, keys);
+    }
+
+    /** Drop a list's key as its item goes. */
+    removeKey(scope: string, index: number) {
+        this.listKeys.set(
+            scope,
+            (this.listKeys.get(scope) ?? []).filter((_, i) => i !== index)
+        );
+    }
+
+    /** Add a key for an item added at the end of a list, and return it. */
+    addKey(scope: string): string {
+        const key = `k${++this.keySeq}`;
+        this.listKeys.set(scope, [...(this.listKeys.get(scope) ?? []), key]);
+        return key;
+    }
+
+    private readonly listKeys = new Map<string, string[]>();
+    private keySeq = 0;
 
     constructor(readonly designModel: BlueprintDesignModel) {
         super();

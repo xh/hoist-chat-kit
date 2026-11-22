@@ -1,5 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -93,12 +94,12 @@ describe('ElementInspector', () => {
 
     it('opens one column of a field list at a time, in a drawer', () => {
         const {inspector} = open('p3-morning-report.json', 'posGrid');
-        expect(inspector.isItemOpen('columnState', 1)).toBe(false);
-        inspector.toggleItem('columnState', 1);
-        expect(inspector.isItemOpen('columnState', 1)).toBe(true);
-        inspector.toggleItem('columnState', 2);
-        expect(inspector.isItemOpen('columnState', 1)).toBe(false);
-        expect(inspector.isItemOpen('columnState', 2)).toBe(true);
+        expect(inspector.isItemOpen('columnState', 'pnlDay#1')).toBe(false);
+        inspector.toggleItem('columnState', 'pnlDay#1');
+        expect(inspector.isItemOpen('columnState', 'pnlDay#1')).toBe(true);
+        inspector.toggleItem('columnState', 'pnlMtd#1');
+        expect(inspector.isItemOpen('columnState', 'pnlDay#1')).toBe(false);
+        expect(inspector.isItemOpen('columnState', 'pnlMtd#1')).toBe(true);
     });
 
     it("opens a property's preset group from its badge, for the host to show", () => {
@@ -514,6 +515,82 @@ describe('ElementInspector', () => {
         expect(model.blueprint).toBe(before);
     });
 
+    // Alt+arrow on the handle that has focus, as a keyboard user presses it twice.
+    const altDown = async (first: Element) => {
+        fireEvent.keyDown(first, {key: 'ArrowDown', altKey: true});
+        await wait();
+        fireEvent.keyDown(document.activeElement, {key: 'ArrowDown', altKey: true});
+    };
+
+    it('moves a column two places with Alt+Down twice, as focus follows it, with its drawer', async () => {
+        const {design, model} = open('p2-linked-dashboard.json', 'posGrid'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            fields = () =>
+                (model.blueprint.elements.posGrid.config.columnState as unknown[]).map(it =>
+                    typeof it === 'string' ? it : (it as any).field
+                ),
+            [a, b, c, ...rest] = fields();
+        fireEvent.click(container.querySelector(`[data-field="${a}"] [title="Settings"]`));
+        await altDown(
+            container.querySelector(
+                '.xh-blueprint-element-inspector__columns .xh-sortable-list__handle'
+            )
+        );
+        expect(fields()).toEqual([b, c, a, ...rest]);
+        // The open drawer stays under the column it opened for.
+        const openRow = container.querySelector('.xh-blueprint-element-inspector__column--open');
+        expect(openRow.getAttribute('data-field')).toBe(a);
+    });
+
+    it("moves an action's step and a list's item two places with Alt+Down twice", async () => {
+        const {design, model} = open('p2-linked-dashboard.json');
+        design.setConfig('posGrid', '/rowActions', [
+            {
+                label: 'A',
+                action: [
+                    {type: 'refresh', sources: ['positions']},
+                    {type: 'refresh'},
+                    {type: 'refresh', sources: ['orders']}
+                ]
+            },
+            {label: 'B', action: {type: 'refresh'}},
+            {label: 'C', action: {type: 'refresh'}}
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            actions = () => model.blueprint.elements.posGrid.config.rowActions as any[];
+        fireEvent.click(
+            container.querySelector('[data-config-key="rowActions"] [title="Settings"]')
+        );
+        await altDown(
+            container.querySelector(
+                '.xh-blueprint-element-inspector__steps .xh-sortable-list__handle'
+            )
+        );
+        expect(actions()[0].action).toEqual([
+            {type: 'refresh'},
+            {type: 'refresh', sources: ['orders']},
+            {type: 'refresh', sources: ['positions']}
+        ]);
+        await altDown(
+            container.querySelector(
+                '[data-config-key="rowActions"] .xh-blueprint-element-inspector__columns .xh-sortable-list__handle'
+            )
+        );
+        expect(actions().map(it => it.label)).toEqual(['B', 'C', 'A']);
+    });
+
+    it('draws a column listed twice, as a preset may hold one, for the user to remove', () => {
+        const {design, model} = open();
+        const bp = structuredClone(model.blueprint) as any;
+        bp.presets.posViews.items.pnl.set.elements.posGrid.config.columnState = [
+            'mktVal',
+            'mktVal'
+        ];
+        model.setBlueprint(bp);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(container.querySelectorAll('[data-field="mktVal"]')).toHaveLength(2);
+    });
+
     it('reorders tabs with a drag or the keyboard, one edit each', () => {
         const {design, model} = open('p3-morning-report.json', 'tabs'),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
@@ -773,7 +850,12 @@ describe('ElementInspector', () => {
                     it.closest('.xh-blueprint-element-inspector__row').firstElementChild.textContent
             )
         ).toEqual(['Summary row', 'Title']);
-        fireEvent.click(row('Group by').querySelector('button[aria-label="Remove grouping"]'));
+        // The chip says how to unbind, and its visible × or Delete unbinds, in one edit.
+        expect(chip.getAttribute('aria-keyshortcuts')).toBe('Delete Backspace');
+        expect(chip.getAttribute('aria-label')).toMatch(/Delete unbinds\.$/);
+        const edits = model.history.length;
+        fireEvent.keyDown(chip, {key: 'Delete'});
+        expect(model.history.length).toBe(edits + 1);
         expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
     });
 

@@ -91,7 +91,11 @@ export interface EditorContext {
     key: string;
     // What the value falls back to while unset, which a format or renderer picker names.
     inherited?: {format?: unknown; renderer?: unknown};
+    // Where in the config the editor sits, for the open state and keys of its lists. Default key.
+    scope?: string;
 }
+
+const scopeOf = (ctx: EditorContext) => ctx.scope ?? ctx.key;
 
 export interface RowProps {
     /** A note beside the label, such as the preset an edit changes. */
@@ -421,7 +425,8 @@ function bindableEditor(
                     // A bound value changes through its variable, so it is not personalized here.
                     label: `Set by variable ${bound}, which a user changes in its place, not here. Show the variable.`,
                     onSelect: () => impl.designModel.select({kind: 'variable', id: bound}),
-                    onRemove: disabled ? null : () => commit(impl.unboundValue(node))
+                    onRemove: disabled ? null : () => commit(impl.unboundValue(node)),
+                    removeHint: 'Delete unbinds.'
                 }),
                 // Where users could change it in place, say that the variable now takes their changes.
                 impl.isPersonalizable(ctx.key)
@@ -486,11 +491,12 @@ function listEditor(
     ctx: EditorContext
 ) {
     const {impl} = ctx,
+        scope = scopeOf(ctx),
         disabled = impl.readOnly,
         commitList = (list: unknown[]) =>
             commit(isEmpty(list) && !node.required ? undefined : list),
-        // Keyed by place, which holds still through a drag.
-        rows = items.map((value, index) => ({key: String(index), index, value}));
+        keys = impl.keysFor(scope, items.length),
+        rows = items.map((value, index) => ({key: keys[index], index, value}));
     return div({
         className: `${CLS}__field-list`,
         children: [
@@ -502,9 +508,12 @@ function listEditor(
                       getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
                       disabled,
                       compact: true,
-                      onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
+                      onReorder: e => {
+                          impl.moveKey(scope, e.fromIndex, e.toIndex);
+                          commitList(e.items.map((it: PlainObject) => it.value));
+                      },
                       renderItem: (row: PlainObject) => {
-                          const open = impl.isItemOpen(ctx.key, row.index);
+                          const open = impl.isItemOpen(scope, row.key);
                           return hbox({
                               className: classNames(
                                   `${CLS}__item-header`,
@@ -520,7 +529,7 @@ function listEditor(
                                       title: 'Settings',
                                       minimal: true,
                                       intent: open ? 'primary' : null,
-                                      onClick: () => impl.toggleItem(ctx.key, row.index)
+                                      onClick: () => impl.toggleItem(scope, row.key)
                                   }),
                                   button({
                                       icon: Icon.delete(),
@@ -528,14 +537,16 @@ function listEditor(
                                       intent: 'danger',
                                       minimal: true,
                                       disabled,
-                                      onClick: () =>
-                                          commitList(items.filter((_, j) => j !== row.index))
+                                      onClick: () => {
+                                          impl.removeKey(scope, row.index);
+                                          commitList(items.filter((_, j) => j !== row.index));
+                                      }
                                   })
                               ]
                           });
                       },
                       renderDetail: (row: PlainObject) =>
-                          impl.isItemOpen(ctx.key, row.index)
+                          impl.isItemOpen(scope, row.key)
                               ? div({
                                     className: `${CLS}__settings`,
                                     children: editorFor(
@@ -545,7 +556,7 @@ function listEditor(
                                             commitList(
                                                 items.map((it, j) => (j === row.index ? v : it))
                                             ),
-                                        ctx
+                                        {...ctx, scope: `${scope}/${row.key}`}
                                     )
                                 })
                               : null
@@ -558,10 +569,10 @@ function listEditor(
                 minimal: true,
                 disabled,
                 onClick: () => {
-                    commitList([...items, impl.newValue(node.item.schema)]);
                     // A new item opens, for its settings.
-                    if (!impl.isItemOpen(ctx.key, items.length))
-                        impl.toggleItem(ctx.key, items.length);
+                    const key = impl.addKey(scope);
+                    commitList([...items, impl.newValue(node.item.schema)]);
+                    if (!impl.isItemOpen(scope, key)) impl.toggleItem(scope, key);
                 }
             })
         ]
@@ -642,6 +653,7 @@ function fieldListEditor(
     ctx: EditorContext
 ) {
     const {impl} = ctx,
+        scope = scopeOf(ctx),
         {settingsIn} = node,
         disabled = impl.readOnly,
         entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
@@ -651,12 +663,18 @@ function fieldListEditor(
             const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
             commit(isEmpty(ret) && !node.required ? undefined : ret);
         },
-        indexOf = (entry: PlainObject) => entries.indexOf(entry),
+        // Keyed by field, and by place among the same field's, so a list with a repeated or a
+        // missing field still draws, for the user to fix.
+        seen: Record<string, number> = {},
+        rows = entries.map((entry, index) => {
+            const name = isString(entry.field) ? entry.field : '?',
+                n = (seen[name] = (seen[name] ?? 0) + 1);
+            return {key: `${name}#${n}`, index, entry};
+        }),
         mappedOf = (entry: PlainObject): PlainObject =>
             settingsIn ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {}) : {},
-        header = (entry: PlainObject) => {
-            const i = indexOf(entry),
-                open = impl.isItemOpen(ctx.key, i),
+        header = ({key, index: i, entry}: {key: string; index: number; entry: PlainObject}) => {
+            const open = impl.isItemOpen(scope, key),
                 mapped = mappedOf(entry);
             return hbox({
                 className: classNames(`${CLS}__item-header`, open && `${CLS}__column--open`),
@@ -676,7 +694,7 @@ function fieldListEditor(
                         title: 'Settings',
                         minimal: true,
                         intent: open ? 'primary' : null,
-                        onClick: () => impl.toggleItem(ctx.key, i)
+                        onClick: () => impl.toggleItem(scope, key)
                     }),
                     button({
                         icon: Icon.delete(),
@@ -689,10 +707,10 @@ function fieldListEditor(
                 ]
             });
         },
-        drawer = (entry: PlainObject) => {
-            const i = indexOf(entry);
-            if (!impl.isItemOpen(ctx.key, i)) return null;
-            const more = impl.isItemOpen(`${ctx.key}/more`, i),
+        drawer = ({key, index: i, entry}: {key: string; index: number; entry: PlainObject}) => {
+            if (!impl.isItemOpen(scope, key)) return null;
+            const more = impl.isItemOpen(`${scope}/more`, key),
+                itemScope = `${scope}/${key}`,
                 mapped = mappedOf(entry),
                 inherited = impl.inheritedDisplay(entry.field),
                 mappedRow = (setting: EditorNode) =>
@@ -702,7 +720,7 @@ function fieldListEditor(
                         value: mapped[setting.key],
                         commit: v =>
                             impl.commitItemSetting(settingsIn.key, entry.field, setting.key, v),
-                        ctx: {...ctx, key: settingsIn.key, inherited}
+                        ctx: {...ctx, key: settingsIn.key, scope: itemScope, inherited}
                     });
             return div({
                 className: `${CLS}__settings`,
@@ -723,7 +741,7 @@ function fieldListEditor(
                                               : {...it, [setting.key]: v}
                                     )
                                 ),
-                            ctx
+                            ctx: {...ctx, scope: itemScope}
                         })
                     ),
                     settingsIn?.settings.length > settingsIn?.shown
@@ -733,7 +751,7 @@ function fieldListEditor(
                               text: more ? 'Fewer settings' : 'More settings',
                               icon: more ? Icon.chevronUp() : Icon.chevronDown(),
                               minimal: true,
-                              onClick: () => impl.toggleItem(`${ctx.key}/more`, i)
+                              onClick: () => impl.toggleItem(`${scope}/more`, key)
                           })
                         : null,
                     ...(more ? settingsIn.settings.slice(settingsIn.shown).map(mappedRow) : [])
@@ -746,14 +764,14 @@ function fieldListEditor(
             entries.length
                 ? sortableList({
                       className: `${CLS}__columns`,
-                      value: entries,
-                      itemKey: (it: PlainObject) => it.field,
-                      getItemLabel: (it: PlainObject) => impl.fieldLabel(it.field),
+                      value: rows,
+                      itemKey: 'key',
+                      getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
                       disabled,
                       compact: true,
-                      onReorder: e => commitList(e.items),
-                      renderItem: (entry: PlainObject) => header(entry),
-                      renderDetail: (entry: PlainObject) => drawer(entry)
+                      onReorder: e => commitList(e.items.map((it: PlainObject) => it.entry)),
+                      renderItem: (row: any) => header(row),
+                      renderDetail: (row: any) => drawer(row)
                   })
                 : null,
             select({
@@ -885,6 +903,8 @@ function actionEditor(
     const {impl} = ctx,
         disabled = impl.readOnly,
         steps = stepsOf(value),
+        stepScope = `${scopeOf(ctx)}/steps`,
+        keys = impl.keysFor(stepScope, steps.length),
         commitSteps = (list: PlainObject[]) => commit(joinSteps(list)),
         replace = (i: number, step: PlainObject) =>
             commitSteps(steps.map((it, j) => (j === i ? step : it)));
@@ -910,7 +930,10 @@ function actionEditor(
                         intent: 'danger',
                         minimal: true,
                         disabled: disabled || (node.required && steps.length === 1),
-                        onClick: () => commitSteps(steps.filter((_, j) => j !== i))
+                        onClick: () => {
+                            impl.removeKey(stepScope, i);
+                            commitSteps(steps.filter((_, j) => j !== i));
+                        }
                     })
                 ]
             }),
@@ -978,12 +1001,15 @@ function actionEditor(
                       sortableList({
                           key: 'steps',
                           className: `${CLS}__steps`,
-                          value: steps.map((step, index) => ({key: String(index), index, step})),
+                          value: steps.map((step, index) => ({key: keys[index], index, step})),
                           itemKey: 'key',
                           getItemLabel: (row: PlainObject) => impl.describeStep(row.step),
                           disabled,
                           compact: true,
-                          onReorder: e => commitSteps(e.items.map((it: PlainObject) => it.step)),
+                          onReorder: e => {
+                              impl.moveKey(stepScope, e.fromIndex, e.toIndex);
+                              commitSteps(e.items.map((it: PlainObject) => it.step));
+                          },
                           renderItem: (row: PlainObject) => stepHeader(row.step, row.index),
                           renderDetail: (row: PlainObject) => stepBody(row.step, row.index)
                       })
@@ -1001,7 +1027,10 @@ function actionEditor(
                 text: steps.length ? 'Add a step' : 'Add an action',
                 minimal: true,
                 disabled: disabled || steps.length >= MAX_STEPS || !impl.defaultActionType,
-                onClick: () => commitSteps([...steps, impl.stepStart(impl.defaultActionType)])
+                onClick: () => {
+                    impl.addKey(stepScope);
+                    commitSteps([...steps, impl.stepStart(impl.defaultActionType)]);
+                }
             })
         ]
     });
