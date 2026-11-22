@@ -344,7 +344,12 @@ describe('blueprint data widgets', () => {
                     rows: [{pnl: 5, hist: [1, 3, 2]}]
                 }
             } as any;
-            bp.elements.headlinePnlDay.config = {source: 'fund', field: 'pnl', trend: 'hist'};
+            bp.elements.headlinePnlDay.config = {
+                source: 'fund',
+                field: 'pnl',
+                trend: 'hist',
+                deltaLabel: 'vs prior'
+            };
             const card = widget(StatCardWidgetModel, open(bp), 'headlinePnlDay');
             await vi.waitFor(() =>
                 expect(
@@ -353,6 +358,12 @@ describe('blueprint data widgets', () => {
                     )
                 ).toBeTruthy()
             );
+            // In the rest of the line after the delta's label, not cut off past the card's edge.
+            const trend = render(
+                card.card.detail as unknown as ReactElement
+            ).container.querySelector('.xh-blueprint-stat-card__trend');
+            expect(trend.firstElementChild.textContent).toBe('vs prior');
+            expect(trend.querySelector('.xh-sparkline')).not.toBeNull();
         });
     });
 

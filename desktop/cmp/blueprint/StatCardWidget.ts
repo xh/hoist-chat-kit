@@ -1,4 +1,4 @@
-import {box, fragment, span} from '@xh/hoist/cmp/layout';
+import {box, span} from '@xh/hoist/cmp/layout';
 import {sparkline} from '@xh/hoist/cmp/sparkline';
 import {statCard} from '@xh/hoist/cmp/statcard';
 import {hoistCmp, type Intent, managed, type PlainObject, uses} from '@xh/hoist/core';
@@ -126,7 +126,15 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
                     ? records[0].data[trend]
                     : (this.view?.result.rows[0] as PlainObject)?.[trend];
         if (!Array.isArray(data)) return detail;
-        return fragment(detail, sparkline({data, colorBy: 'trend', width: '100%'}));
+        // As chat kit's stat cards draw it: the delta's label, then the trend in the rest of the
+        // line, which the card's detail clips at its width.
+        return span({
+            className: 'xh-blueprint-stat-card__trend',
+            children: [
+                detail != null ? span({key: 'label', children: detail}) : null,
+                sparkline({key: 'trend', data, colorBy: 'trend', flex: 1, minWidth: 0})
+            ]
+        });
     }
 
     private setCube(cube: Cube) {
