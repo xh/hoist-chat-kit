@@ -9,6 +9,7 @@ import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
 import type {BlueprintWidgetModel, WidgetSpec} from '../../../../blueprint';
+import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {selectionToolbar} from '../design/impl/SelectionToolbar';
@@ -113,7 +114,7 @@ function needsField(
     if (
         spec?.config?.properties?.source?.['x-source'] &&
         spec.config.required?.includes('source') &&
-        !(typeof source === 'string' && model.blueprintModel.blueprint?.sources?.[source])
+        !(typeof source === 'string' && getOwn(model.blueprintModel.blueprint?.sources, source))
     ) {
         return {
             key: 'source',

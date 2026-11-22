@@ -1,5 +1,6 @@
 import {render, screen} from '@testing-library/react';
 import type {PlainObject} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
@@ -628,6 +629,48 @@ describe('layout and container widgets', () => {
             canvas.startDrag();
             canvas.endDrag();
             canvas.canvasModel.onRglLayoutChange(moved());
+            expect(edit).toHaveBeenCalledTimes(1);
+        });
+
+        it('forgets a cancelled drag that moved nothing, so the next resize still applies', async () => {
+            const model = new BlueprintModel({
+                    blueprint: {
+                        root: 'canvas',
+                        elements: {
+                            canvas: {
+                                component: 'dashCanvas',
+                                children: [
+                                    {id: 'a', x: 0, y: 0, w: 6, h: 2},
+                                    {id: 'b', x: 6, y: 0, w: 6, h: 2}
+                                ]
+                            },
+                            a: {component: 'markdown', config: {text: 'A'}},
+                            b: {component: 'markdown', config: {text: 'B'}}
+                        }
+                    },
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode: 'design',
+                    access: 'write'
+                }),
+                view = new BlueprintViewModel(model);
+            onTestFinished(() => {
+                view.destroy();
+                model.destroy();
+            });
+            const canvas = view.getWidgetModel('canvas') as DashCanvasWidgetModel,
+                edit = vi.spyOn(canvas, 'applyUserEdit');
+            canvas.startDrag();
+            document.body.dispatchEvent(
+                new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})
+            );
+            canvas.endDrag();
+            await wait(10);
+            // A resize calls no startDrag.
+            canvas.canvasModel.onRglLayoutChange(
+                canvas.canvasModel.layout.map((it, idx) => (idx === 1 ? {...it, w: it.w - 1} : it))
+            );
             expect(edit).toHaveBeenCalledTimes(1);
         });
 

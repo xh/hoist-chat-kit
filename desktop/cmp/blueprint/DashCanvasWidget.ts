@@ -1,5 +1,6 @@
 import {box, div, span} from '@xh/hoist/cmp/layout';
 import {Icon} from '@xh/hoist/icon';
+import {wait} from '@xh/hoist/promise';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import {
     dashCanvas,
@@ -93,6 +94,9 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
 
     endDrag() {
         window.removeEventListener('keydown', this.onDragKey, true);
+        // A cancelled drag that moved nothing brings back no layout, so forget it once its stop
+        // has settled, or it would undo the next resize.
+        if (this.dragCancelled) wait().then(() => (this.dragCancelled = false));
     }
 
     override destroy() {

@@ -281,13 +281,14 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
         // A widget that needs a field set asks for it, and its editor takes focus.
         useEffect(() => {
             if (!fieldFocus || fieldFocus.id !== impl.elementId) return;
-            wait().then(() =>
+            wait().then(() => {
                 ref.current
                     ?.querySelector<HTMLElement>(
                         `[data-config-key="${fieldFocus.key}"] :is(input, button, [tabindex="0"])`
                     )
-                    ?.focus()
-            );
+                    ?.focus();
+                impl.designModel.clearFieldFocus();
+            });
         }, [fieldFocus, impl.elementId]);
         if (!impl.elementId) return placeholder('Select an element to edit its config.');
         return div({
