@@ -982,14 +982,14 @@ describe('blueprint desktop widgets', () => {
             paletteDrag.start({
                 component: 'chart',
                 size: {w: 4, h: 6},
-                drop: (...args) => drops.push(args)
+                add: (...args) => drops.push(args)
             });
             onTestFinished(() => paletteDrag.end());
             expect(canvas.onDropOver()).toEqual({w: 4, h: 6});
 
             canvas.onDrop({x: 0, y: 14, w: 4, h: 6}, canvas.cells.map(place));
             expect(paletteDrag.current).toBeNull();
-            const [[canvasId, child, siblings]] = drops as any[];
+            const [[canvasId, {child, siblings}]] = drops as any[];
             expect([canvasId, child]).toEqual(['dashboard', {x: 0, y: 14, w: 4, h: 6}]);
             expect(siblings.map(it => it.id).sort()).toEqual([
                 'headline',
@@ -999,7 +999,7 @@ describe('blueprint desktop widgets', () => {
             ]);
             expect(model.version).toBe(1);
 
-            paletteDrag.start({component: 'chart', size: {w: 4, h: 6}, drop: () => {}});
+            paletteDrag.start({component: 'chart', size: {w: 4, h: 6}, add: () => {}});
             model.setMode('run');
             expect(canvas.onDropOver()).toBe(false);
         });
@@ -1065,6 +1065,21 @@ describe('blueprint desktop widgets', () => {
 
             expect(canvas.titles.sectorChart).toBe('Sectors');
             expect(canvas.cellHasHeader('ordersGrid')).toBe(false);
+        });
+
+        it("resets a reader's moves, and offers to only once there are some", () => {
+            const model = open(loadBlueprint('p2-linked-dashboard.json'));
+            model.setMode('run');
+            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                headline = canvas.cells.find(it => it.id === 'headline');
+            expect(canvas.isRearranged).toBe(false);
+            canvas.onCellsChange([{...headline, y: 14}]);
+            expect(canvas.isRearranged).toBe(true);
+            expect(model.version).toBe(1);
+
+            canvas.resetLayout();
+            expect(canvas.isRearranged).toBe(false);
+            expect(canvas.cells.find(it => it.id === 'headline').y).toBe(0);
         });
 
         it('follows an edit that adds a child', () => {

@@ -9,6 +9,7 @@
     pointer-events: none;
   }
 
+  // react-grid-layout positions each frame absolutely, inline, which also anchors its grip.
   &__frame {
     display: flex;
     flex-direction: column;
@@ -23,8 +24,24 @@
     min-width: 0;
   }
 
-  &--editable &__header {
+  &--editable &__header,
+  &--editable &__grip {
     cursor: move;
+  }
+
+  // A headerless cell's handle, on its top edge, shown while the cell is hovered or focused.
+  &__grip {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    z-index: 2;
+    transform: translateX(-50%);
+    opacity: 0;
+  }
+
+  &__frame:hover &__grip,
+  &__frame:focus-within &__grip {
+    opacity: 1;
   }
 
   &__body {

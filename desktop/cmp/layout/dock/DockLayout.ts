@@ -45,6 +45,11 @@ export const dockLayout = hoistCmp.factory<HoistProps & DockLayoutProps>({
             },
             className: classNames(className, impl.dragging && `${CLS}--dragging`),
             onDragOver: e => onRootDragOver(impl, e),
+            onDragLeave: e => {
+                // An external drag leaving the layout drops nothing here.
+                const to = e.relatedTarget as Node;
+                if (!impl.dragging && !(to && impl.rootEl?.contains(to))) impl.endDrag();
+            },
             onDrop: e => onDrop(impl, e),
             children: (layout ?? []).map((it, idx) =>
                 dockItem({key: keyOf(it), impl, node: it, path: [idx]})
@@ -234,7 +239,7 @@ function rootTarget(impl: DockLayoutModel, e: DragEvent): DockTarget {
 }
 
 function allow(impl: DockLayoutModel, e: DragEvent, target: DockTarget, barX?: number) {
-    if (!impl.dragging || !target) return;
+    if ((!impl.dragging && !impl.external) || !target) return;
     e.stopPropagation();
     if (impl.dragOver(target, barX)) {
         e.preventDefault();
@@ -268,7 +273,7 @@ function onTabsDragOver(impl: DockLayoutModel, e: DragEvent<HTMLElement>, stack:
 }
 
 function onDrop(impl: DockLayoutModel, e: DragEvent) {
-    if (!impl.dragging) return;
+    if (!impl.dragging && !impl.external) return;
     e.preventDefault();
     e.stopPropagation();
     impl.dropHere();

@@ -3,7 +3,17 @@ import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {cloneDeep, isEqual} from 'lodash';
 import type {ReactNode} from 'react';
 import {OverlayModel} from '../overlay';
-import {type DockItem, type DockTarget, type DockZone, moveView, stacksOf} from './dockTree';
+import {
+    type DockItem,
+    type DockTarget,
+    type DockZone,
+    insertView,
+    moveView,
+    stacksOf
+} from './dockTree';
+
+// A stand-in id for an external drag's view, to test where it could go.
+const NEW_VIEW = '\u0000new';
 
 /** A finished change to a dock layout. */
 export interface DockChange {
@@ -31,6 +41,15 @@ export interface DockLayoutProps {
     onHiddenChange?: (ids: string[]) => void;
     /** The overlay to draw drop previews in. Default one of its own, over the layout. */
     overlay?: OverlayModel;
+    /**
+     * The key of an external drag the layout may take, such as a widget from a palette, or null
+     * for none. A drop of one calls `onDropExternal`.
+     */
+    externalDrag?: () => string;
+    /** Add a new view for an external drag's key at a target, as one change. */
+    onDropExternal?: (key: string, target: DockTarget) => void;
+    /** Why an external drag may not drop at a target, or null if it may. */
+    canDropExternal?: (key: string, target: DockTarget) => string;
 }
 
 /** The drop a drag would make now, and why it may not, if it may not. */
@@ -138,17 +157,31 @@ export class DockLayoutModel extends HoistModel {
         this.overlay.layoutChanged();
     }
 
+    /** The key of the external drag in progress that this layout may take, or null. */
+    get external(): string {
+        return this.dragging ? null : (this.props?.externalDrag?.() ?? null);
+    }
+
     /** Note where the drag would drop now. Returns true if it may drop there. */
     @action
     dragOver(target: DockTarget, barX?: number): boolean {
-        const {dragging} = this;
-        if (!dragging) return false;
-        const key = JSON.stringify(target);
+        const {dragging, external} = this,
+            {layout, canMove, canDropExternal} = this.props;
+        if (!dragging && !external) return false;
+        const key = `${dragging ?? external}|${JSON.stringify(target)}`;
         if (!this.verdicts.has(key)) {
-            const nowhere = moveView(this.props.layout, dragging, target)
-                ? null
-                : 'The view has nowhere to go there.';
-            this.verdicts.set(key, nowhere ?? this.props.canMove?.(dragging, target) ?? null);
+            const placed = dragging
+                    ? moveView(layout, dragging, target)
+                    : insertView(layout, NEW_VIEW, target),
+                nowhere = placed ? null : 'The view has nowhere to go there.';
+            this.verdicts.set(
+                key,
+                nowhere ??
+                    (dragging
+                        ? canMove?.(dragging, target)
+                        : canDropExternal?.(external, target)) ??
+                    null
+            );
         }
         const drop = {target, refusal: this.verdicts.get(key), barX};
         if (!isEqual(drop, this.drop)) this.drop = drop;
@@ -157,10 +190,14 @@ export class DockLayoutModel extends HoistModel {
 
     /** Make the drop the drag is over, as one change. */
     dropHere() {
-        const {dragging, drop} = this;
-        if (dragging && drop && !drop.refusal) {
-            const next = moveView(this.props.layout, dragging, drop.target);
-            if (next) this.props.onChange?.(next, {kind: 'move', id: dragging});
+        const {dragging, external, drop} = this;
+        if (drop && !drop.refusal) {
+            if (dragging) {
+                const next = moveView(this.props.layout, dragging, drop.target);
+                if (next) this.props.onChange?.(next, {kind: 'move', id: dragging});
+            } else if (external) {
+                this.props.onDropExternal?.(external, drop.target);
+            }
         }
         this.endDrag();
     }

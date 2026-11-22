@@ -5,7 +5,7 @@ import {pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {BlueprintWidgetModel, type ChildRef, type DashCanvasWidgetConfig} from '../../../blueprint';
 import {gridCanvas, type GridCell} from '../layout';
-import {CANVAS_GAP, emptyContent} from './impl/layout';
+import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
 
 /**
@@ -101,11 +101,20 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     onDrop(place: Omit<GridCell, 'id'>, siblings: GridCell[]) {
         const drag = paletteDrag.current;
         paletteDrag.end();
-        drag?.drop(
-            this.id,
-            pick(place, 'x', 'y', 'w', 'h'),
-            siblings.map(it => ({...it}))
-        );
+        drag?.add(this.id, {
+            child: pick(place, 'x', 'y', 'w', 'h'),
+            siblings: siblings.map(it => ({...it}))
+        });
+    }
+
+    /** True if a reader has moved or resized cells, which {@link resetLayout} undoes. */
+    get isRearranged(): boolean {
+        return this.blueprintModel.hasTransientValues(`/elements/${this.id}/children`);
+    }
+
+    /** Drop a reader's rearrangement, back to the blueprint's placement. */
+    resetLayout() {
+        this.blueprintModel.clearTransientValues(`/elements/${this.id}/children`);
     }
 
     /** Write moved or resized cells to the child references, as one edit, in reading order. */
@@ -144,6 +153,16 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
                     containerPadding: [CANVAS_GAP, CANVAS_GAP],
                     renderItem: id => model.renderElement(id),
                     renderHeader: id => (model.cellHasHeader(id) ? cellHeader({model, id}) : null),
+                    // In design mode a headerless cell moves by a grip, which also selects its view.
+                    renderGrip: id =>
+                        model.isDesign
+                            ? div({
+                                  className: `${CLS}__grip`,
+                                  title: `Move ${id}`,
+                                  ...({'data-blueprint-view-grip': id} as PlainObject),
+                                  children: Icon.gripVertical()
+                              })
+                            : null,
                     frameProps: id => ({
                         'data-blueprint-view': id,
                         'data-blueprint-canvas': model.id
@@ -152,7 +171,8 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
                     onDropOver: () => model.onDropOver(),
                     onDrop: (place, siblings) => model.onDrop(place, siblings)
                 }),
-                empty ? div({className: `${className}__empty`, children: empty}) : null
+                empty ? div({className: `${className}__empty`, children: empty}) : null,
+                resetLayoutButton({omit: !model.isRearranged, onClick: () => model.resetLayout()})
             ]
         });
     }
