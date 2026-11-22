@@ -276,7 +276,7 @@ ChatUiCatalog.answerPresentations.push({
             'groupBy',
             'filter',
             'expandLevel',
-            'summaryRow',
+            'showSummary',
             'rowStyles',
             'columns.*.styles'
         ]

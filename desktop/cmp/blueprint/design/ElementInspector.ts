@@ -1,4 +1,4 @@
-import {div, filler, hbox, placeholder} from '@xh/hoist/cmp/layout';
+import {div, hbox, placeholder} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
@@ -86,6 +86,14 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     /** The element's editors, from its widget's config schema. */
+    /** What a section's header counts: a lone list's items, else its properties. */
+    countOf(nodes: EditorNode[]): number {
+        const [only] = nodes;
+        return nodes.length === 1 && LIST_KINDS.includes(only.kind)
+            ? castArray(this.values[only.key] ?? []).length
+            : nodes.length;
+    }
+
     get nodes(): EditorNode[] {
         const ret = toEditorSpec(this.widgetSpec?.config),
             // A field list edits its settings map's entries in its drawer, so the map shows only
@@ -320,15 +328,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                                   width: 160,
                                   onCommit: (to: string) => impl.rename(to)
                               }),
-                              div({className: `${CLS}__widget`, children: impl.label}),
-                              filler(),
-                              button({
-                                  icon: Icon.delete(),
-                                  title: `Remove ${impl.elementId}`,
-                                  minimal: true,
-                                  disabled: impl.readOnly,
-                                  onClick: () => impl.removeAsync()
-                              })
+                              div({className: `${CLS}__widget`, children: impl.label})
                           ]
                       }),
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
@@ -347,7 +347,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                             .find(Boolean);
                         return sectionCard({
                             key: `section:${section.label}`,
-                            title: `${section.label} (${section.nodes.length})`,
+                            title: `${section.label} (${impl.countOf(section.nodes)})`,
                             badge: preset
                                 ? {
                                       text: `Preset · ${preset.itemLabel}`,
@@ -376,13 +376,24 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                               ...placementRows(impl, it => !inPlacementRow(impl, it))
                           ]
                       })
-                    : null
+                    : null,
+                impl.readOnly
+                    ? null
+                    : button({
+                          className: `${CLS}__remove`,
+                          icon: Icon.delete(),
+                          text: `Remove ${impl.elementId}`,
+                          intent: 'danger',
+                          minimal: true,
+                          onClick: () => impl.removeAsync()
+                      })
             ]
         });
     }
 });
 
-// One config property's row, with its issues and preset badge.
+const LIST_KINDS = ['fieldList', 'list', 'stringList'];
+
 // A canvas cell's grid numbers share one row, and its other settings take rows of their own.
 const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>
     node.kind === 'number' || !impl.placementNodes.some(it => it.kind === 'number');
@@ -400,6 +411,7 @@ function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) =
     );
 }
 
+// One config property's row, with its issues and preset badge.
 function configRow(impl: ElementInspectorModel, node: EditorNode) {
     return propertyRow({
         node,
@@ -501,6 +513,7 @@ function tabsEditor(impl: ElementInspectorModel) {
                                         }),
                                         button({
                                             icon: Icon.delete(),
+                                            intent: 'danger',
                                             title: `Remove ${tab.id}`,
                                             disabled,
                                             onClick: () => impl.removeAsync(tab.id)
@@ -512,6 +525,7 @@ function tabsEditor(impl: ElementInspectorModel) {
                     ),
                     button({
                         icon: Icon.add(),
+                        intent: 'primary',
                         text: 'Add a tab',
                         minimal: true,
                         disabled,

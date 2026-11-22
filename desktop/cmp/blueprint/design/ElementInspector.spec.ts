@@ -521,7 +521,18 @@ describe('ElementInspector', () => {
                 ].map(it => it.textContent);
 
         expect(container.querySelector('[data-config-key="columns"]')).toBeNull();
+        // A column it leaves unset shows what it takes from the catalog.
+        const {format} = inspector.inheritedDisplay('mktVal'),
+            formatName = typeof format === 'string' ? format : (format as any)?.name;
+        expect(formatName).toBeTruthy();
+        expect(
+            columnRow('mktVal').querySelector('.xh-blueprint-element-inspector__column-meta')
+                .textContent
+        ).toContain(formatName);
         fireEvent.click(columnRow('mktVal').querySelector('[title="Settings"]'));
+        expect(
+            container.querySelector('.xh-blueprint-element-inspector__format').textContent
+        ).toContain(`Default (${formatName})`);
         expect(labels().slice(0, 6)).toEqual([
             'Header',
             'Format',
@@ -541,6 +552,24 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 2);
     });
 
+    it("sets a grid's summary row from Top, Bottom and Off, each one edit", () => {
+        const {design, model, inspector} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector('[data-config-key="showSummary"]');
+        expect(row.querySelector('.xh-blueprint-element-inspector__label').textContent).toBe(
+            'Summary row'
+        );
+        expect(
+            [...row.querySelectorAll('button')].map(it => it.textContent).filter(Boolean)
+        ).toEqual(['Top', 'Bottom', 'Off']);
+        const before = model.history.length;
+        inspector.commit('showSummary', 'bottom');
+        expect(model.blueprint.elements.posGrid.config.showSummary).toBe('bottom');
+        inspector.commit('showSummary', undefined);
+        expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('showSummary');
+        expect(model.history.length).toBe(before + 2);
+    });
+
     it('draws sections as cards with counts, and a one-line value beside its label', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
@@ -555,8 +584,8 @@ describe('ElementInspector', () => {
         ).toEqual([
             'Data (7)',
             'Display (1)',
-            'Columns (1)Preset · P&L view',
-            'Interaction (1)',
+            'Columns (4)Preset · P&L view',
+            'Interaction (0)',
             'Style (10)',
             'Placement in positions'
         ]);
@@ -566,6 +595,11 @@ describe('ElementInspector', () => {
                 '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'
             )
         ).toHaveLength(4);
+        // Removing it is a danger action at the very end.
+        const remove = container.querySelector('.xh-blueprint-element-inspector__remove');
+        expect(remove.textContent).toBe('Remove posGrid');
+        expect(remove.className).toMatch(/intent-danger/);
+        expect(remove).toBe(container.firstElementChild.lastElementChild);
         expect(row('Title').className).toContain('__row--inline');
         expect(row('Column state').className).not.toContain('__row--inline');
     });
@@ -585,7 +619,7 @@ describe('ElementInspector', () => {
                 it =>
                     it.closest('.xh-blueprint-element-inspector__row').firstElementChild.textContent
             )
-        ).toEqual(['Title']);
+        ).toEqual(['Summary row', 'Title']);
         fireEvent.click(row('Group by').querySelector('button[aria-label="Unbind grouping"]'));
         expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
     });
@@ -611,7 +645,7 @@ describe('ElementInspector', () => {
                     '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__label'
                 )
             ].map(it => it.textContent);
-        expect(labels).toEqual(['Title *', 'Icon']);
+        expect(labels).toEqual(['Title*', 'Icon']);
         expect(container.querySelector('[data-config-key="icon"] .xh-icon-picker')).toBeTruthy();
     });
 
@@ -621,7 +655,7 @@ describe('ElementInspector', () => {
             labels = [...container.querySelectorAll('.xh-blueprint-element-inspector__label')].map(
                 it => it.textContent
             );
-        expect(labels).toEqual(expect.arrayContaining(['Source *', 'Title', 'Group by']));
+        expect(labels).toEqual(expect.arrayContaining(['Source*', 'Title', 'Group by']));
         expect(container.textContent).not.toContain('No model found');
     });
 });

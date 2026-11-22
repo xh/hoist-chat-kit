@@ -101,6 +101,7 @@ export const filterEditor = hoistCmp.factory<FilterEditorModel>({
                             button({
                                 icon: Icon.x(),
                                 title: 'Remove',
+                                intent: 'danger',
                                 minimal: true,
                                 disabled,
                                 onClick: () =>

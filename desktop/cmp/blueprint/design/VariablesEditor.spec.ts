@@ -184,7 +184,7 @@ describe('VariablesEditor', () => {
                 it => it.textContent
             );
         expect(labels).toEqual(
-            expect.arrayContaining(['Name', 'Type *', 'Label', 'Set by', 'Compute', 'Default'])
+            expect.arrayContaining(['Name', 'Type*', 'Label', 'Set by', 'Compute', 'Default'])
         );
         expect(container.textContent).not.toContain('No model found');
         expect(

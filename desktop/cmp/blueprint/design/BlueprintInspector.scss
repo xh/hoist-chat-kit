@@ -171,8 +171,9 @@
     background-color: var(--xh-intent-warning-trans1);
   }
 
+  // Hoist's purple has no dark-theme step, so it mixes with the text color to stay readable.
   &.xh-blueprint-inspector__chip--preset {
-    color: var(--xh-purple);
+    color: color-mix(in srgb, var(--xh-purple) 65%, var(--xh-text-color));
     background-color: color-mix(in srgb, var(--xh-purple) 15%, transparent);
   }
 }

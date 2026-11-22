@@ -147,7 +147,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 equals: 'structural'
             },
             {
-                track: () => !!this.resolvedConfig.summaryRow,
+                track: () => this.resolvedConfig.showSummary ?? false,
                 run: show => this.cubeGridModel?.setShowSummary(show)
             },
             {
@@ -203,7 +203,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         void gridModel.expandState;
         const {sizingMode, hideHeaders} = gridModel,
             rows =
-                gridModel.agApi.getDisplayedRowCount() + (this.resolvedConfig.summaryRow ? 1 : 0),
+                gridModel.agApi.getDisplayedRowCount() + (this.resolvedConfig.showSummary ? 1 : 0),
             header = hideHeaders ? 0 : AG_GRID.getHeaderHeightForSizingMode(sizingMode);
         return (
             header +
@@ -240,7 +240,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             labelColumn: this.buildLabelColumn(),
             gridConfig: {
                 ...omitBy(pick(cfg, CUBE_GRID_STYLES), it => it == null),
-                showSummary: !!cfg.summaryRow,
+                showSummary: cfg.showSummary ?? false,
                 sortBy: toGridSort(cfg.sortBy),
                 autosizeOptions: {mode: 'managed'},
                 rowStyle: (record: StoreRecord) => applyRules(this.rowRules, record),

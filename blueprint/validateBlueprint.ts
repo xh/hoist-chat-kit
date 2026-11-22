@@ -7,7 +7,8 @@ import {
     isNumber,
     isPlainObject,
     isString,
-    omit
+    omit,
+    uniq
 } from 'lodash';
 import {
     type Blueprint,
@@ -1297,7 +1298,11 @@ function joinAnd(items: string[]): string {
  * nothing a variable type matches, as for an object.
  */
 function bindingTypesOf(schema: PlainObject): string[] {
-    if (schema.enum) return ['string'];
+    if (schema.enum) {
+        return uniq(
+            schema.enum.map((it: unknown) => (typeof it === 'boolean' ? 'bool' : 'string'))
+        );
+    }
     switch (schema.type) {
         case 'boolean':
             return ['bool'];

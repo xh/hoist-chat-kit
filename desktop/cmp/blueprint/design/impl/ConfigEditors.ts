@@ -8,6 +8,7 @@ import {
     iconPicker,
     jsonInput,
     numberInput,
+    segmentedControl,
     select,
     switchInput,
     textArea,
@@ -23,6 +24,7 @@ import {
     type BlueprintIssue,
     type EditorNode,
     isVarBinding,
+    labelOf,
     toEditorSpec
 } from '../../../../../blueprint';
 import {
@@ -77,6 +79,8 @@ export interface EditorContext {
     locked?: boolean;
     // The top-level property, which a refusal names.
     key: string;
+    // What the value falls back to while unset, which a format or renderer picker names.
+    inherited?: {format?: unknown; renderer?: unknown};
 }
 
 export interface RowProps {
@@ -104,7 +108,10 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
             div({
                 className: `${CLS}__label`,
                 title: node.description,
-                children: node.required ? `${node.label} *` : node.label
+                children: [
+                    node.label,
+                    node.required ? span({className: `${CLS}__req`, children: '*'}) : null
+                ]
             }),
             div({
                 className: `${CLS}__row-body`,
@@ -201,6 +208,20 @@ function editorFor(
                 })
             });
         case 'choice':
+            // A choice with an off state, such as a summary row's place, shows every option at once.
+            if (node.options.includes(false)) {
+                const options = node.options.filter(it => it !== true);
+                return segmentedControl({
+                    value: value === true ? options[0] : (value ?? node.default ?? false),
+                    options: options.map(it => ({
+                        value: it as any,
+                        label: it === false ? 'Off' : labelOf(String(it))
+                    })),
+                    disabled,
+                    compact: true,
+                    onCommit: v => commit(v === node.default ? undefined : v)
+                });
+            }
             return select({
                 value: value ?? null,
                 options: node.options as any[],
@@ -467,6 +488,7 @@ function listEditor(
                                         button({
                                             icon: Icon.delete(),
                                             title: 'Remove',
+                                            intent: 'danger',
                                             disabled,
                                             onClick: () =>
                                                 commitList(items.filter((_, j) => j !== i))
@@ -486,6 +508,7 @@ function listEditor(
             ),
             button({
                 icon: Icon.add(),
+                intent: 'primary',
                 text: 'Add',
                 minimal: true,
                 disabled,
@@ -523,6 +546,7 @@ function mapEditor(
                                 button({
                                     icon: Icon.delete(),
                                     title: 'Remove',
+                                    intent: 'danger',
                                     disabled,
                                     onClick: () => commitMap(omit(map, key))
                                 })
@@ -588,6 +612,7 @@ function fieldListEditor(
                               mapped: PlainObject = settingsIn
                                   ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {})
                                   : {},
+                              inherited = impl.inheritedDisplay(entry.field),
                               mappedRow = (setting: EditorNode) =>
                                   propertyRow({
                                       key: `${settingsIn.key}:${setting.key}`,
@@ -600,7 +625,7 @@ function fieldListEditor(
                                               setting.key,
                                               v
                                           ),
-                                      ctx: {...ctx, key: settingsIn.key}
+                                      ctx: {...ctx, key: settingsIn.key, inherited}
                                   });
                           return div({
                               key: `${i}:${entry.field}`,
@@ -619,7 +644,7 @@ function fieldListEditor(
                                           }),
                                           span({
                                               className: `${CLS}__column-meta`,
-                                              children: formatMeta(mapped.format)
+                                              children: columnMeta(mapped, inherited)
                                           }),
                                           buttonGroup({
                                               children: [
@@ -738,13 +763,23 @@ function settingsCount(entry: PlainObject, mapped: PlainObject): number {
     return Object.keys(entry).filter(it => it !== 'field').length + Object.keys(mapped).length;
 }
 
-// A column's format in brief, as `mv · 2dp`.
-function formatMeta(format: unknown): string {
-    if (format == null) return null;
-    const {name, options} = splitNamed(format);
-    return [name, options.precision != null ? `${options.precision}dp` : null]
+// How a column shows in brief, its own settings over what it inherits, as `mv · 2dp · bar`.
+function columnMeta(
+    mapped: PlainObject,
+    inherited: {format?: unknown; renderer?: unknown}
+): string {
+    const own = splitNamed(mapped.format),
+        base = splitNamed(inherited.format),
+        precision = own.options.precision ?? base.options.precision,
+        renderer = splitNamed(mapped.renderer ?? inherited.renderer).name;
+    return [own.name ?? base.name, precision != null ? `${precision}dp` : null, renderer]
         .filter(Boolean)
         .join(' · ');
+}
+
+// A picker's empty choice, naming what an unset value falls back to.
+function inheritedLabel(empty: string, inherited: unknown): string {
+    return inherited == null ? empty : `Default (${splitNamed(inherited).name ?? 'custom'})`;
 }
 
 // A map entry's key, by its field label where it names a field, with the key itself beside.
@@ -765,7 +800,9 @@ function formatEditor(value: unknown, commit: (value: unknown) => void, ctx: Edi
                 value: name,
                 options: withCurrent(ctx.impl.formatOptions, name),
                 enableClear: true,
-                placeholder: isEmpty(options) ? 'Default' : 'Custom',
+                placeholder: isEmpty(options)
+                    ? inheritedLabel('Default', ctx.inherited?.format)
+                    : 'Custom',
                 disabled: ctx.impl.readOnly,
                 width: '100%',
                 onCommit: (it: string) => commit(joinNamed(it, options))
@@ -786,7 +823,7 @@ function rendererEditor(value: unknown, commit: (value: unknown) => void, ctx: E
                 value: name,
                 options: withCurrent(ctx.impl.rendererOptions, name),
                 enableClear: true,
-                placeholder: 'None',
+                placeholder: inheritedLabel('None', ctx.inherited?.renderer),
                 disabled: ctx.impl.readOnly,
                 width: '100%',
                 // Another renderer's options mean nothing to this one.
@@ -888,6 +925,7 @@ function actionEditor(
                                         button({
                                             icon: Icon.delete(),
                                             title: 'Remove',
+                                            intent: 'danger',
                                             disabled:
                                                 disabled || (node.required && steps.length === 1),
                                             onClick: () =>
@@ -930,6 +968,7 @@ function actionEditor(
             }),
             button({
                 icon: Icon.add(),
+                intent: 'primary',
                 text: steps.length ? 'Add a step' : 'Add an action',
                 minimal: true,
                 disabled: disabled || steps.length >= MAX_STEPS || !impl.defaultActionType,

@@ -5,6 +5,10 @@
   padding: var(--xh-spacing);
   overflow-y: auto;
 
+  &__remove.xh-button {
+    align-self: flex-start;
+  }
+
   &__header {
     display: flex;
     gap: var(--xh-spacing-half);
@@ -36,18 +40,20 @@
     }
   }
 
+  // Sections sit on the Inspector's own ground, divided by a rule.
   &__card {
     flex: none;
-    border: var(--xh-border-solid);
-    border-radius: 6px;
-    background-color: var(--xh-bg-alt);
+    border-top: var(--xh-border-solid);
+    background-color: var(--xh-bg);
   }
 
   &__card-header {
     display: flex;
     gap: var(--xh-spacing-half);
     align-items: center;
-    padding: var(--xh-spacing-half) var(--xh-spacing);
+    min-height: 32px;
+    padding: 0 2px;
+    font-size: 12px;
     font-weight: 600;
 
     &--toggle {
@@ -78,8 +84,8 @@
   &__card-body {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-spacing);
-    padding: var(--xh-spacing-half) var(--xh-spacing) var(--xh-spacing);
+    gap: 6px;
+    padding: 2px 2px var(--xh-spacing);
   }
 
   &__hint {
@@ -114,21 +120,45 @@
     min-width: 0;
   }
 
-  // A one-line value beside its label, in a column of labels that line up.
+  // A one-line value beside its label: a label column, the control, and an action column for
+  // bind or remove, so every row's control shares the same edges.
   &__row--inline {
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr);
-    column-gap: var(--xh-spacing);
+    grid-template-columns: 104px minmax(0, 1fr);
+    column-gap: 6px;
     align-items: center;
+    min-height: 28px;
 
-    > .xh-blueprint-element-inspector__label {
-      font-size: inherit;
+    > .xh-blueprint-element-inspector__row-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 26px;
+      column-gap: 6px;
+      align-items: center;
+
+      > * {
+        grid-column: 1;
+      }
+
+      > .xh-blueprint-element-inspector__badge,
+      > .xh-blueprint-element-inspector__issue {
+        grid-column: 1 / -1;
+      }
+
+      > .xh-blueprint-element-inspector__bindable {
+        display: contents;
+      }
     }
   }
 
   &__label {
-    font-size: var(--xh-font-size-small);
-    color: var(--xh-text-color-muted);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--xh-text-color);
+  }
+
+  &__req {
+    margin-left: 2px;
+    color: var(--xh-intent-danger-text-color);
   }
 
   &__issue {

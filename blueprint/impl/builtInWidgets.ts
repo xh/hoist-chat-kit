@@ -561,10 +561,13 @@ const CUBE_GRID_SCHEMA = {
             minimum: 0,
             maximum: 6
         },
-        summaryRow: {
+        showSummary: {
             'x-binding': true,
-            type: 'boolean',
-            default: false
+            title: 'Summary row',
+            enum: ['top', 'bottom', true, false],
+            default: false,
+            description:
+                "A row of totals docked at the top or bottom, or false for none. True, as Hoist's GridModel takes it, means 'top'."
         },
         treeStyle: {
             'x-binding': true,
@@ -1732,7 +1735,7 @@ const cubeGrid: WidgetSpec = {
                 'sortBy',
                 'filter',
                 'expandLevel',
-                'summaryRow',
+                'showSummary',
                 'showGroupRowCounts'
             ]
         },

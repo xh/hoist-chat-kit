@@ -451,11 +451,12 @@ describe('blueprint desktop widgets', () => {
 
                 model.applyEdit({
                     ops: [
-                        {op: 'set', path: '/elements/posGrid/config/summaryRow', value: true},
+                        {op: 'set', path: '/elements/posGrid/config/showSummary', value: 'bottom'},
                         {op: 'set', path: '/elements/posGrid/config/hideHeaders', value: true}
                     ]
                 });
                 expect(grid.contentHeight).toBe(6 * 24 + 2);
+                expect(grid.cubeGridModel.showSummary).toBe('bottom');
 
                 // A horizontal scrollbar, as the component measures it, adds its height.
                 grid.setHorizontalScrollHeight(9);

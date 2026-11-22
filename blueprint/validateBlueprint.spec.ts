@@ -1154,13 +1154,24 @@ describe('validateBlueprint', () => {
             default: {value: 'bar'}
         };
         Object.assign(bp.elements.posGrid.config, {
-            summaryRow: {$var: 'totals'},
+            showSummary: {$var: 'totals'},
             expandLevel: {$var: 'depth'}
         });
         bp.elements.sectorChart.config.type = {$var: 'kind'};
         expect(codes(bp)).toEqual([]);
         bp.elements.posGrid.config.stripeRows = {$var: 'depth'};
         expect(codes(bp)).toContain('binding.typeMismatch');
+    });
+
+    it("takes a grid's summary row at the top or bottom, or none, and no longer as summaryRow", () => {
+        const bp = p2();
+        bp.elements.posGrid.config.showSummary = 'bottom';
+        expect(codes(bp)).toEqual([]);
+        bp.elements.posGrid.config.showSummary = 'middle';
+        expect(codes(bp)).toEqual(['schema.invalid']);
+        delete bp.elements.posGrid.config.showSummary;
+        bp.elements.posGrid.config.summaryRow = true;
+        expect(codes(bp)).toEqual(['schema.invalid']);
     });
 
     it("refuses a bound variable whose options or default fall outside its prop's enum or range", () => {

@@ -190,6 +190,19 @@ export abstract class ConfigEditorModel extends HoistModel {
     }
 
     /** A field's label, through the source. */
+    /** A field's format and renderer from its catalog field and kind, before a widget's own. */
+    inheritedDisplay(name: string): {format: unknown; renderer: unknown} {
+        const field = this.source?.fields[name];
+        if (!field) return {format: null, renderer: null};
+        const kind = this.designModel.blueprintModel.catalogs
+            .map(it => getOwn(it.kinds, field.kind))
+            .find(Boolean);
+        return {
+            format: field.format ?? kind?.format ?? null,
+            renderer: field.renderer ?? kind?.renderer ?? null
+        };
+    }
+
     fieldLabel(name: string): string {
         return this.source?.fieldLabel(name) ?? name;
     }
