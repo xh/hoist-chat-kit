@@ -42,7 +42,7 @@ describe('rescaleCells', () => {
         ]);
     });
 
-    it('keeps a cell at least as wide as its minimum, moving what it then covers down', () => {
+    it('widens a cell to its minimum, moving what it covers down, where no neighbour can spare it', () => {
         const ret = rescaleCells(
             [
                 {id: 'grid', x: 0, y: 0, w: 4, h: 2},
@@ -50,11 +50,43 @@ describe('rescaleCells', () => {
             ],
             12,
             6,
-            id => (id === 'grid' ? 3 : null)
+            id => (id === 'grid' ? 3 : 2)
         );
         expect(ret.map(({id, x, y, w}) => [id, x, y, w])).toEqual([
             ['grid', 0, 0, 3],
             ['chart', 2, 2, 2]
+        ]);
+    });
+
+    it('scales shared edges, so neighbours stay side by side', () => {
+        expect(
+            rescaleCells(
+                [
+                    {id: 'chart', x: 0, y: 0, w: 7, h: 6},
+                    {id: 'grid', x: 7, y: 0, w: 5, h: 6}
+                ],
+                12,
+                6
+            ).map(({id, x, w}) => [id, x, w])
+        ).toEqual([
+            ['chart', 0, 4],
+            ['grid', 4, 2]
+        ]);
+    });
+
+    it('takes the columns a cell lacks from a neighbour that can spare them, on the same row', () => {
+        const ret = rescaleCells(
+            [
+                {id: 'chart', x: 0, y: 0, w: 7, h: 6},
+                {id: 'grid', x: 7, y: 0, w: 5, h: 6}
+            ],
+            12,
+            6,
+            () => 3
+        );
+        expect(ret.map(({id, x, y, w}) => [id, x, y, w])).toEqual([
+            ['chart', 0, 0, 3],
+            ['grid', 3, 0, 3]
         ]);
     });
 
