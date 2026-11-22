@@ -12,7 +12,7 @@ import {
     portfolioCatalog,
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
-import {blueprintInspector, BlueprintInspectorModel} from './BlueprintInspector';
+import {blueprintInspector, BlueprintInspectorModel, foldCrumbs} from './BlueprintInspector';
 
 /**
  * The Inspector: one frame for whatever is selected - its path, its id and what it reads, its
@@ -117,6 +117,37 @@ describe('BlueprintInspector', () => {
         );
         expect(container.querySelector('.xh-blueprint-variables-editor')).toBeTruthy();
         expect(model.history).toHaveLength(0);
+    });
+
+    it("ends the path with the selection's kind, after an icon on every step", async () => {
+        const {design} = open(),
+            {container} = render(blueprintInspector({designModel: design}) as ReactElement);
+        design.select({kind: 'element', id: 'posGrid'});
+        const current = await vi.waitFor(() => {
+            const it = container.querySelector('.xh-blueprint-inspector__crumb--current');
+            expect(it).toBeTruthy();
+            return it;
+        });
+        expect(current.textContent).toBe('posGridGrid');
+        expect(current.querySelector('.xh-blueprint-inspector__crumb-kind').textContent).toBe(
+            'Grid'
+        );
+        expect(
+            container.querySelectorAll('.xh-blueprint-inspector__breadcrumb svg').length
+        ).toBeGreaterThanOrEqual(5);
+    });
+
+    it('folds the middle of a path that does not fit, keeping its first and last steps', () => {
+        // Widths of three steps, with 19px separators and a 28px fold.
+        expect(foldCrumbs([60, 95, 111], 260)).toEqual({shown: [0, 2], hidden: [1]});
+        expect(foldCrumbs([60, 95, 111], 400)).toEqual({shown: [0, 1, 2], hidden: []});
+        // Unmeasured, it shows the whole path.
+        expect(foldCrumbs([60, 95, 111], 0)).toEqual({shown: [0, 1, 2], hidden: []});
+        // The steps nearest the selection come back first.
+        expect(foldCrumbs([60, 80, 80, 80, 100], 330)).toEqual({
+            shown: [0, 3, 4],
+            hidden: [1, 2]
+        });
     });
 
     it('sums up the blueprint when nothing is selected', async () => {

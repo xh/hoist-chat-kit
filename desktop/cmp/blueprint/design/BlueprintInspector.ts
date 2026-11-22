@@ -5,7 +5,9 @@ import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
-import {Fragment, createElement, useEffect, useRef} from 'react';
+import {useOnResize} from '@xh/hoist/utils/react';
+import {sum} from 'lodash';
+import {useEffect, useRef, useState} from 'react';
 import {
     type BlueprintDesignModel,
     type BlueprintDocumentModel,
@@ -279,28 +281,105 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
     displayName: 'BlueprintInspectorBreadcrumb',
     model: false,
     render({impl}) {
-        const {breadcrumb: path} = impl;
+        const [width, setWidth] = useState(0),
+            ref = useOnResize(({width}) => setWidth(width)),
+            {breadcrumb: path, designModel} = impl,
+            {blueprint, registry} = designModel.blueprintModel,
+            specOf = (id: string) => registry.widgets[blueprint.elements[id]?.component],
+            last = path.length - 1;
         if (path.length < 2) return null;
-        return hbox({
-            className: `${CLS}__breadcrumb`,
-            children: path.map((id, idx) =>
-                createElement(
-                    Fragment,
-                    {key: id},
-                    idx ? span({className: `${CLS}__crumb-sep`, children: '›'}) : null,
-                    idx === path.length - 1
-                        ? span({className: `${CLS}__crumb ${CLS}__crumb--current`, children: id})
-                        : button({
-                              className: `${CLS}__crumb`,
-                              text: id,
-                              minimal: true,
-                              onClick: () => impl.designModel.select({kind: 'element', id})
-                          })
-                )
-            )
-        });
+        const {shown, hidden} = foldCrumbs(
+                path.map((id, idx) => crumbWidth(id, idx === last ? specOf(id)?.label : null)),
+                width - BREADCRUMB_PADDING
+            ),
+            select = (id: string) => designModel.select({kind: 'element', id}),
+            icon = (id: string) =>
+                partIcon('element', specOf(id), {className: `${CLS}__crumb-icon`}),
+            steps = shown.flatMap((idx, at) => {
+                const id = path[idx],
+                    step =
+                        idx === last
+                            ? span({
+                                  key: id,
+                                  className: `${CLS}__crumb ${CLS}__crumb--current`,
+                                  children: [
+                                      icon(id),
+                                      id,
+                                      specOf(id)
+                                          ? span({
+                                                className: `${CLS}__crumb-kind`,
+                                                children: specOf(id).label
+                                            })
+                                          : null
+                                  ]
+                              })
+                            : button({
+                                  key: id,
+                                  className: `${CLS}__crumb`,
+                                  icon: icon(id),
+                                  text: id,
+                                  minimal: true,
+                                  onClick: () => select(id)
+                              }),
+                    // The steps folded away sit between the first and the rest, in a menu.
+                    fold =
+                        at === 1 && hidden.length
+                            ? [
+                                  menuButton({
+                                      key: '_more',
+                                      className: `${CLS}__crumb ${CLS}__crumb--more`,
+                                      icon: Icon.ellipsisHorizontal(),
+                                      title: 'More of the path',
+                                      minimal: true,
+                                      menuItems: hidden.map(i => ({
+                                          text: path[i],
+                                          icon: icon(path[i]),
+                                          actionFn: () => select(path[i])
+                                      }))
+                                  }),
+                                  separator('_more-sep')
+                              ]
+                            : [];
+                return [...(at ? [separator(`${id}-sep`)] : []), ...fold, step];
+            });
+        return hbox({ref, className: `${CLS}__breadcrumb`, children: steps});
     }
 });
+
+const separator = (key: string) =>
+    span({key, className: `${CLS}__crumb-sep`, children: Icon.chevronRight()});
+
+/**
+ * Which steps of a path show, by index, with the widths given, in the width available: all of
+ * them if they fit or the width is unknown, else the first and last with as many before the last
+ * as fit, and a fold for the rest.
+ * @internal
+ */
+export function foldCrumbs(
+    widths: number[],
+    available: number
+): {shown: number[]; hidden: number[]} {
+    const all = widths.map((_, idx) => idx),
+        total = sum(widths) + (widths.length - 1) * CRUMB_SEP;
+    if (available <= 0 || widths.length < 3 || total <= available) return {shown: all, hidden: []};
+    const last = widths.length - 1,
+        shown = [0, last];
+    let used = widths[0] + widths[last] + 2 * CRUMB_SEP + CRUMB_MORE;
+    for (let idx = last - 1; idx > 0 && used + widths[idx] + CRUMB_SEP <= available; idx--) {
+        used += widths[idx] + CRUMB_SEP;
+        shown.splice(1, 0, idx);
+    }
+    return {shown, hidden: all.filter(it => !shown.includes(it))};
+}
+
+// A step's width, from its id in the mono face, its icon and padding, and any kind label.
+const crumbWidth = (id: string, kind: string) =>
+    CRUMB_CHROME + id.length * 7 + (kind ? 6 + kind.length * 6 : 0);
+
+const CRUMB_CHROME = 32,
+    CRUMB_SEP = 19,
+    CRUMB_MORE = 28,
+    BREADCRUMB_PADDING = 20;
 
 const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
     displayName: 'BlueprintInspectorHeader',
