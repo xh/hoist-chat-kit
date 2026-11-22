@@ -824,6 +824,21 @@ describe('layout and container widgets', () => {
             ).toBe(canvas.titles.tiles);
         });
 
+        it("names a cell titled by its id only once in design mode, leaving out the id's tag", () => {
+            const design = cells('design'),
+                {canvas} = design;
+            expect(canvas.headerItemsFor('tiles')).toHaveLength(1);
+            // A widget with no label falls back to the id, which the tag would repeat.
+            const spec = design.model.registry.widgets.tileFrame,
+                label = spec.label;
+            (spec as any).label = undefined;
+            onTestFinished(() => {
+                (spec as any).label = label;
+            });
+            expect(canvas.titles.tiles).toBe('tiles');
+            expect(canvas.headerItemsFor('tiles')).toEqual([]);
+        });
+
         it('shows the column grid and element ids in design mode only', () => {
             const run = cells('run');
             expect(
