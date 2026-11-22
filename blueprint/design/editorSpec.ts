@@ -27,6 +27,7 @@ export type EditorNode = EditorBase &
         | {kind: 'format'}
         | {kind: 'renderer'}
         | {kind: 'action'}
+        | {kind: 'icon'}
         | {kind: 'json'}
     );
 
@@ -74,6 +75,7 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
         ...(schema.default !== undefined ? {default: schema.default} : {}),
         schema
     };
+    if (schema['x-icon']) return {...base, kind: 'icon'};
     if (schema['x-variable']) return {...base, kind: 'variable'};
     if (schema['x-blueprint']) return {...base, kind: 'blueprint'};
     if (schema['x-preset']) return {...base, kind: 'preset'};

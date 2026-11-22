@@ -559,6 +559,18 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
     });
 
+    it('places a tab by its title and icon in one row, with an icon picker', () => {
+        const {design} = open();
+        design.select({kind: 'element', id: 'overview'});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            labels = [
+                ...container.querySelectorAll(
+                    '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__label'
+                )
+            ].map(it => it.textContent);
+        expect(labels).toEqual(['Title *', 'Icon']);
+    });
+
     it('draws a labelled editor per property', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

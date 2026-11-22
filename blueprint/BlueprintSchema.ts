@@ -25,6 +25,8 @@ export type BlueprintSchemaExtension = {
     'x-preset'?: boolean;
     'x-template'?: boolean | 'variables';
     'x-starter'?: false;
+    /** Names a Font Awesome icon, which design mode picks from a list of icons. */
+    'x-icon'?: boolean;
     /** The unit a number is in, such as `px`, which an editor shows beside it. */
     'x-unit'?: string;
 };

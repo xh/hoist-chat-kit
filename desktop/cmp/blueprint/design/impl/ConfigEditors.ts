@@ -135,7 +135,78 @@ const INLINE_KINDS = [
     'variable',
     'preset',
     'source',
-    'field'
+    'field',
+    'icon'
+];
+
+// Icons an icon picker offers, from those Hoist registers. Any other Font Awesome name can be typed.
+const ICON_NAMES = [
+    'analytics',
+    'inbox',
+    'bolt',
+    'book',
+    'bookmark',
+    'briefcase',
+    'building',
+    'bullseye-arrow',
+    'calculator',
+    'calendar-days',
+    'chart-area',
+    'chart-column',
+    'chart-line',
+    'chart-pie',
+    'chart-tree-map',
+    'check-circle',
+    'clock',
+    'cog',
+    'cube',
+    'database',
+    'dollar-sign',
+    'arrow-down-to-bracket',
+    'envelope',
+    'exclamation-triangle',
+    'external-link',
+    'eye',
+    'file-alt',
+    'file-excel',
+    'file-pdf',
+    'filter',
+    'flag',
+    'folder',
+    'gauge-high',
+    'globe',
+    'heart-rate',
+    'history',
+    'home',
+    'info-circle',
+    'industry-alt',
+    'link',
+    'list-tree',
+    'lock',
+    'magnifying-glass',
+    'newspaper',
+    'pen-to-square',
+    'print',
+    'rocket',
+    'rotate-right',
+    'server',
+    'shield-check',
+    'sigma',
+    'sitemap',
+    'sliders-h-square',
+    'sparkles',
+    'star',
+    'table',
+    'table-pivot',
+    'tag',
+    'thumbs-up',
+    'thumbtack',
+    'toolbox',
+    'trash-alt',
+    'university',
+    'user',
+    'users',
+    'wrench'
 ];
 
 function isMultiline(node: EditorNode): boolean {
@@ -201,6 +272,25 @@ function editorFor(
                 options: node.options as any[],
                 enableClear: !node.required,
                 placeholder: choicePlaceholder,
+                disabled,
+                width: '100%',
+                onCommit: v => commit(optional(v))
+            });
+        case 'icon':
+            return select({
+                value: value ?? null,
+                options: withCurrent(
+                    ICON_NAMES.map(it => ({value: it, label: it})),
+                    value
+                ),
+                enableClear: !node.required,
+                enableCreate: true,
+                placeholder: 'Pick an icon…',
+                optionRenderer: (opt: {value: string; label: string}) =>
+                    hbox({
+                        className: `${CLS}__icon-option`,
+                        children: [Icon.icon({faName: opt.value as any}), span(opt.label)]
+                    }),
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))

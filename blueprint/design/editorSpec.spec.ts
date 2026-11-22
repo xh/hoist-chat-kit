@@ -26,6 +26,12 @@ describe('toEditorSpec', () => {
         });
     });
 
+    it('picks an icon with an icon picker, for a panel and for a tab', () => {
+        expect(byKey(toEditorSpec(configOf('panel'))).icon.kind).toBe('icon');
+        const tabs = BUILT_IN_WIDGETS.find(it => it.name === 'tabContainer').children.schema;
+        expect(byKey(toEditorSpec(tabs)).icon.kind).toBe('icon');
+    });
+
     it('makes an editor per property, in schema order, with labels and required flags', () => {
         const nodes = toEditorSpec(configOf('chart'));
         expect(nodes.map(it => it.key).slice(0, 4)).toEqual(['source', 'title', 'type', 'xTitle']);

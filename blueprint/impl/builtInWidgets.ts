@@ -105,12 +105,20 @@ const DASH_CONTAINER_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+// A Font Awesome icon's name, which design mode picks from a list of icons.
+const ICON_PROP = {
+    type: 'string',
+    maxLength: 40,
+    description: 'A Font Awesome icon name.',
+    'x-icon': true
+} as const;
+
 const PANEL_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
         title: TITLE,
-        icon: {type: 'string', maxLength: 40, description: 'A Font Awesome icon name.'},
+        icon: ICON_PROP,
         style: {
             type: 'string',
             enum: ['plain', 'card'],
@@ -417,7 +425,7 @@ const CUBE_GRID_SCHEMA = {
                 required: ['label', 'action'],
                 properties: {
                     label: {type: 'string', maxLength: 40},
-                    icon: {type: 'string', maxLength: 40},
+                    icon: ICON_PROP,
                     action: ACTION_PROP
                 }
             },
@@ -995,10 +1003,7 @@ const BUTTON_GROUP_SCHEMA = {
                         // A new button refreshes, so its label says so.
                         examples: ['Refresh']
                     },
-                    icon: {
-                        type: 'string',
-                        maxLength: 40
-                    },
+                    icon: ICON_PROP,
                     action: ACTION_PROP
                 }
             }
@@ -1295,10 +1300,7 @@ const tabContainer: WidgetSpec = {
                     maxLength: 60,
                     'x-template': 'variables'
                 },
-                icon: {
-                    type: 'string',
-                    maxLength: 40
-                }
+                icon: ICON_PROP
             }
         }
     },
