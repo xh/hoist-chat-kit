@@ -4,6 +4,7 @@ import {wait} from '@xh/hoist/promise';
 import {last} from 'lodash';
 import type {ReactNode} from 'react';
 import {
+    type AddPlace,
     type BlueprintDesignModel,
     BlueprintWidgetModel,
     type BlueprintModel,
@@ -106,6 +107,10 @@ export class BlueprintViewModel extends HoistModel {
     readonly blueprintModel: BlueprintModel;
     /** How the host frames a panel in an answer. Null for a Hoist panel. */
     readonly framePanel: BlueprintPanelFrame;
+    /** The host's Add, for an empty container's button in design mode. */
+    readonly onAddWidget: (place: AddPlace) => void;
+    /** The host's Architect, for an empty dashboard's button in design mode. */
+    readonly onAskArchitect: () => void;
     /** The designer's selection and changes, for an element to show and take in design mode. */
     readonly designModel: BlueprintDesignModel;
     private readonly widgets = new Map<string, {component: string; model: BlueprintWidgetModel}>();
@@ -115,12 +120,19 @@ export class BlueprintViewModel extends HoistModel {
 
     constructor(
         blueprintModel: BlueprintModel,
-        opts: {framePanel?: BlueprintPanelFrame; designModel?: BlueprintDesignModel} = {}
+        opts: {
+            framePanel?: BlueprintPanelFrame;
+            designModel?: BlueprintDesignModel;
+            onAddWidget?: (place: AddPlace) => void;
+            onAskArchitect?: () => void;
+        } = {}
     ) {
         super();
         this.blueprintModel = blueprintModel;
         this.designModel = opts.designModel ?? null;
         this.framePanel = opts.framePanel ?? null;
+        this.onAddWidget = opts.onAddWidget ?? null;
+        this.onAskArchitect = opts.onAskArchitect ?? null;
         // Registered before the widgets are made, so that it runs ahead of their reactions and
         // destroys a widget whose element is gone before the widget reacts to it.
         this.addReaction({

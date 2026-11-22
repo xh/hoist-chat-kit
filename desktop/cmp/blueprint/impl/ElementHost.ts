@@ -1,8 +1,11 @@
 import classNames from 'classnames';
-import {div} from '@xh/hoist/cmp/layout';
+import {div, placeholder} from '@xh/hoist/cmp/layout';
+import {button} from '@xh/hoist/desktop/cmp/button';
+import {Icon} from '@xh/hoist/icon';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type React from 'react';
+import type {ReactNode} from 'react';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {selectionToolbar} from '../design/impl/SelectionToolbar';
 import {missingModules} from './highchartsModules';
@@ -64,6 +67,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             },
             children: [
                 content,
+                designEmpty(id, viewModel),
                 designModel.selectedElementId === id
                     ? selectionToolbar({key: 'selection-toolbar', designModel, id})
                     : null
@@ -86,6 +90,54 @@ export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
     return inBody?.dataset.blueprintElement ?? null;
 }
 
+function notePlaceholder(children: ReactNode) {
+    return placeholder({
+        className: 'xh-blueprint-view__notice',
+        ...({role: 'note'} as object),
+        children
+    });
+}
+
+// A container with no children in design mode, with a way to fill it. The root says so plainly.
+function designEmpty(id: string, viewModel: BlueprintViewModel) {
+    const {blueprintModel, designModel, onAddWidget, onAskArchitect} = viewModel,
+        el = blueprintModel.effective?.elements?.[id];
+    if (!blueprintModel.registry.widgets[el?.component]?.children || el.children?.length) {
+        return null;
+    }
+    const canEdit = blueprintModel.access === 'write',
+        isRoot = blueprintModel.blueprint?.root === id,
+        addWidget = () => {
+            designModel.select({kind: 'element', id});
+            onAddWidget?.({parent: id, slot: 'children'});
+        };
+    return placeholder({
+        key: 'design-empty',
+        className: 'xh-blueprint-view__design-empty',
+        children: [
+            isRoot ? div({key: 'text', children: 'This dashboard is empty.'}) : null,
+            canEdit
+                ? button({
+                      key: 'add',
+                      text: isRoot ? 'Add a widget' : `Add to ${id}`,
+                      icon: Icon.add(),
+                      minimal: true,
+                      onClick: addWidget
+                  })
+                : null,
+            canEdit && isRoot && onAskArchitect
+                ? button({
+                      key: 'architect',
+                      text: 'Ask the Architect',
+                      icon: Icon.sparkles(),
+                      minimal: true,
+                      onClick: () => onAskArchitect()
+                  })
+                : null
+        ]
+    });
+}
+
 function renderContent(id: string, viewModel: BlueprintViewModel) {
     const model = viewModel.getWidgetModel(id),
         component = viewModel.getComponent(id);
@@ -101,8 +153,19 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
                 : spec?.value && !model.valueVariable
                   ? `This ${spec.label} sets no variable yet. Pick one under Sets in the inspector.`
                   : (model.source?.joinWait ?? model.source?.selectionWait ?? null);
-    if (notice) {
-        return div({className: 'xh-blueprint-view__notice', role: 'note', children: notice});
+    if (notice) return notePlaceholder(notice);
+    const {source} = model;
+    if (source?.lastError && !source.isLoading) {
+        return notePlaceholder([
+            `Could not load ${source.name}.`,
+            button({
+                key: 'retry',
+                text: 'Retry',
+                icon: Icon.refresh(),
+                minimal: true,
+                onClick: () => source.reloadAsync().catchDefault()
+            })
+        ]);
     }
     if (!component) {
         return div({

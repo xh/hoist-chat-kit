@@ -91,6 +91,20 @@
   }
 }
 
+// Over an empty container in design mode. Only its buttons take the pointer, so a canvas under it
+// still takes a drop.
+.xh-blueprint-view__design-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  gap: var(--xh-spacing);
+  pointer-events: none;
+
+  .xh-button {
+    pointer-events: auto;
+  }
+}
+
 // Inside the selected element's top edge, as a cell clips what lies outside it.
 .xh-blueprint-selection-toolbar {
   position: absolute;

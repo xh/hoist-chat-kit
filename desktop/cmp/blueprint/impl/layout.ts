@@ -5,12 +5,16 @@ import type {BlueprintWidgetModel, ChildRef} from '../../../../blueprint';
 /** The gap between a canvas's cells, and around them, in pixels. */
 export const CANVAS_GAP = 8;
 
-/** The container's `emptyText` while it has no children, or null. */
+/**
+ * The container's `emptyText` while it has no children, or null. Design mode shows its own empty
+ * state in place of it.
+ */
 export function emptyContent(
     model: BlueprintWidgetModel,
     children: ChildRef[] = model.children
 ): ReactNode {
     const text = model.resolvedConfig.emptyText;
+    if (model.blueprintModel.mode === 'design') return null;
     return !children.length && text ? placeholder(String(text)) : null;
 }
 

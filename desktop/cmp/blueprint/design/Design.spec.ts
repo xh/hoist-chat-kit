@@ -266,4 +266,57 @@ describe('design mode selection', () => {
         key(input, 'Escape');
         expect(design.selectedElementId).toBe('sectorChart');
     });
+
+    it("shows an empty dashboard in design mode, with the host's Add and Architect", async () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    root: 'canvas',
+                    elements: {canvas: {component: 'dashCanvas', children: []}}
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            onAddWidget = vi.fn(),
+            onAskArchitect = vi.fn();
+        onTestFinished(() => {
+            design.destroy();
+            model.destroy();
+        });
+        const {getByText} = render(
+            blueprintView({model, designModel: design, onAddWidget, onAskArchitect}) as ReactElement
+        );
+        expect(getByText('This dashboard is empty.')).toBeTruthy();
+        fireEvent.click(getByText('Add a widget'));
+        expect(design.selectedElementId).toBe('canvas');
+        expect(onAddWidget).toHaveBeenCalledWith({parent: 'canvas', slot: 'children'});
+        fireEvent.click(getByText('Ask the Architect'));
+        expect(onAskArchitect).toHaveBeenCalled();
+    });
+
+    it('shows a source that failed to load in its widget, with Retry', async () => {
+        let fail = true;
+        const provider = new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+            load = provider.loadAsync.bind(provider);
+        // Loads, rather than subscribes, so a load can fail.
+        Object.assign(provider, {subscribe: undefined});
+        provider.loadAsync = req => (fail ? Promise.reject(new Error('Server down')) : load(req));
+        const model = new BlueprintModel({
+            blueprint: loadBlueprint('p1-one-grid.json'),
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: provider,
+            mode: 'run'
+        });
+        onTestFinished(() => model.destroy());
+        const {findByText, queryByText} = render(blueprintView({model}) as ReactElement);
+        const retry = await findByText('Retry');
+        expect(await findByText(/Could not load/)).toBeTruthy();
+        fail = false;
+        fireEvent.click(retry);
+        await vi.waitFor(() => expect(queryByText('Retry')).toBeNull());
+    });
 });

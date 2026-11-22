@@ -1,6 +1,6 @@
 import {hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
-import {type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
+import {type AddPlace, type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
 import {designHotkeys} from './design/impl/designHotkeys';
 import {blueprintToolbar} from './impl/BlueprintToolbar';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
@@ -13,6 +13,15 @@ export interface BlueprintViewProps extends HoistProps<BlueprintModel> {
      * selected element shows an outline and a toolbar, and the design keys act on it.
      */
     designModel?: BlueprintDesignModel;
+
+    /**
+     * Open the host's Add for a place, from an empty container's button in design mode. The
+     * container is selected first, so Add targets it.
+     */
+    onAddWidget?: (place: AddPlace) => void;
+
+    /** Open the host's Architect, from an empty dashboard's button in design mode. */
+    onAskArchitect?: () => void;
 }
 
 /**
@@ -24,8 +33,10 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
     displayName: 'BlueprintView',
     className: 'xh-blueprint-view',
     model: uses(BlueprintModel),
-    render({model, className, designModel}) {
-        const impl = useLocalModel(() => new BlueprintViewModel(model, {designModel})),
+    render({model, className, designModel, onAddWidget, onAskArchitect}) {
+        const impl = useLocalModel(
+                () => new BlueprintViewModel(model, {designModel, onAddWidget, onAskArchitect})
+            ),
             {drillIn} = model,
             isDesign = !!designModel && model.mode === 'design';
         return panel({
