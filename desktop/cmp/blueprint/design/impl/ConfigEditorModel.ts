@@ -125,6 +125,15 @@ export abstract class ConfigEditorModel extends HoistModel {
         this.onShowPresetGroup(group);
     }
 
+    /** The preset group that controls a property, with the label of its active preset, or null. */
+    presetFor(key: string): {group: string; itemLabel: string} {
+        const {blueprintModel} = this.designModel,
+            control = blueprintModel.getPresetControl(this.pathOf(key));
+        if (!control) return null;
+        const item = blueprintModel.blueprint.presets[control.group]?.items?.[control.item];
+        return {group: control.group, itemLabel: item?.label ?? control.item};
+    }
+
     badgeFor(key: string): string {
         const {blueprintModel} = this.designModel,
             control = blueprintModel.getPresetControl(this.pathOf(key));

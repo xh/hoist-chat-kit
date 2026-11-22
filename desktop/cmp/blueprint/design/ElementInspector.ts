@@ -6,6 +6,7 @@ import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
 import classNames from 'classnames';
 import {isEqual} from 'lodash';
+import type React from 'react';
 import type {ReactNode} from 'react';
 import {type BlueprintDesignModel, type EditorNode, toEditorSpec} from '../../../../blueprint';
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
@@ -314,15 +315,28 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ),
                 ...impl.sections
                     .filter(it => it.label)
-                    .map(section =>
-                        sectionCard({
+                    .map(section => {
+                        const preset = section.nodes
+                            .map(it => impl.presetFor(it.key))
+                            .find(Boolean);
+                        return sectionCard({
                             key: `section:${section.label}`,
                             title: `${section.label} (${section.nodes.length})`,
+                            badge: preset
+                                ? {
+                                      text: `Preset · ${preset.itemLabel}`,
+                                      onClick: () =>
+                                          impl.designModel.select({
+                                              kind: 'preset',
+                                              id: preset.group
+                                          })
+                                  }
+                                : null,
                             collapsed: section.collapsed,
                             onToggle: () => impl.toggleSection(section.label),
                             children: section.nodes.map(node => configRow(impl, node))
-                        })
-                    ),
+                        });
+                    }),
                 impl.placementNodes.length || impl.slotOptions.length > 1
                     ? sectionCard({
                           key: 'placement',
@@ -367,12 +381,15 @@ function configRow(impl: ElementInspectorModel, node: EditorNode) {
 function sectionCard({
     key,
     title,
+    badge,
     collapsed = false,
     onToggle,
     children
 }: {
     key: string;
     title: string;
+    /** A link beside the title, such as to the preset group a path in the card belongs to. */
+    badge?: {text: string; onClick: () => void};
     collapsed?: boolean;
     onToggle?: () => void;
     children: ReactNode[];
@@ -389,7 +406,19 @@ function sectionCard({
                 onClick: onToggle,
                 children: [
                     onToggle ? (collapsed ? Icon.chevronRight() : Icon.chevronDown()) : null,
-                    title
+                    title,
+                    badge
+                        ? button({
+                              className: `${CLS}__card-badge`,
+                              text: badge.text,
+                              minimal: true,
+                              title: 'Show the preset group',
+                              onClick: (e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  badge.onClick();
+                              }
+                          })
+                        : null
                 ]
             }),
             collapsed ? null : div({className: `${CLS}__card-body`, children})

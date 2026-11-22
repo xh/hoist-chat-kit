@@ -512,7 +512,7 @@ describe('ElementInspector', () => {
         ).toEqual([
             'Data (7)',
             'Display (1)',
-            'Columns (2)',
+            'Columns (2)Preset · P&L view',
             'Interaction (1)',
             'Style (10)',
             'Placement in positions'
@@ -545,6 +545,18 @@ describe('ElementInspector', () => {
         ).toEqual(['Title']);
         fireEvent.click(row('Group by').querySelector('button[aria-label="Unbind grouping"]'));
         expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
+    });
+
+    it('badges a section that holds a preset path, and selects its group from the badge', () => {
+        const {design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            badge = container.querySelector('.xh-blueprint-element-inspector__card-badge');
+        expect(badge.closest('.xh-blueprint-element-inspector__card-header').textContent).toContain(
+            'Columns'
+        );
+        expect(badge.textContent).toBe('Preset · P&L view');
+        fireEvent.click(badge);
+        expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
     });
 
     it('draws a labelled editor per property', () => {
