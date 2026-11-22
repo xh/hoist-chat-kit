@@ -131,6 +131,23 @@ describe('undo and redo', () => {
         expect(model.history.map(it => it.author)).toEqual(['architect', 'user']);
     });
 
+    it('folds an edit into the one before as one entry and one undo, but never a rename', () => {
+        const model = open('p3-morning-report.json'),
+            original = model.blueprint;
+        titled(model, 'A');
+        model.foldEdit({
+            description: 'Title B',
+            ops: [{op: 'set', path: '/elements/posGrid/config/title', value: 'B'}]
+        });
+        expect(model.history).toHaveLength(1);
+        model.undo();
+        expect(model.blueprint).toEqual(original);
+
+        titled(model, 'C');
+        model.foldEdit({ops: [{op: 'renameId', kind: 'element', from: 'posGrid', to: 'grid'}]});
+        expect(model.history).toHaveLength(4);
+    });
+
     it('starts over when another blueprint opens, or the model clears', () => {
         const model = open('p2-linked-dashboard.json');
         titled(model, 'A');

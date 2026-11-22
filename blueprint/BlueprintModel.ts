@@ -354,9 +354,9 @@ export class BlueprintModel extends HoistModel {
     }
 
     /**
-     * Apply an edit that continues the latest one, such as another nudge of the same cell: the two
-     * become one history entry and one undo step. With any change since the latest edit, such as
-     * an undo, it applies as an edit of its own.
+     * Apply an edit that continues the latest one, in a continuous gesture such as nudging a cell:
+     * the two become one history entry and one undo step. With any change since the latest edit,
+     * such as an undo, it applies as an edit of its own, as it does when either edit renames an id.
      */
     @action
     foldEdit(edit: BlueprintEdit): BlueprintEditResult {
@@ -364,6 +364,7 @@ export class BlueprintModel extends HoistModel {
         if (
             !prev ||
             prev.version !== this.version ||
+            [...edit.ops, ...prev.ops].some(it => it.op === 'renameId') ||
             last(this.history)?.version !== this.version
         ) {
             return this.applyEdit(edit);

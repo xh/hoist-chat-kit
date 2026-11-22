@@ -56,6 +56,50 @@ describe('BlueprintDesignModel', () => {
                 .flatMap(it => it.children ?? [])
                 .find(it => it.id === id) as any;
 
+        it('names the elements that read a selected source, variable or preset group', () => {
+            const {design} = p3();
+            expect(design.readerIds).toEqual([]);
+            design.select({kind: 'source', id: 'positions'});
+            expect(design.readerIds.sort()).toEqual(
+                [
+                    'headlineMktVal',
+                    'headlinePnlDay',
+                    'headlinePnlMtd',
+                    'headlinePnlYtd',
+                    'posGrid',
+                    'regionChart',
+                    'sectorChart'
+                ].sort()
+            );
+            design.select({kind: 'variable', id: 'grouping'});
+            expect(design.readerIds).toContain('posGrid');
+            expect(design.readerIds).not.toContain('groupChooser');
+            design.select({kind: 'preset', id: 'posViews'});
+            expect(design.readerIds).toEqual(
+                expect.arrayContaining(['posGrid', 'posViewsSelector'])
+            );
+        });
+
+        it('names an app widget by the last part of its dotted name, adding or duplicating it', () => {
+            const {design} = p3(),
+                added = design.addWidget('toolbox.portfolioBuilder', 'overview');
+            expect(added.issues.filter(it => it.severity === 'error')).toEqual([]);
+            expect(added.id).toBe('portfolioBuilder1');
+            const copy = design.duplicateElement('portfolioBuilder1');
+            expect(copy.issues.filter(it => it.severity === 'error')).toEqual([]);
+            expect(copy.id).toBe('portfolioBuilder2');
+        });
+
+        it('copies the active preset values of what it duplicates as plain config', () => {
+            const {model, design} = p3(),
+                columnState = model.effective.elements.posGrid.config.columnState,
+                {id, issues} = design.duplicateElement('posGrid');
+            expect(issues.filter(it => it.severity === 'error')).toEqual([]);
+            expect(columnState).toBeTruthy();
+            expect(model.blueprint.elements[id].config.columnState).toEqual(columnState);
+            expect(model.blueprint.presets.posViews.controls).toHaveLength(1);
+        });
+
         it('tracks the hovered element as view state, never an edit', () => {
             const {model, design} = p3();
             design.setHovered('posGrid');

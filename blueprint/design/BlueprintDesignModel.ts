@@ -8,6 +8,7 @@ import {
     isEqual,
     isPlainObject,
     mapValues,
+    omit,
     pickBy,
     startCase,
     uniq
@@ -93,6 +94,31 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     setHovered(id: string) {
         this.hoveredId = id;
+    }
+
+    /** The elements that read the source, variable or preset group selected, such as for a wash. */
+    get readerIds(): string[] {
+        const {kind, id} = this.selection ?? {},
+            bp = this.blueprintModel.blueprint ?? {},
+            elements = Object.entries(bp.elements ?? {});
+        switch (kind) {
+            case 'source':
+                return elements
+                    .filter(
+                        ([, el]) =>
+                            el.config?.source === id || readsInTemplates(el.config, 'source', id)
+                    )
+                    .map(([it]) => it);
+            case 'variable':
+                return this.readersOf(id).filter(it => getOwn(bp.elements, it));
+            case 'preset':
+                return uniq([
+                    ...(getOwn(bp.presets, id)?.controls ?? []).map(it => elementOfPath(it.path)),
+                    ...this.selectorsOf([id])
+                ]).filter(it => it && getOwn(bp.elements, it));
+            default:
+                return [];
+        }
     }
 
     /** An element's ancestors, root first. */
@@ -406,22 +432,39 @@ export class BlueprintDesignModel extends HoistModel {
         const ids: Record<string, string> = {},
             taken = new Set(Object.keys(elements));
         this.subtree(id).forEach(it => {
-            const component = elements[it].component;
-            let n = 1;
-            while (taken.has(`${component}${n}`)) n++;
-            ids[it] = `${component}${n}`;
+            ids[it] = this.newId(elements[it].component, taken);
             taken.add(ids[it]);
         });
-        const copyOf = (el: BlueprintElement): BlueprintElement => {
-                const ret = cloneDeep(el);
+        // A copy takes the values presets give the original as its own, and joins no group.
+        const controlled = Object.values(this.blueprintModel.blueprint.presets ?? {}).flatMap(
+                it => it.controls ?? []
+            ),
+            effective = this.blueprintModel.effective,
+            copyOf = (from: string): BlueprintElement => {
+                const ret = cloneDeep(elements[from]);
                 slotLists(ret).forEach(({refs}) => refs.forEach(ref => (ref.id = ids[ref.id])));
+                controlled
+                    .filter(it => elementOfPath(it.path) === from)
+                    .forEach(({path}) => {
+                        const value = getAt(effective, path);
+                        if (value !== undefined) {
+                            setAt(ret, path.replace(`/elements/${from}`, ''), cloneDeep(value));
+                        }
+                    });
                 return ret;
             },
             parent = elements[at.parent],
             ref = slotLists(parent)
                 .find(it => it.slot === at.slot && it.of === at.of)
                 ?.refs.find(it => it.id === id),
-            {id: _id, ...placement} = (ref ?? {id}) as PlainObject,
+            // The cell's own slots, such as its header items, stay with the original.
+            placement: PlainObject = omit(
+                (ref ?? {id}) as PlainObject,
+                'id',
+                ...slotLists(parent)
+                    .filter(it => it.of === id)
+                    .map(it => it.slot)
+            ),
             onCanvas = at.slot === 'children' && Number.isInteger(placement.x),
             child = onCanvas
                 ? {
@@ -441,7 +484,7 @@ export class BlueprintDesignModel extends HoistModel {
                 {
                     op: 'addElement',
                     id: copyId,
-                    element: copyOf(elements[id]),
+                    element: copyOf(id),
                     parent: at.parent,
                     ...(child ? {child} : {}),
                     ...(onCanvas ? {} : {index: at.index + 1}),
@@ -453,7 +496,7 @@ export class BlueprintDesignModel extends HoistModel {
                     .map((it): BlueprintOp => ({
                         op: 'set',
                         path: `/elements/${ids[it]}`,
-                        value: copyOf(elements[it])
+                        value: copyOf(it)
                     }))
             ],
             ret = this.edit(`Duplicate ${this.elementSpec(id).label}`, ops);
@@ -1159,11 +1202,15 @@ export class BlueprintDesignModel extends HoistModel {
         return {...firstFreePlace(parent.children ?? [], columns, width, h), w: width, h};
     }
 
-    private newId(component: string): string {
-        const elements = this.blueprintModel.blueprint?.elements ?? {};
+    // A free id for a new element of a widget, named for the last part of an app widget's name.
+    private newId(
+        component: string,
+        taken = new Set(Object.keys(this.blueprintModel.blueprint?.elements ?? {}))
+    ): string {
+        const prefix = component.split('.').at(-1);
         let n = 1;
-        while (Object.hasOwn(elements, `${component}${n}`)) n++;
-        return `${component}${n}`;
+        while (taken.has(`${prefix}${n}`)) n++;
+        return `${prefix}${n}`;
     }
 
     // An element and every element inside it, depth first.
