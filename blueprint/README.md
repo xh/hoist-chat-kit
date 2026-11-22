@@ -315,6 +315,7 @@ hframe(
 | `variablesEditor` | Add, rename and remove variables, and set each one's type, writers, default and options |
 | `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
 | `presetsEditor` | Make groups of presets over widgets' preset paths and variables' defaults, and edit their presets |
+| `blueprintStructure` | See the elements as a tree with their slots, and the sources, variables and preset groups, each counted. Filter by id, select a slot as the place to add, and rename, duplicate, move, add into or delete from a row's menu. Give it an `onAdd(section)` for each section's "+" |
 | `blueprintMap` | See every variable, source, preset group and element in lanes, with the wires between them, and trace what feeds the selection and what it feeds |
 
 Each change is one edit by the user, with a description, so undo, redo and history apply. Text

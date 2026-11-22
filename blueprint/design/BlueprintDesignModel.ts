@@ -23,7 +23,7 @@ import type {
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
-import {childIds, locate, parentOf, slotLists} from '../impl/elements';
+import {childIds, locate, parentOf, slotLabel, slotLists} from '../impl/elements';
 import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
@@ -98,7 +98,21 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     select(selection: BlueprintSelection) {
         this.selection = selection;
+        this.slotTarget = null;
     }
+
+    /**
+     * Select a slot as the place to add, such as a canvas cell's header: the element that holds
+     * it is selected, and {@link addTarget} is the slot until the selection changes.
+     */
+    @action
+    selectSlot(place: AddPlace) {
+        this.selection = {kind: 'element', id: place.of ?? place.parent};
+        this.slotTarget = place;
+    }
+
+    /** The slot selected with {@link selectSlot}, or null. */
+    @observableRef accessor slotTarget: AddPlace = null;
 
     @action
     setHovered(id: string) {
@@ -303,7 +317,9 @@ export class BlueprintDesignModel extends HoistModel {
     get addTarget(): AddPlace {
         const {blueprint} = this.blueprintModel,
             selected = this.selectedElementId,
-            isContainer = (id: string) => !!this.elementSpec(id)?.children;
+            isContainer = (id: string) => !!this.elementSpec(id)?.children,
+            {slotTarget} = this;
+        if (slotTarget && selected === (slotTarget.of ?? slotTarget.parent)) return slotTarget;
         if (selected && isContainer(selected)) return {parent: selected, after: null};
         if (selected && locate(blueprint?.elements, selected)) return this.placeAfter(selected);
         return blueprint?.root && isContainer(blueprint.root)
@@ -699,17 +715,19 @@ export class BlueprintDesignModel extends HoistModel {
         if (!spec) return [];
         return [
             ...(spec.children
-                ? [placeOf({parent: id, slot: 'children'}, 'Content', spec.children.accepts)]
+                ? [
+                      placeOf(
+                          {parent: id, slot: 'children'},
+                          slotLabel('children'),
+                          spec.children.accepts
+                      )
+                  ]
                 : []),
             ...Object.entries(spec.slots ?? {}).map(([slot, it]) =>
-                placeOf({parent: id, slot}, SLOT_LABELS[slot] ?? startCase(slot), it.accepts)
+                placeOf({parent: id, slot}, slotLabel(slot), it.accepts)
             ),
             ...Object.entries(parentSpec?.children?.slots ?? {}).map(([slot, it]) =>
-                placeOf(
-                    {parent, slot, of: id},
-                    `Cell ${(SLOT_LABELS[slot] ?? startCase(slot)).toLowerCase()}`,
-                    it.accepts
-                )
+                placeOf({parent, slot, of: id}, slotLabel(slot, true), it.accepts)
             )
         ].filter(it => it.widgets.length);
     }
@@ -1346,13 +1364,6 @@ export class BlueprintDesignModel extends HoistModel {
 }
 
 const isError = (it: {severity: string}) => it.severity === 'error';
-
-// Slots as a designer reads them.
-const SLOT_LABELS: Record<string, string> = {
-    headerItems: 'Header',
-    tbar: 'Top toolbar',
-    bbar: 'Bottom toolbar'
-};
 
 // True if a slot's rule takes a widget. No rule takes every widget.
 function accepts(rule: SlotAccepts, spec: WidgetSpec): boolean {

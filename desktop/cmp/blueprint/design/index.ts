@@ -5,3 +5,4 @@ export * from './VariablesEditor';
 export * from './SourcesEditor';
 export * from './PresetsEditor';
 export * from './BlueprintMap';
+export * from './BlueprintStructure';

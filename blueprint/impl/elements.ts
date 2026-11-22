@@ -37,6 +37,20 @@ export function slotLists(el: BlueprintElement): SlotList[] {
     return [...own, ...nested];
 }
 
+/** A slot as a designer reads it, such as `Top toolbar`, or `Cell header` for a cell's slot. */
+export function slotLabel(slot: string, cell = false): string {
+    const label =
+        SLOT_LABELS[slot] ?? slot.replace(/([A-Z])/g, ' $1').replace(/^./, it => it.toUpperCase());
+    return cell ? `Cell ${label.toLowerCase()}` : label;
+}
+
+const SLOT_LABELS: Record<string, string> = {
+    children: 'Content',
+    headerItems: 'Header',
+    tbar: 'Top toolbar',
+    bbar: 'Bottom toolbar'
+};
+
 /** The IDs of every child of an element, across its slot lists. */
 export function childIds(el: BlueprintElement): string[] {
     return slotLists(el).flatMap(it => it.refs.map(ref => ref.id));

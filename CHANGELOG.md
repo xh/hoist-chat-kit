@@ -93,6 +93,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added canvas editing in design mode: a hovered element's outline and name, a toolbar on the
   selected one, delete with an Undo toast, keyboard shortcuts, and empty states that call the
   host's `onAddWidget` and `onAskArchitect` props of `blueprintView`.
+* Added `blueprintStructure`, a tree of a blueprint's elements with their slots, sources,
+  variables and preset groups, with a filter and a menu on each row.
 * Added `blueprintMap`, a read-only map of a blueprint's wiring that traces what feeds the
   selection and what it feeds, and `wiringFor()`, `wiringGraph()` and `traceWiring()` beneath it.
 

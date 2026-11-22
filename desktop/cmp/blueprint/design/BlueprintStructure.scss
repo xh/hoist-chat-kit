@@ -1,0 +1,60 @@
+.xh-blueprint-structure {
+  &__section {
+    width: 100%;
+    align-items: center;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__section-name {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__count {
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__slot {
+    font-style: italic;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__row {
+    position: relative;
+    width: 100%;
+    align-items: center;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__icon {
+    color: var(--xh-text-color-muted);
+  }
+
+  &__name {
+    font-family: var(--xh-font-family-mono);
+  }
+
+  &__label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__issue {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    margin-left: auto;
+    border-radius: 50%;
+    background-color: var(--xh-intent-warning);
+
+    &--error {
+      background-color: var(--xh-intent-danger);
+    }
+  }
+}
