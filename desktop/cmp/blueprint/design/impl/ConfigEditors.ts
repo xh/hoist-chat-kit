@@ -2,6 +2,7 @@ import {div, hbox, span} from '@xh/hoist/cmp/layout';
 import type {PlainObject} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
+import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {
     buttonGroupInput,
     dateInput,
@@ -619,6 +620,7 @@ function fieldListEditor(
     ctx: EditorContext
 ) {
     const {impl} = ctx,
+        {settingsIn} = node,
         disabled = impl.readOnly,
         entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
         fieldsOf = entries.map(it => it.field),
@@ -627,154 +629,109 @@ function fieldListEditor(
             const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
             commit(isEmpty(ret) && !node.required ? undefined : ret);
         },
-        moved = (from: number, to: number) => {
-            const ret = [...entries];
-            ret.splice(to, 0, ...ret.splice(from, 1));
-            return ret;
+        indexOf = (entry: PlainObject) => entries.indexOf(entry),
+        mappedOf = (entry: PlainObject): PlainObject =>
+            settingsIn ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {}) : {},
+        header = (entry: PlainObject) => {
+            const i = indexOf(entry),
+                open = impl.isItemOpen(ctx.key, i),
+                mapped = mappedOf(entry);
+            return hbox({
+                className: classNames(`${CLS}__item-header`, open && `${CLS}__column--open`),
+                ...({'data-field': entry.field} as object),
+                children: [
+                    span({
+                        className: `${CLS}__column-label`,
+                        children: impl.fieldLabel(entry.field)
+                    }),
+                    span({
+                        className: `${CLS}__column-meta`,
+                        children: columnMeta(mapped, impl.inheritedDisplay(entry.field))
+                    }),
+                    button({
+                        icon: open ? Icon.chevronUp() : Icon.chevronDown(),
+                        text: settingsCount(entry, mapped) || null,
+                        title: 'Settings',
+                        minimal: true,
+                        intent: open ? 'primary' : null,
+                        onClick: () => impl.toggleItem(ctx.key, i)
+                    }),
+                    button({
+                        icon: Icon.delete(),
+                        title: 'Remove',
+                        intent: 'danger',
+                        minimal: true,
+                        disabled,
+                        onClick: () => commitList(entries.filter((_, j) => j !== i))
+                    })
+                ]
+            });
+        },
+        drawer = (entry: PlainObject) => {
+            const i = indexOf(entry);
+            if (!impl.isItemOpen(ctx.key, i)) return null;
+            const more = impl.isItemOpen(`${ctx.key}/more`, i),
+                mapped = mappedOf(entry),
+                inherited = impl.inheritedDisplay(entry.field),
+                mappedRow = (setting: EditorNode) =>
+                    propertyRow({
+                        key: `${settingsIn.key}:${setting.key}`,
+                        node: setting,
+                        value: mapped[setting.key],
+                        commit: v =>
+                            impl.commitItemSetting(settingsIn.key, entry.field, setting.key, v),
+                        ctx: {...ctx, key: settingsIn.key, inherited}
+                    });
+            return div({
+                className: `${CLS}__settings`,
+                children: [
+                    ...(settingsIn?.settings.slice(0, settingsIn.shown) ?? []).map(mappedRow),
+                    ...node.settings.map(setting =>
+                        propertyRow({
+                            key: setting.key,
+                            node: setting,
+                            value: entry[setting.key],
+                            commit: v =>
+                                commitList(
+                                    entries.map((it, j) =>
+                                        j !== i
+                                            ? it
+                                            : v === undefined
+                                              ? omit(it, setting.key)
+                                              : {...it, [setting.key]: v}
+                                    )
+                                ),
+                            ctx
+                        })
+                    ),
+                    settingsIn?.settings.length > settingsIn?.shown
+                        ? button({
+                              key: '_more',
+                              className: `${CLS}__more`,
+                              text: more ? 'Fewer settings' : 'More settings',
+                              icon: more ? Icon.chevronUp() : Icon.chevronDown(),
+                              minimal: true,
+                              onClick: () => impl.toggleItem(`${ctx.key}/more`, i)
+                          })
+                        : null,
+                    ...(more ? settingsIn.settings.slice(settingsIn.shown).map(mappedRow) : [])
+                ]
+            });
         };
     return div({
         className: `${CLS}__field-list`,
         children: [
             entries.length
-                ? div({
+                ? sortableList({
                       className: `${CLS}__columns`,
-                      children: entries.map((entry, i) => {
-                          const open = impl.isItemOpen(ctx.key, i),
-                              more = impl.isItemOpen(`${ctx.key}/more`, i),
-                              {settingsIn} = node,
-                              mapped: PlainObject = settingsIn
-                                  ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {})
-                                  : {},
-                              inherited = impl.inheritedDisplay(entry.field),
-                              mappedRow = (setting: EditorNode) =>
-                                  propertyRow({
-                                      key: `${settingsIn.key}:${setting.key}`,
-                                      node: setting,
-                                      value: mapped[setting.key],
-                                      commit: v =>
-                                          impl.commitItemSetting(
-                                              settingsIn.key,
-                                              entry.field,
-                                              setting.key,
-                                              v
-                                          ),
-                                      ctx: {...ctx, key: settingsIn.key, inherited}
-                                  });
-                          return div({
-                              key: `${i}:${entry.field}`,
-                              className: classNames(
-                                  `${CLS}__column`,
-                                  open && `${CLS}__column--open`
-                              ),
-                              ...({'data-field': entry.field} as object),
-                              children: [
-                                  hbox({
-                                      className: `${CLS}__item-header`,
-                                      children: [
-                                          span({
-                                              className: `${CLS}__column-label`,
-                                              children: impl.fieldLabel(entry.field)
-                                          }),
-                                          span({
-                                              className: `${CLS}__column-meta`,
-                                              children: columnMeta(mapped, inherited)
-                                          }),
-                                          buttonGroup({
-                                              children: [
-                                                  button({
-                                                      icon: open
-                                                          ? Icon.chevronUp()
-                                                          : Icon.chevronDown(),
-                                                      text: settingsCount(entry, mapped) || null,
-                                                      title: 'Settings',
-                                                      minimal: true,
-                                                      intent: open ? 'primary' : null,
-                                                      onClick: () => impl.toggleItem(ctx.key, i)
-                                                  }),
-                                                  button({
-                                                      icon: Icon.arrowUp(),
-                                                      title: 'Move up',
-                                                      disabled: disabled || i === 0,
-                                                      onClick: () => commitList(moved(i, i - 1))
-                                                  }),
-                                                  button({
-                                                      icon: Icon.arrowDown(),
-                                                      title: 'Move down',
-                                                      disabled:
-                                                          disabled || i === entries.length - 1,
-                                                      onClick: () => commitList(moved(i, i + 1))
-                                                  }),
-                                                  button({
-                                                      icon: Icon.delete(),
-                                                      title: 'Remove',
-                                                      intent: 'danger',
-                                                      disabled,
-                                                      onClick: () =>
-                                                          commitList(
-                                                              entries.filter((_, j) => j !== i)
-                                                          )
-                                                  })
-                                              ]
-                                          })
-                                      ]
-                                  }),
-                                  open
-                                      ? div({
-                                            className: `${CLS}__settings`,
-                                            children: [
-                                                ...(
-                                                    settingsIn?.settings.slice(
-                                                        0,
-                                                        settingsIn.shown
-                                                    ) ?? []
-                                                ).map(mappedRow),
-                                                ...node.settings.map(setting =>
-                                                    propertyRow({
-                                                        key: setting.key,
-                                                        node: setting,
-                                                        value: entry[setting.key],
-                                                        commit: v =>
-                                                            commitList(
-                                                                entries.map((it, j) =>
-                                                                    j !== i
-                                                                        ? it
-                                                                        : v === undefined
-                                                                          ? omit(it, setting.key)
-                                                                          : {
-                                                                                ...it,
-                                                                                [setting.key]: v
-                                                                            }
-                                                                )
-                                                            ),
-                                                        ctx
-                                                    })
-                                                ),
-                                                settingsIn?.settings.length > settingsIn?.shown
-                                                    ? button({
-                                                          key: '_more',
-                                                          className: `${CLS}__more`,
-                                                          text: more
-                                                              ? 'Fewer settings'
-                                                              : 'More settings',
-                                                          icon: more
-                                                              ? Icon.chevronUp()
-                                                              : Icon.chevronDown(),
-                                                          minimal: true,
-                                                          onClick: () =>
-                                                              impl.toggleItem(`${ctx.key}/more`, i)
-                                                      })
-                                                    : null,
-                                                ...(more
-                                                    ? settingsIn.settings
-                                                          .slice(settingsIn.shown)
-                                                          .map(mappedRow)
-                                                    : [])
-                                            ]
-                                        })
-                                      : null
-                              ]
-                          });
-                      })
+                      value: entries,
+                      itemKey: (it: PlainObject) => it.field,
+                      getItemLabel: (it: PlainObject) => impl.fieldLabel(it.field),
+                      disabled,
+                      compact: true,
+                      onReorder: e => commitList(e.items),
+                      renderItem: (entry: PlainObject) => header(entry),
+                      renderDetail: (entry: PlainObject) => drawer(entry)
                   })
                 : null,
             select({

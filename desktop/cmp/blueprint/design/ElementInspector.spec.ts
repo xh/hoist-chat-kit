@@ -326,7 +326,8 @@ describe('ElementInspector', () => {
             expect(container.querySelector('.xh-filter-chooser')).not.toBeNull();
             expect([...chips].map(it => it.textContent)).toEqual(['Fund = fund']);
             expect(
-                container.querySelectorAll('.xh-blueprint-element-inspector__column').length
+                container.querySelectorAll('.xh-blueprint-element-inspector__columns [data-field]')
+                    .length
             ).toBe(4);
         });
     });
@@ -506,13 +507,34 @@ describe('ElementInspector', () => {
         expect(model.blueprint).toBe(before);
     });
 
+    it('reorders the columns with a drag or the keyboard, one edit each', () => {
+        const {design, model} = open('p2-linked-dashboard.json', 'posGrid'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            fields = () =>
+                (model.blueprint.elements.posGrid.config.columnState as unknown[]).map(it =>
+                    typeof it === 'string' ? it : (it as any).field
+                ),
+            before = fields(),
+            edits = model.history.length;
+        fireEvent.keyDown(
+            container.querySelector(
+                '.xh-blueprint-element-inspector__columns .xh-sortable-list__handle'
+            ),
+            {key: 'ArrowDown', altKey: true}
+        );
+        expect(fields()).toEqual([before[1], before[0], ...before.slice(2)]);
+        expect(model.history.length).toBe(edits + 1);
+    });
+
     it("opens a column's settings below its row: how it shows, from columns, then its state", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             columnRow = (field: string) =>
-                [...container.querySelectorAll('.xh-blueprint-element-inspector__column')].find(
-                    it => it.getAttribute('data-field') === field
-                ),
+                [
+                    ...container.querySelectorAll(
+                        '.xh-blueprint-element-inspector__columns [data-field]'
+                    )
+                ].find(it => it.getAttribute('data-field') === field),
             labels = () =>
                 [
                     ...container.querySelectorAll(

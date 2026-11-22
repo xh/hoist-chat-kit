@@ -262,27 +262,22 @@
     gap: var(--xh-spacing-half);
   }
 
-  // One row per field, and the open row's settings in a drawer below it.
+  // One row per field, which drags to reorder, and the open row's settings in a drawer below it.
   &__columns {
+    --xh-sortable-list-gap: 0;
+
     border: var(--xh-border-solid);
     border-radius: 4px;
-  }
 
-  &__column {
-    display: flex;
-    flex-direction: column;
-
-    & + & {
-      border-top: var(--xh-border-solid);
-    }
-
-    > .xh-blueprint-element-inspector__item-header {
+    .xh-blueprint-element-inspector__item-header {
+      flex: 1 1 auto;
       gap: 6px;
+      min-width: 0;
       min-height: 30px;
-      padding: 2px 4px 2px 8px;
+      padding: 2px 4px 2px 0;
     }
 
-    &--open > .xh-blueprint-element-inspector__item-header {
+    .xh-blueprint-element-inspector__column--open {
       background-color: var(--xh-bg-alt);
     }
   }
