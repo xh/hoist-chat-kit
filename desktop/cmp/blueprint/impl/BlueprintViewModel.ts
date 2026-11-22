@@ -154,34 +154,24 @@ export class BlueprintViewModel extends HoistModel {
                     fireImmediately: true
                 },
                 {
-                    // Each tab container's tab, for Structure to dim the elements not showing.
+                    // What each tab and dash container shows, for Structure to dim the rest.
                     track: () => {
                         blueprintModel.blueprint?.elements;
-                        return [...this.widgets.entries()]
-                            .filter(([, it]) => it.model instanceof TabContainerWidgetModel)
-                            .map(([id, it]) => [
-                                id,
-                                (it.model as TabContainerWidgetModel).tabContainerModel.activeTabId
-                            ]);
-                    },
-                    run: tabs => tabs.forEach(([id, tab]) => designModel.setActiveTab(id, tab)),
-                    equals: 'structural',
-                    fireImmediately: true
-                },
-                {
-                    // Each dash container's views behind another in their stack, likewise.
-                    track: () => {
-                        blueprintModel.blueprint?.elements;
-                        return [...this.widgets.entries()]
-                            .filter(([, it]) => it.model instanceof DashContainerWidgetModel)
-                            .map(([id, it]): [string, string[]] => [
-                                id,
-                                (it.model as DashContainerWidgetModel).containerModel.viewModels
+                        const activeTabs: Record<string, string> = {},
+                            hiddenViews: Record<string, string[]> = {};
+                        this.widgets.forEach(({model}, id) => {
+                            if (model instanceof TabContainerWidgetModel) {
+                                activeTabs[id] = model.tabContainerModel.activeTabId;
+                            } else if (model instanceof DashContainerWidgetModel) {
+                                hiddenViews[id] = model.containerModel.viewModels
                                     .filter(vm => !vm.isActive)
-                                    .map(vm => vm.viewSpec.id)
-                            ]);
+                                    .map(vm => vm.viewSpec.id);
+                            }
+                        });
+                        return {activeTabs, hiddenViews};
                     },
-                    run: views => views.forEach(([id, ids]) => designModel.setHiddenViews(id, ids)),
+                    run: ({activeTabs, hiddenViews}) =>
+                        designModel.setCanvasTabs(activeTabs, hiddenViews),
                     equals: 'structural',
                     fireImmediately: true
                 },

@@ -96,16 +96,21 @@ describe('BlueprintStructure', () => {
     it('marks the elements on tabs not showing, as the canvas reports them', () => {
         const {design, structure} = open();
         expect(structure.isOffscreen('posGrid')).toBe(false);
-        design.setActiveTab('tabs', 'overview');
+        design.setCanvasTabs({tabs: 'overview'}, {});
         expect(structure.isOffscreen('posGrid')).toBe(true);
         expect(structure.isOffscreen('positions')).toBe(true);
         expect(structure.isOffscreen('sectorChart')).toBe(false);
         expect(structure.isOffscreen('tabs')).toBe(false);
 
         // A dash container's views behind another in their stack.
-        design.setActiveTab('tabs', 'positions');
-        design.setHiddenViews('positions', ['priceChart']);
+        design.setCanvasTabs({tabs: 'positions'}, {positions: ['priceChart']});
         expect(structure.isOffscreen('priceChart')).toBe(true);
+        expect(structure.isOffscreen('posGrid')).toBe(false);
+
+        // The canvas reports every container at once, so one gone takes its entry with it.
+        design.setCanvasTabs({tabs: 'positions'}, {});
+        expect(structure.isOffscreen('priceChart')).toBe(false);
+        design.setCanvasTabs({}, {});
         expect(structure.isOffscreen('posGrid')).toBe(false);
     });
 

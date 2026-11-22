@@ -114,25 +114,21 @@ export class BlueprintDesignModel extends HoistModel {
     /** The tab each tab container on the canvas shows, by container id: view state, never an edit. */
     @observableRef accessor activeTabs: Record<string, string> = {};
 
-    @action
-    setActiveTab(containerId: string, tabId: string) {
-        if (this.activeTabs[containerId] !== tabId) {
-            this.activeTabs = {...this.activeTabs, [containerId]: tabId};
-        }
-    }
-
     /** The views each dash container's stacks hide behind others, by container id: view state. */
     @observableRef accessor hiddenViews: Record<string, string[]> = {};
 
+    /**
+     * Set what every tab and dash container on the canvas shows, replacing what was reported
+     * before, so a container that is gone leaves no entry.
+     */
     @action
-    setHiddenViews(containerId: string, ids: string[]) {
-        if (!isEqual(this.hiddenViews[containerId] ?? [], ids)) {
-            this.hiddenViews = {...this.hiddenViews, [containerId]: ids};
-        }
+    setCanvasTabs(activeTabs: Record<string, string>, hiddenViews: Record<string, string[]>) {
+        if (!isEqual(this.activeTabs, activeTabs)) this.activeTabs = activeTabs;
+        if (!isEqual(this.hiddenViews, hiddenViews)) this.hiddenViews = hiddenViews;
     }
 
     /** A field an Inspector should focus, from a widget that needs it set: view state. */
-    @observableRef accessor fieldFocus: {id: string; key: string; at: number} = null;
+    @observableRef accessor fieldFocus: {id: string; key: string} = null;
 
     /** Note that the Inspector has focused the field asked for, so it never takes focus again. */
     @action
@@ -144,7 +140,7 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     requestFieldFocus(id: string, key: string) {
         this.select({kind: 'element', id});
-        this.fieldFocus = {id, key, at: Date.now()};
+        this.fieldFocus = {id, key};
     }
 
     /** The host's Add, opened to search, as from the `/` key. Set by the host. */
