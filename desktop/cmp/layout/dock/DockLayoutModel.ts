@@ -128,8 +128,14 @@ export class DockLayoutModel extends HoistModel {
             idx = stack?.indexOf(id);
         if (!editable || !stack || idx + step < 0 || idx + step >= stack.length) return;
         const next = moveView(layout, id, {view: id, zone: 'tab', index: idx + step});
-        if (next) onChange?.(next, {kind: 'move', id});
+        if (!next) return;
+        // The stack may draw again, so its tab takes focus back once it has.
+        this.pendingFocus = id;
+        onChange?.(next, {kind: 'move', id});
     }
+
+    /** A tab to focus once the layout next draws, after a keyboard move. */
+    pendingFocus: string = null;
 
     /** Set a split's sizes, from a finished resize, as one change. */
     resize(path: number[], sizes: number[]) {
