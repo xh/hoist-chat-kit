@@ -25,11 +25,11 @@ import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import {childIds, locate, parentOf, slotLists} from '../impl/elements';
 import type {SlotAccepts} from '../BlueprintRegistry';
-import {readsInTemplates} from '../impl/template';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
 import {labelOf} from './editorSpec';
 import {starterConfig} from './starterConfig';
+import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring';
 
 /** What a designer has selected: an element, a variable, a source or a preset group. */
 export interface BlueprintSelection {
@@ -111,43 +111,37 @@ export class BlueprintDesignModel extends HoistModel {
      */
     @computed
     get readerIds(): string[] {
-        const {kind, id} = this.selection ?? {},
+        const {selection} = this,
             bp = this.blueprintModel.blueprint ?? {},
-            elements = Object.entries(bp.elements ?? {});
-        switch (kind) {
+            wiring = (it: BlueprintSelection) => wiringFor(bp, it, this.wiring),
+            elementsOf = (refs: WiringRef[]) =>
+                refs.filter(it => it.kind === 'element').map(it => it.id);
+        switch (selection?.kind) {
             case 'source': {
                 // A source that joins another shows its fields too.
-                const sources = new Set([id]);
-                let more = true;
-                while (more) {
-                    more = false;
-                    Object.entries(bp.sources ?? {}).forEach(([name, it]) => {
-                        if (!sources.has(name) && it.joins?.some(j => sources.has(j.source))) {
-                            sources.add(name);
-                            more = true;
-                        }
-                    });
+                const sources = [selection.id];
+                for (let i = 0; i < sources.length; i++) {
+                    wiring({kind: 'source', id: sources[i]})
+                        .readBy.filter(it => it.kind === 'source' && !sources.includes(it.id))
+                        .forEach(it => sources.push(it.id));
                 }
-                return elements
-                    .filter(([, el]) =>
-                        [...sources].some(
-                            it =>
-                                el.config?.source === it ||
-                                readsInTemplates(el.config, 'source', it)
-                        )
-                    )
-                    .map(([it]) => it);
+                return uniq(sources.flatMap(id => elementsOf(wiring({kind: 'source', id}).readBy)));
             }
             case 'variable':
-                return this.readersOf(id).filter(it => getOwn(bp.elements, it));
-            case 'preset':
-                return uniq([
-                    ...(getOwn(bp.presets, id)?.controls ?? []).map(it => elementOfPath(it.path)),
-                    ...this.selectorsOf([id])
-                ]).filter(it => it && getOwn(bp.elements, it));
+                return elementsOf(wiring(selection).readBy);
+            case 'preset': {
+                const {presets, readBy} = wiring(selection);
+                return uniq(elementsOf([...presets, ...readBy]));
+            }
             default:
                 return [];
         }
+    }
+
+    /** What reads and sets what in the blueprint. See `wiringGraph`. */
+    @computed
+    get wiring(): WiringGraph {
+        return wiringGraph(this.blueprintModel.blueprint);
     }
 
     /** An element's ancestors, root first. */
@@ -1330,39 +1324,20 @@ export class BlueprintDesignModel extends HoistModel {
 
     // True if anything outside the removed elements reads the variable.
     // The elements, sources, other variables and preset groups that bind a variable.
+    // What reads a variable, as a refusal names it.
     private readersOf(name: string): string[] {
-        const bp = this.blueprintModel.blueprint ?? {},
-            binding = `{"$var":${JSON.stringify(name)}}`,
-            binds = (o: unknown) =>
-                JSON.stringify(o ?? null).includes(binding) ||
-                readsInTemplates(o, 'variable', name);
-        const entries: [string, unknown][] = [
-            ...Object.entries(bp.elements ?? {}),
-            ...Object.entries(bp.sources ?? {}),
-            ...Object.entries(bp.variables ?? {}).filter(([n]) => n !== name),
-            ...Object.entries(bp.presets ?? {}).map(([group, it]): [string, unknown] => [
-                `presets ${group}`,
-                it.items
-            ])
-        ];
-        return entries.filter(([, it]) => binds(it)).map(([id]) => id);
+        return wiringFor(this.blueprintModel.blueprint, {kind: 'variable', id: name}, this.wiring)
+            .readBy.filter(it => !(it.kind === 'variable' && it.id === name))
+            .map(it => (it.kind === 'preset' ? `presets ${it.id}` : it.id));
     }
 
+    // True if anything but the elements going reads a variable.
     private isRead(name: string, gone: Set<string>): boolean {
-        const bp = this.blueprintModel.blueprint ?? {},
-            others = {
-                ...bp,
-                variables: Object.fromEntries(
-                    Object.entries(bp.variables ?? {}).filter(([n]) => n !== name)
-                ),
-                elements: Object.fromEntries(
-                    Object.entries(bp.elements ?? {}).filter(([id]) => !gone.has(id))
-                )
-            };
-        return (
-            JSON.stringify(others).includes(`{"$var":${JSON.stringify(name)}}`) ||
-            readsInTemplates(others.elements, 'variable', name)
-        );
+        return wiringFor(
+            this.blueprintModel.blueprint,
+            {kind: 'variable', id: name},
+            this.wiring
+        ).readBy.some(it => !(it.kind === 'element' && gone.has(it.id)) && it.id !== name);
     }
 }
 

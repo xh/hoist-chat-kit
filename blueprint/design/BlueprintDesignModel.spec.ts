@@ -163,6 +163,15 @@ describe('BlueprintDesignModel', () => {
             expect(design.selectedElementId).toBe('sectorChart');
         });
 
+        it('counts a tab title as a read, both to wash and to refuse a delete', () => {
+            const {design} = p3();
+            const {issues} = design.setChildTitle('positions', '{fund} book');
+            expect(issues.filter(it => it.severity === 'error')).toEqual([]);
+            design.select({kind: 'variable', id: 'fund'});
+            expect(design.readerIds).toContain('tabs');
+            expect(design.removeVariable('fund').issues[0].message).toMatch(/tabs/);
+        });
+
         it('tracks the hovered element as view state, never an edit', () => {
             const {model, design} = p3();
             design.setHovered('posGrid');

@@ -20,9 +20,10 @@ import {
     wiringFor,
     wiringGraph,
     type WiringEdge,
+    type WiringGraph,
     wiringKey
 } from '../../../../blueprint';
-import {parentOf} from '../../../../blueprint/impl/elements';
+import {parentMap} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintMap.scss';
 import {designHotkeys} from './impl/designHotkeys';
@@ -244,14 +245,19 @@ export class BlueprintMapModel extends HoistModel {
     get trace(): {upstream: Set<string>; downstream: Set<string>} {
         const {focusKey} = this;
         if (!focusKey) return null;
-        const graph = {
-                nodes: [],
-                edges: this.edges.map(it => ({...it, from: sel(it.from), to: sel(it.to)}))
-            },
-            {upstream, downstream} = traceWiring(graph, sel(focusKey));
+        const {upstream, downstream} = traceWiring(this.traceGraph, sel(focusKey));
         return {
             upstream: new Set(upstream.map(wiringKey)),
             downstream: new Set(downstream.map(wiringKey))
+        };
+    }
+
+    // The Map's wires as a graph to trace, built once per blueprint.
+    @computed
+    private get traceGraph(): WiringGraph {
+        return {
+            nodes: [],
+            edges: this.edges.map(it => ({...it, from: sel(it.from), to: sel(it.to)}))
         };
     }
 
@@ -308,25 +314,32 @@ export class BlueprintMapModel extends HoistModel {
     private nodeOf = (node: BlueprintSelection): string => {
         if (node.kind === 'element') {
             const {elements = {}} = this.designModel.blueprintModel.blueprint ?? {},
-                parent = parentOf(elements, node.id);
+                parent = this.parents.get(node.id);
             if (elements[parent]?.component === 'tileFrame') return `element:${parent}`;
         }
         return wiringKey(node);
     };
 
+    // Each element's container, built once per blueprint.
+    @computed
+    private get parents(): Map<string, string> {
+        return parentMap(this.designModel.blueprintModel.blueprint?.elements);
+    }
+
     // The elements that draw as nodes, under the tab that holds each: every element but a
-    // container, and a tile frame in place of its tiles.
+    // container with no wires, and a tile frame in place of its tiles.
     @computed
     private get elementGroups(): MapLane['groups'] {
         const {blueprintModel} = this.designModel,
             {elements = {}} = blueprintModel.blueprint ?? {},
             {registry} = blueprintModel,
+            wired = new Set(this.edges.flatMap(it => [it.from, it.to])),
             groups = new Map<string, MapNode[]>();
         Object.entries(elements).forEach(([id, el]) => {
-            const parent = parentOf(elements, id),
+            const parent = this.parents.get(id),
                 isContainer = !!registry.widgets[el.component]?.children;
             if (elements[parent]?.component === 'tileFrame') return;
-            if (isContainer && el.component !== 'tileFrame') return;
+            if (isContainer && el.component !== 'tileFrame' && !wired.has(`element:${id}`)) return;
             const tab = this.tabOf(id),
                 node: MapNode = {
                     key: `element:${id}`,
@@ -389,14 +402,14 @@ export class BlueprintMapModel extends HoistModel {
     // The title of the tab that holds an element, or empty outside any tab.
     private tabOf(id: string): string {
         const {elements = {}} = this.designModel.blueprintModel.blueprint ?? {};
-        for (let it = id, parent = parentOf(elements, id); parent;) {
+        for (let it = id, parent = this.parents.get(id); parent;) {
             const container = elements[parent];
             if (TABBED.includes(container.component)) {
                 const ref = container.children?.find(c => c.id === it) as PlainObject;
                 return `${(ref?.title as string) ?? startCase(it)} tab · ${it}`;
             }
             it = parent;
-            parent = parentOf(elements, parent);
+            parent = this.parents.get(parent);
         }
         return '';
     }
@@ -442,8 +455,9 @@ const mapNode = hoistCmp.factory<
         const {designModel} = impl,
             {selection, blueprintModel} = designModel,
             state = impl.stateOf(node.key),
-            issues = blueprintModel.issues.filter(it =>
-                it.path?.startsWith(`/${COLLECTIONS[node.kind]}/${node.id}`)
+            base = `/${COLLECTIONS[node.kind]}/${node.id}`,
+            issues = blueprintModel.issues.filter(
+                it => it.path === base || it.path?.startsWith(`${base}/`)
             ),
             hasError = issues.some(it => it.severity === 'error'),
             waitsFor =

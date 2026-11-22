@@ -1,4 +1,5 @@
 import type {Blueprint, ElementWriter} from '../Blueprint';
+import {slotLists} from '../impl/elements';
 import {templateRefs} from '../impl/template';
 import type {BlueprintSelection} from './BlueprintDesignModel';
 
@@ -102,6 +103,10 @@ export function wiringGraph(blueprint: Blueprint): WiringGraph {
             add({from: {kind: 'source', id: source}, to, kind: 'reads', path: '/config/source'});
         }
         readsIn(el.config, to, () => null);
+        // A child reference's own keys, such as a tab's title, are its container's reads.
+        slotLists(el).forEach(({refs}) =>
+            refs.forEach(({id: _id, ...ref}) => readsIn(ref, to, () => null))
+        );
         actionTargets(el.config).forEach(name => {
             if (Object.hasOwn(variables, name)) {
                 add({from: to, to: {kind: 'variable', id: name}, kind: 'sets'});
@@ -113,6 +118,7 @@ export function wiringGraph(blueprint: Blueprint): WiringGraph {
     });
 
     Object.entries(presets).forEach(([group, decl]) => {
+        readsIn(decl.items, {kind: 'preset', id: group}, () => null);
         (decl.controls ?? []).forEach(({path}) => {
             const [, coll, id, ...rest] = path.split('/'),
                 kind = coll === 'elements' ? 'element' : coll === 'variables' ? 'variable' : null,
@@ -154,8 +160,9 @@ export function wiringFor(
     };
     if (!selection) return ret;
     const key = wiringKey(selection),
-        into = graph.edges.filter(it => wiringKey(it.to) === key),
-        out = graph.edges.filter(it => wiringKey(it.from) === key),
+        adjacency = adjacencyOf(graph),
+        into = adjacency.into.get(key) ?? [],
+        out = adjacency.out.get(key) ?? [],
         refOf = (node: BlueprintSelection, edge: WiringEdge): WiringRef => ({
             kind: node.kind,
             id: node.id,
@@ -175,7 +182,8 @@ export function wiringFor(
             : into.filter(it => it.kind === 'preset').map(it => refOf(it.from, it));
 
     if (selection.kind === 'variable') {
-        const decl = blueprint.variables[selection.id];
+        const decl = blueprint.variables?.[selection.id];
+        if (!decl || !Object.hasOwn(blueprint.variables, selection.id)) return ret;
         if (decl.setBy === 'prompt') ret.setBy.push({kind: 'prompt', id: selection.id});
         if (decl.setBy === 'resolver' && decl.compute) {
             ret.setBy.push({kind: 'resolver', id: decl.compute.resolver});
@@ -201,28 +209,26 @@ export function traceWiring(
     graph: WiringGraph,
     from: BlueprintSelection
 ): {upstream: BlueprintSelection[]; downstream: BlueprintSelection[]} {
-    const follow = (step: (key: string) => BlueprintSelection[]) => {
-        const found = new Map<string, BlueprintSelection>(),
-            queue = [wiringKey(from)];
-        while (queue.length) {
-            step(queue.shift()).forEach(it => {
-                const key = wiringKey(it);
-                if (found.has(key) || key === wiringKey(from)) return;
-                found.set(key, it);
-                queue.push(key);
-            });
-        }
-        return [...found.values()];
-    };
+    const {into, out} = adjacencyOf(graph),
+        start = wiringKey(from),
+        follow = (step: (key: string) => BlueprintSelection[]) => {
+            const found = new Map<string, BlueprintSelection>(),
+                queue = [start];
+            for (let i = 0; i < queue.length; i++) {
+                step(queue[i]).forEach(it => {
+                    const key = wiringKey(it);
+                    if (found.has(key) || key === start) return;
+                    found.set(key, it);
+                    queue.push(key);
+                });
+            }
+            return [...found.values()];
+        };
     return {
         upstream: follow(key =>
-            graph.edges
-                .filter(it => it.kind !== 'sets' && wiringKey(it.to) === key)
-                .map(it => it.from)
+            (into.get(key) ?? []).filter(it => it.kind !== 'sets').map(it => it.from)
         ),
-        downstream: follow(key =>
-            graph.edges.filter(it => wiringKey(it.from) === key).map(it => it.to)
-        )
+        downstream: follow(key => (out.get(key) ?? []).map(it => it.to))
     };
 }
 
@@ -234,6 +240,29 @@ export function wiringKey(node: BlueprintSelection): string {
 //------------------
 // Implementation
 //------------------
+// Each node's wires in and out, by key, built once per graph.
+const adjacency = new WeakMap<
+    WiringGraph,
+    {into: Map<string, WiringEdge[]>; out: Map<string, WiringEdge[]>}
+>();
+
+function adjacencyOf(graph: WiringGraph) {
+    let ret = adjacency.get(graph);
+    if (!ret) {
+        ret = {into: new Map(), out: new Map()};
+        graph.edges.forEach(edge => {
+            const to = wiringKey(edge.to),
+                from = wiringKey(edge.from);
+            if (!ret.into.has(to)) ret.into.set(to, []);
+            if (!ret.out.has(from)) ret.out.set(from, []);
+            ret.into.get(to).push(edge);
+            ret.out.get(from).push(edge);
+        });
+        adjacency.set(graph, ret);
+    }
+    return ret;
+}
+
 // Each node once, by its first wire.
 function uniqRefs(refs: WiringRef[]): WiringRef[] {
     const seen = new Set<string>();

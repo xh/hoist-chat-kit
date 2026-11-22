@@ -111,6 +111,26 @@ describe('BlueprintMap', () => {
         expect(ports).toEqual(['asOf', 'retYtd.end']);
     });
 
+    it('draws a container that reads, such as tabs titled from a variable', () => {
+        const {design, map} = open();
+        expect(
+            map.lanes
+                .at(-1)
+                .groups.flatMap(g => g.nodes)
+                .map(it => it.id)
+        ).not.toContain('tabs');
+        design.setChildTitle('positions', '{fund} book');
+        expect(
+            map.lanes
+                .at(-1)
+                .groups.flatMap(g => g.nodes)
+                .map(it => it.id)
+        ).toContain('tabs');
+        expect(map.edges.some(it => it.from === 'variable:fund' && it.to === 'element:tabs')).toBe(
+            true
+        );
+    });
+
     it('collapses a tile frame, wiring what its tiles read to it', () => {
         const {map} = open();
         expect(map.lanes.at(-1).groups[0].nodes.map(it => it.id)).not.toContain('headlineMktVal');

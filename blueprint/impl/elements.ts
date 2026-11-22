@@ -47,6 +47,15 @@ export function parentOf(elements: Record<string, BlueprintElement>, id: string)
     return locate(elements, id)?.parent ?? null;
 }
 
+/** Each placed element's container, by ID, in one pass: for many lookups over one blueprint. */
+export function parentMap(elements: Record<string, BlueprintElement>): Map<string, string> {
+    const ret = new Map<string, string>();
+    Object.entries(elements ?? {}).forEach(([parent, el]) =>
+        slotLists(el).forEach(({refs}) => refs.forEach(it => ret.set(it.id, parent)))
+    );
+    return ret;
+}
+
 /** The parent and slot that hold an element, or null for the root or an unplaced element. */
 export function locate(elements: Record<string, BlueprintElement>, id: string): SlotPlace {
     for (const [parent, el] of Object.entries(elements ?? {})) {
