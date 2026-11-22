@@ -810,6 +810,33 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
     });
 
+    it("switches a grid's sort between one field and a list, carrying the sort across, never trapped", async () => {
+        const {design, model} = open('p2-linked-dashboard.json');
+        design.setConfig('posGrid', '/sortBy', 'mktVal|desc');
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            modes = () => [
+                ...container.querySelectorAll(
+                    '[data-config-key="sortBy"] .xh-blueprint-element-inspector__one-of > .xh-button-group button'
+                )
+            ],
+            sortBy = () => model.blueprint.elements.posGrid.config.sortBy;
+        fireEvent.click(modes()[1]);
+        expect(sortBy()).toEqual(['mktVal|desc']);
+        fireEvent.click(modes()[0]);
+        expect(sortBy()).toBe('mktVal|desc');
+        // With no sort, either form leaves it unset rather than writing one that fails.
+        design.setConfig('posGrid', '/sortBy', undefined);
+        await wait();
+        fireEvent.click(modes()[1]);
+        fireEvent.click(modes()[0]);
+        expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('sortBy');
+        expect(
+            container.querySelector(
+                '[data-config-key="sortBy"] .xh-blueprint-element-inspector__issue'
+            )?.textContent
+        ).toBeUndefined();
+    });
+
     it("sets a grid's summary row from cards for Top, Bottom and Off, each one edit", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

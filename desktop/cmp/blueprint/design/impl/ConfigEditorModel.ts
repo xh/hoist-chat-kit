@@ -35,6 +35,14 @@ export abstract class ConfigEditorModel extends HoistModel {
     @observableRef accessor blueprintOptions: Option[] = null;
     private loadingBlueprints = false;
 
+    /** The form an unset property with several shows, by its scope, as the user last chose it. */
+    @observableRef accessor variants: Record<string, number> = {};
+
+    @action
+    chooseVariant(scope: string, index: number) {
+        this.variants = {...this.variants, [scope]: index};
+    }
+
     /** True for the open item of a list, by the list's scope and the item's key. */
     isItemOpen(scope: string, itemKey: string): boolean {
         return this.openItems[scope] === itemKey;

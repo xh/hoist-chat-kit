@@ -392,10 +392,15 @@ function editorFor(
         case 'map':
             return mapEditor(node, (value as PlainObject) ?? {}, commit, ctx);
         case 'oneOf': {
-            const at = Math.max(
-                    node.options.findIndex(it => fits(it, value)),
-                    0
-                ),
+            // An unset value shows the form last chosen, so a switch needs no edit to stick.
+            const scope = scopeOf(ctx),
+                at =
+                    value == null
+                        ? (ctx.impl.variants[scope] ?? 0)
+                        : Math.max(
+                              node.options.findIndex(it => fits(it, value)),
+                              0
+                          ),
                 variant = node.options[at];
             return div({
                 className: `${CLS}__one-of`,
@@ -403,8 +408,12 @@ function editorFor(
                     buttonGroupInput({
                         value: at,
                         disabled,
-                        onCommit: (i: number) =>
-                            i !== at && commit(ctx.impl.newValue(node.options[i].schema)),
+                        onCommit: (i: number) => {
+                            if (i === at) return;
+                            ctx.impl.chooseVariant(scope, i);
+                            const next = switchedValue(value, node.options[i], node, ctx);
+                            if (next !== undefined || value !== undefined) commit(next);
+                        },
                         children: node.options.map((it, i) =>
                             button({key: i, value: i, text: variantLabel(it)})
                         )
@@ -1287,6 +1296,24 @@ function fits(node: EditorNode, value: unknown): boolean {
         default:
             return false;
     }
+}
+
+// A value carried into another form of a property: one value becomes a list of it, and a list its
+// first item. Where nothing carries, an optional property is left unset rather than given a starter
+// that fails its own checks, so switching back always works.
+function switchedValue(
+    value: unknown,
+    to: EditorNode,
+    node: EditorNode,
+    ctx: EditorContext
+): unknown {
+    if (to.kind === 'stringList' && isString(value) && value) return [value];
+    if (to.kind !== 'stringList' && Array.isArray(value) && value.length) {
+        return fits(to, value[0]) ? value[0] : undefined;
+    }
+    if (!node.required) return undefined;
+    const start = ctx.impl.newValue(to.schema);
+    return fits(to, start) ? start : undefined;
 }
 
 function variantLabel(node: EditorNode): string {
