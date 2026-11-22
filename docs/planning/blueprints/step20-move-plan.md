@@ -141,7 +141,9 @@ These exist only for the `blueprints` branches, and go in the move PR:
 - chat kit `tsconfig.json`'s `paths: {"@xh/hoist/*": ["../hoist-react/*"]}`;
 - `vitest.config.mts`'s `XH_HOIST_REACT_PATH`, and `inlineHoist`;
 - Toolbox's tsconfig paths to the sibling hoist-react (d80dc961);
-- `XH_INLINE_PACKAGES=@xh/hoist-chat-kit` in Toolbox's dev scripts and docs;
+- `XH_INLINE_PACKAGES=@xh/hoist-chat-kit` in Toolbox's dev scripts and docs, including the
+  inline start and spec commands in `docs/running-locally.md` (7d5dbd9a). Plain `pnpm test`
+  fails the blueprint specs at import until then;
 - the harness's relative imports (`../../../../../../blueprint/...`), which become hoist-react
   paths. Its plain-Node loading has to keep working there (D20-1).
 
