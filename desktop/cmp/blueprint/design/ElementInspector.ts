@@ -1,7 +1,7 @@
 import {div, hbox, placeholder} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
-import {select, textInput} from '@xh/hoist/desktop/cmp/input';
+import {segmentedControl, select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
@@ -46,8 +46,33 @@ export const [ElementInspector, elementInspector] = hoistCmp.withFactory<Element
 /** @internal */
 export class ElementInspectorModel extends ConfigEditorModel {
     get elementId(): string {
-        const id = this.designModel.selectedElementId;
+        const id = this.designModel.selectedElementId ?? this.designModel.selectedViewId;
         return id && this.element ? id : null;
+    }
+
+    /** True while the selection is the canvas view that holds the element, not the element. */
+    get isView(): boolean {
+        return !!this.designModel.selectedViewId;
+    }
+
+    /** The canvas the element sits in a cell of, or null. */
+    get canvasId(): string {
+        return this.designModel.viewOf(this.elementId)?.of ?? null;
+    }
+
+    /** The inputs in the element's canvas cell header. */
+    get headerItemIds(): string[] {
+        const ref = this.designModel.blueprintModel.blueprint?.elements?.[
+            this.canvasId
+        ]?.children?.find(it => it.id === this.elementId);
+        return ((ref?.headerItems as {id: string}[]) ?? []).map(it => it.id);
+    }
+
+    /** Add an input to the element's cell header, from the Add panel. */
+    addHeaderItem() {
+        const {designModel, canvasId, elementId} = this;
+        designModel.selectSlot({parent: canvasId, slot: 'headerItems', of: elementId});
+        designModel.requestAdd();
     }
 
     get label(): string {
@@ -260,7 +285,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     private get element() {
         const {effective} = this.designModel.blueprintModel,
-            id = this.designModel.selectedElementId;
+            id = this.designModel.selectedElementId ?? this.designModel.selectedViewId;
         return id && Object.hasOwn(effective?.elements ?? {}, id) ? effective.elements[id] : null;
     }
 
@@ -334,13 +359,14 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
                     div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),
-                impl.tabs ? tabsEditor(impl) : null,
-                impl.setsOptions ? setsEditor(impl) : null,
-                ...(impl.sections.find(it => !it.label)?.nodes ?? []).map(node =>
-                    configRow(impl, node)
+                ...(impl.isView ? viewCards(impl) : []),
+                !impl.isView && impl.tabs ? tabsEditor(impl) : null,
+                !impl.isView && impl.setsOptions ? setsEditor(impl) : null,
+                ...(impl.isView ? [] : (impl.sections.find(it => !it.label)?.nodes ?? [])).map(
+                    node => configRow(impl, node)
                 ),
                 ...impl.sections
-                    .filter(it => it.label)
+                    .filter(it => it.label && !impl.isView)
                     .map(section => {
                         const preset = section.nodes
                             .map(it => impl.presetFor(it.key))
@@ -363,7 +389,35 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                             children: section.nodes.map(node => configRow(impl, node))
                         });
                     }),
-                impl.placementNodes.length || impl.slotOptions.length > 1
+                // A widget in a canvas cell shows its view's settings folded, with a way there.
+                !impl.isView && impl.canvasId
+                    ? sectionCard({
+                          key: 'canvas-view',
+                          title: 'Canvas view',
+                          collapsed: !impl.toggled[CANVAS_VIEW],
+                          onToggle: () => impl.toggleSection(CANVAS_VIEW),
+                          children: [
+                              ...viewHeaderRows(impl),
+                              div({
+                                  className: `${CLS}__placement-row`,
+                                  children: placementRows(impl, it => it.kind === 'number')
+                              }),
+                              button({
+                                  className: `${CLS}__select-view`,
+                                  icon: Icon.arrowRight(),
+                                  text: 'Select the view',
+                                  minimal: true,
+                                  onClick: () =>
+                                      impl.designModel.select({
+                                          kind: 'view',
+                                          id: impl.elementId,
+                                          of: impl.canvasId
+                                      })
+                              })
+                          ]
+                      })
+                    : null,
+                !impl.canvasId && (impl.placementNodes.length || impl.slotOptions.length > 1)
                     ? sectionCard({
                           key: 'placement',
                           title: `Placement in ${impl.parentId}`,
@@ -392,7 +446,101 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
     }
 });
 
-const LIST_KINDS = ['fieldList', 'list', 'stringList'];
+const LIST_KINDS = ['fieldList', 'list', 'stringList'],
+    CANVAS_VIEW = 'Canvas view';
+
+// A selected canvas view's settings: its header, the inputs in it, and its place on the canvas.
+function viewCards(impl: ElementInspectorModel) {
+    const {designModel} = impl,
+        {registry, blueprint} = designModel.blueprintModel;
+    return [
+        sectionCard({key: 'view-header', title: 'Header', children: viewHeaderRows(impl)}),
+        sectionCard({
+            key: 'view-items',
+            title: `Header items (${impl.headerItemIds.length})`,
+            children: [
+                ...impl.headerItemIds.map(id =>
+                    hbox({
+                        key: id,
+                        className: `${CLS}__header-item`,
+                        children: [
+                            div({className: `${CLS}__header-item-id`, children: id}),
+                            div({
+                                className: `${CLS}__header-item-meta`,
+                                children: registry.widgets[blueprint.elements[id]?.component]?.label
+                            }),
+                            button({
+                                icon: Icon.arrowRight(),
+                                title: `Select ${id}`,
+                                minimal: true,
+                                onClick: () => designModel.select({kind: 'element', id})
+                            }),
+                            impl.readOnly
+                                ? null
+                                : button({
+                                      icon: Icon.delete(),
+                                      title: `Remove ${id}`,
+                                      intent: 'danger',
+                                      minimal: true,
+                                      onClick: () => removeElementAsync(designModel, id)
+                                  })
+                        ]
+                    })
+                ),
+                impl.readOnly
+                    ? null
+                    : button({
+                          key: '_add',
+                          icon: Icon.add(),
+                          intent: 'primary',
+                          text: 'Add an input',
+                          minimal: true,
+                          onClick: () => impl.addHeaderItem()
+                      })
+            ]
+        }),
+        sectionCard({
+            key: 'view-placement',
+            title: `Placement in ${impl.canvasId}`,
+            children: [
+                div({
+                    key: 'row',
+                    className: `${CLS}__placement-row`,
+                    children: placementRows(impl, it => it.kind === 'number')
+                })
+            ]
+        })
+    ];
+}
+
+// Whether a canvas view shows its header, and its title there.
+function viewHeaderRows(impl: ElementInspectorModel) {
+    const hidden = !!impl.placementValues.hideHeader;
+    return [
+        div({
+            key: 'hideHeader',
+            className: `${CLS}__row ${CLS}__row--inline`,
+            ...({'data-config-key': 'hideHeader'} as object),
+            children: [
+                div({className: `${CLS}__label`, children: 'Show header'}),
+                div({
+                    className: `${CLS}__row-body`,
+                    children: segmentedControl({
+                        value: hidden,
+                        options: [
+                            {value: false, label: 'Show'},
+                            {value: true, label: 'Hide'}
+                        ],
+                        disabled: impl.readOnly,
+                        compact: true,
+                        onCommit: (v: boolean) => impl.commitPlacement('hideHeader', v || undefined)
+                    })
+                })
+            ]
+        }),
+        ...placementRows(impl, it => it.key === 'title')
+    ];
+}
 
 // A canvas cell's grid numbers share one row, and its other settings take rows of their own.
 const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>

@@ -43,7 +43,8 @@ export function designHotkeys(
             onKeyDown: (e: KeyboardEvent) => {
                 if (designModel.blueprintModel.mode !== 'design') return;
                 if (fromWidgets && (e.target as Element)?.closest?.(INTERACTIVE)) return;
-                const id = designModel.selectedElementId;
+                // A selected view's keys act on the element in it, but for Esc and Enter.
+                const id = designModel.selectedElementId ?? designModel.selectedViewId;
                 if (!id && !always) return;
                 e.preventDefault();
                 run(designModel, id);
@@ -128,8 +129,11 @@ const DESIGN_KEYS: DesignKey[] = [
         run: (dm, id) => {
             // During a cell drag, Escape cancels the drag instead.
             if (document.querySelector('.react-draggable-dragging')) return;
-            const parent = dm.pathTo(id).at(-1);
-            dm.select(parent ? {kind: 'element', id: parent} : null);
+            // A widget climbs to its canvas view, and a view to its canvas.
+            const view = dm.selectedElementId ? dm.viewOf(id) : null,
+                parent = dm.pathTo(id).at(-1);
+            if (view) dm.select({kind: 'view', ...view});
+            else dm.select(parent ? {kind: 'element', id: parent} : null);
         }
     },
     {
@@ -137,8 +141,13 @@ const DESIGN_KEYS: DesignKey[] = [
         keys: 'Enter',
         label: 'Select the first child',
         run: (dm, id) => {
-            const el = dm.blueprintModel.blueprint?.elements?.[id];
-            if (el) selectElement(dm, childIds(el)[0]);
+            if (dm.selectedViewId) return selectElement(dm, id);
+            const el = dm.blueprintModel.blueprint?.elements?.[id],
+                child = el ? childIds(el)[0] : null,
+                view = child ? dm.viewOf(child) : null;
+            // A canvas goes to its first view, and a view to the widget in it.
+            if (view) dm.select({kind: 'view', ...view});
+            else selectElement(dm, child);
         }
     },
     {

@@ -82,13 +82,22 @@ export class BlueprintInspectorModel extends HoistModel {
         return this.designModel.selection;
     }
 
-    /** An element's ancestors and itself, root first. Empty for other kinds. */
+    /**
+     * An element's ancestors and itself, root first, with the canvas view of each that sits in a
+     * canvas cell before it. A view's path ends with the view. Empty for other kinds.
+     */
     @computed
-    get breadcrumb(): string[] {
-        const {selection} = this;
-        return selection?.kind === 'element'
-            ? [...this.designModel.pathTo(selection.id), selection.id]
-            : [];
+    get breadcrumb(): BlueprintSelection[] {
+        const {selection, designModel} = this;
+        if (selection?.kind !== 'element' && selection?.kind !== 'view') return [];
+        const ret = [...designModel.pathTo(selection.id), selection.id].flatMap(id => {
+            const view = designModel.viewOf(id);
+            return [
+                ...(view ? [{kind: 'view', ...view} as BlueprintSelection] : []),
+                {kind: 'element', id} as BlueprintSelection
+            ];
+        });
+        return selection.kind === 'view' ? ret.slice(0, -1) : ret;
     }
 
     /** What the selection is, and what it reads. */
@@ -97,8 +106,9 @@ export class BlueprintInspectorModel extends HoistModel {
         const {selection, designModel} = this;
         if (!selection) return null;
         const {blueprint, registry} = designModel.blueprintModel,
-            {id} = selection,
-            what =
+            {id} = selection;
+        if (selection.kind === 'view') return `Canvas view · holds ${id} · in ${selection.of}`;
+        const what =
                 selection.kind === 'element'
                     ? (registry.widgets[blueprint.elements[id]?.component]?.label ??
                       blueprint.elements[id]?.component)
@@ -207,7 +217,11 @@ export class BlueprintInspectorModel extends HoistModel {
     get issues(): BlueprintIssue[] {
         const {selection, designModel} = this;
         if (!selection) return [];
-        const base = `/${COLLECTIONS[selection.kind]}/${selection.id}`;
+        const {children} = designModel.blueprintModel.blueprint?.elements?.[selection.of] ?? {},
+            base =
+                selection.kind === 'view'
+                    ? `/elements/${selection.of}/children/${children?.findIndex(it => it.id === selection.id)}`
+                    : `/${COLLECTIONS[selection.kind]}/${selection.id}`;
         return designModel.blueprintModel.issues.filter(
             it => it.path === base || it.path?.startsWith(`${base}/`)
         );
@@ -269,6 +283,7 @@ function editorFor(
 ) {
     switch (kind) {
         case 'element':
+        case 'view':
             return elementInspector({designModel, onShowPresetGroup, framed: true});
         case 'source':
             return sourcesEditor({designModel, framed: true});
@@ -288,47 +303,59 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
             {breadcrumb: path, designModel} = impl,
             {blueprint, registry} = designModel.blueprintModel,
             specOf = (id: string) => registry.widgets[blueprint.elements[id]?.component],
+            kindOf = (step: BlueprintSelection) =>
+                step.kind === 'view' ? 'view' : specOf(step.id)?.label,
             last = path.length - 1;
         if (path.length < 2) return null;
         const {shown, hidden} = foldCrumbs(
-                path.map((id, idx) => crumbWidth(id, idx === last ? specOf(id)?.label : null)),
+                path.map((step, idx) => crumbWidth(step.id, idx === last ? kindOf(step) : null)),
                 width - BREADCRUMB_PADDING
             ),
-            select = (id: string) => designModel.select({kind: 'element', id}),
-            icon = (id: string) =>
-                partIcon('element', specOf(id), {className: `${CLS}__crumb-icon`}),
+            keyOf = (step: BlueprintSelection) => `${step.kind}:${step.id}`,
+            icon = (step: BlueprintSelection) =>
+                step.kind === 'view'
+                    ? Icon.window({className: `${CLS}__crumb-icon`})
+                    : partIcon('element', specOf(step.id), {className: `${CLS}__crumb-icon`}),
+            select = (step: BlueprintSelection) => designModel.select(step),
             steps = shown.flatMap((idx, at) => {
-                const id = path[idx],
-                    step =
+                const step = path[idx],
+                    kind = kindOf(step),
+                    crumb =
                         idx === last
                             ? span({
-                                  key: id,
+                                  key: keyOf(step),
                                   className: `${CLS}__crumb ${CLS}__crumb--current`,
                                   children: [
-                                      icon(id),
-                                      id,
-                                      specOf(id)
-                                          ? span({
-                                                className: `${CLS}__crumb-kind`,
-                                                children: specOf(id).label
-                                            })
+                                      icon(step),
+                                      step.id,
+                                      kind
+                                          ? span({className: `${CLS}__crumb-kind`, children: kind})
                                           : null
                                   ]
                               })
                             : span({
-                                  key: id,
+                                  key: keyOf(step),
                                   className: `${CLS}__crumb ${CLS}__crumb--link`,
                                   role: 'button',
                                   tabIndex: 0,
-                                  title: `Select ${id}`,
-                                  onClick: () => select(id),
+                                  title: `Select ${step.id}${step.kind === 'view' ? ' view' : ''}`,
+                                  onClick: () => select(step),
                                   onKeyDown: (e: React.KeyboardEvent) => {
                                       if (e.key !== 'Enter' && e.key !== ' ') return;
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      select(id);
+                                      select(step);
                                   },
-                                  children: [icon(id), id]
+                                  children: [
+                                      icon(step),
+                                      step.id,
+                                      step.kind === 'view'
+                                          ? span({
+                                                className: `${CLS}__crumb-kind`,
+                                                children: 'view'
+                                            })
+                                          : null
+                                  ]
                               } as object),
                     // The steps folded away sit between the first and the rest, in a menu.
                     fold =
@@ -341,7 +368,10 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                       title: 'More of the path',
                                       minimal: true,
                                       menuItems: hidden.map(i => ({
-                                          text: path[i],
+                                          text:
+                                              path[i].kind === 'view'
+                                                  ? `${path[i].id} view`
+                                                  : path[i].id,
                                           icon: icon(path[i]),
                                           actionFn: () => select(path[i])
                                       }))
@@ -349,7 +379,7 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                   separator('_more-sep')
                               ]
                             : [];
-                return [...(at ? [separator(`${id}-sep`)] : []), ...fold, step];
+                return [...(at ? [separator(`${keyOf(step)}-sep`)] : []), ...fold, crumb];
             });
         return hbox({ref, className: `${CLS}__breadcrumb`, children: steps});
     }

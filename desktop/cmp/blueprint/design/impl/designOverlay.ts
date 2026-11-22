@@ -24,13 +24,42 @@ export function designMarks(
     const {blueprintModel, selectedElementId: selected, hoveredId: hovered} = designModel;
     if (blueprintModel.mode !== 'design') return [];
     const ret: OverlayMark[] = [];
-    if (hovered && hovered !== selected && blueprintModel.blueprint?.elements?.[hovered]) {
+    if (
+        hovered &&
+        hovered !== selected &&
+        hovered !== designModel.selectedViewId &&
+        blueprintModel.blueprint?.elements?.[hovered]
+    ) {
         ret.push({
             key: 'hover',
             target: targetOf(hovered, overlay),
+            // A canvas is hovered at a gap between its cells: a faint outline, and no tag.
+            render: box =>
+                blueprintModel.blueprint.elements[hovered].component === 'dashCanvas'
+                    ? div({key: 'outline', className: `${CLS}__outline ${CLS}__outline--faint`})
+                    : [
+                          div({
+                              key: 'outline',
+                              className: `${CLS}__outline ${CLS}__outline--hover`
+                          }),
+                          tag(designModel, hovered, box)
+                      ]
+        });
+    }
+    const view = designModel.selectedViewId;
+    if (view && blueprintModel.blueprint?.elements?.[view]) {
+        ret.push({
+            key: 'selection',
+            target: `[data-blueprint-view="${CSS.escape(view)}"]`,
             render: box => [
-                div({key: 'outline', className: `${CLS}__outline ${CLS}__outline--hover`}),
-                tag(designModel, hovered, box)
+                div({key: 'outline', className: `${CLS}__outline ${CLS}__outline--view`}),
+                selectionToolbar({
+                    key: 'toolbar',
+                    designModel,
+                    id: view,
+                    isView: true,
+                    inside: box.y < TOOLBAR_ROOM
+                })
             ]
         });
     }

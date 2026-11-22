@@ -15,6 +15,8 @@ interface SelectionToolbarProps extends HoistProps {
     id: string;
     /** True to sit just inside the selection's top edge, where there is no room above it. */
     inside?: boolean;
+    /** True for the canvas view that holds the element, rather than the element. */
+    isView?: boolean;
 }
 
 /**
@@ -26,7 +28,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
     displayName: 'BlueprintSelectionToolbar',
     className: 'xh-blueprint-selection-toolbar',
     model: false,
-    render({designModel, id, inside, className}) {
+    render({designModel, id, inside, isView, className}) {
         const ref = useRef<HTMLDivElement>(null),
             // Back to the canvas once an action settles, so the design keys keep working, and a
             // dialog it opens, such as a confirm, keeps focus until then. The canvas is found
@@ -57,7 +59,20 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
             {registry} = blueprintModel,
             labelOf = (component: string) => registry.widgets[component]?.label ?? component,
             component = blueprintModel.blueprint?.elements?.[id]?.component,
+            view = designModel.viewOf(id),
             parent = designModel.pathTo(id).at(-1) ?? null,
+            // A view's parent is its canvas, and a widget's in a canvas cell is its view.
+            selectParent = () =>
+                designModel.select(
+                    !isView && view
+                        ? {kind: 'view', ...view}
+                        : parent
+                          ? {kind: 'element', id: parent}
+                          : null
+                ),
+            hidden = !!blueprintModel.blueprint?.elements?.[view?.of]?.children?.find(
+                it => it.id === id
+            )?.hideHeader,
             canEdit = blueprintModel.mode === 'design' && blueprintModel.access === 'write',
             refuse = (issues: BlueprintIssue[]) => {
                 const error = issues.find(it => it.severity === 'error');
@@ -113,12 +128,18 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                 span({
                     className: `${CLS}__name`,
                     children: [
-                        registry.widgets[component]
-                            ? widgetIcon(registry.widgets[component], {
-                                  className: `${CLS}__icon`
-                              })
-                            : null,
-                        component ? `${id} · ${labelOf(component)}` : id
+                        isView
+                            ? Icon.window({className: `${CLS}__icon`})
+                            : registry.widgets[component]
+                              ? widgetIcon(registry.widgets[component], {
+                                    className: `${CLS}__icon`
+                                })
+                              : null,
+                        isView
+                            ? `${id} · Canvas view`
+                            : component
+                              ? `${id} · ${labelOf(component)}`
+                              : id
                     ]
                 }),
                 span({className: `${CLS}__divider`}),
@@ -128,9 +149,36 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                     'aria-label': 'Select the parent (Esc)',
                     minimal: true,
                     disabled: !parent,
-                    onClick: () => after(designModel.select({kind: 'element', id: parent}))
+                    onClick: () => after(selectParent())
                 }),
-                ...(canEdit
+                ...(canEdit && isView
+                    ? [
+                          button({
+                              icon: hidden ? Icon.eye() : Icon.eyeSlash(),
+                              title: hidden ? 'Show the header' : 'Hide the header',
+                              'aria-label': hidden ? 'Show the header' : 'Hide the header',
+                              minimal: true,
+                              onClick: () =>
+                                  after(
+                                      refuse(
+                                          designModel.setChildPlacement(id, {
+                                              hideHeader: hidden ? undefined : true
+                                          }).issues
+                                      )
+                                  )
+                          }),
+                          span({className: `${CLS}__divider`}),
+                          button({
+                              icon: Icon.delete(),
+                              title: 'Delete (Del)',
+                              'aria-label': 'Delete (Del)',
+                              intent: 'danger',
+                              minimal: true,
+                              onClick: () => after(removeElementAsync(designModel, id).then(refuse))
+                          })
+                      ]
+                    : []),
+                ...(canEdit && !isView
                     ? [
                           designModel.addPlacesFor(id).length
                               ? menuButton({

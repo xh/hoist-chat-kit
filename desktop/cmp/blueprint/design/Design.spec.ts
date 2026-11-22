@@ -16,7 +16,8 @@ import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {blueprintView} from '../BlueprintView';
 import {OverlayModel} from '../../layout/overlay';
-import {cellElementAt} from '../impl/ElementHost';
+import {cellElementAt, viewAt} from '../impl/ElementHost';
+import {designHotkeys} from './impl/designHotkeys';
 import {designMarks} from './impl/designOverlay';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {elementInspector} from './ElementInspector';
@@ -139,20 +140,93 @@ describe('design mode selection', () => {
         expect((view.getWidgetModel('tabs') as any).tabContainerModel.activeTabId).toBe('orders');
     });
 
-    it('selects the element in a canvas cell from a click on its header, not the canvas', () => {
+    it("finds the canvas view a click on its header or grip lands on, but not on the header's items", () => {
         const cell = document.createElement('div');
         cell.innerHTML =
             '<div data-blueprint-view="sectorChart" data-blueprint-canvas="overview">' +
             '<div data-blueprint-view-header><span class="title">Day P&L</span>' +
-            '<div data-blueprint-element="views"></div></div>' +
-            '<div class="body"><div data-blueprint-element="sectorChart"></div></div></div>';
+            '<div data-blueprint-element="views"><span class="item"></span></div></div>' +
+            '<div class="body"><div data-blueprint-element="sectorChart"></div></div></div>' +
+            '<div data-blueprint-view="reportActions" data-blueprint-canvas="overview">' +
+            '<span data-blueprint-view-grip="reportActions" class="grip"></span></div>';
         const host = document.createElement('div');
         host.appendChild(cell);
+        const at = (sel: string) => viewAt(cell.querySelector(sel) as HTMLElement, host);
+        expect(at('.title')).toEqual({id: 'sectorChart', of: 'overview'});
+        expect(at('.grip')).toEqual({id: 'reportActions', of: 'overview'});
+        // A header item is an element of its own, and a click in the body is the widget's.
+        expect(at('.item')).toBeNull();
+        expect(at('.body')).toBeNull();
         expect(cellElementAt(cell.querySelector('.title') as HTMLElement, host)).toBe(
             'sectorChart'
         );
-        // A click outside any cell header is the host's own.
-        expect(cellElementAt(cell.querySelector('.body') as HTMLElement, host)).toBeNull();
+    });
+
+    it('climbs from a widget to its view to its canvas with Esc, and back down with Enter', () => {
+        const {design} = open('p3-morning-report.json'),
+            keys = designHotkeys(design),
+            press = (combo: string) =>
+                keys
+                    .find(it => it.combo === combo)
+                    .onKeyDown({
+                        target: document.body,
+                        preventDefault: () => null
+                    } as any),
+            sel = () => design.selection;
+        design.select({kind: 'element', id: 'posGrid'});
+        press('esc');
+        expect(sel()).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
+        press('esc');
+        expect(sel()).toEqual({kind: 'element', id: 'positions'});
+        press('enter');
+        expect(sel()).toMatchObject({kind: 'view', of: 'positions'});
+        const first = sel().id;
+        press('enter');
+        expect(sel()).toEqual({kind: 'element', id: first});
+    });
+
+    it('marks a hovered canvas, at a gap between its cells, with a faint outline and no tag', () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel();
+        onTestFinished(() => overlay.destroy());
+        design.setHovered('overview');
+        const [mark] = designMarks(design, overlay),
+            {container} = render(
+                mark.render({
+                    x: 0,
+                    y: 100,
+                    width: 100,
+                    height: 50,
+                    area: {width: 500, height: 500}
+                }) as any
+            );
+        expect(container.querySelector('.xh-blueprint-overlay__outline--faint')).not.toBeNull();
+        expect(container.querySelector('.xh-blueprint-overlay__tag')).toBeNull();
+    });
+
+    it('marks a selected view at its frame, with a toolbar that names it', () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel(),
+            host = document.createElement('div');
+        onTestFinished(() => overlay.destroy());
+        host.innerHTML = '<div data-blueprint-view="posGrid"></div>';
+        overlay.setHostEl(host);
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        const [mark] = designMarks(design, overlay),
+            {container} = render(
+                mark.render({
+                    x: 0,
+                    y: 100,
+                    width: 100,
+                    height: 50,
+                    area: {width: 500, height: 500}
+                }) as any
+            );
+        expect(mark.target).toBe('[data-blueprint-view="posGrid"]');
+        expect(container.querySelector('.xh-blueprint-overlay__outline--view')).not.toBeNull();
+        expect(container.querySelector('.xh-blueprint-selection-toolbar__name').textContent).toBe(
+            'posGrid · Canvas view'
+        );
     });
 
     it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', async () => {
@@ -188,17 +262,15 @@ describe('design mode selection', () => {
         stubRects();
         const {design, model} = open('p3-morning-report.json'),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement),
-            inner = [...container.querySelectorAll('.xh-blueprint-view__design-element')].at(-1);
+            inner = container.querySelector('[data-blueprint-element="tabs"]');
         fireEvent.mouseOver(inner);
-        expect(design.hoveredId).toBe('overview');
+        expect(design.hoveredId).toBe('tabs');
         const hover = await vi.waitFor(() => {
             const it = overlayMark(container, 'hover');
             expect(it).not.toBeNull();
             return it;
         });
-        expect(hover.querySelector('.xh-blueprint-overlay__tag').textContent).toBe(
-            'overview · Dashboard'
-        );
+        expect(hover.querySelector('.xh-blueprint-overlay__tag').textContent).toBe('tabs · Tabs');
         fireEvent.mouseLeave(inner);
         expect(design.hoveredId).toBeNull();
         expect(model.history).toHaveLength(0);
@@ -283,7 +355,11 @@ describe('design mode selection', () => {
         key(canvas, ']');
         expect(design.selectedElementId).toBe('sectorChart');
         key(canvas, 'Escape');
+        expect(design.selectedViewId).toBe('sectorChart');
+        key(canvas, 'Escape');
         expect(design.selectedElementId).toBe('overview');
+        key(canvas, 'Enter');
+        expect(design.selectedViewId).toBe('reportActions');
         key(canvas, 'Enter');
         expect(design.selectedElementId).toBe('reportActions');
 

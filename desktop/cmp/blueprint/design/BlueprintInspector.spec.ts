@@ -45,7 +45,17 @@ describe('BlueprintInspector', () => {
     it('names the selection, its path and what it reads, for every kind', () => {
         const {design, inspector} = open();
         design.select({kind: 'element', id: 'posGrid'});
-        expect(inspector.breadcrumb).toEqual(['tabs', 'positions', 'posGrid']);
+        expect(inspector.breadcrumb).toEqual([
+            {kind: 'element', id: 'tabs'},
+            {kind: 'element', id: 'positions'},
+            {kind: 'view', id: 'posGrid', of: 'positions'},
+            {kind: 'element', id: 'posGrid'}
+        ]);
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        expect(inspector.breadcrumb.at(-1)).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
+        expect(inspector.breadcrumb).toHaveLength(3);
+        expect(inspector.subtitle).toBe('Canvas view · holds posGrid · in positions');
+        design.select({kind: 'element', id: 'posGrid'});
         expect(inspector.subtitle).toBe('Grid · reads positions, grouping, pnlFilter');
         design.select({kind: 'source', id: 'prices'});
         expect(inspector.breadcrumb).toEqual([]);

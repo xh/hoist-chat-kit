@@ -591,6 +591,45 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 1);
     });
 
+    it('edits a selected canvas view: its header, the inputs in it, and its place, each one edit', () => {
+        const {design, model} = open();
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            titles = [
+                ...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')
+            ].map(it => it.textContent),
+            cell = () =>
+                model.blueprint.elements.positions.children.find(it => it.id === 'posGrid') as any;
+        expect(titles).toEqual(['Header', 'Header items (1)', 'Placement in positions']);
+        expect(container.textContent).toContain('posViewsSelector');
+        expect(
+            container.querySelectorAll(
+                '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'
+            )
+        ).toHaveLength(4);
+        // The widget's own config stays in its own inspector.
+        expect(container.querySelector('[data-config-key="source"]')).toBeNull();
+
+        const before = model.history.length;
+        fireEvent.click(
+            [...container.querySelectorAll('[data-config-key="hideHeader"] button')].find(
+                it => it.textContent === 'Hide'
+            )
+        );
+        expect(cell().hideHeader).toBe(true);
+        expect(cell().headerItems).toEqual([{id: 'posViewsSelector'}]);
+        expect(model.history.length).toBe(before + 1);
+    });
+
+    it("folds a widget's canvas view settings into a section, with a way to select the view", () => {
+        const {design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement);
+        fireEvent.click(screen.getByText('Canvas view'));
+        expect(container.querySelector('[data-config-key="hideHeader"]')).not.toBeNull();
+        fireEvent.click(screen.getByText('Select the view'));
+        expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
+    });
+
     it("sets a grid's summary row from Top, Bottom and Off, each one edit", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
@@ -626,14 +665,14 @@ describe('ElementInspector', () => {
             'Columns (4)Preset · P&L view',
             'Interaction (0)',
             'Style (10)',
-            'Placement in positions'
+            'Canvas view'
         ]);
-        // A canvas cell's place in one row.
+        // A canvas cell's place sits in its Canvas view card, folded until opened.
         expect(
             container.querySelectorAll(
                 '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'
             )
-        ).toHaveLength(4);
+        ).toHaveLength(0);
         // Removing it is a danger action at the very end.
         const remove = container.querySelector('.xh-blueprint-element-inspector__remove');
         expect(remove.textContent).toBe('Remove posGrid');

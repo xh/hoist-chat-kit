@@ -63,8 +63,11 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
             ...({'data-blueprint-element': id} as object),
             onClick: e => {
-                const target = innermost(e, 'xhSelected');
-                if (target) designModel.select({kind: 'element', id: target});
+                // A click on a canvas cell's header or grip selects its view.
+                const view = viewAt(e.target as HTMLElement, e.currentTarget),
+                    target = innermost(e, 'xhSelected');
+                if (!target) return;
+                designModel.select(view ? {kind: 'view', ...view} : {kind: 'element', id: target});
             },
             onMouseOver: e => {
                 const target = innermost(e, 'xhHovered');
@@ -84,10 +87,25 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
  * A header item is an element of its own, which takes its click.
  */
 export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
-    const header = target?.closest('[data-blueprint-view-header]'),
+    const header = target?.closest(CELL_CHROME),
         view = header?.closest<HTMLElement>('[data-blueprint-view]');
     return view && host.contains(view) ? view.dataset.blueprintView : null;
 }
+
+/**
+ * The canvas view whose header or grip a click landed on, outside the header's own items, or
+ * null.
+ */
+export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of: string} {
+    const id = cellElementAt(target, host);
+    if (!id) return null;
+    const view = target.closest<HTMLElement>('[data-blueprint-view]'),
+        item = target.closest('[data-blueprint-element]');
+    if (item && view.contains(item)) return null;
+    return {id, of: view.dataset.blueprintCanvas};
+}
+
+const CELL_CHROME = '[data-blueprint-view-header], [data-blueprint-view-grip]';
 
 // The field a widget needs set before it can draw: the variable an input sets, or a source.
 function needsField(
