@@ -4,23 +4,26 @@ import {
     HoistModel,
     type HoistProps,
     type PlainObject,
-    useLocalModel
+    useLocalModel,
+    XH
 } from '@xh/hoist/core';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
 import classNames from 'classnames';
-import {isEqual, startCase} from 'lodash';
+import {castArray, isEqual, startCase, uniq} from 'lodash';
 import {createElement, useLayoutEffect, useRef} from 'react';
 import {
     type BlueprintDesignModel,
     type BlueprintSelection,
     traceWiring,
+    wiringFor,
     wiringGraph,
     type WiringEdge,
     wiringKey
 } from '../../../../blueprint';
 import {parentOf} from '../../../../blueprint/impl/elements';
+import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintMap.scss';
 import {designHotkeys} from './impl/designHotkeys';
 
@@ -49,6 +52,7 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
         return panel({
             className,
             hotkeys: designHotkeys(designModel, {arrows: false}),
+            tbar: legend(),
             contentBoxProps: {tabIndex: 0, overflow: 'auto'} as object,
             children: box({
                 ref: resizeRef,
@@ -72,7 +76,12 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
                                         ...lane.groups.map(group =>
                                             vbox({
                                                 key: group.title,
-                                                className: `${CLS}__group`,
+                                                className: classNames(
+                                                    `${CLS}__group`,
+                                                    lane.title === 'Elements' &&
+                                                        group.title &&
+                                                        `${CLS}__group--tab`
+                                                ),
                                                 children: [
                                                     group.title
                                                         ? div({
@@ -103,8 +112,12 @@ export interface MapNode {
     key: string;
     kind: BlueprintSelection['kind'];
     id: string;
-    /** A second line, such as a source's dataset or a tile frame's tile count. */
+    /** A summary beside the id, such as a variable's value or a source's dataset. */
     detail?: string;
+    /** A line under it, such as a preset group's presets. */
+    line?: string;
+    /** A source's bound parameters, each a row that a variable's wire lands on. */
+    ports?: string[];
 }
 
 export interface MapLane {
@@ -117,6 +130,8 @@ export interface MapEdge {
     from: string;
     to: string;
     kind: WiringEdge['kind'];
+    /** The source parameter the wire lands on. */
+    toPort?: string;
 }
 
 export type MapNodeState = 'focus' | 'upstream' | 'downstream' | 'preset' | 'dim';
@@ -125,6 +140,9 @@ export type MapNodeState = 'focus' | 'upstream' | 'downstream' | 'preset' | 'dim
 export class BlueprintMapModel extends HoistModel {
     /** The node under the pointer, whose trace shows over the selection's. */
     @observable accessor hoverKey: string = null;
+
+    /** A prefix for this map's arrowhead ids, unique on the page. */
+    readonly markerId = XH.genId();
 
     /** Each node's box within the map's content, by key, as last drawn. */
     @observableRef accessor boxes: Record<string, Box> = {};
@@ -140,8 +158,8 @@ export class BlueprintMapModel extends HoistModel {
 
     @computed
     get lanes(): MapLane[] {
-        const {blueprint} = this.designModel.blueprintModel,
-            {variables = {}, sources = {}, presets = {}} = blueprint ?? {},
+        const {blueprintModel} = this.designModel,
+            {variables = {}, sources = {}, presets = {}} = blueprintModel.blueprint ?? {},
             variableGroups: Record<string, MapNode[]> = {};
         Object.entries(variables).forEach(([id, decl]) => {
             const group =
@@ -154,8 +172,30 @@ export class BlueprintMapModel extends HoistModel {
                         : decl.setBy
                           ? 'Set by widgets'
                           : 'Constants';
-            (variableGroups[group] ??= []).push({key: `variable:${id}`, kind: 'variable', id});
+            (variableGroups[group] ??= []).push({
+                key: `variable:${id}`,
+                kind: 'variable',
+                id,
+                detail: this.variableSummary(id)
+            });
         });
+        const sourceNodes: MapNode[] = Object.entries(sources).map(([id, decl]) => ({
+                key: `source:${id}`,
+                kind: 'source',
+                id,
+                detail: decl.dataset ? `dataset ${decl.dataset}` : null,
+                ports: this.portsOf(id)
+            })),
+            presetNodes: MapNode[] = Object.entries(presets).map(([id, decl]) => ({
+                key: `preset:${id}`,
+                kind: 'preset',
+                id,
+                detail: decl.label,
+                line: Object.values(decl.items ?? {})
+                    .map(it => it.label)
+                    .filter(Boolean)
+                    .join(' · ')
+            }));
         return [
             {
                 title: 'Variables',
@@ -166,27 +206,10 @@ export class BlueprintMapModel extends HoistModel {
             },
             {
                 title: 'Sources',
-                groups: groupOf(
-                    Object.entries(sources).map(([id, decl]) => ({
-                        key: `source:${id}`,
-                        kind: 'source' as const,
-                        id,
-                        detail: [decl.dataset, ...Object.keys(decl.params ?? {})]
-                            .filter(Boolean)
-                            .join(' · ')
-                    }))
-                )
-            },
-            {
-                title: 'Presets',
-                groups: groupOf(
-                    Object.entries(presets).map(([id, decl]) => ({
-                        key: `preset:${id}`,
-                        kind: 'preset' as const,
-                        id,
-                        detail: decl.label
-                    }))
-                )
+                groups: [
+                    ...(sourceNodes.length ? [{title: '', nodes: sourceNodes}] : []),
+                    ...(presetNodes.length ? [{title: 'Presets', nodes: presetNodes}] : [])
+                ]
             },
             {title: 'Elements', groups: this.elementGroups}
         ].filter(it => it.groups.length);
@@ -201,10 +224,11 @@ export class BlueprintMapModel extends HoistModel {
         wiringGraph(this.designModel.blueprintModel.blueprint).edges.forEach(it => {
             const from = nodeOf(it.from),
                 to = nodeOf(it.to),
-                key = `${from}>${to}>${it.kind}`;
+                toPort = it.to.kind === 'source' ? portOf(it.path) : null,
+                key = `${from}>${to}>${it.kind}>${toPort ?? ''}`;
             if (from === to || seen.has(key)) return;
             seen.add(key);
-            ret.push({from, to, kind: it.kind});
+            ret.push({from, to, kind: it.kind, ...(toPort ? {toPort} : {})});
         });
         return ret;
     }
@@ -263,9 +287,9 @@ export class BlueprintMapModel extends HoistModel {
         if (!content) return;
         const origin = content.getBoundingClientRect(),
             boxes: Record<string, Box> = {};
-        content.querySelectorAll<HTMLElement>('[data-map-node]').forEach(el => {
+        content.querySelectorAll<HTMLElement>('[data-map-node], [data-map-port]').forEach(el => {
             const r = el.getBoundingClientRect();
-            boxes[el.dataset.mapNode] = {
+            boxes[el.dataset.mapPort ?? el.dataset.mapNode] = {
                 x: r.left - origin.left,
                 y: r.top - origin.top,
                 w: r.width,
@@ -310,13 +334,56 @@ export class BlueprintMapModel extends HoistModel {
                     id,
                     detail:
                         el.component === 'tileFrame'
-                            ? `${el.children?.length ?? 0} tiles`
+                            ? this.tilesSummary(el.children ?? [])
                             : (registry.widgets[el.component]?.label ?? el.component)
                 };
             if (!groups.has(tab)) groups.set(tab, []);
             groups.get(tab).push(node);
         });
         return [...groups.entries()].map(([title, nodes]) => ({title, nodes}));
+    }
+
+    // A variable's value for a prompt or a constant, its resolver for a computed one, else its
+    // writers.
+    private variableSummary(name: string): string {
+        const {blueprintModel} = this.designModel,
+            decl = blueprintModel.blueprint.variables[name];
+        if (decl.setBy === 'resolver' && decl.compute) {
+            const args = Object.entries(decl.compute.args ?? {}).map(([k, v]) => {
+                const bound = (v as {$var?: string})?.$var;
+                return bound ?? `${k} ${typeof v === 'object' ? JSON.stringify(v) : v}`;
+            });
+            return `${decl.compute.resolver}(${args.join(', ')})`;
+        }
+        if (decl.setBy === 'action') {
+            const writers = wiringFor(blueprintModel.blueprint, {kind: 'variable', id: name}).setBy;
+            return `← ${writers.map(it => it.id).join(', ')}`;
+        }
+        if (decl.setBy && decl.setBy !== 'prompt') {
+            const writers = castArray(decl.setBy) as {element: string; output?: string}[];
+            return `← ${writers.map(it => [it.element, it.output].filter(Boolean).join(' ')).join(', ')}`;
+        }
+        const v = blueprintModel.getVariable(name);
+        return v ? variableText(v.value, decl.type) || null : null;
+    }
+
+    // A tile frame's tiles, by their widget when they share one.
+    private tilesSummary(refs: {id: string}[]): string {
+        const {blueprint, registry} = this.designModel.blueprintModel,
+            components = uniq(refs.map(it => blueprint.elements[it.id]?.component)),
+            label = components.length === 1 ? registry.widgets[components[0]]?.label : null;
+        return `Tiles · ${refs.length} ${label ? `${label.toLowerCase()}${refs.length === 1 ? '' : 's'}` : 'tiles'}`;
+    }
+
+    // A source's bound parameters, and its field instances' parameters as `field.param`.
+    private portsOf(name: string): string[] {
+        const decl = this.designModel.blueprintModel.blueprint.sources[name];
+        return [
+            ...Object.keys(decl.params ?? {}),
+            ...Object.entries(decl.fields ?? {}).flatMap(([field, it]) =>
+                Object.keys((it as {params?: object})?.params ?? {}).map(p => `${field}.${p}`)
+            )
+        ];
     }
 
     // The title of the tab that holds an element, or empty outside any tab.
@@ -326,7 +393,7 @@ export class BlueprintMapModel extends HoistModel {
             const container = elements[parent];
             if (TABBED.includes(container.component)) {
                 const ref = container.children?.find(c => c.id === it) as PlainObject;
-                return (ref?.title as string) ?? startCase(it);
+                return `${(ref?.title as string) ?? startCase(it)} tab · ${it}`;
             }
             it = parent;
             parent = parentOf(elements, parent);
@@ -349,7 +416,13 @@ const CLS = 'xh-blueprint-map';
 const VARIABLE_GROUPS = ['Prompts', 'Computed', 'Set by widgets', 'Set by actions', 'Constants'];
 const TABBED = ['tabContainer', 'dashContainer'];
 
-const groupOf = (nodes: MapNode[]) => (nodes.length ? [{title: '', nodes}] : []);
+// The source parameter at a path a wire reads: `/params/asOf`, or `/fields/retYtd/params/end`.
+const portOf = (path: string): string => {
+    const segs = (path ?? '').split('/');
+    if (segs[1] === 'params') return segs[2];
+    if (segs[1] === 'fields' && segs[3] === 'params') return `${segs[2]}.${segs[4]}`;
+    return null;
+};
 
 const sel = (key: string): BlueprintSelection => {
     const at = key.indexOf(':');
@@ -372,7 +445,11 @@ const mapNode = hoistCmp.factory<
             issues = blueprintModel.issues.filter(it =>
                 it.path?.startsWith(`/${COLLECTIONS[node.kind]}/${node.id}`)
             ),
-            hasError = issues.some(it => it.severity === 'error');
+            hasError = issues.some(it => it.severity === 'error'),
+            waitsFor =
+                node.kind === 'source' && blueprintModel.getSource(node.id)?.isWaiting
+                    ? wiringFor(blueprintModel.blueprint, {kind: 'source', id: node.id}).waitsFor
+                    : [];
         return div({
             className: classNames(
                 `${CLS}__node`,
@@ -395,10 +472,27 @@ const mapNode = hoistCmp.factory<
                 if (designModel.hoveredId === node.id) designModel.setHovered(null);
             },
             children: [
-                span({className: `${CLS}__node-id`, children: node.id}),
-                node.detail
-                    ? span({className: `${CLS}__node-detail`, children: node.detail})
-                    : null,
+                div({
+                    className: `${CLS}__node-head`,
+                    children: [
+                        span({className: `${CLS}__node-id`, children: node.id}),
+                        span({
+                            className: `${CLS}__node-detail`,
+                            children: waitsFor.length
+                                ? `waits for ${waitsFor.map(it => it.id).join(', ')}`
+                                : node.detail
+                        })
+                    ]
+                }),
+                node.line ? div({className: `${CLS}__node-line`, children: node.line}) : null,
+                ...(node.ports ?? []).map(port =>
+                    div({
+                        key: port,
+                        className: `${CLS}__port`,
+                        ...({'data-map-port': `${node.key}#${port}`} as object),
+                        children: port
+                    })
+                ),
                 issues.length
                     ? span({
                           className: classNames(
@@ -420,30 +514,63 @@ const COLLECTIONS = {
     preset: 'presets'
 };
 
-// One SVG over the lanes, a curve per wire from the boxes last measured.
+const EDGE_STATES = ['none', 'upstream', 'downstream', 'preset', 'dim'];
+
+// One SVG over the lanes, a curve per wire from the boxes last measured, with an arrowhead in the
+// wire's color.
 const edgeLayer = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
     displayName: 'BlueprintMapEdges',
     model: false,
     render({impl}) {
-        const {boxes} = impl;
+        const {boxes, markerId} = impl;
         return createElement(
             'svg',
             {className: `${CLS}__edges`},
-            impl.edges.map(edge => {
+            createElement(
+                'defs',
+                {key: 'defs'},
+                EDGE_STATES.map(state =>
+                    createElement(
+                        'marker',
+                        {
+                            key: state,
+                            id: `${markerId}-${state}`,
+                            className: `${CLS}__arrow ${CLS}__arrow--${state}`,
+                            viewBox: '0 0 8 8',
+                            refX: 7,
+                            refY: 4,
+                            markerWidth: 6,
+                            markerHeight: 6,
+                            orient: 'auto'
+                        },
+                        createElement('path', {d: 'M 0 0 L 8 4 L 0 8 z'})
+                    )
+                )
+            ),
+            ...impl.edges.map(edge => {
                 const a = boxes[edge.from],
-                    b = boxes[edge.to];
+                    b = (edge.toPort && boxes[`${edge.to}#${edge.toPort}`]) || boxes[edge.to];
                 if (!a || !b) return null;
-                // Leave from the side facing the target, and arrive at the side facing back.
-                const forward = b.x >= a.x + a.w,
-                    x1 = forward ? a.x + a.w : a.x,
-                    x2 = forward ? b.x : b.x + b.w,
+                const state = impl.edgeState(edge),
                     y1 = a.y + a.h / 2,
-                    y2 = b.y + b.h / 2,
-                    bend = Math.max(40, Math.abs(x2 - x1) / 2) * (forward ? 1 : -1),
-                    state = impl.edgeState(edge);
+                    y2 = b.y + b.h / 2;
+                let d: string;
+                if (Math.abs(a.x - b.x) < 1) {
+                    // Two nodes of one lane, such as a resolver's input: an arc off its left edge.
+                    const bulge = Math.min(48, 16 + Math.abs(y2 - y1) / 4);
+                    d = `M ${a.x} ${y1} C ${a.x - bulge} ${y1}, ${b.x - bulge} ${y2}, ${b.x} ${y2}`;
+                } else {
+                    // Leave from the side facing the target, and arrive at the side facing back.
+                    const forward = b.x >= a.x + a.w,
+                        x1 = forward ? a.x + a.w : a.x,
+                        x2 = forward ? b.x : b.x + b.w,
+                        bend = Math.max(40, Math.abs(x2 - x1) / 2) * (forward ? 1 : -1);
+                    d = `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+                }
                 return createElement('path', {
-                    key: `${edge.from}>${edge.to}>${edge.kind}`,
-                    d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`,
+                    key: `${edge.from}>${edge.to}>${edge.kind}>${edge.toPort ?? ''}`,
+                    d,
+                    markerEnd: `url(#${markerId}-${state ?? 'none'})`,
                     className: classNames(
                         `${CLS}__edge`,
                         `${CLS}__edge--${edge.kind}`,
@@ -452,5 +579,28 @@ const edgeLayer = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
                 });
             })
         );
+    }
+});
+
+// What the trace's colors mean.
+const legend = hoistCmp.factory({
+    displayName: 'BlueprintMapLegend',
+    model: false,
+    render() {
+        return hbox({
+            className: `${CLS}__legend`,
+            children: [
+                ['upstream', 'Upstream (reads)'],
+                ['downstream', 'Downstream (sets, then onward)'],
+                ['preset', 'Preset controls a path'],
+                ['dim', 'Other bindings']
+            ].map(([state, text]) =>
+                span({
+                    key: state,
+                    className: `${CLS}__legend-item ${CLS}__legend-item--${state}`,
+                    children: text
+                })
+            )
+        });
     }
 });

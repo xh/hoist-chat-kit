@@ -51,20 +51,17 @@ describe('BlueprintMap', () => {
 
     it('lays out variables by what sets them, sources, presets, and elements by tab', () => {
         const {map} = open();
-        expect(map.lanes.map(it => it.title)).toEqual([
-            'Variables',
-            'Sources',
-            'Presets',
-            'Elements'
-        ]);
+        expect(map.lanes.map(it => it.title)).toEqual(['Variables', 'Sources', 'Elements']);
         expect(groupsOf(map, 'Variables')).toEqual({
             Prompts: ['fund', 'asOf'],
             Computed: ['priceStart', 'yearStart'],
             'Set by widgets': ['grouping', 'selection', 'symbol'],
             'Set by actions': ['pnlFilter']
         });
-        expect(groupsOf(map, 'Sources')).toEqual({'': ['positions', 'orders', 'prices']});
-        expect(groupsOf(map, 'Presets')).toEqual({'': ['posViews']});
+        expect(groupsOf(map, 'Sources')).toEqual({
+            '': ['positions', 'orders', 'prices'],
+            Presets: ['posViews']
+        });
         const elements = groupsOf(map, 'Elements');
         expect(Object.values(elements).flat()).toEqual([
             'reportActions',
@@ -78,13 +75,45 @@ describe('BlueprintMap', () => {
             'priceChart',
             'ordersGrid'
         ]);
-        expect(Object.keys(elements)).toHaveLength(3);
+        expect(Object.keys(elements)).toEqual([
+            'Overview tab · overview',
+            'Positions tab · positions',
+            'Orders tab · orders'
+        ]);
+    });
+
+    it('sums up each node: a variable by its value or writer, a source by its parameters', () => {
+        const {map} = open(),
+            node = (key: string) =>
+                map.lanes.flatMap(it => it.groups.flatMap(g => g.nodes)).find(it => it.key === key);
+        expect(node('variable:yearStart').detail).toBe('yearStart(asOf)');
+        expect(node('variable:priceStart').detail).toBe('dateOffset(asOf, months -3)');
+        expect(node('variable:grouping').detail).toBe('← groupChooser');
+        expect(node('variable:symbol').detail).toBe('← posGrid selected');
+        expect(node('variable:pnlFilter').detail).toBe('← pnlButtons');
+        expect(node('source:positions').detail).toBe('dataset positions');
+        expect(node('source:positions').ports).toEqual([
+            'asOf',
+            'fund',
+            'retYtd.start',
+            'retYtd.end'
+        ]);
+        expect(node('preset:posViews')).toMatchObject({
+            detail: 'Columns',
+            line: 'P&L view · Risk view'
+        });
+        expect(node('element:headline').detail).toBe('Tiles · 4 stat cards');
+        expect(node('element:posGrid').detail).toBe('Grid');
+        // A variable's wire to a source lands on the parameter it binds.
+        const ports = map.edges
+            .filter(it => it.from === 'variable:asOf' && it.to === 'source:positions')
+            .map(it => it.toPort);
+        expect(ports).toEqual(['asOf', 'retYtd.end']);
     });
 
     it('collapses a tile frame, wiring what its tiles read to it', () => {
-        const {map} = open(),
-            headline = map.lanes.at(-1).groups[0].nodes.find(it => it.id === 'headline');
-        expect(headline.detail).toBe('4 tiles');
+        const {map} = open();
+        expect(map.lanes.at(-1).groups[0].nodes.map(it => it.id)).not.toContain('headlineMktVal');
         expect(
             map.edges.some(it => it.from === 'source:positions' && it.to === 'element:headline')
         ).toBe(true);

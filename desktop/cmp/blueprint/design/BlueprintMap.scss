@@ -1,4 +1,9 @@
 .xh-blueprint-map {
+  --xh-blueprint-map-up: var(--xh-intent-primary);
+  --xh-blueprint-map-down: var(--xh-intent-warning-text-color);
+  --xh-blueprint-map-preset: var(--xh-purple);
+  --xh-blueprint-map-wire: var(--xh-border-color);
+
   &__scroll {
     flex: 1 1 auto;
     overflow: auto;
@@ -7,7 +12,7 @@
   &__content {
     position: relative;
     min-width: max-content;
-    padding: var(--xh-spacing-double);
+    padding: var(--xh-spacing-double) var(--xh-spacing-double) var(--xh-spacing-double) 56px;
   }
 
   &__lanes {
@@ -17,71 +22,79 @@
 
   &__lane {
     gap: var(--xh-spacing);
-    min-width: 160px;
+    min-width: 200px;
   }
 
-  &__lane-title {
+  &__lane-title,
+  &__group-title {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--xh-text-color-muted);
   }
 
   &__group {
     gap: var(--xh-spacing-half);
     margin-bottom: var(--xh-spacing);
-  }
 
-  &__group-title {
-    font-size: 11px;
-    color: var(--xh-text-color-muted);
+    &--tab {
+      padding: var(--xh-spacing);
+      border: 1px dashed var(--xh-border-color);
+      border-radius: 8px;
+
+      > .xh-blueprint-map__group-title {
+        text-transform: none;
+        letter-spacing: 0;
+      }
+    }
   }
 
   &__node {
     position: relative;
     z-index: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 2px var(--xh-spacing);
+    padding: 3px var(--xh-spacing);
     cursor: pointer;
     background-color: var(--xh-bg);
-    border: var(--xh-border-solid);
-    border-left-width: 3px;
+    border: 1px solid var(--xh-border-color);
     border-radius: var(--xh-border-radius-px);
     transition: opacity 0.15s;
 
-    &--variable {
-      border-left-color: var(--xh-intent-success);
+    &--source .xh-blueprint-map__node-id {
+      color: var(--xh-intent-success-text-color, var(--xh-intent-success));
     }
 
-    &--source {
-      border-left-color: var(--xh-intent-primary);
+    &--preset .xh-blueprint-map__node-id {
+      color: var(--xh-blueprint-map-preset);
     }
 
-    &--preset {
-      border-left-color: var(--xh-purple);
+    &--upstream {
+      border: 1.5px solid var(--xh-blueprint-map-up);
+    }
+
+    &--downstream {
+      border: 1.5px dashed var(--xh-blueprint-map-down);
+    }
+
+    &.xh-blueprint-map__node--preset.xh-blueprint-map__node--preset {
+      border: 1.5px solid var(--xh-blueprint-map-preset);
     }
 
     &--selected,
     &--focus {
-      outline: 2px solid var(--xh-intent-primary);
-    }
-
-    &--upstream {
-      background-color: var(--xh-intent-primary-trans1);
-    }
-
-    &--downstream {
-      background-color: var(--xh-intent-warning-trans1);
-    }
-
-    &.xh-blueprint-map__node--preset.xh-blueprint-map__node--preset {
-      border-color: var(--xh-purple);
+      background-color: var(--xh-bg-highlight);
+      border: 2px solid var(--xh-blueprint-map-up);
     }
 
     &--dim {
-      opacity: 0.35;
+      opacity: 0.4;
     }
+  }
+
+  &__node-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--xh-spacing);
   }
 
   &__node-id {
@@ -90,16 +103,33 @@
   }
 
   &__node-detail {
+    margin-left: auto;
+    overflow: hidden;
+    font-size: 11px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__node-line {
     font-size: 11px;
     color: var(--xh-text-color-muted);
   }
 
+  &__port {
+    padding-left: var(--xh-spacing);
+    font-family: var(--xh-font-family-mono);
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+    border-top: 1px solid var(--xh-border-color);
+  }
+
   &__issue {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
+    top: -3px;
+    right: -3px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background-color: var(--xh-intent-warning);
 
@@ -119,7 +149,7 @@
 
   &__edge {
     fill: none;
-    stroke: var(--xh-border-color);
+    stroke: var(--xh-blueprint-map-wire);
     stroke-width: 1.5;
     transition: opacity 0.15s;
 
@@ -128,23 +158,76 @@
     }
 
     &--upstream {
-      stroke: var(--xh-intent-primary);
+      stroke: var(--xh-blueprint-map-up);
       stroke-width: 2;
     }
 
     &--downstream {
-      stroke: var(--xh-intent-warning-text-color);
+      stroke: var(--xh-blueprint-map-down);
       stroke-dasharray: 5 3;
       stroke-width: 2;
     }
 
     &--preset {
-      stroke: var(--xh-purple);
+      stroke: var(--xh-blueprint-map-preset);
+      stroke-dasharray: none;
       stroke-width: 2;
     }
 
     &--dim {
-      opacity: 0.15;
+      opacity: 0.2;
     }
+  }
+
+  &__arrow {
+    fill: var(--xh-blueprint-map-wire);
+
+    &--upstream {
+      fill: var(--xh-blueprint-map-up);
+    }
+
+    &--downstream {
+      fill: var(--xh-blueprint-map-down);
+    }
+
+    &--preset {
+      fill: var(--xh-blueprint-map-preset);
+    }
+
+    &--dim {
+      opacity: 0.2;
+    }
+  }
+
+  &__legend {
+    gap: var(--xh-spacing-double);
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__legend-item::before {
+    content: '';
+    display: inline-block;
+    width: 18px;
+    margin-right: var(--xh-spacing-half);
+    vertical-align: middle;
+    border-top: 2px solid var(--xh-blueprint-map-wire);
+  }
+
+  &__legend-item--upstream::before {
+    border-top-color: var(--xh-blueprint-map-up);
+  }
+
+  &__legend-item--downstream::before {
+    border-top: 2px dashed var(--xh-blueprint-map-down);
+  }
+
+  &__legend-item--preset::before {
+    border-top-color: var(--xh-blueprint-map-preset);
+  }
+
+  &__legend-item--dim::before {
+    opacity: 0.4;
   }
 }

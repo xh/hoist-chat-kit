@@ -51,7 +51,8 @@ export function wiringGraph(blueprint: Blueprint): WiringGraph {
         edges: WiringEdge[] = [],
         seen = new Set<string>(),
         add = (edge: WiringEdge) => {
-            const key = `${wiringKey(edge.from)}>${wiringKey(edge.to)}>${edge.kind}`;
+            // A source reads one variable at each parameter it binds, as the Map draws.
+            const key = `${wiringKey(edge.from)}>${wiringKey(edge.to)}>${edge.kind}>${edge.to.kind === 'source' ? edge.path : ''}`;
             if (seen.has(key)) return;
             seen.add(key);
             edges.push(edge);
@@ -161,11 +162,11 @@ export function wiringFor(
             ...(edge.label ? {label: edge.label} : {})
         });
 
-    ret.reads = into.filter(it => it.kind === 'reads').map(it => refOf(it.from, it));
+    ret.reads = uniqRefs(into.filter(it => it.kind === 'reads').map(it => refOf(it.from, it)));
     ret.sets = out.filter(it => it.kind === 'sets').map(it => refOf(it.to, it));
-    ret.readBy = out
-        .filter(it => it.kind === 'reads' || it.kind === 'shows')
-        .map(it => refOf(it.to, it));
+    ret.readBy = uniqRefs(
+        out.filter(it => it.kind === 'reads' || it.kind === 'shows').map(it => refOf(it.to, it))
+    );
     ret.presets =
         selection.kind === 'preset'
             ? out
@@ -233,6 +234,17 @@ export function wiringKey(node: BlueprintSelection): string {
 //------------------
 // Implementation
 //------------------
+// Each node once, by its first wire.
+function uniqRefs(refs: WiringRef[]): WiringRef[] {
+    const seen = new Set<string>();
+    return refs.filter(it => {
+        const key = `${it.kind}:${it.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 function writersOf(setBy: unknown): ElementWriter[] {
     return (Array.isArray(setBy) ? setBy : [setBy]).filter(
         it => it && typeof it === 'object' && typeof it.element === 'string'
