@@ -990,4 +990,85 @@ describe('BlueprintDesignModel', () => {
             expect(model.blueprint.elements[dc].config).not.toHaveProperty('layout');
         });
     });
+
+    describe('drops', () => {
+        const setup = () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                box = design.addWidget('box').id,
+                a = design.addWidget('markdown', box).id,
+                b = design.addWidget('markdown', box).id,
+                kids = () => model.blueprint.elements[box].children.map(it => it.id);
+            return {model, design, box, a, b, kids};
+        };
+
+        it('drops a palette widget into a container at a place, as one edit, and selects it', () => {
+            const {model, design, box, a, b, kids} = setup(),
+                edits = model.history.length;
+            expect(design.canDropAt({widget: 'markdown'}, {container: box, index: 1})).toBeNull();
+            expect(model.history.length).toBe(edits);
+            expect(design.dropAt({widget: 'markdown'}, {container: box, index: 1})).toBeNull();
+            const added = design.selectedElementId;
+            expect(kids()).toEqual([a, added, b]);
+            expect(model.history.length).toBe(edits + 1);
+            model.undo();
+            expect(kids()).toEqual([a, b]);
+        });
+
+        it('moves an element in, or within its container, by the slot as it stands', () => {
+            const {design, box, a, b, kids} = setup();
+            expect(design.dropAt({element: a}, {container: box, index: 2})).toBeNull();
+            expect(kids()).toEqual([b, a]);
+            expect(design.dropAt({element: 'headline'}, {container: box, index: 0})).toBeNull();
+            expect(kids()).toEqual(['headline', b, a]);
+            expect(design.selectedElementId).toBe('headline');
+        });
+
+        it('refuses with a sentence, applying nothing, where the container cannot take it', () => {
+            const {model, design, box} = setup(),
+                bar = design.addWidget('toolbar', box).id,
+                before = model.version,
+                reason = design.canDropAt({element: 'posGrid'}, {container: bar});
+            expect(reason).toEqual(expect.any(String));
+            expect(design.dropAt({element: 'posGrid'}, {container: bar})).toBe(reason);
+            expect(design.dropAt({element: box}, {container: bar})).toMatch(/inside itself/);
+            expect(model.version).toBe(before);
+        });
+
+        it('places a canvas drop at its footprint', () => {
+            const {model, design} = setup();
+            expect(
+                design.dropAt(
+                    {widget: 'markdown'},
+                    {container: 'dashboard', cell: {x: 0, y: 40, w: 4, h: 3}}
+                )
+            ).toBeNull();
+            const id = design.selectedElementId;
+            expect(
+                model.blueprint.elements.dashboard.children.find(it => it.id === id)
+            ).toMatchObject({
+                x: 0,
+                y: 40,
+                w: 4,
+                h: 3
+            });
+        });
+
+        it("adds a dash container's view to its layout in the same edit", () => {
+            const {model, design} = setup(),
+                dc = design.addWidget('dashContainer').id;
+            expect(
+                design.dropAt(
+                    {widget: 'markdown'},
+                    {
+                        container: dc,
+                        layoutWith: id => [{type: 'stack', content: [{type: 'view', id}]}]
+                    }
+                )
+            ).toBeNull();
+            const id = design.selectedElementId;
+            expect(model.blueprint.elements[dc].config.layout).toEqual([
+                {type: 'stack', content: [{type: 'view', id}]}
+            ]);
+        });
+    });
 });
