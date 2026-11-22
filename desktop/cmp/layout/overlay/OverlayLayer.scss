@@ -1,0 +1,20 @@
+.xh-layout-overlay-host {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+// Clips to the area, never to a mark's target, so a tag or toolbar can sit outside its target.
+.xh-layout-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 10;
+
+  &__mark {
+    position: absolute;
+  }
+}

@@ -235,6 +235,29 @@ Everything. `DashCanvas`, `DashContainer`, their models, their persisted state f
 ViewManager integration and the GoldenLayout fork stay unchanged until the fold-back (D-L6). Apps
 also get hr's two pending fixes (D-L8).
 
+## Constrained dashboard mode (decision 180, later)
+
+Apps that move off `DashCanvas` and `DashContainer` will get a dashboard mode later. The
+blueprint holds layout and state, and users get today's dashboard UX with no Architect or design
+mode:
+- they add and remove views from a predefined library;
+- they arrange views;
+- each view owns its config UI, and its state persists through the blueprint.
+
+It is not built now. The primitives and the widget contract must stay compatible with it:
+
+- **No design-mode assumptions.** The primitives take their children, headers and header items
+  from the host, and never check for design mode. Adding or removing a view is a host edit, so a
+  dashboard host can offer it without a designer.
+- **A library hook for drops.** An external drag carries an opaque item key and a size hint. The
+  host resolves the key: Blueprints resolves it to a widget from the palette, and a dashboard host
+  to an entry in its view library.
+- **Header items from the host.** A dashboard host puts its own controls, such as remove and
+  settings, in a view's header, through the same `renderHeader` that Blueprints uses.
+- **View config at its own path.** A view's settings stay at its element's config path, through
+  `setConfig`, under rule 1. Dashboard mode then needs `BlueprintModel` to keep a user's run-mode
+  changes rather than drop them. That is a model change for later, not a container change.
+
 ## Landing in step 20
 
 The primitives are built in the chat kit now, alongside UI round 2, and move with everything
