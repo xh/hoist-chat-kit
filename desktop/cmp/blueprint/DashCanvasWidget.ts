@@ -206,7 +206,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
                         ? span({
                               key: '_id',
                               className: 'xh-blueprint-dash-canvas__cell-id',
-                              item: id
+                              children: id
                           })
                         : null,
                     ...(cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))

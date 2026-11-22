@@ -6,6 +6,7 @@ import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixture
 import {
     type Blueprint,
     type BlueprintElement,
+    type ChildRef,
     BlueprintModel,
     validateBlueprint
 } from '../../../blueprint';
@@ -294,6 +295,30 @@ describe('layout and container widgets', () => {
             expect(model.effective.elements.page.config.collapsed).toBe(true);
             page.panelModel.setCollapsed(false);
             expect(model.effective.elements.page.config.collapsed).toBe(false);
+            expect(model.blueprint.elements.page.config.collapsed).toBe(true);
+        });
+
+        it('never collapses in a canvas cell, which has no header to expand it from', () => {
+            const {model} = show('canvas', {
+                    canvas: {
+                        component: 'dashCanvas',
+                        children: [{id: 'page', x: 0, y: 0, w: 6, h: 4}]
+                    },
+                    page: {
+                        component: 'panel',
+                        config: {title: 'Risk', collapsible: true, collapsed: true},
+                        children: [{id: 'a'}]
+                    },
+                    a: emptyPanel('Inside')
+                }),
+                page = new PanelWidgetModel({
+                    blueprintModel: model,
+                    id: 'page',
+                    renderElement: () => null
+                });
+            onTestFinished(() => page.destroy());
+            expect(page.panelModel.collapsible).toBe(false);
+            expect(page.panelModel.collapsed).toBe(false);
             expect(model.blueprint.elements.page.config.collapsed).toBe(true);
         });
     });
@@ -616,16 +641,17 @@ describe('layout and container widgets', () => {
     });
 
     describe('clipped text', () => {
-        const textCell = (mode: 'run' | 'design') => {
+        const textCell = (mode: 'run' | 'design', below: ChildRef[] = []) => {
             const model = new BlueprintModel({
                     blueprint: {
                         root: 'canvas',
                         elements: {
                             canvas: {
                                 component: 'dashCanvas',
-                                children: [{id: 'note', x: 0, y: 0, w: 6, h: 1}]
+                                children: [{id: 'note', x: 0, y: 0, w: 6, h: 1}, ...below]
                             },
-                            note: {component: 'markdown', config: {text: 'A long note'}}
+                            note: {component: 'markdown', config: {text: 'A long note'}},
+                            ...(below.length ? {grid: emptyPanel('Grid')} : {})
                         }
                     },
                     catalog: portfolioCatalog,
@@ -656,6 +682,18 @@ describe('layout and container widgets', () => {
             // 70px past a 50px row and an 8px gap takes two more rows.
             expect(model.blueprint.elements.canvas.children[0].h).toBe(3);
             expect(model.history.length).toBe(before + 1);
+        });
+
+        it('moves the cells below down as it grows, in the same edit', () => {
+            const {model, note} = textCell('design', [{id: 'grid', x: 3, y: 1, w: 6, h: 2}]);
+            note.setOverflow(70);
+            note.makeTaller();
+            const [noteCell, gridCell] = model.blueprint.elements.canvas.children;
+            expect(noteCell.h).toBe(3);
+            expect(gridCell.y).toBe(3);
+            expect(model.issues.filter(it => it.severity === 'error')).toEqual([]);
+            model.undo();
+            expect(model.blueprint.elements.canvas.children[1].y).toBe(1);
         });
 
         it('never offers to grow in run mode', () => {

@@ -61,6 +61,14 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
             : [{type: 'stack', content: this.children.map(it => ({type: 'view', id: it.id}))}];
     }
 
+    /** Bring a child's view to the front of its stack. */
+    activateView(id: string) {
+        const item = this.containerModel.goldenLayout?.root
+            ?.getItemsByType('component')
+            .find(it => (it.config as PlainObject).component === id);
+        item?.parent?.setActiveContentItem(item);
+    }
+
     /** Write a layout a user made back to the config, as one edit, or transient in run mode. */
     noteLayout(layout: PlainObject[]) {
         if (!layout?.length || isEqual(layout, this.layout)) return;

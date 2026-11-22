@@ -26,7 +26,7 @@ export const clipFrame = hoistCmp.factory<
         return box({
             className: 'xh-blueprint-clip-frame',
             ref: resizeRef,
-            items: [
+            children: [
                 div({
                     ref,
                     className: `xh-blueprint-clip-frame__content ${className ?? ''}`,
@@ -35,7 +35,7 @@ export const clipFrame = hoistCmp.factory<
                 textModel.canGrow
                     ? div({
                           className: 'xh-blueprint-clip-frame__fade',
-                          item: button({
+                          children: button({
                               className: 'xh-blueprint-clip-frame__grow',
                               text: 'Content clipped · make taller',
                               minimal: true,

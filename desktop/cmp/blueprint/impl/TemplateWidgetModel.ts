@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
+import {growCell} from '../../../../blueprint/impl/canvasCells';
 import {parentOf} from '../../../../blueprint/impl/elements';
 import {CANVAS_GAP} from './layout';
 import {
@@ -56,18 +57,21 @@ export class TemplateWidgetModel<
         );
     }
 
-    /** Grow the text's canvas cell by enough rows to show it all, in one edit. */
+    /** Grow the text's canvas cell by enough rows to show it all, and move the cells below down, in one edit. */
     makeTaller() {
         const parent = this.parentElement,
             canvasId = parentOf(this.blueprintModel.blueprint.elements, this.id),
             rowStep = ((parent?.config?.rowHeight as number) ?? 50) + CANVAS_GAP,
             rows = Math.ceil(this.overflow / rowStep);
         if (!this.canGrow || !rows) return;
-        const children = parent.children.map(it =>
-            it.id === this.id ? {...it, h: (it.h as number) + rows} : it
-        );
         this.applyUserEdit(
-            [{op: 'set', path: `/elements/${canvasId}/children`, value: children}],
+            [
+                {
+                    op: 'set',
+                    path: `/elements/${canvasId}/children`,
+                    value: growCell(parent.children, this.id, rows)
+                }
+            ],
             `${this.id}: make taller`
         );
     }

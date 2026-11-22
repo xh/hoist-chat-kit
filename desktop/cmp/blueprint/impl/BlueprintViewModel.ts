@@ -143,6 +143,7 @@ export class BlueprintViewModel extends HoistModel {
             const model = this.getWidgetModel(parent);
             if (model instanceof TabContainerWidgetModel)
                 model.tabContainerModel.activateTab(child);
+            if (model instanceof DashContainerWidgetModel) model.activateView(child);
             child = parent;
             parent = parentOf(elements, parent);
         }
