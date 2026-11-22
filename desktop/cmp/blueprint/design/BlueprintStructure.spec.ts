@@ -11,6 +11,7 @@ import {
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
 import {BlueprintStructureModel} from './BlueprintStructure';
+import {designHotkeys} from './impl/designHotkeys';
 
 /**
  * Structure: a blueprint's elements as a tree with their slots, then its sources, variables and
@@ -108,6 +109,16 @@ describe('BlueprintStructure', () => {
         });
         expect(design.selectedElementId).toBe('posGrid');
         expect(design.addTarget).toEqual({parent: 'positions', slot: 'headerItems', of: 'posGrid'});
+    });
+
+    it('clears the selection on a section row, so Del never removes what the tree does not show', async () => {
+        const {model, design, structure} = open();
+        design.select({kind: 'element', id: 'posGrid'});
+        await structure.gridModel.selectAsync('section:source', {ensureVisible: false});
+        expect(design.selection).toBeNull();
+        const del = designHotkeys(design, {arrows: false}).find(it => it.combo === 'del');
+        del.onKeyDown({target: null, preventDefault: () => {}} as any);
+        expect(model.blueprint.elements).toHaveProperty('posGrid');
     });
 
     it('offers a menu of rename, duplicate, move, add and delete for an element', () => {

@@ -251,6 +251,9 @@ export class BlueprintStructureModel extends HoistModel {
             {kind, name, place} = record?.data ?? {};
         if (kind === 'slot') {
             if (!isSamePlace(place, designModel.slotTarget)) designModel.selectSlot(place);
+        } else if (kind === 'section') {
+            // A section is not a part of the blueprint, so nothing stays selected for a key to act on.
+            if (designModel.selection) designModel.select(null);
         } else if (['element', 'source', 'variable', 'preset'].includes(kind)) {
             const {selection, slotTarget} = designModel;
             if (slotTarget || selection?.kind !== kind || selection.id !== name) {
