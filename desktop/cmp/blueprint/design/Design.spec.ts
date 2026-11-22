@@ -207,7 +207,8 @@ describe('design mode selection', () => {
                     y: 100,
                     width: 100,
                     height: 50,
-                    area: {width: 500, height: 500}
+                    area: {width: 500, height: 500},
+                    roomAbove: 100
                 }) as any
             );
         expect(container.querySelector('.xh-blueprint-overlay__outline--faint')).not.toBeNull();
@@ -240,7 +241,8 @@ describe('design mode selection', () => {
                     y: 100,
                     width: 100,
                     height: 50,
-                    area: {width: 500, height: 500}
+                    area: {width: 500, height: 500},
+                    roomAbove: 100
                 }) as any
             );
         expect(mark.target).toBe('[data-blueprint-view="posGrid"]');
@@ -248,6 +250,27 @@ describe('design mode selection', () => {
         expect(container.querySelector('.xh-blueprint-selection-toolbar__name').textContent).toBe(
             'posGrid · Canvas view'
         );
+    });
+
+    it('sets the toolbar above an element at the top of the blueprint, inside it only at the top of the window', () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel();
+        onTestFinished(() => overlay.destroy());
+        design.select({kind: 'element', id: 'overview'});
+        const [mark] = designMarks(design, overlay),
+            toolbarAt = (roomAbove: number) =>
+                render(
+                    mark.render({
+                        x: 0,
+                        y: 0,
+                        width: 100,
+                        height: 50,
+                        area: {width: 500, height: 500},
+                        roomAbove
+                    }) as any
+                ).container.querySelector('.xh-blueprint-selection-toolbar');
+        expect(toolbarAt(80).classList).not.toContain('xh-blueprint-selection-toolbar--inside');
+        expect(toolbarAt(0).classList).toContain('xh-blueprint-selection-toolbar--inside');
     });
 
     it('selects the innermost element a click lands on, and outlines it, in design mode only, keeping its widget across a mode switch', async () => {
@@ -350,7 +373,7 @@ describe('design mode selection', () => {
             {container} = render(blueprintView({model, designModel: design}) as ReactElement);
         design.select({kind: 'element', id: 'overview'});
         const toolbar = await vi.waitFor(() => {
-            const it = container.querySelector('.xh-blueprint-selection-toolbar');
+            const it = document.body.querySelector('.xh-blueprint-selection-toolbar');
             expect(it).toBeTruthy();
             return it;
         });
@@ -575,7 +598,7 @@ describe('design mode selection', () => {
         onTestFinished(() => confirm.mockRestore());
         design.select({kind: 'element', id: 'overview'});
         const remove = await vi.waitFor(() => {
-            const it = container.querySelector(
+            const it = document.body.querySelector(
                 '.xh-blueprint-selection-toolbar button[title^="Delete"]'
             );
             expect(it).toBeTruthy();
@@ -690,6 +713,7 @@ function stubRects() {
     onTestFinished(() => spy.mockRestore());
 }
 
-function overlayMark(container: Element, key: string): Element {
-    return container.querySelector(`[data-overlay-mark="${key}"]`);
+// Overlay marks draw in a portal on the page, outside the view.
+function overlayMark(_container: Element, key: string): Element {
+    return document.body.querySelector(`[data-overlay-mark="${key}"]`);
 }

@@ -6,13 +6,13 @@
   min-height: 0;
 }
 
-// Clips to the area, never to a mark's target, so a tag or toolbar can sit outside its target.
+// Fixed over the area in a portal, unclipped, so a mark can sit outside its target and the area.
+// Below Hoist's popovers, menus and dialogs.
 .xh-layout-overlay {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
+  position: fixed;
+  overflow: visible;
   pointer-events: none;
-  z-index: 10;
+  z-index: 15;
 
   &__mark {
     position: absolute;

@@ -7,7 +7,8 @@ import {selectionToolbar} from './SelectionToolbar';
 import './designOverlay.scss';
 
 const CLS = 'xh-blueprint-overlay',
-    // The room a tag or the toolbar needs above its target, or it draws just inside.
+    // The room a tag or the toolbar needs above its target, up to the window's top, or it draws
+    // just inside.
     TAG_ROOM = 22,
     TOOLBAR_ROOM = 32;
 
@@ -23,7 +24,8 @@ export function designMarks(
 ): OverlayMark[] {
     const {blueprintModel, selectedElementId: selected, hoveredId: hovered} = designModel;
     if (blueprintModel.mode !== 'design') return [];
-    const ret: OverlayMark[] = [];
+    const ret: OverlayMark[] = [],
+        surface = () => overlay.hostEl?.closest<HTMLElement>('.xh-panel__content[tabindex]');
     if (
         hovered &&
         hovered !== selected &&
@@ -58,7 +60,8 @@ export function designMarks(
                     designModel,
                     id: view,
                     isView: true,
-                    inside: box.y < TOOLBAR_ROOM
+                    inside: box.roomAbove < TOOLBAR_ROOM,
+                    surface
                 })
             ]
         });
@@ -73,7 +76,8 @@ export function designMarks(
                     key: 'toolbar',
                     designModel,
                     id: selected,
-                    inside: box.y < TOOLBAR_ROOM
+                    inside: box.roomAbove < TOOLBAR_ROOM,
+                    surface
                 })
             ]
         });
@@ -97,7 +101,7 @@ function tag(designModel: BlueprintDesignModel, id: string, box: OverlayBox) {
         spec = registry.widgets[blueprint.elements[id].component];
     return span({
         key: 'tag',
-        className: classNames(`${CLS}__tag`, box.y < TAG_ROOM && `${CLS}__tag--inside`),
+        className: classNames(`${CLS}__tag`, box.roomAbove < TAG_ROOM && `${CLS}__tag--inside`),
         children: [
             spec ? widgetIcon(spec, {className: `${CLS}__tag-icon`}) : null,
             spec ? `${id} · ${spec.label}` : id
