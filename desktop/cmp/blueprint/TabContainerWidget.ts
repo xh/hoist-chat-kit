@@ -58,8 +58,11 @@ export const [TabContainerWidget, tabContainerWidget] = hoistCmp.withFactory({
             tabContainer({
                 model: model.tabContainerModel,
                 className,
-                // Tabs that do not fit scroll, and show in a menu, as in a narrow chat.
-                switcher: {enableOverflow: true}
+                switcher: {
+                    orientation: model.resolvedConfig.switcherPosition ?? 'top',
+                    // Tabs that do not fit scroll, and show in a menu, as in a narrow chat.
+                    enableOverflow: true
+                }
             })
         );
     }

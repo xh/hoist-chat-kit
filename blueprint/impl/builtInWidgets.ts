@@ -70,7 +70,15 @@ const DASH_CANVAS_SCHEMA = {
 const TAB_CONTAINER_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {emptyText: EMPTY_TEXT}
+    properties: {
+        emptyText: EMPTY_TEXT,
+        switcherPosition: {
+            enum: ['top', 'bottom', 'left', 'right'],
+            default: 'top',
+            title: 'Tab position',
+            description: 'Where the row of tabs sits: above, below, or beside the content.'
+        }
+    }
 } as const satisfies BlueprintSchema;
 
 // A dash layout item, to a fixed depth as schemas here take no $ref: its shape, sizes and views.
@@ -1336,7 +1344,10 @@ const dashCanvas: WidgetSpec = {
 const tabContainer: WidgetSpec = {
     name: 'tabContainer',
     icon: 'folder',
-    sections: [{label: 'Content', keys: ['emptyText']}],
+    sections: [
+        {label: 'Content', keys: ['emptyText']},
+        {label: 'Display', keys: ['switcherPosition']}
+    ],
     summary: 'Shows one child at a time, under a row of tabs.',
     version: 1,
     label: 'Tabs',

@@ -918,6 +918,21 @@ describe('blueprint desktop widgets', () => {
             onTestFinished(() => tabs.destroy());
             const {container} = render(tabContainerWidget({model: tabs}));
             expect(container.querySelector('.xh-tab-switcher--overflow-enabled')).toBeTruthy();
+            expect(container.querySelector('.xh-tab-switcher--top')).toBeTruthy();
+        });
+
+        it('puts its tabs where its switcher position says', () => {
+            const bp = p3();
+            bp.elements.tabs.config = {...bp.elements.tabs.config, switcherPosition: 'left'};
+            const model = open(bp),
+                tabs = new TabContainerWidgetModel({
+                    blueprintModel: model,
+                    id: 'tabs',
+                    renderElement: id => div(id)
+                });
+            onTestFinished(() => tabs.destroy());
+            const {container} = render(tabContainerWidget({model: tabs}));
+            expect(container.querySelector('.xh-tab-switcher--left')).toBeTruthy();
         });
 
         it('follows edits to its children, keeping the active tab', () => {
