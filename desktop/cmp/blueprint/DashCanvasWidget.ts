@@ -40,17 +40,22 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
 
     /**
      * Each cell's title, by ID: its reference's `title`, else its child's, with bindings and
-     * variables resolved. Null for a cell with none.
+     * variables resolved, else its widget's label, else its ID.
      */
     get titles(): Record<string, string> {
         const {blueprintModel} = this,
+            {registry} = blueprintModel,
             elements = blueprintModel.blueprint?.elements ?? {};
         return Object.fromEntries(
             this.children.map(ref => {
-                const title = blueprintModel.resolveTitle(
-                    (ref.title as string) ?? elements[ref.id]?.config?.title
-                );
-                return [ref.id, title == null || title === '' ? null : String(title)];
+                const el = elements[ref.id],
+                    title = blueprintModel.resolveTitle((ref.title as string) ?? el?.config?.title);
+                return [
+                    ref.id,
+                    title == null || title === ''
+                        ? (registry.widgets[el?.component]?.label ?? ref.id)
+                        : String(title)
+                ];
             })
         );
     }
@@ -74,17 +79,20 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         );
     }
 
-    /** True if a cell draws a header: not hidden, and with a title or header items. */
+    /** True if a cell draws a header, as every cell does unless its reference hides it. */
     cellHasHeader(id: string): boolean {
         const ref = this.children.find(it => it.id === id);
-        if (!ref || ref.hideHeader) return false;
-        return this.titles[id] != null || this.cellHeaderRefs[id]?.length > 0;
+        return !!ref && !ref.hideHeader;
     }
 
-    /** A cell's header items: in design mode its element's id first, then its own items. */
+    /**
+     * A cell's header items: in design mode its element's id first, unless the title is the id,
+     * then its own items.
+     */
     headerItemsFor(id: string): ReactNode[] {
+        const showId = this.isDesign && this.titles[id] !== id;
         return [
-            this.isDesign ? span({key: '_id', className: `${CLS}__cell-id`, children: id}) : null,
+            showId ? span({key: '_id', className: `${CLS}__cell-id`, children: id}) : null,
             ...(this.cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))
         ].filter(Boolean);
     }

@@ -812,15 +812,30 @@ describe('layout and container widgets', () => {
             expect(header.querySelector('svg')).toBeTruthy();
         });
 
-        it('hides the header of a cell with no title and no header items', () => {
-            const {canvas, view} = cells();
-            expect(canvas.cellHasHeader('tiles')).toBe(false);
+        it("draws a header for a cell with no title, by its widget's label", () => {
+            const {canvas, view, model} = cells();
+            expect(canvas.cellHasHeader('tiles')).toBe(true);
             const {container} = renderCanvas(view);
             expect(
                 container.querySelector(
-                    '[data-blueprint-view="tiles"] [data-blueprint-view-header]'
-                )
-            ).toBeNull();
+                    '[data-blueprint-view="tiles"] .xh-blueprint-dash-canvas__cell-title'
+                ).textContent
+            ).toBe(model.registry.widgets.tileFrame.label);
+        });
+
+        it("names a cell titled by its id only once in design mode, leaving out the id's tag", () => {
+            const design = cells('design'),
+                {canvas} = design;
+            expect(canvas.headerItemsFor('tiles')).toHaveLength(1);
+            // A widget with no label falls back to the id, which the tag would repeat.
+            const spec = design.model.registry.widgets.tileFrame,
+                label = spec.label;
+            (spec as any).label = undefined;
+            onTestFinished(() => {
+                (spec as any).label = label;
+            });
+            expect(canvas.titles.tiles).toBe('tiles');
+            expect(canvas.headerItemsFor('tiles')).toEqual([]);
         });
 
         it('shows the column grid and element ids in design mode only', () => {
@@ -849,8 +864,7 @@ describe('layout and container widgets', () => {
             });
             expect(iconOf()).toBeTruthy();
             expect(iconOf()).not.toBe('chart-line');
-            // A cell with no header stays without one, id or not.
-            expect(design.canvas.cellHasHeader('tiles')).toBe(false);
+            expect(design.canvas.cellHasHeader('tiles')).toBe(true);
         });
 
         function renderCanvas(view: BlueprintViewModel) {
