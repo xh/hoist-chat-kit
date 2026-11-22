@@ -552,6 +552,45 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 2);
     });
 
+    it("draws an openBlueprint's values as rows, each a variable, a row field or a value", () => {
+        const {design, model} = open('p2-linked-dashboard.json');
+        design.setConfig('posGrid', '/rowActions', [
+            {
+                label: 'Open detail',
+                action: {
+                    type: 'openBlueprint',
+                    blueprint: 'symbol-detail',
+                    variables: {symbol: {$row: 'symbol'}, asOf: {$var: 'asOf'}, top: 10}
+                }
+            }
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            rows = () =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__link-value')].map(
+                    it => [
+                        it.querySelector('.xh-blueprint-element-inspector__label').textContent,
+                        it.querySelector('.xh-blueprint-element-inspector__var-chip')
+                            ?.textContent ?? it.querySelector('input')?.value
+                    ]
+                );
+        expect(rows()).toEqual([
+            ['symbol', 'row · symbol'],
+            ['asOf', 'asOf'],
+            ['top', '10']
+        ]);
+        expect(container.querySelector('[data-config-key="rowActions"] .xh-json-input')).toBeNull();
+
+        const before = model.history.length;
+        fireEvent.click(
+            container.querySelector('.xh-blueprint-element-inspector__link-value [title="Remove"]')
+        );
+        expect(model.blueprint.elements.posGrid.config.rowActions[0].action.variables).toEqual({
+            asOf: {$var: 'asOf'},
+            top: 10
+        });
+        expect(model.history.length).toBe(before + 1);
+    });
+
     it("sets a grid's summary row from Top, Bottom and Off, each one edit", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

@@ -16,7 +16,16 @@ import {
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {castArray, isEmpty, isEqual, isNumber, isString, omit} from 'lodash';
+import {
+    castArray,
+    isEmpty,
+    isEqual,
+    isNumber,
+    isObject,
+    isPlainObject,
+    isString,
+    omit
+} from 'lodash';
 import classNames from 'classnames';
 import type React from 'react';
 import type {ReactElement, ReactNode} from 'react';
@@ -938,22 +947,40 @@ function actionEditor(
                         div({className: `${CLS}__description`, children: impl.describeStep(step)}),
                         // An action's values are literals or variables.
                         ...params.map(param =>
-                            propertyRow({
-                                key: param.key,
-                                node: {
-                                    ...stepParamNode(step, param, impl),
-                                    bindable: param.kind !== 'variable'
-                                },
-                                value: step[param.key],
-                                commit: v =>
-                                    replace(
-                                        i,
-                                        v === undefined
-                                            ? omit(step, param.key)
-                                            : {...step, [param.key]: v}
-                                    ),
-                                ctx
-                            })
+                            step.type === 'openBlueprint' && param.key === 'variables'
+                                ? labelled(
+                                      param.label,
+                                      linkValuesEditor(
+                                          (step.variables as PlainObject) ?? {},
+                                          v =>
+                                              replace(
+                                                  i,
+                                                  isEmpty(v)
+                                                      ? omit(step, 'variables')
+                                                      : {...step, variables: v}
+                                              ),
+                                          ctx
+                                      ),
+                                      [],
+                                      null,
+                                      param.description
+                                  )
+                                : propertyRow({
+                                      key: param.key,
+                                      node: {
+                                          ...stepParamNode(step, param, impl),
+                                          bindable: param.kind !== 'variable'
+                                      },
+                                      value: step[param.key],
+                                      commit: v =>
+                                          replace(
+                                              i,
+                                              v === undefined
+                                                  ? omit(step, param.key)
+                                                  : {...step, [param.key]: v}
+                                          ),
+                                      ctx
+                                  })
                         ),
                         propertyRow({
                             key: 'confirm',
@@ -979,6 +1006,139 @@ function actionEditor(
 }
 
 // A setVariable step's value takes the editor of the variable it sets.
+// The values an openBlueprint passes, a row each: a variable, a field of the row in a row action, or
+// a value as written.
+function linkValuesEditor(
+    values: PlainObject,
+    commit: (values: PlainObject) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        disabled = impl.readOnly,
+        rowFields = ctx.key === 'rowActions' ? impl.fieldOptions('any') : [],
+        variables = Object.keys(impl.designModel.blueprintModel.blueprint?.variables ?? {}),
+        set = (name: string, value: unknown) => commit({...values, [name]: value}),
+        // A new name starts from the variable or row field it shares a name with, if any.
+        starter = (name: string) =>
+            variables.includes(name)
+                ? {$var: name}
+                : rowFields.some(it => it.value === name)
+                  ? {$row: name}
+                  : '';
+    return div({
+        className: `${CLS}__link-values`,
+        children: [
+            ...Object.entries(values).map(([name, value]) => {
+                const v = value as PlainObject,
+                    chip = isVarBinding(value)
+                        ? {text: v.$var, label: `Show variable ${v.$var}`}
+                        : isPlainObject(value) && isString(v.$row)
+                          ? {text: `row · ${v.$row}`, label: `Row field ${v.$row}`}
+                          : null;
+                return div({
+                    key: name,
+                    className: classNames(
+                        `${CLS}__row`,
+                        `${CLS}__row--inline`,
+                        `${CLS}__link-value`
+                    ),
+                    children: [
+                        div({className: `${CLS}__label`, children: name}),
+                        div({
+                            className: `${CLS}__row-body`,
+                            children: [
+                                hbox({
+                                    className: `${CLS}__bindable`,
+                                    children: [
+                                        chip
+                                            ? selectChip({
+                                                  className: `${CLS}__var-chip`,
+                                                  text: chip.text,
+                                                  label: chip.label,
+                                                  onSelect: () =>
+                                                      isVarBinding(value) &&
+                                                      impl.designModel.select({
+                                                          kind: 'variable',
+                                                          id: v.$var
+                                                      })
+                                              })
+                                            : isObject(value)
+                                              ? jsonEditor(value, it => set(name, it), ctx)
+                                              : textInput({
+                                                    value: value == null ? '' : String(value),
+                                                    disabled,
+                                                    width: '100%',
+                                                    onCommit: (it: string) =>
+                                                        set(
+                                                            name,
+                                                            isNumber(value) &&
+                                                                it !== '' &&
+                                                                !isNaN(+it)
+                                                                ? +it
+                                                                : it
+                                                        )
+                                                }),
+                                        disabled
+                                            ? null
+                                            : menuButton({
+                                                  className: `${CLS}__bind-button`,
+                                                  icon: Icon.link(),
+                                                  minimal: true,
+                                                  title: 'Pass a variable or a row field',
+                                                  menuItems: [
+                                                      ...variables.map(it => ({
+                                                          text: it,
+                                                          actionFn: () => set(name, {$var: it})
+                                                      })),
+                                                      ...(rowFields.length && variables.length
+                                                          ? ['-' as const]
+                                                          : []),
+                                                      ...rowFields.map(it => ({
+                                                          text: `row · ${it.label}`,
+                                                          actionFn: () =>
+                                                              set(name, {$row: it.value})
+                                                      })),
+                                                      ...(chip
+                                                          ? [
+                                                                '-' as const,
+                                                                {
+                                                                    text: 'A value',
+                                                                    actionFn: () => set(name, '')
+                                                                }
+                                                            ]
+                                                          : [])
+                                                  ]
+                                              })
+                                    ]
+                                }),
+                                disabled
+                                    ? null
+                                    : button({
+                                          className: `${CLS}__link-remove`,
+                                          icon: Icon.delete(),
+                                          title: 'Remove',
+                                          intent: 'danger',
+                                          minimal: true,
+                                          onClick: () => commit(omit(values, name))
+                                      })
+                            ]
+                        })
+                    ]
+                });
+            }),
+            disabled
+                ? null
+                : textInput({
+                      key: Object.keys(values).length,
+                      placeholder: 'Pass a variable of the target…',
+                      width: '100%',
+                      onCommit: (name: string) =>
+                          name && !Object.hasOwn(values, name) && set(name, starter(name))
+                  })
+        ]
+    });
+}
+
 function stepParamNode(step: PlainObject, param: EditorNode, impl: ConfigEditorModel): EditorNode {
     if (step.type !== 'setVariable' || param.key !== 'value') return param;
     const typed = impl.valueNodeFor(step.variable);
