@@ -27,6 +27,26 @@ describe('toEditorSpec', () => {
         });
     });
 
+    it("labels a boolean's two values in the order x-labels gives, else On then Off", () => {
+        const [plain, hidden, partial] = toEditorSpec({
+            type: 'object',
+            properties: {
+                plain: {type: 'boolean'},
+                hidden: {type: 'boolean', 'x-labels': {false: 'Show', true: 'Hide'}},
+                partial: {type: 'boolean', 'x-labels': {true: 'Yes'}}
+            }
+        }) as any[];
+        expect(plain.labels).toEqual([
+            {value: true, label: 'On'},
+            {value: false, label: 'Off'}
+        ]);
+        expect(hidden.labels).toEqual([
+            {value: false, label: 'Show'},
+            {value: true, label: 'Hide'}
+        ]);
+        expect(partial.labels).toEqual(plain.labels);
+    });
+
     it('gives each built-in example the elements its child references name', () => {
         BUILT_IN_WIDGETS.filter(it => it.example).forEach(spec => {
             const elements = {

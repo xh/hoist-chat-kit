@@ -10,7 +10,11 @@ export type EditorNode = EditorBase &
         | {kind: 'text'; multiline: boolean; maxLength?: number}
         | {kind: 'date'}
         | {kind: 'number'; integer: boolean; min?: number; max?: number}
-        | {kind: 'boolean'}
+        | {
+              kind: 'boolean';
+              /** From `x-labels`: each value and its label, the positive state first. */
+              labels: {value: boolean; label: string}[];
+          }
         | {kind: 'choice'; options: unknown[]; thumbnails?: Record<string, string>}
         | {kind: 'group'; children: EditorNode[]}
         | {kind: 'stringList'; options?: unknown[]}
@@ -158,7 +162,7 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
                 ...(schema.maximum != null ? {max: schema.maximum} : {})
             };
         case 'boolean':
-            return {...base, kind: 'boolean'};
+            return {...base, kind: 'boolean', labels: booleanLabels(schema['x-labels'])};
         case 'object': {
             if (isPlainObject(schema.additionalProperties) && !schema.properties) {
                 return {
@@ -208,4 +212,15 @@ function isSimple(node: EditorNode): boolean {
 export function labelOf(key: string): string {
     const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
     return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// A boolean's segments in the order its labels give, else On then Off.
+function booleanLabels(labels: PlainObject): {value: boolean; label: string}[] {
+    const entries = Object.entries(labels ?? {}).filter(([k]) => k === 'true' || k === 'false');
+    return entries.length === 2
+        ? entries.map(([k, label]) => ({value: k === 'true', label}))
+        : [
+              {value: true, label: 'On'},
+              {value: false, label: 'Off'}
+          ];
 }

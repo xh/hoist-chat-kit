@@ -136,6 +136,15 @@ export abstract class ConfigEditorModel extends HoistModel {
         this.commit(mapKey, isEmpty(next) ? undefined : next);
     }
 
+    /** The issues at one setting of a map's entry, such as a column's format in `columns`. */
+    itemSettingIssues(mapKey: string, item: string, key: string): BlueprintIssue[] {
+        const segment = item.replace(/~/g, '~0').replace(/\//g, '~1'),
+            prefix = `${this.pathOf(mapKey)}/${segment}/${key}`;
+        return this.issuesFor(mapKey).filter(
+            it => it.path === prefix || it.path.startsWith(`${prefix}/`)
+        );
+    }
+
     /** Refuse a value before it reaches the blueprint, such as JSON that does not parse. */
     @action
     refuse(key: string, message: string) {

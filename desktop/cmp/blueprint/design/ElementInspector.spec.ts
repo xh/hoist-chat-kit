@@ -412,6 +412,33 @@ describe('ElementInspector', () => {
             expect(inspector.describeStep({type: 'nope'})).toEqual(expect.any(String));
         });
 
+        it("folds a format's options in a card under its row until one is set, and sums up those set", () => {
+            const {design} = open('p2-linked-dashboard.json', 'posGrid');
+            design.setConfig('posGrid', '/columns', {mktVal: {format: 'mv'}});
+            const {container} = render(elementInspector({designModel: design}) as ReactElement),
+                card = () =>
+                    container.querySelector(
+                        '[data-config-key="format"] > .xh-blueprint-element-inspector__format-options'
+                    );
+            fireEvent.click(container.querySelector('[data-field="mktVal"] [title="Settings"]'));
+            expect(card().classList).toContain('xh-card--collapsed');
+            expect(card().textContent).toBe('Format options');
+
+            // An override opens it, with the options set named in its title.
+            design.setConfig('posGrid', '/columns', {mktVal: {format: {name: 'mv', precision: 1}}});
+            const {container: set} = render(
+                elementInspector({designModel: design}) as ReactElement
+            );
+            fireEvent.click(set.querySelector('[data-field="mktVal"] [title="Settings"]'));
+            const opened = set.querySelector(
+                '[data-config-key="format"] > .xh-blueprint-element-inspector__format-options'
+            );
+            expect(opened.classList).toContain('xh-card--expanded');
+            expect(
+                opened.querySelector('.xh-blueprint-element-inspector__format-summary').textContent
+            ).toBe('precision 1');
+        });
+
         it('draws a format picker, a renderer picker and an action editor', () => {
             const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
             design.setConfig('posGrid', '/columns', {
@@ -419,9 +446,7 @@ describe('ElementInspector', () => {
             });
             const {container} = render(elementInspector({designModel: design}) as ReactElement);
             fireEvent.click(container.querySelector('[data-field="mktVal"] [title="Settings"]'));
-            expect(
-                container.querySelectorAll('.xh-blueprint-element-inspector__format').length
-            ).toBe(1);
+            expect(container.querySelectorAll('[data-config-key="format"]').length).toBe(1);
             expect(
                 container.querySelectorAll('.xh-blueprint-element-inspector__renderer').length
             ).toBe(1);
@@ -454,8 +479,8 @@ describe('ElementInspector', () => {
                 ...locked.container.querySelectorAll('.xh-blueprint-element-inspector__row')
             ]
                 .find(it => it.firstElementChild?.textContent === 'Confirm')
-                .querySelector('input');
-            expect([confirm.checked, confirm.disabled]).toEqual([true, true]);
+                .querySelector<HTMLButtonElement>('[aria-checked="true"]');
+            expect([confirm.textContent, confirm.disabled]).toEqual(['On', true]);
         });
     });
 
@@ -498,6 +523,24 @@ describe('ElementInspector', () => {
         });
     });
 
+    it('draws a boolean as two segments, positive first, which one click anywhere flips as one edit', () => {
+        const {model, design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = () => container.querySelector('[data-config-key="hideHeaders"]'),
+            segments = () => [...row().querySelectorAll('[aria-checked]')];
+        fireEvent.click(screen.getByText('Style'));
+        expect(row().firstElementChild.textContent).toBe('Column headers');
+        expect(segments().map(it => [it.textContent, it.getAttribute('aria-checked')])).toEqual([
+            ['Show', 'true'],
+            ['Hide', 'false']
+        ]);
+        const before = model.history.length;
+        fireEvent.click(segments()[0]);
+        expect(model.blueprint.elements.posGrid.config.hideHeaders).toBe(true);
+        expect(model.history.length).toBe(before + 1);
+        expect(row().querySelector('.bp6-switch')).toBeNull();
+    });
+
     it('shows an unset property at its default, without writing it', () => {
         const {model, design} = open(),
             before = model.blueprint,
@@ -508,8 +551,8 @@ describe('ElementInspector', () => {
                 );
         expect(row('Stripe rows')).toBeUndefined();
         fireEvent.click(screen.getByText('Style'));
-        expect(row('Stripe rows').querySelector('input').checked).toBe(true);
-        expect(row('Show hover').querySelector('input').checked).toBe(false);
+        expect(row('Stripe rows').querySelector('[aria-checked="true"]').textContent).toBe('On');
+        expect(row('Show hover').querySelector('[aria-checked="true"]').textContent).toBe('Off');
         expect(row('Tree style').textContent).toContain('Default (highlights)');
         expect(row('Sizing mode').textContent).toContain('Default');
         expect(row('Sizing mode').textContent).not.toContain('Select');
@@ -691,15 +734,15 @@ describe('ElementInspector', () => {
                 .textContent
         ).toContain(formatName);
         fireEvent.click(columnRow('mktVal').querySelector('[title="Settings"]'));
-        expect(
-            container.querySelector('.xh-blueprint-element-inspector__format').textContent
-        ).toContain(`Default (${formatName})`);
+        expect(container.querySelector('[data-config-key="format"]').textContent).toContain(
+            `Default (${formatName})`
+        );
         expect(labels().slice(0, 6)).toEqual([
             'Header',
             'Format',
             'Renderer',
             'Width',
-            'Hidden',
+            'Visible',
             'Pinned'
         ]);
 

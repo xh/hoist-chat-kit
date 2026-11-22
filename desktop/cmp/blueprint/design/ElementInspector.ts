@@ -1,7 +1,7 @@
 import {div, hbox, placeholder} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
-import {segmentedControl, select, textInput} from '@xh/hoist/desktop/cmp/input';
+import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
@@ -17,7 +17,7 @@ import {
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, propertyRow, removeItemButton, sectionCard} from './impl/ConfigEditors';
+import {booleanEditor, CLS, propertyRow, removeItemButton, sectionCard} from './impl/ConfigEditors';
 import {refuse, removeElementAsync} from './impl/designActions';
 
 export interface ElementInspectorProps extends HoistProps {
@@ -552,18 +552,17 @@ function viewHeaderRows(impl: ElementInspectorModel) {
             className: `${CLS}__row ${CLS}__row--inline`,
             ...({'data-config-key': 'hideHeader'} as object),
             children: [
-                div({className: `${CLS}__label`, children: 'Show header'}),
+                div({className: `${CLS}__label`, children: 'Header'}),
                 div({
                     className: `${CLS}__row-body`,
-                    children: segmentedControl({
+                    children: booleanEditor({
                         value: hidden,
-                        options: [
+                        labels: [
                             {value: false, label: 'Show'},
                             {value: true, label: 'Hide'}
                         ],
                         disabled: impl.readOnly,
-                        compact: true,
-                        onCommit: (v: boolean) => impl.commitPlacement('hideHeader', v || undefined)
+                        onCommit: v => impl.commitPlacement('hideHeader', v || undefined)
                     })
                 })
             ]

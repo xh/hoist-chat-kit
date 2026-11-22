@@ -189,6 +189,9 @@ describe('BlueprintRegistry bindings', () => {
         const chart = (tool.run({kind: 'widget', names: ['chart']}, {registry} as any) as any)
             .chart;
         expect(chart.config.properties.type).not.toHaveProperty('x-thumbnails');
+        const grid = (tool.run({kind: 'widget', names: ['cubeGrid']}, {registry} as any) as any)
+            .cubeGrid;
+        expect(grid.config.properties.hideHeaders).not.toHaveProperty('x-labels');
         expect(panel.config.properties.collapsed['x-binding']).toBe(false);
         // A template title keeps its mark, as text binds only where it says so.
         expect(panel.config.properties.title['x-binding']).toBe(true);

@@ -415,7 +415,9 @@ const CUBE_GRID_SCHEMA = {
                                 maximum: 800
                             },
                             hidden: {
-                                type: 'boolean'
+                                type: 'boolean',
+                                title: 'Visible',
+                                'x-labels': {false: 'Show', true: 'Hide'}
                             },
                             pinned: {
                                 enum: ['left', 'right']
@@ -627,12 +629,16 @@ const CUBE_GRID_SCHEMA = {
         showGroupRowCounts: {
             'x-binding': true,
             type: 'boolean',
+            title: 'Group counts',
+            'x-labels': {true: 'Show', false: 'Hide'},
             default: true,
             description: 'Show the count of rows in each group row.'
         },
         hideHeaders: {
             'x-binding': true,
             type: 'boolean',
+            title: 'Column headers',
+            'x-labels': {false: 'Show', true: 'Hide'},
             default: false,
             description: 'Hide the row of column headers.'
         },

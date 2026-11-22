@@ -1,3 +1,4 @@
+import {card} from '@xh/hoist/cmp/card';
 import {div, hbox, span} from '@xh/hoist/cmp/layout';
 import type {PlainObject} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -12,7 +13,6 @@ import {
     radioCardInput,
     segmentedControl,
     select,
-    switchInput,
     textArea,
     textInput
 } from '@xh/hoist/desktop/cmp/input';
@@ -66,7 +66,12 @@ const FORMAT_OPTIONS = toEditorSpec({
             description: 'Show in thousands, millions or billions with a label, or compact.'
         },
         ledger: {type: 'boolean', description: 'Show a negative number in parentheses.'},
-        colorSpec: {type: 'boolean', description: 'Color a number by its sign.'},
+        colorSpec: {
+            type: 'boolean',
+            title: 'Color',
+            'x-labels': {true: 'By sign', false: 'None'},
+            description: 'Color a number by its sign.'
+        },
         label: {type: 'string', maxLength: 20, description: 'A unit after the number.'},
         date: {enum: ['date', 'dateTime', 'time', 'compact'], description: 'How a date shows.'},
         pattern: {type: 'string', maxLength: 40, description: 'A date pattern, such as MMM D.'},
@@ -149,7 +154,8 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                         div({key: idx, className: `${CLS}__issue`, children: it.message})
                     )
                 ]
-            })
+            }),
+            node.kind === 'format' ? formatOptionsCard(value, commit, ctx, !!issues.length) : null
         ]
     });
 }
@@ -160,6 +166,7 @@ const INLINE_KINDS = [
     'number',
     'boolean',
     'choice',
+    'format',
     'variable',
     'preset',
     'source',
@@ -217,13 +224,11 @@ function editorFor(
                 onCommit: v => commit(optional(v))
             });
         case 'boolean':
-            return div({
-                className: `${CLS}__switch`,
-                children: switchInput({
-                    value: !!(value ?? node.default),
-                    disabled,
-                    onCommit: v => commit(v)
-                })
+            return booleanEditor({
+                value: !!(value ?? node.default),
+                labels: node.labels,
+                disabled,
+                onCommit: v => commit(v)
             });
         case 'choice':
             // A choice with pictures shows a card for each option.
@@ -610,6 +615,30 @@ function listEditor(
     });
 }
 
+/** A boolean as two segments, the positive state first, which a click anywhere flips. */
+export function booleanEditor({
+    value,
+    labels,
+    disabled,
+    onCommit
+}: {
+    value: boolean;
+    labels: {value: boolean; label: string}[];
+    disabled: boolean;
+    onCommit: (value: boolean) => void;
+}) {
+    return segmentedControl({
+        value,
+        options: labels,
+        intent: 'primary',
+        toggleOnClick: true,
+        fill: false,
+        compact: true,
+        disabled,
+        onCommit
+    });
+}
+
 // A list item's one disclosure chevron, which turns while its drawer is open.
 function drawerButton(open: boolean, onClick: () => void, text: ReactNode = null) {
     return button({
@@ -769,7 +798,8 @@ function fieldListEditor(
                         value: mapped[setting.key],
                         commit: v =>
                             impl.commitItemSetting(settingsIn.key, entry.field, setting.key, v),
-                        ctx: {...ctx, key: settingsIn.key, scope: itemScope, inherited}
+                        ctx: {...ctx, key: settingsIn.key, scope: itemScope, inherited},
+                        issues: impl.itemSettingIssues(settingsIn.key, entry.field, setting.key)
                     });
             return div({
                 className: `${CLS}__settings`,
@@ -868,25 +898,46 @@ function mapKeyLabel(key: string, label: string) {
     });
 }
 
-// A named format, a custom one, or a name with changes: the name, then the options it sets.
+// A named format, a custom one, or a name with changes. Its options sit in a card under its row.
 function formatEditor(value: unknown, commit: (value: unknown) => void, ctx: EditorContext) {
     const {name, options} = splitNamed(value);
-    return div({
-        className: `${CLS}__format`,
-        children: [
-            select({
-                value: name,
-                options: withCurrent(ctx.impl.formatOptions, name),
-                enableClear: true,
-                placeholder: isEmpty(options)
-                    ? inheritedLabel('Default', ctx.inherited?.format)
-                    : 'Custom',
-                disabled: ctx.impl.readOnly,
-                width: '100%',
-                onCommit: (it: string) => commit(joinNamed(it, options))
-            }),
-            optionsGroup(FORMAT_OPTIONS, options, it => commit(joinNamed(name, it)), ctx)
-        ]
+    return select({
+        value: name,
+        options: withCurrent(ctx.impl.formatOptions, name),
+        enableClear: true,
+        placeholder: isEmpty(options) ? inheritedLabel('Default', ctx.inherited?.format) : 'Custom',
+        disabled: ctx.impl.readOnly,
+        width: '100%',
+        onCommit: (it: string) => commit(joinNamed(it, options))
+    });
+}
+
+// A format's options across its row: folded until one is set, and summarizing those set.
+function formatOptionsCard(
+    value: unknown,
+    commit: (value: unknown) => void,
+    ctx: EditorContext,
+    invalid: boolean
+) {
+    const {name, options} = splitNamed(value),
+        summary = FORMAT_OPTIONS.filter(it => options[it.key] !== undefined)
+            .map(({key}) => {
+                const v = options[key];
+                return v === true ? key : v === false ? `${key} off` : `${key} ${v}`;
+            })
+            .join(' · ');
+    return card({
+        key: 'format-options',
+        className: `${CLS}__format-options`,
+        title: [
+            span({key: 'title', children: 'Format options'}),
+            summary
+                ? span({key: 'summary', className: `${CLS}__format-summary`, children: summary})
+                : null
+        ],
+        intent: invalid ? ('danger' as const) : null,
+        modelConfig: {collapsible: true, defaultCollapsed: isEmpty(options)},
+        children: optionsGroup(FORMAT_OPTIONS, options, it => commit(joinNamed(name, it)), ctx)
     });
 }
 

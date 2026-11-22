@@ -39,6 +39,12 @@ export type BlueprintSchemaExtension = {
      * which design mode shows as a card per option. See `thumbnailPreview`.
      */
     'x-thumbnails'?: Record<string, string>;
+    /**
+     * On a boolean, the label of each value, the positive state first, such as
+     * `{false: 'Show', true: 'Hide'}` for a `hidden` titled "Visible". Design mode shows one segment
+     * per value, in this order. Without it, On then Off.
+     */
+    'x-labels'?: Partial<Record<'true' | 'false', string>>;
 };
 
 /**
