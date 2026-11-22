@@ -30,9 +30,10 @@ export function designMarks(
     if (blueprintModel.mode !== 'design' || layoutGesture.active) return [];
     const ret: OverlayMark[] = [],
         surface = () => overlay.hostEl?.closest<HTMLElement>('.xh-panel__content[tabindex]');
-    // Alt held passes the next click to the widget, so nothing marks what it would select.
+    // In Interact, or with Alt held for one click, clicks reach the widgets: nothing marks a hover.
     if (
         hovered &&
+        designModel.interaction === 'edit' &&
         !altHold.active &&
         hovered !== selected &&
         hovered !== designModel.selectedViewId &&
