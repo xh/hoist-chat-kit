@@ -273,7 +273,7 @@
     padding: 0 var(--xh-spacing-half);
     border-radius: var(--xh-border-radius);
     font-size: var(--xh-font-size-small);
-    color: var(--xh-intent-primary);
+    color: var(--xh-intent-primary-text-color);
     background-color: var(--xh-intent-primary-trans1);
 
     &--link {
@@ -292,7 +292,7 @@
   font-family: var(--xh-font-family-mono);
   font-size: 12px;
   line-height: 20px;
-  color: var(--xh-intent-primary);
+  color: var(--xh-intent-primary-text-color);
   cursor: pointer;
   border-radius: 4px;
   background-color: var(--xh-intent-primary-trans1);
