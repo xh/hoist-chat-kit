@@ -954,14 +954,14 @@ describe('blueprint desktop widgets', () => {
             paletteDrag.start({
                 component: 'chart',
                 size: {w: 4, h: 6},
-                drop: (...args) => drops.push(args)
+                add: (...args) => drops.push(args)
             });
             onTestFinished(() => paletteDrag.end());
             expect(canvas.onDropOver()).toEqual({w: 4, h: 6});
 
             canvas.onDrop({x: 0, y: 14, w: 4, h: 6}, canvas.cells.map(place));
             expect(paletteDrag.current).toBeNull();
-            const [[canvasId, child, siblings]] = drops as any[];
+            const [[canvasId, {child, siblings}]] = drops as any[];
             expect([canvasId, child]).toEqual(['dashboard', {x: 0, y: 14, w: 4, h: 6}]);
             expect(siblings.map(it => it.id).sort()).toEqual([
                 'headline',
@@ -971,7 +971,7 @@ describe('blueprint desktop widgets', () => {
             ]);
             expect(model.version).toBe(1);
 
-            paletteDrag.start({component: 'chart', size: {w: 4, h: 6}, drop: () => {}});
+            paletteDrag.start({component: 'chart', size: {w: 4, h: 6}, add: () => {}});
             model.setMode('run');
             expect(canvas.onDropOver()).toBe(false);
         });

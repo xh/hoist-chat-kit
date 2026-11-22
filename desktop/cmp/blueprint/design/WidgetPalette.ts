@@ -1,11 +1,5 @@
 import {div} from '@xh/hoist/cmp/layout';
-import {
-    hoistCmp,
-    HoistModel,
-    type HoistProps,
-    type PlainObject,
-    useLocalModel
-} from '@xh/hoist/core';
+import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, bindable, observable} from '@xh/hoist/mobx';
@@ -16,7 +10,7 @@ import {groupBy, isString, upperFirst} from 'lodash';
 import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../../blueprint';
 import {slotLabel} from '../../../../blueprint/impl/elements';
 import {getOwn} from '../../../../blueprint/impl/pointer';
-import {paletteDrag} from '../impl/paletteDrag';
+import {type PaletteAddOpts, paletteDrag} from '../impl/paletteDrag';
 import {widgetIcon} from './impl/icons';
 import './WidgetPalette.scss';
 
@@ -233,10 +227,10 @@ export class WidgetPaletteModel extends HoistModel {
         this.done(component, this.designModel.addWidget(component));
     }
 
-    /** Add a widget dropped on a canvas, where it fell, with its siblings as the drop left them. */
+    /** Add a widget dropped on a container, where it fell, as one edit. */
     @action
-    drop(component: string, canvasId: string, child: PlainObject, siblings: PlainObject[]) {
-        this.done(component, this.designModel.addWidget(component, canvasId, {child, siblings}));
+    addAt(component: string, parentId: string, opts: PaletteAddOpts) {
+        this.done(component, this.designModel.addWidget(component, parentId, opts));
     }
 
     /** Start dragging a widget, for a canvas to take. */
@@ -245,7 +239,7 @@ export class WidgetPaletteModel extends HoistModel {
         paletteDrag.start({
             component,
             size: {w: size?.w ?? 4, h: size?.h ?? 2},
-            drop: (canvasId, child, siblings) => this.drop(component, canvasId, child, siblings)
+            add: (parentId, opts) => this.addAt(component, parentId, opts)
         });
     }
 

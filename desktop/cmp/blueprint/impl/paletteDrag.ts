@@ -1,13 +1,24 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
+import type {BlueprintOp} from '../../../../blueprint';
 
-/** A widget being dragged from the palette, and what adds it once dropped on a canvas. */
+/** Where a dropped widget goes in its container, as `BlueprintDesignModel.addWidget` takes it. */
+export interface PaletteAddOpts {
+    /** Its child reference, such as a canvas cell's place. */
+    child?: PlainObject;
+    /** The container's other children, as the drop left them. */
+    siblings?: PlainObject[];
+    /** More ops for the same edit, given the new element's id, such as a layout naming it. */
+    extraOps?: (id: string) => BlueprintOp[];
+}
+
+/** A widget being dragged from the palette, and what adds it once dropped on a container. */
 export interface PaletteDragItem {
     component: string;
     /** Its default size on a canvas, in grid units. */
     size: {w: number; h: number};
-    /** Add the widget to a canvas, at a place, with its other children where the drop left them. */
-    drop(canvasId: string, child: PlainObject, siblings: PlainObject[]): void;
+    /** Add the widget to a container, as one edit. */
+    add(parentId: string, opts: PaletteAddOpts): void;
 }
 
 const current = observable.box<PaletteDragItem>(null, {deep: false});

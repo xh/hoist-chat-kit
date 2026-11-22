@@ -101,11 +101,10 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     onDrop(place: Omit<GridCell, 'id'>, siblings: GridCell[]) {
         const drag = paletteDrag.current;
         paletteDrag.end();
-        drag?.drop(
-            this.id,
-            pick(place, 'x', 'y', 'w', 'h'),
-            siblings.map(it => ({...it}))
-        );
+        drag?.add(this.id, {
+            child: pick(place, 'x', 'y', 'w', 'h'),
+            siblings: siblings.map(it => ({...it}))
+        });
     }
 
     /** Write moved or resized cells to the child references, as one edit, in reading order. */
