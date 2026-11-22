@@ -25,6 +25,7 @@ import {
 import {parentMap} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintMap.scss';
+import {issueSummary} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
 
 export interface BlueprintMapProps extends HoistProps {
@@ -520,7 +521,9 @@ const mapNode = hoistCmp.factory<
                               `${CLS}__issue`,
                               hasError && `${CLS}__issue--error`
                           ),
-                          title: issues.map(it => it.message).join('\n')
+                          title: issues.map(it => it.message).join('\n'),
+                          role: 'img',
+                          'aria-label': issueSummary(issues)
                       })
                     : null
             ]

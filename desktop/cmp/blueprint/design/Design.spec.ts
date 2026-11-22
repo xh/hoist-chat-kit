@@ -17,7 +17,7 @@ import {blueprintView} from '../BlueprintView';
 import {cellElementAt} from '../impl/ElementHost';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {ElementOutlineModel} from './ElementOutline';
-import {removeElementAsync} from './impl/designActions';
+import {removeElementAsync, removePresetGroupAsync} from './impl/designActions';
 
 /**
  * A designer sees the element tree, and selects an element there or by a click in the blueprint.
@@ -426,5 +426,14 @@ describe('design mode selection', () => {
         });
         expect(model.history).toHaveLength(0);
         expect(toast).toHaveBeenCalled();
+    });
+
+    it('asks before removing a preset group that takes its selectors with it', async () => {
+        const {design, model} = open('p3-morning-report.json'),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(false);
+        onTestFinished(() => confirm.mockRestore());
+        await removePresetGroupAsync(design, 'posViews');
+        expect(confirm.mock.calls[0][0].message).toMatch(/posViewsSelector/);
+        expect(model.blueprint.presets).toHaveProperty('posViews');
     });
 });

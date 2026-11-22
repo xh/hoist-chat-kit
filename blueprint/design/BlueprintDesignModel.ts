@@ -172,16 +172,8 @@ export class BlueprintDesignModel extends HoistModel {
             elementsOf = (refs: WiringRef[]) =>
                 refs.filter(it => it.kind === 'element').map(it => it.id);
         switch (selection?.kind) {
-            case 'source': {
-                // A source that joins another shows its fields too.
-                const sources = [selection.id];
-                for (let i = 0; i < sources.length; i++) {
-                    wiring({kind: 'source', id: sources[i]})
-                        .readBy.filter(it => it.kind === 'source' && !sources.includes(it.id))
-                        .forEach(it => sources.push(it.id));
-                }
-                return uniq(sources.flatMap(id => elementsOf(wiring({kind: 'source', id}).readBy)));
-            }
+            case 'source':
+                return this.sourceReaders(selection.id);
             case 'variable':
                 return elementsOf(wiring(selection).readBy);
             case 'preset': {
@@ -191,6 +183,25 @@ export class BlueprintDesignModel extends HoistModel {
             default:
                 return [];
         }
+    }
+
+    /** The elements that show a source's rows: its readers, and those of each source that joins it. */
+    sourceReaders(name: string): string[] {
+        const bp = this.blueprintModel.blueprint ?? {},
+            readBy = (id: string) => wiringFor(bp, {kind: 'source', id}, this.wiring).readBy,
+            sources = [name];
+        for (let i = 0; i < sources.length; i++) {
+            readBy(sources[i])
+                .filter(it => it.kind === 'source' && !sources.includes(it.id))
+                .forEach(it => sources.push(it.id));
+        }
+        return uniq(
+            sources.flatMap(id =>
+                readBy(id)
+                    .filter(it => it.kind === 'element')
+                    .map(it => it.id)
+            )
+        );
     }
 
     /** What reads and sets what in the blueprint. See `wiringGraph`. */
@@ -1073,6 +1084,11 @@ export class BlueprintDesignModel extends HoistModel {
             },
             ...(value !== undefined ? [{op: 'set', path, value} as BlueprintOp] : [])
         ]);
+    }
+
+    /** The preset selectors that show a group, which removing the group takes with it. */
+    presetSelectors(group: string): string[] {
+        return this.selectorsOf([group]);
     }
 
     /** Remove a group, its paths returning to the config at the active preset's values. */

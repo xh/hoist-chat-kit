@@ -150,6 +150,8 @@ export class BlueprintInspectorModel extends HoistModel {
     /** Rename the selection's id, as one edit, or show why it cannot. */
     rename(to: string) {
         const {selection, designModel} = this;
+        // An input cancelled with Escape still commits as it blurs on its way out.
+        if (!this.renaming) return;
         this.setRenaming(false);
         if (!selection || selection.kind === 'preset' || !to || to === selection.id) return;
         refuse(designModel, designModel.renameId(selection.kind, selection.id, to).issues);
@@ -247,12 +249,16 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                                       if (e.key === 'Escape') impl.setRenaming(false);
                                   }
                               })
-                            : span({
-                                  className: `${CLS}__id`,
-                                  title: impl.canEdit ? 'Click to rename' : null,
-                                  onClick: () => impl.setRenaming(true),
-                                  children: selection.id
-                              }),
+                            : impl.canEdit && selection.kind !== 'preset'
+                              ? button({
+                                    className: `${CLS}__id`,
+                                    text: selection.id,
+                                    minimal: true,
+                                    title: 'Rename',
+                                    'aria-label': `Rename ${selection.id}`,
+                                    onClick: () => impl.setRenaming(true)
+                                })
+                              : span({className: `${CLS}__id`, children: selection.id}),
                         impl.subtitle
                             ? div({className: `${CLS}__subtitle`, children: impl.subtitle})
                             : null

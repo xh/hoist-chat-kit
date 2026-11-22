@@ -21,7 +21,7 @@ import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../
 import {locate, parentMap, slotLabel, slotLists} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
-import {selectionMenu} from './impl/designActions';
+import {issueSummary, selectionMenu} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
 
 export type StructureSection = 'element' | 'source' | 'variable' | 'preset';
@@ -332,8 +332,7 @@ export class BlueprintStructureModel extends HoistModel {
                 };
             },
             elementRows = root && Object.hasOwn(elements, root) ? [elementRow(root)] : [],
-            readers = (name: string) =>
-                Object.values(elements).filter(it => it.config?.source === name).length,
+            readers = (name: string) => this.designModel.sourceReaders(name).length,
             section = (kind: string, name: string, children: PlainObject[], count: number) => ({
                 id: `section:${kind}`,
                 name,
@@ -487,7 +486,9 @@ export class BlueprintStructureModel extends HoistModel {
                               `${CLS}__issue`,
                               issues.some(it => it.severity === 'error') && `${CLS}__issue--error`
                           ),
-                          title: issues.map(it => it.message).join('\n')
+                          title: issues.map(it => it.message).join('\n'),
+                          role: 'img',
+                          'aria-label': issueSummary(issues)
                       })
                     : null
             ]

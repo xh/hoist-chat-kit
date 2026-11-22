@@ -64,10 +64,14 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                                             `${CLS}__tile`,
                                             disabled && `${CLS}__tile--disabled`
                                         ),
-                                        title: it.refusal ?? it.title,
+                                        title: it.refusal ?? it.guidance,
                                         role: 'button',
-                                        tabIndex: disabled ? -1 : 0,
+                                        // Reachable when refused too, so its reason can be read.
+                                        tabIndex: 0,
                                         'aria-disabled': disabled,
+                                        'aria-label': it.refusal
+                                            ? `${it.label}. ${it.refusal}`
+                                            : it.label,
                                         draggable: !disabled,
                                         onDragStart: (e: React.DragEvent) => {
                                             e.dataTransfer.setData('text/plain', it.name);
@@ -165,7 +169,8 @@ export class WidgetPaletteModel extends HoistModel {
             widgets: specs.map(it => ({
                 name: it.name,
                 label: it.label ?? it.name,
-                title: it.guidance?.split('. ')[0] ?? null,
+                title: it.summary ?? firstSentence(it.guidance),
+                guidance: it.guidance ?? null,
                 icon: it.icon ?? null,
                 category: it.category,
                 refusal: designModel.addRefusal(it.name, target)
@@ -264,8 +269,9 @@ export class WidgetPaletteModel extends HoistModel {
 export interface PaletteTile {
     name: string;
     label: string;
-    /** The first sentence of its guidance. */
+    /** Its summary, else the first sentence of its guidance. */
     title: string;
+    guidance: string;
     icon: string;
     category: string;
     /** Why the add target will not take it, or null. */
@@ -276,6 +282,11 @@ export interface PaletteTile {
 // Implementation
 //------------------
 const CLS = 'xh-blueprint-widget-palette';
+
+// The first sentence of a text, past abbreviations such as "e.g.".
+function firstSentence(text: string): string {
+    return text?.match(/^.*?[.!?](?=\s+[A-Z]|$)/)?.[0] ?? text ?? null;
+}
 
 // The widget's icon, else its category's.
 function iconOf(icon: string, category: string) {

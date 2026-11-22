@@ -42,27 +42,55 @@ export async function removeElementAsync(
         errors = designModel.removeElement(id).issues.filter(it => it.severity === 'error');
     if (errors.length) return errors;
     designModel.select(next ? {kind: 'element', id: next} : null);
-    if (!cascades) {
-        const {blueprintModel} = designModel,
-            {version} = blueprintModel;
-        XH.toast({
-            message: `Removed ${id}.`,
-            actionButtonProps: {
-                text: 'Undo',
-                onClick: () => {
-                    if (blueprintModel.version === version) {
-                        blueprintModel.undo();
-                    } else {
-                        XH.warningToast(
-                            `Other changes came after. Undo ${id}'s removal from History.`
-                        );
-                    }
-                }
-            },
-            timeout: 8000
-        });
-    }
+    if (!cascades) undoToast(designModel, id);
     return [];
+}
+
+/**
+ * Remove a preset group, as one edit. A group with selectors, which go with it, asks first. One
+ * without goes at once, with a toast to undo it.
+ *
+ * @returns the issues that refused the removal, if any.
+ */
+export async function removePresetGroupAsync(
+    designModel: BlueprintDesignModel,
+    group: string
+): Promise<BlueprintIssue[]> {
+    const selectors = designModel.presetSelectors(group);
+    if (selectors.length) {
+        const ok = await XH.confirm({
+            title: 'Remove',
+            message: `Remove ${group}, and its selector${selectors.length > 1 ? 's' : ''} ${listOf(selectors)}?`,
+            confirmProps: {text: 'Remove', intent: 'danger'}
+        });
+        if (!ok) return [];
+    }
+    const errors = designModel
+        .removePresetGroup(group)
+        .issues.filter(it => it.severity === 'error');
+    if (errors.length) return errors;
+    if (!selectors.length) undoToast(designModel, group);
+    return [];
+}
+
+// A toast that undoes a removal, while no other edit has come after it.
+function undoToast(designModel: BlueprintDesignModel, id: string) {
+    const {blueprintModel} = designModel,
+        {version} = blueprintModel;
+    XH.toast({
+        message: `Removed ${id}.`,
+        actionButtonProps: {
+            text: 'Undo',
+            onClick: () => {
+                if (blueprintModel.version === version) {
+                    blueprintModel.undo();
+                } else {
+                    XH.warningToast(`Other changes came after. Undo ${id}'s removal from History.`);
+                }
+            }
+        },
+        timeout: 8000
+    });
 }
 
 /** Copy an element and its subtree, as one edit, and select the copy, or show why it cannot. */
@@ -122,15 +150,19 @@ export function selectionMenu(
             {
                 ...remove,
                 actionFn: () =>
-                    refuse(
-                        designModel,
-                        (kind === 'source'
-                            ? designModel.removeSource(id)
-                            : kind === 'variable'
-                              ? designModel.removeVariable(id)
-                              : designModel.removePresetGroup(id)
-                        ).issues
-                    )
+                    kind === 'preset'
+                        ? removePresetGroupAsync(designModel, id).then(it =>
+                              refuse(designModel, it)
+                          )
+                        : refuse(
+                              designModel,
+                              (kind === 'source'
+                                  ? designModel.removeSource(id)
+                                  : kind === 'variable'
+                                    ? designModel.removeVariable(id)
+                                    : null
+                              )?.issues ?? []
+                          )
             }
         ];
     }
@@ -163,6 +195,17 @@ export function selectionMenu(
             actionFn: () => removeElementAsync(designModel, id).then(it => refuse(designModel, it))
         }
     ];
+}
+
+/** Issues counted as a screen reader reads a dot: `2 errors, 1 warning`. */
+export function issueSummary(issues: BlueprintIssue[]): string {
+    const count = (severity: string, noun: string) => {
+        const n = issues.filter(it => it.severity === severity).length;
+        return n ? `${n} ${noun}${n === 1 ? '' : 's'}` : null;
+    };
+    return [count('error', 'error'), count('warning', 'warning'), count('info', 'note')]
+        .filter(Boolean)
+        .join(', ');
 }
 
 /** What removing an element takes with it, for the user to confirm. */

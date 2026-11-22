@@ -61,6 +61,7 @@ describe('WidgetPalette', () => {
         expect(tiles.filter(it => !it.refusal).every(it => it.category === 'input')).toBe(true);
         expect(tile('cubeGrid').icon).toBe('grid');
         expect(tile('cubeGrid').title).toBeTruthy();
+        expect(tile('cubeGrid').guidance.length).toBeGreaterThan(tile('cubeGrid').title.length);
 
         palette.setPointerOver(true);
         expect(design.showAddTarget).toBe(true);

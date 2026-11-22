@@ -85,9 +85,15 @@ describe('BlueprintInspector', () => {
         expect(model.history).toHaveLength(0);
     });
 
-    it('renames from the header', () => {
+    it('renames from the header, and not once Escape cancels it', () => {
         const {design, model, inspector} = open();
         design.select({kind: 'element', id: 'posGrid'});
+        inspector.setRenaming(true);
+        inspector.setRenaming(false);
+        // The input commits as it blurs on its way out.
+        inspector.rename('nope');
+        expect(model.blueprint.elements).not.toHaveProperty('nope');
+        inspector.setRenaming(true);
         inspector.rename('book');
         expect(model.blueprint.elements).toHaveProperty('book');
         expect(design.selectedElementId).toBe('book');

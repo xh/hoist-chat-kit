@@ -57,6 +57,25 @@ describe('BlueprintStructure', () => {
         expect(record(structure, 'preset:posViews').data.label).toBe('Columns');
     });
 
+    it('counts the widgets a source feeds, through joins too', () => {
+        const model = new BlueprintModel({
+                blueprint: loadBlueprint('p8-joined-positions.json'),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            structure = new BlueprintStructureModel(design);
+        onTestFinished(() => {
+            structure.destroy();
+            design.destroy();
+            model.destroy();
+        });
+        expect(record(structure, 'source:funds').data.label).toBe('fundSummary · 1 widget');
+    });
+
     it("puts a cell's header items under a Cell header node", () => {
         const {design, structure} = open(),
             header = record(structure, 'element:posViewsSelector').parent;

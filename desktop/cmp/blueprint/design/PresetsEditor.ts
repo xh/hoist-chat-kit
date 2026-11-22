@@ -13,6 +13,7 @@ import {
 } from '../../../../blueprint';
 import './ElementInspector.scss';
 import {CLS, labelled, type Option} from './impl/ConfigEditors';
+import {removePresetGroupAsync} from './impl/designActions';
 
 export interface PresetsEditorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -116,8 +117,9 @@ export class PresetsEditorModel extends HoistModel {
         this.done(this.designModel.addPresetGroup(path));
     }
 
-    removeGroup() {
-        this.done(this.designModel.removePresetGroup(this.name));
+    /** Remove the group, asking first when its selectors go with it. */
+    async removeGroupAsync() {
+        this.done({issues: await removePresetGroupAsync(this.designModel, this.name)});
     }
 
     setLabel(label: string) {
@@ -195,7 +197,7 @@ const presetsBody = hoistCmp.factory<PresetsEditorModel>({
                                   title: name ? `Remove ${name}` : 'Remove',
                                   minimal: true,
                                   disabled: disabled || !name,
-                                  onClick: () => impl.removeGroup()
+                                  onClick: () => impl.removeGroupAsync()
                               })
                           ]
                       }),
