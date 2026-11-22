@@ -528,6 +528,7 @@
         "fieldUsages",
         "registryUsages",
         "resolveFormat",
+        "formatValue",
         "hostSourceFor",
         "architectPrompt",
         "architectChatTools",

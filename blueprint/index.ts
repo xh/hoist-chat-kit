@@ -52,6 +52,7 @@ export * from './usages';
 export {
     type FieldDisplayLayer,
     type FormatLike,
+    formatValue,
     resolveFieldDisplay,
     resolveFormat,
     type ResolvedFieldDisplay
