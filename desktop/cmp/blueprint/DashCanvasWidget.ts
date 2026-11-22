@@ -9,7 +9,14 @@ import {
     type ChildRef,
     type DashCanvasWidgetConfig
 } from '../../../blueprint';
-import {gridCanvas, type GridCanvasChange, type GridCell, placeCell} from '../layout';
+import {
+    compactCells,
+    gridCanvas,
+    type GridCanvasChange,
+    type GridCell,
+    type GridCompact,
+    placeCell
+} from '../layout';
 import {widgetIcon} from './design/impl/icons';
 import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
@@ -22,16 +29,39 @@ import {paletteDrag} from './impl/paletteDrag';
 export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidgetConfig> {
     /** The cells, as the child references place them. */
     get cells(): GridCell[] {
-        const {blueprint, registry} = this.blueprintModel;
-        return this.children.map(it => {
-            const size = registry.widgets[blueprint?.elements?.[it.id]?.component]?.size?.min;
-            return {
-                id: it.id,
-                ...(pick(it, 'x', 'y', 'w', 'h') as Omit<GridCell, 'id'>),
-                ...(size?.w ? {minW: size.w} : {}),
-                ...(size?.h ? {minH: size.h} : {})
-            };
-        });
+        const {blueprint, registry} = this.blueprintModel,
+            cells = this.children.map(it => {
+                const size = registry.widgets[blueprint?.elements?.[it.id]?.component]?.size?.min;
+                return {
+                    id: it.id,
+                    ...(pick(it, 'x', 'y', 'w', 'h') as Omit<GridCell, 'id'>),
+                    ...(size?.w ? {minW: size.w} : {}),
+                    ...(size?.h ? {minH: size.h} : {})
+                };
+            });
+        return compactCells(cells, this.settings);
+    }
+
+    /** The canvas's settings, with Hoist's DashCanvas defaults. */
+    get settings(): CanvasSettings {
+        const config = this.resolvedConfig,
+            margin = (config.margin ?? [CANVAS_GAP, CANVAS_GAP]) as [number, number];
+        return {
+            columns: config.columns ?? CANVAS_COLUMNS,
+            rowHeight: config.rowHeight ?? 50,
+            compact: config.compact ?? 'vertical',
+            preventCollision: !!config.preventCollision,
+            margin,
+            containerPadding: (config.containerPadding as [number, number]) ?? margin,
+            maxRows: config.maxRows ?? Infinity,
+            showGridBackground: !!config.showGridBackground,
+            layoutLocked: !!config.layoutLocked
+        };
+    }
+
+    /** True if a reader may not move or resize cells, as `layoutLocked` says. Design mode may. */
+    get isLocked(): boolean {
+        return this.settings.layoutLocked && !this.isDesign;
     }
 
     get isDesign(): boolean {
@@ -153,8 +183,10 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         const {cells} = this,
             cell = cells.find(it => it.id === id);
         if (!cell) return `There is no cell '${id}'.`;
-        const next = {...cell, ...pick(place, 'x', 'y', 'w', 'h')},
-            columns = (this.resolvedConfig.columns as number) ?? CANVAS_COLUMNS,
+        if (this.isLocked) return 'The layout is locked.';
+        const {settings} = this,
+            {columns, maxRows} = settings,
+            next = {...cell, ...pick(place, 'x', 'y', 'w', 'h')},
             {x, y, w, h} = next;
         if (![x, y, w, h].every(Number.isInteger) || x < 0 || y < 0 || x + w > columns) {
             return `'${id}' must lie on the grid, within its ${columns} columns.`;
@@ -162,14 +194,30 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         if (w < (cell.minW ?? 1) || h < (cell.minH ?? 1)) {
             return `'${id}' is at least ${cell.minW ?? 1} by ${cell.minH ?? 1}.`;
         }
-        const changed = differenceWith(placeCell(cells, next), cells, isEqual),
-            refusal = this.canApplyUserEdit([
-                {
-                    op: 'set',
-                    path: `/elements/${this.id}/children`,
-                    value: this.childrenWith(changed)
-                }
-            ]);
+        if (y + h > maxRows) return `'${id}' must lie within the canvas's ${maxRows} rows.`;
+        const placed = placeCell(cells, next, settings);
+        if (!placed) {
+            const over = cells.find(
+                it =>
+                    it.id !== id &&
+                    x < it.x + it.w &&
+                    it.x < x + w &&
+                    y < it.y + it.h &&
+                    it.y < y + h
+            );
+            return `'${id}' would overlap '${over?.id}'.`;
+        }
+        const changed = differenceWith(placed, cells, isEqual);
+        if (!changed.length) {
+            return `'${id}' stays where it is, as the canvas packs its cells ${settings.compact === 'horizontal' ? 'left' : 'up'}.`;
+        }
+        const refusal = this.canApplyUserEdit([
+            {
+                op: 'set',
+                path: `/elements/${this.id}/children`,
+                value: this.childrenWith(changed)
+            }
+        ]);
         if (refusal) return refusal;
         this.onCellsChange(changed, {kind: w !== cell.w || h !== cell.h ? 'resize' : 'move', id});
         return null;
@@ -192,7 +240,7 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-dash-canvas',
     model: uses(DashCanvasWidgetModel),
     render({model, className}) {
-        const {columns = CANVAS_COLUMNS, rowHeight = 50} = model.resolvedConfig,
+        const {settings} = model,
             // The hint lies over a live canvas, so an empty one still takes a drop.
             empty = emptyContent(model);
         return box({
@@ -202,12 +250,10 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
             children: [
                 gridCanvas({
                     cells: model.cells,
-                    editable: true,
-                    showGrid: model.isDesign,
-                    columns,
-                    rowHeight,
-                    margin: [CANVAS_GAP, CANVAS_GAP],
-                    containerPadding: [CANVAS_GAP, CANVAS_GAP],
+                    editable: !model.isLocked,
+                    showGrid: model.isDesign || settings.showGridBackground,
+                    ...pick(settings, 'columns', 'rowHeight', 'compact', 'preventCollision'),
+                    ...pick(settings, 'margin', 'containerPadding', 'maxRows'),
                     renderItem: id => model.renderElement(id),
                     renderHeader: id => (model.cellHasHeader(id) ? cellHeader({model, id}) : null),
                     // In design mode a headerless cell moves by a grip, which also selects its view.
@@ -263,3 +309,15 @@ const cellHeader = hoistCmp.factory<HoistProps & {model: DashCanvasWidgetModel; 
         });
     }
 });
+
+interface CanvasSettings {
+    columns: number;
+    rowHeight: number;
+    compact: GridCompact;
+    preventCollision: boolean;
+    margin: [number, number];
+    containerPadding: [number, number];
+    maxRows: number;
+    showGridBackground: boolean;
+    layoutLocked: boolean;
+}

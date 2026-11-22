@@ -12,7 +12,11 @@ import {
     weatherCatalog
 } from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
-import {BlueprintModel, InMemoryBlueprintRepository} from '../../../blueprint';
+import {
+    BlueprintDesignModel,
+    BlueprintModel,
+    InMemoryBlueprintRepository
+} from '../../../blueprint';
 import {blueprintView} from './BlueprintView';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroupInputWidget';
@@ -1107,27 +1111,58 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.moveCell('nothing', {x: 0})).toMatch(/no cell/);
             expect(model.version).toBe(version);
 
-            expect(canvas.moveCell('headline', {y: 30, w: 6})).toBeNull();
+            // The canvas packs cells up, by default: the others rise into the place it leaves,
+            // and it floats up to rest below them.
+            expect(canvas.moveCell('headline', {y: 300, w: 6})).toBeNull();
             expect(model.version).toBe(version + 1);
-            expect(canvas.cells.find(it => it.id === 'headline')).toMatchObject({y: 30, w: 6});
+            expect(canvas.cells.find(it => it.id === 'headline')).toMatchObject({y: 12, w: 6});
             expect(model.undoDescription).toBe('Resize headline');
-            expect(canvas.moveCell('headline', {y: 40})).toBeNull();
+            expect(canvas.moveCell('headline', {x: 6})).toBeNull();
             expect(model.undoDescription).toBe('Move headline');
         });
 
-        it('moves the cells a moved cell lands on down, as a drop does, in one edit', () => {
+        it('moves a cell as a drop does, in one edit, packing the cells up', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json'));
             model.setAccess('write');
             model.setMode('design');
             const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
                 version = model.version,
-                before = canvas.cells;
-            expect(canvas.moveCell('headline', {y: 3})).toBeNull();
+                at = (id: string) => canvas.cells.find(it => it.id === id);
+            expect(canvas.moveCell('headline', {y: 3})).toMatch(/stays where it is/);
+            expect(model.version).toBe(version);
+
+            expect(canvas.moveCell('ordersGrid', {y: 0})).toBeNull();
             expect(model.version).toBe(version + 1);
-            expect(model.undoDescription).toBe('Move headline');
-            const after = canvas.cells,
-                overlaps = after.filter(a =>
-                    after.some(
+            expect(model.undoDescription).toBe('Move ordersGrid');
+            expect(at('ordersGrid').y).toBe(0);
+            expect(at('headline').y).toBe(5);
+            const {cells} = canvas;
+            expect(
+                cells.filter(a =>
+                    cells.some(
+                        b =>
+                            a !== b &&
+                            a.x < b.x + b.w &&
+                            b.x < a.x + a.w &&
+                            a.y < b.y + b.h &&
+                            b.y < a.y + a.h
+                    )
+                )
+            ).toEqual([]);
+        });
+
+        describe('layout settings', () => {
+            const canvasWith = (config: PlainObject, mode: 'run' | 'design' = 'design') => {
+                const bp = loadBlueprint('p2-linked-dashboard.json');
+                bp.elements.dashboard.config = config;
+                const model = open(bp);
+                model.setAccess('write');
+                model.setMode(mode);
+                return {model, canvas: widget(DashCanvasWidgetModel, model, 'dashboard')};
+            };
+            const noOverlaps = (cells: GridCellLike[]) =>
+                cells.filter(a =>
+                    cells.some(
                         b =>
                             a !== b &&
                             a.x < b.x + b.w &&
@@ -1136,11 +1171,72 @@ describe('blueprint desktop widgets', () => {
                             b.y < a.y + a.h
                     )
                 );
-            expect(after.find(it => it.id === 'headline').y).toBe(3);
-            expect(overlaps).toEqual([]);
-            expect(
-                after.filter(a => a.id !== 'headline' && before.find(b => b.id === a.id).y !== a.y)
-            ).not.toEqual([]);
+
+            it('leaves a cell where it is put without compaction, moving the cells it lands on down', () => {
+                const {canvas} = canvasWith({compact: false}),
+                    at = (id: string) => canvas.cells.find(it => it.id === id);
+                expect(canvas.moveCell('headline', {y: 3})).toBeNull();
+                expect(at('headline').y).toBe(3);
+                expect(at('posGrid').y).toBe(5);
+                expect(noOverlaps(canvas.cells)).toEqual([]);
+            });
+
+            it('shows stored cells packed up, unless it does not compact', () => {
+                const bp = loadBlueprint('p2-linked-dashboard.json');
+                (bp.elements.dashboard.children[3] as PlainObject).y = 20;
+                const packed = widget(DashCanvasWidgetModel, open(bp), 'dashboard');
+                expect(packed.cells.find(it => it.id === 'ordersGrid').y).toBe(9);
+
+                bp.elements.dashboard.config = {compact: false};
+                const free = widget(DashCanvasWidgetModel, open(bp), 'dashboard');
+                expect(free.cells.find(it => it.id === 'ordersGrid').y).toBe(20);
+            });
+
+            it('refuses a move onto another cell where collisions are prevented', () => {
+                for (const compact of ['vertical', false] as const) {
+                    const {model, canvas} = canvasWith({compact, preventCollision: true}),
+                        version = model.version;
+                    expect(canvas.moveCell('headline', {y: 3})).toBe(
+                        "'headline' would overlap 'posGrid'."
+                    );
+                    expect(model.version).toBe(version);
+                }
+            });
+
+            it('keeps cells within its most rows', () => {
+                const {canvas} = canvasWith({compact: false, maxRows: 14});
+                expect(canvas.moveCell('ordersGrid', {y: 12})).toBe(
+                    "'ordersGrid' must lie within the canvas's 14 rows."
+                );
+            });
+
+            it('locks its layout for readers, never for design', () => {
+                const run = canvasWith({layoutLocked: true}, 'run');
+                expect(run.canvas.isLocked).toBe(true);
+                expect(run.canvas.moveCell('ordersGrid', {y: 0})).toBe('The layout is locked.');
+                expect(canvasWith({layoutLocked: true}).canvas.isLocked).toBe(false);
+            });
+
+            it('rescales its cells for a new column count in one edit, packed up', () => {
+                const {model, canvas} = canvasWith({}),
+                    design = new BlueprintDesignModel({blueprintModel: model});
+                onTestFinished(() => design.destroy());
+                design.setConfig('dashboard', '/columns', 6);
+                const {cells} = canvas;
+                expect(cells.every(it => it.x + it.w <= 6)).toBe(true);
+                expect(noOverlaps(cells)).toEqual([]);
+                // Packed: each cell rests on the top or on a cell above it.
+                cells
+                    .filter(it => it.y > 0)
+                    .forEach(it =>
+                        expect(
+                            cells.some(
+                                b => b.y + b.h === it.y && b.x < it.x + it.w && it.x < b.x + b.w
+                            ),
+                            it.id
+                        ).toBe(true)
+                    );
+            });
         });
 
         it("resets a reader's moves, and offers to only once there are some", () => {
@@ -1389,3 +1485,10 @@ describe('drill-in', () => {
         expect(model.drillIn).toBeNull();
     });
 });
+
+interface GridCellLike {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}

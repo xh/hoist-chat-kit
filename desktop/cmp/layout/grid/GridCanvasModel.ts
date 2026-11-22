@@ -2,8 +2,10 @@ import {HoistModel} from '@xh/hoist/core';
 import {
     cloneLayout,
     type Compactor,
+    getCompactor,
     type Layout,
-    type LayoutItem
+    type LayoutItem,
+    moveElement
 } from '@xh/hoist/kit/react-grid-layout';
 import {action, observable} from '@xh/hoist/mobx';
 import {pick, sortBy} from 'lodash';
@@ -20,6 +22,19 @@ export interface GridCell {
     /** The smallest size a resize may give it. */
     minW?: number;
     minH?: number;
+}
+
+/**
+ * How a canvas packs its cells: floating up, or left, as react-grid-layout compacts, or not at all,
+ * where each cell stays where it is put.
+ */
+export type GridCompact = 'vertical' | 'horizontal' | false;
+
+/** How cells are placed: as {@link GridCanvasProps} sets them, with the same defaults. */
+export interface GridPlacement {
+    compact?: GridCompact;
+    preventCollision?: boolean;
+    columns?: number;
 }
 
 /** What a finished gesture changed. */
@@ -49,6 +64,15 @@ export interface GridCanvasProps {
     onDropOver?: (e: DragEvent) => {w: number; h: number} | false;
     /** An external drag dropped at a place, with the other cells where the drop left them. */
     onDrop?: (place: Omit<GridCell, 'id'>, cells: GridCell[], e: DragEvent) => void;
+    /**
+     * How the canvas packs its cells. Default 'vertical'. With false, a moved cell stays where it
+     * is put, and the cells it lands on move down as far as they must.
+     */
+    compact?: GridCompact;
+    /** True to refuse a move or resize onto another cell, which then snaps back. Default false. */
+    preventCollision?: boolean;
+    /** The most rows the canvas holds. Default unlimited. */
+    maxRows?: number;
     /** True to let cells move and resize. Default false. */
     editable?: boolean;
     /** True to draw the grid's cells behind the cells. Default false. */
@@ -60,15 +84,56 @@ export interface GridCanvasProps {
 }
 
 /**
- * The cells with one placed as a move or resize leaves it: it keeps the place given, and each cell
- * it lands on moves down as far as it must, in reading order. A pointer gesture places cells so.
+ * The cells with one placed as a move or resize leaves it: it keeps the place given, but no lower
+ * than the first free row below the others, and each cell it lands on moves down as far as it
+ * must, in reading order. A pointer gesture places cells so.
  */
-export function placeCell(cells: GridCell[], placed: GridCell): GridCell[] {
-    const ret = cells.map(it =>
-        it.id === placed.id ? {...it, ...pick(placed, 'x', 'y', 'w', 'h')} : {...it}
+export function placeCell(
+    cells: GridCell[],
+    placed: GridCell,
+    {compact = 'vertical', preventCollision = false, columns = 12}: GridPlacement = {}
+): GridCell[] {
+    if (
+        preventCollision &&
+        hitOf(
+            cells.filter(it => it.id !== placed.id),
+            placed
+        )
+    )
+        return null;
+    if (!compact) {
+        const ret = cells.map(it =>
+            it.id === placed.id ? {...it, ...pick(placed, 'x', 'y', 'w', 'h')} : {...it}
+        );
+        pushApart(ret, it => it.id, placed.id);
+        return ret;
+    }
+    const layout = toLayout(cells),
+        item = layout.find(it => it.i === placed.id);
+    item.w = placed.w;
+    item.h = placed.h;
+    const moved = moveElement(
+        layout,
+        item,
+        placed.x,
+        placed.y,
+        true,
+        false,
+        compact,
+        columns,
+        false
     );
-    pushApart(ret, it => it.id, placed.id);
-    return ret;
+    return fromLayout(cells, getCompactor(compact).compact(moved, columns));
+}
+
+/** The cells as a canvas of this compaction shows them: floated up or left, or as they are. */
+export function compactCells(
+    cells: GridCell[],
+    {compact = 'vertical', columns = 12}: GridPlacement = {}
+): GridCell[] {
+    return compact
+        ? fromLayout(cells, getCompactor(compact).compact(toLayout(cells), columns))
+        : cells;
 }
 
 /**
@@ -79,7 +144,7 @@ export function placeCell(cells: GridCell[], placed: GridCell): GridCell[] {
  */
 export class GridCanvasModel extends HoistModel {
     // Set on each render, so not observable: the parent re-renders the canvas when it changes.
-    props: Pick<GridCanvasProps, 'cells' | 'onChange'> = {cells: []};
+    props: CanvasModelProps = {cells: []};
 
     /** Bumped after each gesture, to hand react-grid-layout the host's cells again. */
     @observable accessor epoch = 0;
@@ -92,16 +157,28 @@ export class GridCanvasModel extends HoistModel {
         );
     }
 
-    setProps(props: Pick<GridCanvasProps, 'cells' | 'onChange'>) {
+    setProps(props: CanvasModelProps) {
         this.props = props;
     }
 
-    /**
-     * Places cells for react-grid-layout as {@link placeCell} does: no compaction, and nothing
-     * overlaps. The cell a gesture moves keeps its place, and every other cell starts from the
-     * host's place for it, so a cell pushed aside goes back once the moved one passes on.
-     */
-    readonly compactor: Compactor = {
+    /** react-grid-layout's compactor, for the canvas's compaction, placing as {@link placeCell}. */
+    get compactor(): Compactor {
+        const {compact = 'vertical', preventCollision = false} = this.props,
+            key = `${compact}|${preventCollision}`;
+        if (key !== this.compactorKey) {
+            this.compactorKey = key;
+            this.compactorFor = compact
+                ? getCompactor(compact, false, preventCollision)
+                : preventCollision
+                  ? getCompactor(null, false, true)
+                  : this.pushCompactor;
+        }
+        return this.compactorFor;
+    }
+
+    // No compaction, and nothing overlaps. The cell a gesture moves keeps its place, and every
+    // other cell starts from the host's place for it, so one pushed aside goes back once it passes.
+    private readonly pushCompactor: Compactor = {
         type: null,
         allowOverlap: true,
         compact: (layout: Layout) => this.compact(layout)
@@ -151,6 +228,8 @@ export class GridCanvasModel extends HoistModel {
     private cancelled = false;
     private listening = false;
     private activeId: string = null;
+    private compactorKey: string = null;
+    private compactorFor: Compactor = null;
 
     private compact(layout: Layout): Layout {
         const ret = cloneLayout(layout) as LayoutItem[],
@@ -190,9 +269,13 @@ const DROPPING = '__dropping-elem__';
 
 type Box = {x: number; y: number; w: number; h: number};
 
-// Move each item down below any placed item it overlaps: the pinned one first, then in reading order.
+// Move each item down below any placed item it overlaps: the pinned one first, no lower than the
+// others' bottom, then the rest in reading order.
 function pushApart<T extends Box>(items: T[], idOf: (it: T) => string, pinned: string) {
-    const placed: T[] = [];
+    const placed: T[] = [],
+        pin = items.find(it => idOf(it) === pinned),
+        bottom = Math.max(0, ...items.filter(it => it !== pin).map(it => it.y + it.h));
+    if (pin) pin.y = Math.min(pin.y, bottom);
     sortBy(items, it => (idOf(it) === pinned ? 0 : 1), 'y', 'x').forEach(it => {
         for (let hit = hitOf(placed, it); hit; hit = hitOf(placed, it)) it.y = hit.y + hit.h;
         placed.push(it);
@@ -203,4 +286,19 @@ function hitOf<T extends Box>(placed: T[], b: Box): T {
     return placed.find(
         a => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
     );
+}
+
+type CanvasModelProps = Pick<
+    GridCanvasProps,
+    'cells' | 'onChange' | 'compact' | 'preventCollision'
+>;
+
+function toLayout(cells: GridCell[]): LayoutItem[] {
+    return cells.map(({id, x, y, w, h}) => ({i: id, x, y, w, h}));
+}
+
+// The cells at the places a layout gives them, in their own order.
+function fromLayout(cells: GridCell[], layout: Layout): GridCell[] {
+    const byId = new Map(layout.map(it => [it.i, it]));
+    return cells.map(it => ({...it, ...pick(byId.get(it.id), 'x', 'y', 'w', 'h')}));
 }

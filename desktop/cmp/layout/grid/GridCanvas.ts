@@ -38,6 +38,9 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
         onDropOver,
         onDrop,
         editable = false,
+        compact = 'vertical',
+        preventCollision = false,
+        maxRows = Infinity,
         showGrid = false,
         columns = 12,
         rowHeight = 50,
@@ -48,9 +51,9 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
             [width, widthRef] = useContentWidth(),
             [height, setHeight] = useState<number>(null),
             heightRef = useOnResize(rect => setHeight(rect.height), {debounce: 100});
-        impl.setProps({cells, onChange});
+        impl.setProps({cells, onChange, compact, preventCollision});
 
-        const gridConfig = {cols: columns, rowHeight, margin, containerPadding},
+        const gridConfig = {cols: columns, rowHeight, margin, containerPadding, maxRows},
             rglProps: GridLayoutProps = {
                 width,
                 layout: impl.layout,
