@@ -81,8 +81,14 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
         this.setConfig('/layout', layout, description);
     }
 
+    /** True if a reader may not rearrange the views, as `layoutLocked` says. Design mode may. */
+    get isLocked(): boolean {
+        return !!this.resolvedConfig.layoutLocked && this.blueprintModel.mode !== 'design';
+    }
+
     /** Why moving a view to a target would be refused, or null if it would apply. */
     canMove(id: string, target: DockTarget): string {
+        if (this.isLocked) return 'The layout is locked.';
         const refusal = dockMoveRefusal(this.layout, id, target);
         if (refusal) return refusal;
         const next = moveView(this.layout, id, target);
@@ -150,7 +156,7 @@ export const [DashContainerWidget, dashContainerWidget] = hoistCmp.withFactory({
                 children: [
                     dockLayout({
                         layout: model.layout,
-                        editable: true,
+                        editable: !model.isLocked,
                         renderView: id => model.renderElement(id),
                         viewTitle: id => model.titles[id],
                         onChange: (layout, change) => model.noteLayout(layout, change),

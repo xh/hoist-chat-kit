@@ -4,7 +4,14 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {layoutGesture} from '../gesture';
-import {gridCanvas, GridCanvasModel, type GridCell, type GridCanvasProps, placeCell} from './index';
+import {
+    compactCells,
+    gridCanvas,
+    GridCanvasModel,
+    type GridCell,
+    type GridCanvasProps,
+    placeCell
+} from './index';
 
 /**
  * A canvas of cells on a grid, controlled by the cells it is given. It keeps no layout of its
@@ -210,20 +217,86 @@ describe('gridCanvas', () => {
         function gestureModel(onChange: GridCanvasProps['onChange']) {
             const model = new GridCanvasModel();
             onTestFinished(() => model.destroy());
-            model.setProps({cells: CELLS, onChange});
+            model.setProps({cells: CELLS, onChange, compact: false});
             return model;
         }
     });
 
+    describe('compaction', () => {
+        const GAPPY: GridCell[] = [
+            {id: 'a', x: 0, y: 0, w: 6, h: 2},
+            {id: 'b', x: 6, y: 3, w: 6, h: 2},
+            {id: 'c', x: 0, y: 5, w: 4, h: 2}
+        ];
+        const places = (cells: GridCell[]) => cells.map(({id, x, y}) => [id, x, y]);
+
+        it('floats cells up, or left, or leaves them, as its compaction says', () => {
+            expect(places(compactCells(GAPPY, {compact: 'vertical'}))).toEqual([
+                ['a', 0, 0],
+                ['b', 6, 0],
+                ['c', 0, 2]
+            ]);
+            expect(places(compactCells(GAPPY, {compact: 'horizontal'}))).toEqual([
+                ['a', 0, 0],
+                ['b', 0, 3],
+                ['c', 0, 5]
+            ]);
+            expect(compactCells(GAPPY, {compact: false})).toEqual(GAPPY);
+        });
+
+        it('places a cell, then compacts, where it compacts', () => {
+            const next = placeCell(
+                CELLS,
+                {id: 'chart', x: 0, y: 0, w: 6, h: 4},
+                {compact: 'vertical'}
+            );
+            expect(places(next)).toEqual([
+                ['posGrid', 0, 4],
+                ['chart', 0, 0]
+            ]);
+            // A cell moved down into empty space floats back up.
+            expect(
+                places(
+                    placeCell(CELLS, {id: 'chart', x: 6, y: 9, w: 6, h: 4}, {compact: 'vertical'})
+                )
+            ).toEqual([
+                ['posGrid', 0, 0],
+                ['chart', 6, 0]
+            ]);
+        });
+
+        it('refuses a place over another cell where collisions are prevented', () => {
+            expect(
+                placeCell(CELLS, {id: 'chart', x: 3, y: 0, w: 6, h: 4}, {preventCollision: true})
+            ).toBeNull();
+            expect(
+                placeCell(CELLS, {id: 'chart', x: 6, y: 4, w: 6, h: 4}, {preventCollision: true})
+            ).not.toBeNull();
+        });
+
+        it('gives react-grid-layout the compactor of its compaction, pushing only when it does not compact', () => {
+            const model = new GridCanvasModel();
+            onTestFinished(() => model.destroy());
+            model.setProps({cells: CELLS, compact: 'vertical'});
+            expect(model.compactor.type).toBe('vertical');
+            model.setProps({cells: CELLS, compact: false, preventCollision: true});
+            expect(model.compactor).toMatchObject({type: null, preventCollision: true});
+            model.setProps({cells: CELLS, compact: false});
+            expect(model.compactor).toMatchObject({type: null, allowOverlap: true});
+        });
+    });
+
     it('places a cell no lower than the first free row below the others', () => {
-        expect(placeCell(CELLS, {id: 'chart', x: 6, y: 200, w: 6, h: 4})).toEqual([
-            {id: 'posGrid', x: 0, y: 0, w: 6, h: 4},
-            {id: 'chart', x: 6, y: 4, w: 6, h: 4}
-        ]);
+        expect(placeCell(CELLS, {id: 'chart', x: 6, y: 200, w: 6, h: 4}, {compact: false})).toEqual(
+            [
+                {id: 'posGrid', x: 0, y: 0, w: 6, h: 4},
+                {id: 'chart', x: 6, y: 4, w: 6, h: 4}
+            ]
+        );
     });
 
     it('places a cell as a drop would, moving the cells it lands on down', () => {
-        expect(placeCell(CELLS, {id: 'chart', x: 0, y: 0, w: 6, h: 4})).toEqual([
+        expect(placeCell(CELLS, {id: 'chart', x: 0, y: 0, w: 6, h: 4}, {compact: false})).toEqual([
             {id: 'posGrid', x: 0, y: 4, w: 6, h: 4},
             {id: 'chart', x: 0, y: 0, w: 6, h: 4}
         ]);

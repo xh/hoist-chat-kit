@@ -509,6 +509,18 @@ describe('layout and container widgets', () => {
             expect(model.undoDescription).toBe('Move b');
         });
 
+        it('locks its layout for readers, never for design', () => {
+            const locked = () => {
+                const ret = container() as Record<string, BlueprintElement>;
+                ret.tabs.config = {layoutLocked: true};
+                return ret;
+            };
+            const {widget} = open(locked());
+            expect(widget.isLocked).toBe(true);
+            expect(widget.moveView('b', {view: 'a', zone: 'right'})).toBe('The layout is locked.');
+            expect(designing(locked()).widget.isLocked).toBe(false);
+        });
+
         it('says why a move would be refused, and allows a valid one', () => {
             const {widget} = designing(container());
             expect(widget.canMove('b', {view: 'a', zone: 'left'})).toBeNull();
