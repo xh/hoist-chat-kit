@@ -1,4 +1,4 @@
-import {div, hbox, placeholder} from '@xh/hoist/cmp/layout';
+import {div, hbox, placeholder, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
@@ -19,6 +19,7 @@ import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {booleanEditor, CLS, propertyRow, removeItemButton, sectionCard} from './impl/ConfigEditors';
 import {refuse, removeElementAsync} from './impl/designActions';
+import {widgetIcon} from './impl/icons';
 
 export interface ElementInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -270,6 +271,37 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return component ? this.designModel.blueprintModel.registry.widgets[component] : null;
     }
 
+    /**
+     * The children of a container, in order, or null for an element that holds none. A tab
+     * container lists its tabs in its own editor instead.
+     */
+    get childIds(): string[] {
+        if (!this.widgetSpec?.children || this.tabs) return null;
+        return (this.element?.children ?? []).map(it => it.id);
+    }
+
+    /** True if the container orders its children by place in the list, not by a layout. */
+    get ordersChildren(): boolean {
+        return !['dashCanvas', 'dashContainer'].includes(this.element?.component);
+    }
+
+    /** Move a child within the container, from one place in the list to another, as one edit. */
+    moveChild(id: string, fromIndex: number, toIndex: number) {
+        // A drop's index counts the list as it stands, the moved child included.
+        const {designModel, elementId: container} = this,
+            index = toIndex > fromIndex ? toIndex + 1 : toIndex;
+        refuseMessage(designModel, designModel.dropAt({element: id}, {container, index}));
+        // The container stays selected, as the drop would select the child.
+        designModel.select({kind: 'element', id: container});
+    }
+
+    /** Open Add for the container, which adds at the end of its children. */
+    addChild() {
+        const {designModel, elementId} = this;
+        designModel.selectSlot({parent: elementId, slot: 'children'});
+        designModel.requestAdd();
+    }
+
     /** The tabs of a container whose children take titles, or null for any other element. */
     get tabs(): {id: string; title: string}[] {
         const required: string[] = this.widgetSpec?.children?.schema?.required ?? [];
@@ -313,6 +345,12 @@ export class ElementInspectorModel extends ConfigEditorModel {
 //------------------
 // Implementation
 //------------------
+// Show a drop's refusal, if any, as a toast.
+function refuseMessage(designModel: BlueprintDesignModel, message: string) {
+    if (message)
+        refuse(designModel, [{code: 'edit.refused', severity: 'error', path: '', message}]);
+}
+
 // The key a refusal of the element itself, such as its removal, goes under.
 const ELEMENT_KEY = '';
 
@@ -405,6 +443,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                             children: section.nodes.map(node => configRow(impl, node))
                         });
                     }),
+                !impl.isView && impl.childIds ? childrenCard(impl) : null,
                 // A widget in a canvas cell shows its view's settings folded, with a way there.
                 !impl.isView && impl.canvasId
                     ? sectionCard({
@@ -639,6 +678,65 @@ function setsEditor(impl: ElementInspectorModel) {
             ...impl
                 .issuesFor(SETS_KEY)
                 .map((it, idx) => div({key: idx, className: `${CLS}__issue`, children: it.message}))
+        ]
+    });
+}
+
+// A container's children: each by its glyph, id and kind, selected on a click, reordered by drag
+// or Alt+arrows where the list sets their order, and removed, with a way to add one at the end.
+function childrenCard(impl: ElementInspectorModel) {
+    const {designModel, childIds, readOnly: disabled} = impl,
+        {registry, blueprint} = designModel.blueprintModel,
+        row = (id: string) => {
+            const spec = registry.widgets[blueprint.elements[id]?.component];
+            return hbox({
+                className: `${CLS}__item-header ${CLS}__child`,
+                ...({'data-child': id} as object),
+                onClick: () => designModel.select({kind: 'element', id}),
+                children: [
+                    spec ? widgetIcon(spec, {className: `${CLS}__child-icon`}) : null,
+                    span({className: `${CLS}__column-label ${CLS}__child-id`, children: id}),
+                    span({className: `${CLS}__column-meta`, children: spec?.label}),
+                    removeItemButton(`Remove ${id}`, disabled, () =>
+                        removeElementAsync(designModel, id).then(it => refuse(designModel, it))
+                    )
+                ]
+            });
+        };
+    return sectionCard({
+        key: 'children',
+        title: 'Children',
+        count: childIds.length,
+        children: [
+            childIds.length
+                ? impl.ordersChildren
+                    ? sortableList({
+                          key: 'list',
+                          className: `${CLS}__columns`,
+                          value: childIds.map(id => ({id})),
+                          itemKey: 'id',
+                          getItemLabel: (it: {id: string}) => it.id,
+                          disabled,
+                          compact: true,
+                          onReorder: e => impl.moveChild(e.item.id, e.fromIndex, e.toIndex),
+                          renderItem: (it: {id: string}) => row(it.id)
+                      })
+                    : div({
+                          key: 'list',
+                          className: `${CLS}__columns ${CLS}__columns--fixed`,
+                          children: childIds.map(id => div({key: id, children: row(id)}))
+                      })
+                : null,
+            disabled
+                ? null
+                : button({
+                      key: '_add',
+                      icon: Icon.add(),
+                      intent: 'primary',
+                      text: 'Add a widget…',
+                      minimal: true,
+                      onClick: () => impl.addChild()
+                  })
         ]
     });
 }

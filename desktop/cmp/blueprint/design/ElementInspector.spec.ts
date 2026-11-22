@@ -967,6 +967,45 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 1);
     });
 
+    it("lists a container's children to select, reorder and remove, each one edit, with Add below", async () => {
+        const {design, model} = open('p2-linked-dashboard.json', 'posGrid'),
+            box = design.addWidget('box').id,
+            a = design.addWidget('markdown', box).id,
+            b = design.addWidget('markdown', box).id;
+        design.select({kind: 'element', id: box});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            kids = () => model.blueprint.elements[box].children.map(it => it.id),
+            rows = () =>
+                [...container.querySelectorAll('[data-child]')].map(it =>
+                    it.getAttribute('data-child')
+                );
+        expect(bandsOf(container)).toContain('Children 2');
+        expect(rows()).toEqual([a, b]);
+        const edits = model.history.length;
+        await altDown(
+            container
+                .querySelector(`[data-child="${a}"]`)
+                .closest('.xh-sortable-list__item')
+                .querySelector('.xh-sortable-list__handle')
+        );
+        expect(kids()[kids().length - 1]).toBe(a);
+        expect(model.history.length).toBeGreaterThan(edits);
+        await vi.waitFor(() => expect(rows()).toEqual([b, a]));
+        fireEvent.click(
+            container.querySelector(`[data-child="${b}"] .xh-blueprint-element-inspector__child-id`)
+        );
+        expect(design.selectedElementId).toBe(b);
+    });
+
+    it('lists the cells of a canvas without reordering, as their layout places them', () => {
+        const {design} = open('p2-linked-dashboard.json', 'dashboard'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(container.querySelectorAll('[data-child]').length).toBeGreaterThan(1);
+        expect(
+            container.querySelector('.xh-blueprint-element-inspector__columns--fixed')
+        ).not.toBeNull();
+    });
+
     describe('sort by', () => {
         const setup = (initial: unknown) => {
             const {design, model} = open('p2-linked-dashboard.json');

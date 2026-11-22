@@ -364,6 +364,26 @@
     gap: 6px;
   }
 
+  // A container's child: a click selects it.
+  &__child {
+    cursor: pointer;
+  }
+
+  &__child-icon {
+    flex: none;
+    width: 12px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__child-id {
+    font-family: var(--xh-font-family-mono);
+  }
+
+  // Children a layout places, listed in no order to change.
+  &__columns--fixed > div + div {
+    border-top: var(--xh-border-solid);
+  }
+
   &__sort-chips {
     display: flex;
     flex: 1 1 auto;
