@@ -18,7 +18,6 @@ import {
     type BlueprintSelection,
     traceWiring,
     wiringFor,
-    wiringGraph,
     type WiringEdge,
     type WiringGraph,
     wiringKey
@@ -222,7 +221,7 @@ export class BlueprintMapModel extends HoistModel {
         const {nodeOf} = this,
             seen = new Set<string>(),
             ret: MapEdge[] = [];
-        wiringGraph(this.designModel.blueprintModel.blueprint).edges.forEach(it => {
+        this.designModel.wiring.edges.forEach(it => {
             const from = nodeOf(it.from),
                 to = nodeOf(it.to),
                 toPort = it.to.kind === 'source' ? portOf(it.path) : null,
@@ -369,7 +368,11 @@ export class BlueprintMapModel extends HoistModel {
             return `${decl.compute.resolver}(${args.join(', ')})`;
         }
         if (decl.setBy === 'action') {
-            const writers = wiringFor(blueprintModel.blueprint, {kind: 'variable', id: name}).setBy;
+            const writers = wiringFor(
+                blueprintModel.blueprint,
+                {kind: 'variable', id: name},
+                this.designModel.wiring
+            ).setBy;
             return `← ${writers.map(it => it.id).join(', ')}`;
         }
         if (decl.setBy && decl.setBy !== 'prompt') {
@@ -462,7 +465,11 @@ const mapNode = hoistCmp.factory<
             hasError = issues.some(it => it.severity === 'error'),
             waitsFor =
                 node.kind === 'source' && blueprintModel.getSource(node.id)?.isWaiting
-                    ? wiringFor(blueprintModel.blueprint, {kind: 'source', id: node.id}).waitsFor
+                    ? wiringFor(
+                          blueprintModel.blueprint,
+                          {kind: 'source', id: node.id},
+                          designModel.wiring
+                      ).waitsFor
                     : [];
         return div({
             className: classNames(

@@ -1337,7 +1337,11 @@ export class BlueprintDesignModel extends HoistModel {
             this.blueprintModel.blueprint,
             {kind: 'variable', id: name},
             this.wiring
-        ).readBy.some(it => !(it.kind === 'element' && gone.has(it.id)) && it.id !== name);
+        ).readBy.some(
+            it =>
+                !(it.kind === 'element' && gone.has(it.id)) &&
+                !(it.kind === 'variable' && it.id === name)
+        );
     }
 }
 

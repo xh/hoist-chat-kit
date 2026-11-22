@@ -172,6 +172,38 @@ describe('BlueprintDesignModel', () => {
             expect(design.removeVariable('fund').issues[0].message).toMatch(/tabs/);
         });
 
+        it('keeps a variable that an element of the same name reads, when its writer goes', () => {
+            const {model, design} = p3(),
+                {issues} = model.applyEdit({
+                    ops: [
+                        {
+                            op: 'addElement',
+                            id: 'noteInput',
+                            element: {component: 'textInput', config: {label: 'Note'}},
+                            parent: 'positions',
+                            child: {x: 0, y: 20, w: 4, h: 1}
+                        },
+                        {
+                            op: 'addElement',
+                            id: 'note',
+                            element: {component: 'markdown', config: {text: 'Note: {note}'}},
+                            parent: 'positions',
+                            child: {x: 4, y: 20, w: 4, h: 1}
+                        },
+                        {
+                            op: 'set',
+                            path: '/variables/note',
+                            value: {type: 'string', setBy: {element: 'noteInput'}}
+                        }
+                    ]
+                });
+            expect(issues.filter(it => it.severity === 'error')).toEqual([]);
+            expect(design.describeRemoval('noteInput')).toMatchObject({
+                removedVariables: [],
+                unboundVariables: ['note']
+            });
+        });
+
         it('tracks the hovered element as view state, never an edit', () => {
             const {model, design} = p3();
             design.setHovered('posGrid');
