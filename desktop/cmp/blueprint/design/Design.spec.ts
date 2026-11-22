@@ -15,6 +15,7 @@ import {
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {blueprintView} from '../BlueprintView';
+import {layoutGesture} from '../../layout';
 import {OverlayModel} from '../../layout/overlay';
 import {cellElementAt, viewAt} from '../impl/ElementHost';
 import {designHotkeys} from './impl/designHotkeys';
@@ -271,6 +272,22 @@ describe('design mode selection', () => {
                 ).container.querySelector('.xh-blueprint-selection-toolbar');
         expect(toolbarAt(80).classList).not.toContain('xh-blueprint-selection-toolbar--inside');
         expect(toolbarAt(0).classList).toContain('xh-blueprint-selection-toolbar--inside');
+    });
+
+    it('draws no marks while a cell or view is moved or resized, and draws them again after', () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel();
+        onTestFinished(() => {
+            layoutGesture.end();
+            overlay.destroy();
+        });
+        design.select({kind: 'element', id: 'overview'});
+        design.setHovered('headline');
+        expect(designMarks(design, overlay).map(it => it.key)).toEqual(['hover', 'selection']);
+        layoutGesture.start();
+        expect(designMarks(design, overlay)).toEqual([]);
+        layoutGesture.end();
+        expect(designMarks(design, overlay)).toHaveLength(2);
     });
 
     it("keeps a canvas cell's toolbar clear of the cell's header and corner, and no other", () => {

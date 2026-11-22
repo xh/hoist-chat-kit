@@ -1,6 +1,7 @@
 import {div, span} from '@xh/hoist/cmp/layout';
 import classNames from 'classnames';
 import type {BlueprintDesignModel} from '../../../../../blueprint';
+import {layoutGesture} from '../../../layout';
 import type {OverlayBox, OverlayMark, OverlayModel} from '../../../layout/overlay';
 import {widgetIcon} from './icons';
 import {selectionToolbar} from './SelectionToolbar';
@@ -17,14 +18,15 @@ const CLS = 'xh-blueprint-overlay',
  * Design mode's marks over a blueprint: the hovered element's dashed outline and name tag, and
  * the selected one's outline with its toolbar as a tab on top. Each sits outside its element's
  * top-left, or just inside where there is no room, so neither covers the element's content. An
- * element in a canvas cell is marked at its cell, header included. None draw in run mode.
+ * element in a canvas cell is marked at its cell, header included. None draw in run mode, or
+ * while a cell or view is being moved or resized, so none follow the pointer or cover the gesture.
  */
 export function designMarks(
     designModel: BlueprintDesignModel,
     overlay: OverlayModel
 ): OverlayMark[] {
     const {blueprintModel, selectedElementId: selected, hoveredId: hovered} = designModel;
-    if (blueprintModel.mode !== 'design') return [];
+    if (blueprintModel.mode !== 'design' || layoutGesture.active) return [];
     const ret: OverlayMark[] = [],
         surface = () => overlay.hostEl?.closest<HTMLElement>('.xh-panel__content[tabindex]');
     if (
