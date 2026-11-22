@@ -22,6 +22,7 @@ import {locate, parentMap, slotLabel, slotLists} from '../../../../blueprint/imp
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
 import './BlueprintTree.scss';
+import {elementDrag} from './impl/elementDrag';
 import {issueSummary, selectionMenu} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
 import {partIcon} from './impl/icons';
@@ -187,12 +188,15 @@ export class BlueprintStructureModel extends HoistModel {
     startDrag(id: string) {
         this.dragging = id;
         this.verdicts.clear();
+        // Also a drag the canvas takes, onto any container in it.
+        elementDrag.start({element: id, designModel: this.designModel});
     }
 
     @action
     endDrag() {
         this.dragging = null;
         this.verdicts.clear();
+        elementDrag.end();
     }
 
     /**
@@ -469,6 +473,7 @@ export class BlueprintStructureModel extends HoistModel {
             },
             onDragStart: (e: React.DragEvent) => {
                 this.startDrag(name);
+                e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', name);
             },
             onDragEnd: () => this.endDrag(),

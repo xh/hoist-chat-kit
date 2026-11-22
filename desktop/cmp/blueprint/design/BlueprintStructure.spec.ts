@@ -13,6 +13,7 @@ import {
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
 import {BlueprintStructureModel} from './BlueprintStructure';
+import {elementDrag} from './impl/elementDrag';
 import {designHotkeys} from './impl/designHotkeys';
 
 /**
@@ -242,6 +243,14 @@ describe('BlueprintStructure', () => {
         // A container also offers to add a widget to it.
         expect(texts('positions')).toContain('Add a widget…');
         expect(texts('positions')).not.toContain('Move earlier');
+    });
+
+    it('drags a row as an element the canvas takes too, until the drag ends', () => {
+        const {design, structure} = open();
+        structure.startDrag('posGrid');
+        expect(elementDrag.current).toEqual({element: 'posGrid', designModel: design});
+        structure.endDrag();
+        expect(elementDrag.current).toBeNull();
     });
 
     it('says why a drag cannot drop before the drop, checking each target once per drag', () => {

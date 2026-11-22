@@ -1,4 +1,4 @@
-import {fireEvent, render, within} from '@testing-library/react';
+import {act, fireEvent, render, within} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -388,6 +388,19 @@ describe('design mode selection', () => {
         design.setInteraction('interact');
         expect(fireEvent.contextMenu(inner)).toBe(true);
         expect(design.selection).toBeNull();
+    });
+
+    it('drags the selected element by its body in Edit, and nothing else', () => {
+        stubRects();
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            host = (id: string) => container.querySelector(`[data-blueprint-element="${id}"]`);
+        expect(host('overview').getAttribute('draggable')).toBeNull();
+        act(() => design.select({kind: 'element', id: 'overview'}));
+        expect(host('overview').getAttribute('draggable')).toBe('true');
+        expect(host('tabs').getAttribute('draggable')).toBeNull();
+        act(() => design.setInteraction('interact'));
+        expect(host('overview').getAttribute('draggable')).toBeNull();
     });
 
     it('hovers the innermost element under the pointer, with its name tag, as view state', async () => {
