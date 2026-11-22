@@ -119,3 +119,8 @@
     }
   }
 }
+
+// Alt held passes the next click to the widget, as a link would take it.
+.xh-blueprint-alt-hold .xh-blueprint-view__design-element {
+  cursor: pointer;
+}
