@@ -47,6 +47,8 @@ export interface WidgetSpec {
      */
     summary?: string;
     category: WidgetCategory;
+    /** The name of a Hoist `Icon` factory that pictures it, such as `grid`. Default by category. */
+    icon?: string;
     config: PlainObject;
     example?: PlainObject;
     /**

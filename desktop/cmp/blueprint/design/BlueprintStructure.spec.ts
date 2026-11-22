@@ -56,13 +56,21 @@ describe('BlueprintStructure', () => {
         expect(record(structure, 'preset:posViews').data.label).toBe('Columns');
     });
 
-    it("puts a cell's header items under a Cell header node, empty ones included", () => {
-        const {structure} = open(),
+    it("puts a cell's header items under a Cell header node", () => {
+        const {design, structure} = open(),
             header = record(structure, 'element:posViewsSelector').parent;
         expect(header.data.name).toBe('Cell header');
         expect(header.parent.id).toBe('element:posGrid');
-        const empty = record(structure, 'element:priceChart').children[0];
-        expect([empty.data.name, empty.children.length]).toEqual(['Cell header', 0]);
+        // An empty slot shows only while a drag is on, or under the selected element.
+        const empty = 'slot:positions|headerItems|priceChart',
+            shown = () => structure.gridModel.store.records.some(it => it.id === empty);
+        expect(shown()).toBe(false);
+        structure.startDrag('groupChooser');
+        expect(shown()).toBe(true);
+        structure.endDrag();
+        expect(shown()).toBe(false);
+        design.select({kind: 'element', id: 'priceChart'});
+        expect(shown()).toBe(true);
     });
 
     it('marks the elements on tabs not showing, as the canvas reports them', () => {
@@ -112,11 +120,11 @@ describe('BlueprintStructure', () => {
 
     it('says why a drag cannot drop before the drop, checking each target once per drag', () => {
         const {model, design, structure} = open(),
-            check = vi.spyOn(design, 'canMoveToPlace');
+            check = vi.spyOn(design, 'addRefusal');
         structure.startDrag('posGrid');
         const header = 'slot:positions|headerItems|priceChart',
             refused = structure.dropVerdict(header, 0.5);
-        expect(refused.reason).toBeTruthy();
+        expect(refused.reason).toBe("priceChart's cell header takes inputs only.");
         structure.dropVerdict(header, 0.4);
         expect(check).toHaveBeenCalledTimes(1);
         structure.drop(header, 0.5);

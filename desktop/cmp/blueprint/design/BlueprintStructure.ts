@@ -13,12 +13,12 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
-import {bindable, computed} from '@xh/hoist/mobx';
+import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import classNames from 'classnames';
 import type React from 'react';
 import type {ReactElement} from 'react';
 import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../../blueprint';
-import {parentMap, slotLabel, slotLists} from '../../../../blueprint/impl/elements';
+import {locate, parentMap, slotLabel, slotLists} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
 import {selectionMenu} from './impl/designActions';
@@ -85,7 +85,7 @@ export class BlueprintStructureModel extends HoistModel {
             hideHeaders: true,
             expandLevel: -1,
             emptyText: 'Nothing matches.',
-            store: {fields: ['name', 'label', 'kind', 'count', 'place', 'component']},
+            store: {fields: ['name', 'label', 'kind', 'count', 'place', 'component', 'empty']},
             contextMenu: agParams => {
                 const record = agParams.node?.data as StoreRecord;
                 return record ? (this.menuFor(record) as any[]) : [];
@@ -110,11 +110,9 @@ export class BlueprintStructureModel extends HoistModel {
                 fireImmediately: true
             },
             {
-                track: () => this.filterText,
-                run: text =>
-                    this.gridModel.store.setFilter(
-                        text ? {field: 'name', op: 'like', value: text} : null
-                    )
+                track: () => [this.filterText, this.dragging, designModel.selectedElementId],
+                run: () => this.applyFilter(),
+                fireImmediately: true
             },
             {
                 track: () => this.gridModel.selectedRecord,
@@ -155,11 +153,13 @@ export class BlueprintStructureModel extends HoistModel {
     }
 
     /** Start dragging an element, which a row then takes or refuses. */
+    @action
     startDrag(id: string) {
         this.dragging = id;
         this.verdicts.clear();
     }
 
+    @action
     endDrag() {
         this.dragging = null;
         this.verdicts.clear();
@@ -191,11 +191,22 @@ export class BlueprintStructureModel extends HoistModel {
         }
         const key = `${rowId}|${where}`;
         if (!this.verdicts.has(key)) {
-            const [issue] =
-                row.kind === 'slot'
-                    ? designModel.canMoveToPlace(dragging, row.place)
-                    : designModel.canMoveTo(dragging, row.name, where);
-            this.verdicts.set(key, issue ? {where, reason: issue.message} : {where});
+            const place: AddPlace =
+                    row.kind === 'slot'
+                        ? row.place
+                        : where === 'into'
+                          ? {parent: row.name, slot: 'children'}
+                          : locate(designModel.blueprintModel.blueprint.elements, row.name),
+                component = designModel.blueprintModel.blueprint.elements[dragging]?.component,
+                // A slot's own words for what it takes, before the validator's.
+                refusal = place ? designModel.addRefusal(component, place) : null,
+                [issue] = refusal
+                    ? []
+                    : row.kind === 'slot'
+                      ? designModel.canMoveToPlace(dragging, row.place)
+                      : designModel.canMoveTo(dragging, row.name, where),
+                reason = refusal ?? issue?.message;
+            this.verdicts.set(key, reason ? {where, reason} : {where});
         }
         return this.verdicts.get(key);
     }
@@ -217,7 +228,22 @@ export class BlueprintStructureModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
-    private dragging: string = null;
+    @observable private accessor dragging: string = null;
+
+    // Rows whose id matches the filter, with their ancestors. An empty slot shows only during a
+    // drag, or under the selected element, so it is there as a target but quiet otherwise.
+    private applyFilter() {
+        const text = this.filterText?.trim().toLowerCase(),
+            {dragging} = this,
+            selected = this.designModel.selectedElementId;
+        this.gridModel.store.setFilter(rec => {
+            const {kind, name, place, empty} = rec.data;
+            if (kind === 'slot' && empty && !dragging) {
+                if (selected !== place.parent && selected !== place.of) return false;
+            }
+            return !text || String(name).toLowerCase().includes(text);
+        });
+    }
     private readonly verdicts = new Map<string, DropVerdict>();
 
     private selected(record: StoreRecord) {
@@ -281,6 +307,7 @@ export class BlueprintStructureModel extends HoistModel {
                         name: slotLabel(place.slot, !!place.of),
                         kind: 'slot',
                         place,
+                        empty: !refs.length,
                         children: refs.map(it => childRow(it.id))
                     }),
                     children =
@@ -386,12 +413,12 @@ export class BlueprintStructureModel extends HoistModel {
                 const verdict = this.dropVerdict(record.id as string, fractionOf(e)),
                     el = e.currentTarget as HTMLElement;
                 if (!verdict) return;
-                e.preventDefault();
                 if (verdict.reason) {
-                    e.dataTransfer.dropEffect = 'none';
+                    // Not taken, so the pointer shows the drop is refused.
                     el.dataset.drop = 'refused';
                     el.title = verdict.reason;
                 } else {
+                    e.preventDefault();
                     el.dataset.drop = verdict.where;
                     el.removeAttribute('title');
                 }

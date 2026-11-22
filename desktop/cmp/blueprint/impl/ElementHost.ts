@@ -51,6 +51,9 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 designModel.hoveredId === id && `${DESIGN_ELEMENT}--hovered`,
                 designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
                 viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
+                designModel.showAddTarget &&
+                    (designModel.addTarget?.of ?? designModel.addTarget?.parent) === id &&
+                    `${DESIGN_ELEMENT}--add-target`,
                 viewModel.getWidgetModel(id)?.isTooNarrow && `${DESIGN_ELEMENT}--too-narrow`
             ),
             // Read by cellElementAt, by a selection that scrolls into view, and by the name tag.

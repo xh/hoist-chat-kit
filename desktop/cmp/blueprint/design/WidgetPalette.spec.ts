@@ -51,6 +51,29 @@ describe('WidgetPalette', () => {
         expect(names).not.toContain('fallback');
     });
 
+    it("dims the widgets the target won't take, with the reason, and outlines the target", () => {
+        const {design, palette} = open(loadBlueprint('p3-morning-report.json'));
+        design.selectSlot({parent: 'positions', slot: 'headerItems', of: 'posGrid'});
+        const tiles = palette.groups.flatMap(it => it.widgets),
+            tile = (name: string) => tiles.find(it => it.name === name);
+        expect(tile('cubeGrid').refusal).toBe("posGrid's cell header takes inputs only.");
+        expect(tile('select').refusal).toBeNull();
+        expect(tiles.filter(it => !it.refusal).every(it => it.category === 'input')).toBe(true);
+        expect(tile('cubeGrid').icon).toBe('grid');
+        expect(tile('cubeGrid').title).toBeTruthy();
+
+        palette.setPointerOver(true);
+        expect(design.showAddTarget).toBe(true);
+        palette.setPointerOver(false);
+        expect(design.showAddTarget).toBe(false);
+    });
+
+    it('searches widgets by name, label and terms', () => {
+        const {palette} = open(loadBlueprint('p2-linked-dashboard.json'));
+        palette.search = 'pivot';
+        expect(palette.groups.flatMap(it => it.widgets.map(w => w.name))).toEqual(['cubeGrid']);
+    });
+
     it('adds a widget on a click, and selects it', () => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             {getByText} = render(widgetPalette({designModel: design}) as ReactElement);

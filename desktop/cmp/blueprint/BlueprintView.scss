@@ -47,6 +47,12 @@
       pointer-events: none;
     }
 
+    // Where a click in the palette adds, while the pointer is over it.
+    &--add-target {
+      outline: 2px dashed var(--xh-intent-primary);
+      outline-offset: -2px;
+    }
+
     &--reader::after {
       background-color: var(--xh-intent-primary-trans1);
     }

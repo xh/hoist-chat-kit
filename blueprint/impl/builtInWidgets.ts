@@ -1195,6 +1195,7 @@ const TOOLBAR_SLOT_ACCEPTS: SlotAccepts = {
 
 const dashCanvas: WidgetSpec = {
     name: 'dashCanvas',
+    icon: 'layout',
     summary: "A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root.",
     version: 1,
     label: 'Dashboard',
@@ -1266,6 +1267,7 @@ const dashCanvas: WidgetSpec = {
 
 const tabContainer: WidgetSpec = {
     name: 'tabContainer',
+    icon: 'folder',
     summary: 'Shows one child at a time, under a row of tabs.',
     version: 1,
     label: 'Tabs',
@@ -1323,6 +1325,7 @@ const tabContainer: WidgetSpec = {
 
 const dashContainer: WidgetSpec = {
     name: 'dashContainer',
+    icon: 'window',
     summary: 'Views a user drags into tabs, stacks, rows and columns, and resizes.',
     version: 1,
     label: 'Dash container',
@@ -1363,6 +1366,7 @@ const dashContainer: WidgetSpec = {
 
 const panel: WidgetSpec = {
     name: 'panel',
+    icon: 'square',
     summary: 'A titled section or bordered card that stacks its children, with optional toolbars.',
     version: 1,
     rendersPartial: true,
@@ -1402,6 +1406,7 @@ const panel: WidgetSpec = {
 
 const box: WidgetSpec = {
     name: 'box',
+    icon: 'cube',
     summary: 'A row or column of children, with no chrome.',
     version: 1,
     rendersPartial: true,
@@ -1439,6 +1444,7 @@ const box: WidgetSpec = {
 
 const separator: WidgetSpec = {
     name: 'separator',
+    icon: 'bars',
     summary: 'A rule between siblings, with an optional label.',
     version: 1,
     label: 'Separator',
@@ -1453,6 +1459,7 @@ const separator: WidgetSpec = {
 
 const spacer: WidgetSpec = {
     name: 'spacer',
+    icon: 'arrowsLeftRight',
     summary: 'Empty room that pushes its siblings apart.',
     version: 1,
     label: 'Spacer',
@@ -1470,6 +1477,7 @@ const TEMPLATE_GUIDANCE =
 
 const markdown: WidgetSpec = {
     name: 'markdown',
+    icon: 'fileText',
     summary: 'Markdown text, with live {variable} and {source.field} values.',
     version: 1,
     rendersPartial: true,
@@ -1487,6 +1495,7 @@ const markdown: WidgetSpec = {
 
 const callout: WidgetSpec = {
     name: 'callout',
+    icon: 'infoCircle',
     summary: 'A tinted note with an icon, for a caveat, a warning or a takeaway.',
     version: 1,
     rendersPartial: true,
@@ -1505,7 +1514,10 @@ const callout: WidgetSpec = {
 const INPUT_SIZE = {default: {w: 3, h: 1}, min: {w: 2, h: 1}};
 
 const inputSpec = (
-    spec: Pick<WidgetSpec, 'name' | 'label' | 'terms' | 'guidance' | 'summary' | 'config' | 'value'>
+    spec: Pick<
+        WidgetSpec,
+        'name' | 'label' | 'terms' | 'guidance' | 'summary' | 'config' | 'value' | 'icon'
+    >
 ): WidgetSpec => ({
     version: 1,
     category: 'input',
@@ -1517,6 +1529,7 @@ const inputSpec = (
 
 const select = inputSpec({
     name: 'select',
+    icon: 'list',
     summary: "A dropdown that picks one or several of a variable's options.",
     label: 'Select',
     terms: ['select', 'dropdown', 'picker', 'choose'],
@@ -1527,6 +1540,7 @@ const select = inputSpec({
 
 const dateInput = inputSpec({
     name: 'dateInput',
+    icon: 'calendar',
     summary: 'A date picker for a localDate variable.',
     label: 'Date',
     terms: ['date', 'as of', 'calendar'],
@@ -1537,6 +1551,7 @@ const dateInput = inputSpec({
 
 const dateRangePicker = inputSpec({
     name: 'dateRangePicker',
+    icon: 'calendarDays',
     summary: 'Picks a dateRange: a preset such as mtd, a lookback, or custom dates.',
     label: 'Date range',
     terms: ['date range', 'period', 'MTD', 'YTD', 'from to', 'between dates'],
@@ -1548,6 +1563,7 @@ const dateRangePicker = inputSpec({
 
 const numberInput = inputSpec({
     name: 'numberInput',
+    icon: 'edit',
     summary: 'A number field for a number variable.',
     label: 'Number',
     terms: ['number', 'amount', 'threshold', 'limit'],
@@ -1558,6 +1574,7 @@ const numberInput = inputSpec({
 
 const textInput = inputSpec({
     name: 'textInput',
+    icon: 'edit',
     summary: 'A one-line text field for a string variable.',
     label: 'Text',
     terms: ['text', 'search', 'name'],
@@ -1568,6 +1585,7 @@ const textInput = inputSpec({
 
 const switchInput = inputSpec({
     name: 'switchInput',
+    icon: 'edit',
     summary: 'An on/off switch for a bool variable.',
     label: 'Switch',
     terms: ['switch', 'toggle', 'on off', 'checkbox'],
@@ -1578,6 +1596,7 @@ const switchInput = inputSpec({
 
 const slider = inputSpec({
     name: 'slider',
+    icon: 'arrowsLeftRight',
     summary: 'A slider that sets a number variable when released.',
     label: 'Slider',
     terms: ['slider', 'range', 'scale'],
@@ -1588,6 +1607,7 @@ const slider = inputSpec({
 
 const filterChooser = inputSpec({
     name: 'filterChooser',
+    icon: 'filter',
     summary: "Builds a filter from the values of its source's dimensions.",
     label: 'Filter',
     terms: ['filter', 'search', 'narrow'],
@@ -1599,6 +1619,7 @@ const filterChooser = inputSpec({
 
 const toolbar: WidgetSpec = {
     name: 'toolbar',
+    icon: 'bars',
     summary: "A row of inputs, on its own or in a panel's tbar or bbar.",
     version: 1,
     label: 'Toolbar',
@@ -1617,6 +1638,7 @@ const toolbar: WidgetSpec = {
 
 const cubeGrid: WidgetSpec = {
     name: 'cubeGrid',
+    icon: 'grid',
     summary: 'The grid: flat, or a tree grouped by groupBy. Its selection is an output.',
     version: 1,
     label: 'Grid',
@@ -1697,6 +1719,7 @@ const cubeGrid: WidgetSpec = {
 
 const chart: WidgetSpec = {
     name: 'chart',
+    icon: 'chartBar',
     summary: 'A Hoist chart, grouped by a dimension x, or a time series.',
     version: 1,
     label: 'Chart',
@@ -1740,6 +1763,7 @@ const chart: WidgetSpec = {
 
 const propertyTable: WidgetSpec = {
     name: 'propertyTable',
+    icon: 'table',
     summary: "Labeled values: the totals of some rows, or one row's own values.",
     version: 1,
     label: 'Properties',
@@ -1761,6 +1785,7 @@ const propertyTable: WidgetSpec = {
 
 const heatmap: WidgetSpec = {
     name: 'heatmap',
+    icon: 'grid',
     summary: 'Cells colored by a value over two dimensions. Its selection is an output.',
     version: 1,
     label: 'Heatmap',
@@ -1788,6 +1813,7 @@ const heatmap: WidgetSpec = {
 
 const treemap: WidgetSpec = {
     name: 'treemap',
+    icon: 'chartPie',
     summary: 'Nested boxes sized by a value and colored by heat. Its selection is an output.',
     version: 1,
     label: 'Treemap',
@@ -1822,6 +1848,7 @@ const treemap: WidgetSpec = {
 
 const statCard: WidgetSpec = {
     name: 'statCard',
+    icon: 'info',
     summary: 'One headline number over a source, with an optional change and trend.',
     version: 1,
     label: 'Stat card',
@@ -1836,6 +1863,7 @@ const statCard: WidgetSpec = {
 
 const gauge: WidgetSpec = {
     name: 'gauge',
+    icon: 'gauge',
     summary: 'One reading on an arc from min to max, such as humidity or usage against a limit.',
     version: 1,
     label: 'Gauge',
@@ -1864,6 +1892,7 @@ const gauge: WidgetSpec = {
 
 const tileFrame: WidgetSpec = {
     name: 'tileFrame',
+    icon: 'layout',
     summary: 'Equal tiles that wrap, such as a row of stat cards.',
     version: 1,
     label: 'Tiles',
@@ -1883,6 +1912,7 @@ const tileFrame: WidgetSpec = {
 
 const groupingChooser: WidgetSpec = {
     name: 'groupingChooser',
+    icon: 'list',
     summary: 'Lets a user choose the dimensions a grid groups by.',
     version: 1,
     label: 'Grouping chooser',
@@ -1910,6 +1940,7 @@ const groupingChooser: WidgetSpec = {
 
 const buttonGroup: WidgetSpec = {
     name: 'buttonGroup',
+    icon: 'bolt',
     summary: 'A row of buttons, each running an action.',
     version: 1,
     label: 'Buttons',
@@ -1940,6 +1971,7 @@ const buttonGroup: WidgetSpec = {
 
 const presetSelector: WidgetSpec = {
     name: 'presetSelector',
+    icon: 'tag',
     summary: "Shows a preset group's presets and switches between them.",
     version: 1,
     label: 'Preset selector',
@@ -1974,6 +2006,7 @@ const presetSelector: WidgetSpec = {
 
 const buttonGroupInput: WidgetSpec = {
     name: 'buttonGroupInput',
+    icon: 'bolt',
     summary: 'A segmented control that picks one option of a string variable.',
     version: 1,
     label: 'Toggle',
@@ -2009,6 +2042,7 @@ const buttonGroupInput: WidgetSpec = {
 
 const placeholder: WidgetSpec = {
     name: 'placeholder',
+    icon: 'question',
     version: 1,
     label: 'Placeholder',
     guidance: 'Stands in for an element of a chat answer that is still arriving.',
@@ -2019,6 +2053,7 @@ const placeholder: WidgetSpec = {
 
 const fallback: WidgetSpec = {
     name: 'fallback',
+    icon: 'warning',
     version: 1,
     label: 'Fallback',
     guidance: 'Stands in for an element of a chat answer that has errors, and lists them.',

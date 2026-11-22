@@ -1,27 +1,67 @@
-// Wrapping rows, each a category's label then its widgets, to fit a short strip.
+// A column of categories, each a grid of tiles, that fits a narrow dock.
 .xh-blueprint-widget-palette {
   display: flex;
-  flex-flow: row wrap;
-  gap: var(--xh-spacing) calc(var(--xh-spacing) * 2);
+  flex-direction: column;
+  gap: var(--xh-spacing);
   padding: var(--xh-spacing);
   overflow-y: auto;
 
-  &__target,
-  &__source,
-  &__message {
-    flex: 1 0 100%;
-  }
-
-  &__group {
-    display: flex;
-    flex-flow: row wrap;
-    align-items: center;
-  }
-
   &__category {
-    margin-right: var(--xh-spacing-half);
-    font-size: var(--xh-font-size-small);
+    margin-bottom: var(--xh-spacing-half);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--xh-text-color-muted);
+  }
+
+  &__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--xh-spacing-half);
+  }
+
+  &__tile {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--xh-spacing-half);
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    cursor: pointer;
+    border: var(--xh-border-solid);
+    border-radius: var(--xh-border-radius-px);
+
+    &:hover:not(&--disabled),
+    &:focus-visible {
+      background-color: var(--xh-intent-primary-trans1);
+      border-color: var(--xh-intent-primary);
+    }
+
+    &--disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+  }
+
+  &__tile-icon {
+    margin-top: 2px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__tile-text {
+    min-width: 0;
+  }
+
+  &__tile-label {
+    font-weight: 600;
+  }
+
+  &__tile-title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   &__target {

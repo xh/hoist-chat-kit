@@ -1,5 +1,5 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
-import {action, computed, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {
     castArray,
@@ -119,6 +119,37 @@ export class BlueprintDesignModel extends HoistModel {
         if (this.activeTabs[containerId] !== tabId) {
             this.activeTabs = {...this.activeTabs, [containerId]: tabId};
         }
+    }
+
+    /** True while the pointer is over the host's palette, for the canvas to outline the add target. */
+    @observable accessor showAddTarget = false;
+
+    @action
+    setShowAddTarget(show: boolean) {
+        this.showAddTarget = show;
+    }
+
+    /**
+     * Why a place will not take a widget, such as `posGrid's cell header takes inputs only.`, or null if it
+     * will. Default the {@link addTarget}.
+     */
+    addRefusal(component: string, place: AddPlace = this.addTarget): string {
+        const spec = this.widgetSpec(component);
+        if (!spec) return `There is no widget '${component}'.`;
+        if (!place) return null;
+        const {slot = 'children', of} = place,
+            parentSpec = this.elementSpec(place.parent),
+            rule = of
+                ? parentSpec?.children?.slots?.[slot]?.accepts
+                : slot === 'children'
+                  ? parentSpec?.children?.accepts
+                  : parentSpec?.slots?.[slot]?.accepts;
+        if (accepts(rule, spec)) return null;
+        const takes = [
+            ...(rule.categories ?? []).map(it => `${it}s`),
+            ...(rule.widgets ?? []).map(it => this.widgetSpec(it)?.label ?? it)
+        ];
+        return `${of ?? place.parent}'s ${slotLabel(slot, !!of).toLowerCase()} takes ${takes.join(' and ')} only.`;
     }
 
     /** The slot selected with {@link selectSlot}, or null. */

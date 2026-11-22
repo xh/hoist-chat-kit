@@ -6,12 +6,13 @@ import {
     type PlainObject,
     useLocalModel
 } from '@xh/hoist/core';
-import {button} from '@xh/hoist/desktop/cmp/button';
-import {select} from '@xh/hoist/desktop/cmp/input';
-import {action, observable} from '@xh/hoist/mobx';
+import {select, textInput} from '@xh/hoist/desktop/cmp/input';
+import {Icon} from '@xh/hoist/icon';
+import {action, bindable, observable} from '@xh/hoist/mobx';
+import classNames from 'classnames';
 import type React from 'react';
 import {groupBy, isString, upperFirst} from 'lodash';
-import type {BlueprintDesignModel, BlueprintIssue} from '../../../../blueprint';
+import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../../blueprint';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {paletteDrag} from '../impl/paletteDrag';
 import './WidgetPalette.scss';
@@ -32,7 +33,18 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
         const impl = useLocalModel(() => new WidgetPaletteModel(designModel));
         return div({
             className,
+            onMouseEnter: () => impl.setPointerOver(true),
+            onMouseLeave: () => impl.setPointerOver(false),
             children: [
+                textInput({
+                    model: impl,
+                    bind: 'search',
+                    placeholder: 'Search widgets',
+                    leftIcon: Icon.search(),
+                    commitOnChange: true,
+                    enableClear: true,
+                    width: '100%'
+                }),
                 impl.target && !impl.readOnly
                     ? div({className: `${CLS}__target`, children: impl.target})
                     : null,
@@ -42,24 +54,54 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                         className: `${CLS}__group`,
                         children: [
                             div({className: `${CLS}__category`, children: upperFirst(category)}),
-                            ...widgets.map(it =>
-                                div({
-                                    key: it.name,
-                                    draggable: !impl.readOnly,
-                                    onDragStart: (e: React.DragEvent) => {
-                                        e.dataTransfer.setData('text/plain', it.name);
-                                        impl.dragStart(it.name);
-                                    },
-                                    onDragEnd: () => impl.dragEnd(),
-                                    children: button({
-                                        text: it.label,
-                                        title: it.title,
-                                        minimal: true,
-                                        disabled: impl.readOnly,
-                                        onClick: () => impl.add(it.name)
-                                    })
+                            div({
+                                className: `${CLS}__tiles`,
+                                children: widgets.map(it => {
+                                    const disabled = impl.readOnly || !!it.refusal;
+                                    return div({
+                                        key: it.name,
+                                        className: classNames(
+                                            `${CLS}__tile`,
+                                            disabled && `${CLS}__tile--disabled`
+                                        ),
+                                        title: it.refusal ?? it.title,
+                                        role: 'button',
+                                        tabIndex: disabled ? -1 : 0,
+                                        'aria-disabled': disabled,
+                                        draggable: !disabled,
+                                        onDragStart: (e: React.DragEvent) => {
+                                            e.dataTransfer.setData('text/plain', it.name);
+                                            impl.dragStart(it.name);
+                                        },
+                                        onDragEnd: () => impl.dragEnd(),
+                                        onClick: () => !disabled && impl.add(it.name),
+                                        onKeyDown: (e: React.KeyboardEvent) => {
+                                            if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+                                                e.preventDefault();
+                                                impl.add(it.name);
+                                            }
+                                        },
+                                        children: [
+                                            iconOf(it.icon, it.category),
+                                            div({
+                                                className: `${CLS}__tile-text`,
+                                                children: [
+                                                    div({
+                                                        className: `${CLS}__tile-label`,
+                                                        children: it.label
+                                                    }),
+                                                    it.title
+                                                        ? div({
+                                                              className: `${CLS}__tile-title`,
+                                                              children: it.title
+                                                          })
+                                                        : null
+                                                ]
+                                            })
+                                        ]
+                                    } as object);
                                 })
-                            )
+                            })
                         ]
                     })
                 ),
@@ -98,20 +140,42 @@ export class WidgetPaletteModel extends HoistModel {
         super();
     }
 
-    /** The widgets a designer can add, by category, in registry order. */
-    get groups(): {category: string; widgets: {name: string; label: string; title: string}[]}[] {
-        const widgets = Object.values(this.designModel.blueprintModel.registry.widgets).filter(
-                it => !it.reserved
+    /** Text that narrows the widgets by name, label or term. */
+    @bindable accessor search: string = null;
+
+    /**
+     * The widgets a designer can add, by category, in registry order, narrowed by the search. Each
+     * says why the add target will not take it, if it will not.
+     */
+    get groups(): {category: string; widgets: PaletteTile[]}[] {
+        const {designModel, search} = this,
+            needle = search?.trim().toLowerCase(),
+            matches = (it: WidgetSpec) =>
+                !needle ||
+                [it.name, it.label, ...(it.terms ?? [])].some(t =>
+                    t?.toLowerCase().includes(needle)
+                ),
+            widgets = Object.values(designModel.blueprintModel.registry.widgets).filter(
+                it => !it.reserved && matches(it)
             ),
+            target = designModel.addTarget,
             byCategory = groupBy(widgets, it => it.category ?? 'other');
         return Object.entries(byCategory).map(([category, specs]) => ({
             category,
             widgets: specs.map(it => ({
                 name: it.name,
                 label: it.label ?? it.name,
-                title: it.guidance?.split('. ')[0] ?? null
+                title: it.guidance?.split('. ')[0] ?? null,
+                icon: it.icon ?? null,
+                category: it.category,
+                refusal: designModel.addRefusal(it.name, target)
             }))
         }));
+    }
+
+    /** Note the pointer over the palette, for the canvas to outline where a click adds. */
+    setPointerOver(over: boolean) {
+        this.designModel.setShowAddTarget(over);
     }
 
     /** Where a click adds a widget, as a designer reads it. */
@@ -196,7 +260,34 @@ export class WidgetPaletteModel extends HoistModel {
     }
 }
 
+/** A widget the palette offers. */
+export interface PaletteTile {
+    name: string;
+    label: string;
+    /** The first sentence of its guidance. */
+    title: string;
+    icon: string;
+    category: string;
+    /** Why the add target will not take it, or null. */
+    refusal: string;
+}
+
 //------------------
 // Implementation
 //------------------
 const CLS = 'xh-blueprint-widget-palette';
+
+// The widget's icon, else its category's.
+function iconOf(icon: string, category: string) {
+    const factory = (Icon as any)[icon] ?? (Icon as any)[CATEGORY_ICONS[category]] ?? Icon.square;
+    return factory({className: `${CLS}__tile-icon`});
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+    container: 'folder',
+    layout: 'square',
+    content: 'fileText',
+    data: 'chartBar',
+    input: 'edit',
+    action: 'bolt'
+};
