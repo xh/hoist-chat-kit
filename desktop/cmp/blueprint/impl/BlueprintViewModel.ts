@@ -147,8 +147,11 @@ export class BlueprintViewModel extends HoistModel {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
             this.addReaction(
                 {
+                    // Also on mounting, so a canvas shown after another view, such as the Map,
+                    // shows the selection.
                     track: () => designModel.selectedElementId,
-                    run: id => this.bringIntoView(id)
+                    run: id => this.bringIntoView(id),
+                    fireImmediately: true
                 },
                 {
                     track: () => last(blueprintModel.history),

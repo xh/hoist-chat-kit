@@ -839,7 +839,7 @@ export class BlueprintDesignModel extends HoistModel {
     ): BlueprintEditResult & {id?: string} {
         const bound = this.boundParams(dataset, opts.addVariables);
         if ('refusal' in bound) return bound.refusal;
-        const id = freeKey(this.blueprintModel.blueprint?.sources, dataset),
+        const id = freeName(this.blueprintModel.blueprint?.sources, dataset),
             value = {dataset, ...bound.params},
             ret = this.edit(`Add source ${id}`, [
                 ...bound.variableOps,
@@ -871,7 +871,7 @@ export class BlueprintDesignModel extends HoistModel {
             removals = breaks.length ? this.removalOps(breaks) : [],
             // A name addSource gave for the old dataset follows the new one.
             renamed = isGeneratedName(name, sources[name].dataset)
-                ? freeKey(sources, dataset)
+                ? freeName(omit(sources, name), dataset)
                 : null,
             ret = this.edit(`Source ${name}: dataset`, [
                 ...removals,
@@ -1406,6 +1406,11 @@ function firstFreePlace(
 // True for a name freeKey gives a dataset's source, such as positions1.
 function isGeneratedName(name: string, dataset: string): boolean {
     return name.startsWith(dataset) && /^\d+$/.test(name.slice(dataset.length));
+}
+
+// A name itself if it is free, else with the first free number after it.
+function freeName(taken: PlainObject, name: string): string {
+    return Object.hasOwn(taken ?? {}, name) ? freeKey(taken, name) : name;
 }
 
 function freeKey(taken: PlainObject, prefix: string): string {

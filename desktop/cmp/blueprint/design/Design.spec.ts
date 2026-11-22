@@ -121,6 +121,14 @@ describe('design mode selection', () => {
         expect(tabs.tabContainerModel.activeTabId).toBe(ordersTab);
     });
 
+    it('brings the selection into view when the canvas mounts, as after the Map', () => {
+        const {design, model} = open('p3-morning-report.json');
+        design.select({kind: 'element', id: 'ordersGrid'});
+        const view = new BlueprintViewModel(model, {designModel: design});
+        onTestFinished(() => view.destroy());
+        expect((view.getWidgetModel('tabs') as any).tabContainerModel.activeTabId).toBe('orders');
+    });
+
     it('selects the element in a canvas cell from a click on its header, not the canvas', () => {
         const cell = document.createElement('div');
         cell.innerHTML =

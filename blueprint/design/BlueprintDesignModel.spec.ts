@@ -590,6 +590,8 @@ describe('BlueprintDesignModel', () => {
             });
             expect(design.selection).toEqual({kind: 'source', id: 'positions1'});
             expect(model.history.at(-1).description).toBe('Add source positions1');
+            // The first source over a dataset takes its name.
+            expect(design.addSource('fundSummary', {addVariables: true}).id).toBe('fundSummary');
         });
 
         it('refuses a source whose required parameter no variable can take', () => {

@@ -68,7 +68,7 @@ describe('WidgetPalette', () => {
 
         palette.addOver('positions');
         const {sources, variables, elements} = model.blueprint;
-        expect(sources.positions1).toEqual({dataset: 'positions', params: {asOf: {$var: 'asOf'}}});
+        expect(sources.positions).toEqual({dataset: 'positions', params: {asOf: {$var: 'asOf'}}});
         expect(variables.asOf).toMatchObject({
             type: 'localDate',
             setBy: 'prompt',
@@ -76,7 +76,7 @@ describe('WidgetPalette', () => {
         });
         expect(elements[design.selectedElementId]).toMatchObject({
             component: 'cubeGrid',
-            config: {source: 'positions1'}
+            config: {source: 'positions'}
         });
         expect(palette.needsSource).toBeNull();
         expect(palette.message).toBeNull();
