@@ -270,7 +270,8 @@ function group(impl: PresetsEditorModel) {
         }),
         sectionCard({
             key: 'controls',
-            title: `Controls (${impl.controls.length})`,
+            title: 'Controls',
+            count: impl.controls.length,
             children: [
                 div({
                     className: `${CLS}__hint`,
@@ -309,7 +310,8 @@ function group(impl: PresetsEditorModel) {
         }),
         sectionCard({
             key: 'presets',
-            title: `Presets (${items.length})`,
+            title: 'Presets',
+            count: items.length,
             children: [
                 div({
                     className: `${CLS}__list`,

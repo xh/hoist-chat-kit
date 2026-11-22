@@ -8,6 +8,7 @@ import {
     FakeBlueprintDataProvider
 } from '../../../../blueprint';
 import {
+    bandsOf,
     loadBlueprint,
     portfolioCatalog,
     scenarioRegistry
@@ -110,11 +111,7 @@ describe('PresetsEditor', () => {
                 it => it.textContent
             );
         expect(labels).toEqual(expect.arrayContaining(['Label', 'Default']));
-        expect(
-            [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
-                it => it.textContent
-            )
-        ).toEqual(['Group', 'Controls (1)', 'Presets (2)']);
+        expect(bandsOf(container)).toEqual(['Group', 'Controls 1', 'Presets 2']);
         // The active preset is the one edits fill.
         expect(
             [...container.querySelectorAll('.xh-blueprint-element-inspector__editing')].map(

@@ -61,24 +61,13 @@
     color: var(--xh-text-color-muted);
   }
 
+  // The selection's identity: its id, and one line of what it is and what it reads.
   &__header {
     flex: none;
     align-items: center;
     gap: var(--xh-spacing);
-    padding: var(--xh-spacing-half) var(--xh-spacing);
+    padding: 8px var(--xh-spacing) var(--xh-spacing);
     border-bottom: var(--xh-border-solid);
-  }
-
-  &__icon-box {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    color: var(--xh-intent-primary);
-    border-radius: 6px;
-    background-color: var(--xh-intent-primary-trans1);
   }
 
   &__titles {
@@ -88,7 +77,7 @@
 
   &__id {
     font-family: var(--xh-font-family-mono);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: text;
   }
@@ -172,5 +161,10 @@
   &__body {
     flex: 1 1 auto;
     overflow: auto;
+
+    // The body scrolls, so the editor's section bands stick to it.
+    > .xh-blueprint-element-inspector {
+      overflow: visible;
+    }
   }
 }

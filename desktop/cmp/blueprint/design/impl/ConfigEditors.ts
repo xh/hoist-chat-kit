@@ -568,22 +568,10 @@ function listEditor(
                                       className: `${CLS}__column-label`,
                                       children: itemLabel(row.value, row.index)
                                   }),
-                                  button({
-                                      icon: open ? Icon.chevronUp() : Icon.chevronDown(),
-                                      title: 'Settings',
-                                      minimal: true,
-                                      intent: open ? 'primary' : null,
-                                      onClick: () => impl.toggleItem(scope, row.key)
-                                  }),
-                                  button({
-                                      icon: Icon.delete(),
-                                      title: 'Remove',
-                                      intent: 'danger',
-                                      minimal: true,
-                                      disabled,
-                                      onClick: () =>
-                                          commitList(items.filter((_, j) => j !== row.index))
-                                  })
+                                  drawerButton(open, () => impl.toggleItem(scope, row.key)),
+                                  removeItemButton('Remove', disabled, () =>
+                                      commitList(items.filter((_, j) => j !== row.index))
+                                  )
                               ]
                           });
                       },
@@ -619,6 +607,32 @@ function listEditor(
                 }
             })
         ]
+    });
+}
+
+// A list item's one disclosure chevron, which turns while its drawer is open.
+function drawerButton(open: boolean, onClick: () => void, text: ReactNode = null) {
+    return button({
+        className: `${CLS}__chevron`,
+        icon: Icon.chevronDown(),
+        text,
+        title: 'Settings',
+        minimal: true,
+        intent: open ? 'primary' : null,
+        onClick,
+        ...({'aria-expanded': open} as object)
+    });
+}
+
+/** A list item's remove button. */
+export function removeItemButton(title: string, disabled: boolean, onClick: () => void) {
+    return button({
+        icon: Icon.minusCircle(),
+        title,
+        intent: 'danger',
+        minimal: true,
+        disabled,
+        onClick
     });
 }
 
@@ -731,22 +745,14 @@ function fieldListEditor(
                         className: `${CLS}__column-meta`,
                         children: columnMeta(mapped, impl.inheritedDisplay(entry.field))
                     }),
-                    button({
-                        icon: open ? Icon.chevronUp() : Icon.chevronDown(),
-                        text: settingsCount(entry, mapped) || null,
-                        title: 'Settings',
-                        minimal: true,
-                        intent: open ? 'primary' : null,
-                        onClick: () => impl.toggleItem(scope, key)
-                    }),
-                    button({
-                        icon: Icon.delete(),
-                        title: 'Remove',
-                        intent: 'danger',
-                        minimal: true,
-                        disabled,
-                        onClick: () => commitList(entries.filter((_, j) => j !== i))
-                    })
+                    drawerButton(
+                        open,
+                        () => impl.toggleItem(scope, key),
+                        settingsCount(entry, mapped) || null
+                    ),
+                    removeItemButton('Remove', disabled, () =>
+                        commitList(entries.filter((_, j) => j !== i))
+                    )
                 ]
             });
         },
@@ -1327,10 +1333,14 @@ function variantLabel(node: EditorNode): string {
     }[node.kind];
 }
 
-/** A titled group of rows, drawn as a card, which folds where it can. */
+/**
+ * A titled group of rows under a band that spans the Inspector and sticks as its rows scroll past.
+ * The whole band folds the group, where it can.
+ */
 export function sectionCard({
     key,
     title,
+    count,
     badge,
     collapsed = false,
     onToggle,
@@ -1338,39 +1348,62 @@ export function sectionCard({
 }: {
     key: string;
     title: string;
+    /** What the group holds, such as its properties or a list's items, shown beside the title. */
+    count?: number;
     /** A link beside the title, such as to the preset group a path in the card belongs to. */
     badge?: {text: string; onClick: () => void};
     collapsed?: boolean;
     onToggle?: () => void;
     children: ReactNode[];
 }) {
+    const toggle = onToggle
+        ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': !collapsed,
+              onClick: onToggle,
+              onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  onToggle();
+              }
+          }
+        : {};
     return div({
         key,
-        className: `${CLS}__card`,
+        className: classNames(`${CLS}__card`, collapsed && `${CLS}__card--collapsed`),
         children: [
             div({
                 className: classNames(
                     `${CLS}__card-header`,
                     onToggle && `${CLS}__card-header--toggle`
                 ),
-                onClick: onToggle,
+                ...toggle,
                 children: [
-                    onToggle ? (collapsed ? Icon.chevronRight() : Icon.chevronDown()) : null,
-                    title,
+                    span({className: `${CLS}__card-title`, children: title}),
+                    count != null ? span({className: `${CLS}__card-count`, children: count}) : null,
                     badge
-                        ? button({
-                              className: `${CLS}__card-badge`,
-                              text: badge.text,
-                              minimal: true,
-                              title: 'Show the preset group',
-                              onClick: (e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  badge.onClick();
-                              }
+                        ? span({
+                              className: `${CLS}__card-badge-box`,
+                              onClick: (e: React.MouseEvent) => e.stopPropagation(),
+                              onKeyDown: (e: React.KeyboardEvent) => e.stopPropagation(),
+                              children: selectChip({
+                                  className: `${CLS}__card-badge`,
+                                  kind: 'preset',
+                                  text: badge.text,
+                                  label: 'Show the preset group',
+                                  onSelect: badge.onClick
+                              })
+                          })
+                        : null,
+                    onToggle
+                        ? span({
+                              className: `${CLS}__card-chevron`,
+                              children: collapsed ? Icon.chevronRight() : Icon.chevronDown()
                           })
                         : null
                 ]
-            }),
+            } as object),
             collapsed ? null : div({className: `${CLS}__card-body`, children})
         ]
     });

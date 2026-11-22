@@ -60,3 +60,14 @@ export function scenarioFiles(): string[] {
 export function catalogFor(file: string): DataCatalog {
     return file.startsWith('w') ? weatherCatalog : portfolioCatalog;
 }
+
+/** The Inspector's section bands as they read: each title, then its count and badge, if any. */
+export function bandsOf(container: HTMLElement): string[] {
+    return [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
+        band =>
+            ['__card-title', '__card-count', '__card-badge']
+                .map(it => band.querySelector(`.xh-blueprint-element-inspector${it}`)?.textContent)
+                .filter(Boolean)
+                .join(' ')
+    );
+}

@@ -438,16 +438,6 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
             className: `${CLS}__header`,
             children: [
                 div({
-                    className: `${CLS}__icon-box`,
-                    children: partIcon(
-                        selection.kind === 'view' ? 'element' : selection.kind,
-                        designModel.blueprintModel.registry.widgets[
-                            designModel.blueprintModel.blueprint?.elements?.[selection.id]
-                                ?.component
-                        ]
-                    )
-                }),
-                div({
                     className: `${CLS}__titles`,
                     children: [
                         impl.renaming

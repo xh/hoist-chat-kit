@@ -10,6 +10,7 @@ import {
     FakeBlueprintDataProvider
 } from '../../../../blueprint';
 import {
+    bandsOf,
     loadBlueprint,
     portfolioCatalog,
     scenarioRegistry
@@ -506,7 +507,7 @@ describe('ElementInspector', () => {
                     it => it.firstElementChild?.textContent === label
                 );
         expect(row('Stripe rows')).toBeUndefined();
-        fireEvent.click(screen.getByText(/^Style \(\d+\)$/));
+        fireEvent.click(screen.getByText('Style'));
         expect(row('Stripe rows').querySelector('input').checked).toBe(true);
         expect(row('Show hover').querySelector('input').checked).toBe(false);
         expect(row('Tree style').textContent).toContain('Default (highlights)');
@@ -540,6 +541,19 @@ describe('ElementInspector', () => {
         // The open drawer stays under the column it opened for.
         const openRow = container.querySelector('.xh-blueprint-element-inspector__column--open');
         expect(openRow.getAttribute('data-field')).toBe(a);
+    });
+
+    it('gives a column one disclosure chevron, which says whether its drawer is open', () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = () =>
+                container.querySelector('.xh-blueprint-element-inspector__columns [data-field]'),
+            chevrons = () => row().querySelectorAll('[title="Settings"]');
+        expect(chevrons()).toHaveLength(1);
+        expect(chevrons()[0].getAttribute('aria-expanded')).toBe('false');
+        fireEvent.click(chevrons()[0]);
+        expect(row().classList).toContain('xh-blueprint-element-inspector__column--open');
+        expect(chevrons()[0].getAttribute('aria-expanded')).toBe('true');
     });
 
     it("moves an action's step and a list's item two places with Alt+Down twice", async () => {
@@ -771,12 +785,10 @@ describe('ElementInspector', () => {
         const {design, model} = open();
         design.select({kind: 'view', id: 'posGrid', of: 'positions'});
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
-            titles = [
-                ...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')
-            ].map(it => it.textContent),
+            titles = bandsOf(container),
             cell = () =>
                 model.blueprint.elements.positions.children.find(it => it.id === 'posGrid') as any;
-        expect(titles).toEqual(['Header', 'Header items (1)', 'Placement in positions']);
+        expect(titles).toEqual(['Header', 'Header items 1', 'Placement in positions']);
         expect(container.textContent).toContain('posViewsSelector');
         expect(
             container.querySelectorAll(
@@ -860,23 +872,19 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 2);
     });
 
-    it('draws sections as cards with counts, and a one-line value beside its label', () => {
+    it('draws sections under bands with counts, and a one-line value beside its label', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = (label: string) =>
                 [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
                     it => it.firstElementChild?.textContent === label
                 );
-        expect(
-            [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
-                it => it.textContent
-            )
-        ).toEqual([
-            'Data (7)',
-            'Display (1)',
-            'Columns (4)Preset · P&L view',
-            'Interaction (0)',
-            'Style (10)',
+        expect(bandsOf(container)).toEqual([
+            'Data 7',
+            'Display 1',
+            'Columns 4 Preset · P&L view',
+            'Interaction 0',
+            'Style 10',
             'Canvas view'
         ]);
         // A canvas cell's place sits in its Canvas view card, folded until opened.
@@ -892,6 +900,25 @@ describe('ElementInspector', () => {
         expect(remove).toBe(container.firstElementChild.lastElementChild);
         expect(row('Title').className).toContain('__row--inline');
         expect(row('Column state').className).not.toContain('__row--inline');
+    });
+
+    it('folds a section from anywhere on its band, by click, Enter or Space, and says if it is open', () => {
+        const {design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            band = () =>
+                [
+                    ...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')
+                ].find(it => it.textContent.startsWith('Style')),
+            styleRow = () => container.querySelector('[data-config-key="stripeRows"]');
+        expect(band().getAttribute('role')).toBe('button');
+        expect(band().getAttribute('aria-expanded')).toBe('false');
+        fireEvent.click(band().querySelector('.xh-blueprint-element-inspector__card-count'));
+        expect(band().getAttribute('aria-expanded')).toBe('true');
+        expect(styleRow()).not.toBeNull();
+        fireEvent.keyDown(band(), {key: 'Enter'});
+        expect(styleRow()).toBeNull();
+        fireEvent.keyDown(band(), {key: ' '});
+        expect(styleRow()).not.toBeNull();
     });
 
     it('shows a bound field as its variable with a way to unbind, and offers to bind the rest', async () => {

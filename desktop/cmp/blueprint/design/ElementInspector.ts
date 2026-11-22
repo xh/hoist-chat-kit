@@ -17,7 +17,7 @@ import {
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, propertyRow, sectionCard} from './impl/ConfigEditors';
+import {CLS, propertyRow, removeItemButton, sectionCard} from './impl/ConfigEditors';
 import {refuse, removeElementAsync} from './impl/designActions';
 
 export interface ElementInspectorProps extends HoistProps {
@@ -388,7 +388,8 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                             .find(Boolean);
                         return sectionCard({
                             key: `section:${section.label}`,
-                            title: `${section.label} (${impl.countOf(section.nodes)})`,
+                            title: section.label,
+                            count: impl.countOf(section.nodes),
                             badge: preset
                                 ? {
                                       text: `Preset · ${preset.itemLabel}`,
@@ -474,7 +475,8 @@ function viewCards(impl: ElementInspectorModel) {
         sectionCard({key: 'view-header', title: 'Header', children: viewHeaderRows(impl)}),
         sectionCard({
             key: 'view-items',
-            title: `Header items (${impl.headerItemIds.length})`,
+            title: 'Header items',
+            count: impl.headerItemIds.length,
             children: [
                 impl.headerItemIds.length
                     ? sortableList({
@@ -508,13 +510,9 @@ function viewCards(impl: ElementInspectorModel) {
                                       }),
                                       impl.readOnly
                                           ? null
-                                          : button({
-                                                icon: Icon.delete(),
-                                                title: `Remove ${id}`,
-                                                intent: 'danger',
-                                                minimal: true,
-                                                onClick: () => removeElementAsync(designModel, id)
-                                            })
+                                          : removeItemButton(`Remove ${id}`, false, () =>
+                                                removeElementAsync(designModel, id)
+                                            )
                                   ]
                               })
                       })
@@ -684,14 +682,9 @@ function tabsEditor(impl: ElementInspectorModel) {
                                         onClick: () =>
                                             impl.designModel.select({kind: 'element', id: tab.id})
                                     }),
-                                    button({
-                                        icon: Icon.delete(),
-                                        intent: 'danger',
-                                        title: `Remove ${tab.id}`,
-                                        minimal: true,
-                                        disabled,
-                                        onClick: () => impl.removeAsync(tab.id)
-                                    })
+                                    removeItemButton(`Remove ${tab.id}`, disabled, () =>
+                                        impl.removeAsync(tab.id)
+                                    )
                                 ]
                             })
                     }),

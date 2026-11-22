@@ -40,25 +40,76 @@
     }
   }
 
-  // Sections sit on the Inspector's own ground, divided by a rule.
   &__card {
     flex: none;
-    border-top: var(--xh-border-solid);
-    background-color: var(--xh-bg);
+
+    // Bands of folded sections stack, sharing a rule.
+    &--collapsed + & {
+      margin-top: calc(-1 * var(--xh-spacing) - 1px);
+    }
+
+    // The first band meets the frame's own rule above it.
+    &:first-child {
+      margin-top: calc(-1 * var(--xh-spacing));
+
+      > .xh-blueprint-element-inspector__card-header {
+        border-top-color: transparent;
+      }
+    }
   }
 
+  // A section's band spans the Inspector, past its padding, and sticks while its rows scroll.
   &__card-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     display: flex;
-    gap: var(--xh-spacing-half);
+    gap: 8px;
     align-items: center;
-    min-height: 32px;
-    padding: 0 2px;
-    font-size: 12px;
+    height: 28px;
+    margin: 0 calc(-1 * var(--xh-spacing));
+    padding: 0 var(--xh-spacing);
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--xh-text-color);
+    background-color: var(--xh-bg-alt);
+    border-top: var(--xh-border-solid);
+    border-bottom: var(--xh-border-solid);
 
     &--toggle {
       cursor: pointer;
+
+      &:focus-visible {
+        outline: var(--xh-focus-outline);
+        outline-offset: -2px;
+      }
     }
+  }
+
+  &__card-count {
+    padding: 0 6px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+    color: var(--xh-text-color-muted);
+    background-color: var(--xh-bg);
+    border: var(--xh-border-solid);
+    border-radius: 8px;
+  }
+
+  &__card-badge-box {
+    display: inline-flex;
+    min-width: 0;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  &__card-chevron {
+    display: inline-flex;
+    margin-left: auto;
+    color: var(--xh-text-color-muted);
   }
 
   &__editing {
@@ -70,22 +121,11 @@
     border-radius: 9px;
   }
 
-  &__card-badge.xh-button {
-    min-height: 18px;
-    margin-left: auto;
-    padding: 0 var(--xh-spacing-half);
-    font-size: 11px;
-    color: var(--xh-purple);
-    background-color: transparent;
-    border: 1px solid var(--xh-purple);
-    border-radius: 9px;
-  }
-
   &__card-body {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 2px 2px var(--xh-spacing);
+    padding: 8px 0 2px;
   }
 
   &__hint {
@@ -271,9 +311,28 @@
       padding: 2px 4px 2px 0;
     }
 
-    .xh-blueprint-element-inspector__column--open {
-      background-color: var(--xh-bg-alt);
+    // The open item and its drawer share one ground, the Inspector's, and one primary rule.
+    .xh-sortable-list__item:has(
+      > .xh-sortable-list__row .xh-blueprint-element-inspector__column--open
+    ) {
+      box-shadow: inset 2px 0 0 var(--xh-intent-primary);
+
+      > .xh-sortable-list__row {
+        background-color: var(--xh-intent-primary-trans1);
+      }
     }
+  }
+
+  &__chevron svg {
+    transition: transform 120ms;
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  &__column--open &__chevron svg {
+    transform: rotate(180deg);
   }
 
   &__column-label {
@@ -294,9 +353,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--xh-spacing-half);
-    padding: 8px 10px 10px 26px;
-    border-top: var(--xh-border-solid);
-    background-color: var(--xh-bg-alt);
+    padding: 8px 6px 10px 12px;
   }
 
   &__more.xh-button {
