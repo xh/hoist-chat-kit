@@ -34,6 +34,11 @@ export type BlueprintSchemaExtension = {
      * item, which design mode edits with the item, `show` first.
      */
     'x-settings'?: {in: string; show?: string[]};
+    /**
+     * On an enum, a kit thumbnail for each option, by its value, such as `{line: 'chart.line'}`,
+     * which design mode shows as a card per option. See `thumbnailPreview`.
+     */
+    'x-thumbnails'?: Record<string, string>;
 };
 
 /**

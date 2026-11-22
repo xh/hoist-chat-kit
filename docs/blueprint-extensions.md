@@ -101,6 +101,7 @@ editors what a value means:
 | `x-unit` | The unit of a number, such as `px` | Shows it beside the editor |
 | `x-icon` | A Font Awesome icon name | Picks it with Hoist's `iconPicker`, from Hoist's icons and any the app registers with `Icon.register` |
 | `x-starter: false` | An optional property | Leaves it out of a new widget's config |
+| `x-thumbnails` | On an enum, a kit thumbnail per option, by value, such as `{line: 'chart.line'}` | Shows a card with its picture for each option. `thumbnailPreview(name)` draws one |
 | `x-settings: {in, show}` | A list of fields whose items have more settings in `in`, a sibling map keyed by field | Edits each item's map entry in the item's drawer, the `show` keys first, and folds the map into the list |
 
 - Give a property JSON Schema's `title` when its label should differ from its key, as a column's

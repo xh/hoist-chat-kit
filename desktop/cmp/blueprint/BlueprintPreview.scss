@@ -40,3 +40,8 @@
     stroke-dasharray: 3 2;
   }
 }
+
+// A negative part, such as a waterfall's fall or a diverging scale's low end.
+.xh-blueprint-preview__neg {
+  fill: var(--xh-intent-danger);
+}

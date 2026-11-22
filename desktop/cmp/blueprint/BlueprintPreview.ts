@@ -407,6 +407,285 @@ const KIT_GLYPHS: Record<string, KitGlyph> = {
     }
 };
 
+// Kit thumbnails, each picturing one choice of a property, as an x-thumbnails annotation names.
+const T = 'xh-blueprint-preview';
+const KIT_THUMBNAILS: Record<string, KitGlyph> = {
+    'chart.line': {
+        box: [60, 36],
+        draw: () => [polyline({key: 0, className: STROKE, points: '4,28 16,18 28,22 40,10 56,14'})]
+    },
+    'chart.spline': {
+        box: [60, 36],
+        draw: () => [
+            path({key: 0, className: STROKE, d: 'M4 28 C 14 8, 24 32, 34 16 S 50 6, 56 12'})
+        ]
+    },
+    'chart.column': {
+        box: [60, 36],
+        draw: () =>
+            bars([
+                [6, 18, 9, 16],
+                [19, 8, 9, 26],
+                [32, 22, 9, 12],
+                [45, 12, 9, 22]
+            ])
+    },
+    'chart.bar': {
+        box: [60, 36],
+        draw: () =>
+            bars([
+                [4, 3, 40, 6],
+                [4, 11, 52, 6],
+                [4, 19, 24, 6],
+                [4, 27, 34, 6]
+            ])
+    },
+    'chart.area': {
+        box: [60, 36],
+        draw: () => [
+            path({
+                key: 0,
+                className: FG,
+                opacity: 0.35,
+                d: 'M4 28 L16 18 L28 22 L40 10 L56 14 L56 34 L4 34 Z'
+            }),
+            polyline({key: 1, className: STROKE, points: '4,28 16,18 28,22 40,10 56,14'})
+        ]
+    },
+    'chart.areaspline': {
+        box: [60, 36],
+        draw: () => [
+            path({
+                key: 0,
+                className: FG,
+                opacity: 0.35,
+                d: 'M4 28 C 14 8, 24 32, 34 16 S 50 6, 56 12 L56 34 L4 34 Z'
+            }),
+            path({key: 1, className: STROKE, d: 'M4 28 C 14 8, 24 32, 34 16 S 50 6, 56 12'})
+        ]
+    },
+    'chart.pie': {
+        box: [60, 36],
+        draw: () => [
+            circle({key: 0, className: MID, cx: 30, cy: 18, r: 15}),
+            path({key: 1, className: FG, d: 'M30 18 L30 3 A15 15 0 0 1 44 23 Z'})
+        ]
+    },
+    'chart.scatter': {
+        box: [60, 36],
+        draw: () =>
+            [
+                [10, 26],
+                [18, 14],
+                [26, 22],
+                [34, 9],
+                [42, 18],
+                [50, 12],
+                [22, 30]
+            ].map(([cx, cy], i) => circle({key: i, className: FG, cx, cy, r: 2.5}))
+    },
+    'chart.waterfall': {
+        box: [60, 36],
+        draw: () => [
+            ...bars([
+                [4, 14, 9, 20],
+                [17, 8, 9, 6],
+                [30, 8, 9, 10]
+            ]),
+            rect({key: 'neg', className: `${T}__neg`, x: 43, y: 18, width: 9, height: 8})
+        ]
+    },
+    'summary.top': {
+        box: [60, 36],
+        draw: () => [
+            ...bars([[0, 2, 60, 7]]),
+            ...bars(
+                [
+                    [0, 12, 60, 5],
+                    [0, 20, 60, 5],
+                    [0, 28, 60, 5]
+                ],
+                MID
+            )
+        ]
+    },
+    'summary.bottom': {
+        box: [60, 36],
+        draw: () => [
+            ...bars(
+                [
+                    [0, 2, 60, 5],
+                    [0, 10, 60, 5],
+                    [0, 18, 60, 5]
+                ],
+                MID
+            ),
+            ...bars([[0, 27, 60, 7]])
+        ]
+    },
+    'summary.off': {
+        box: [60, 36],
+        draw: () =>
+            bars(
+                [
+                    [0, 4, 60, 5],
+                    [0, 13, 60, 5],
+                    [0, 22, 60, 5],
+                    [0, 31, 60, 5]
+                ],
+                MID
+            )
+    },
+    'display.segmented': {
+        box: [60, 36],
+        draw: () => [
+            rect({key: 0, className: BG, x: 2, y: 11, width: 56, height: 14, rx: 3}),
+            rect({key: 1, className: FG, x: 4, y: 13, width: 17, height: 10, rx: 2})
+        ]
+    },
+    'display.buttonGroup': {
+        box: [60, 36],
+        draw: () => [
+            ...bars([[2, 11, 17, 14]]),
+            ...bars(
+                [
+                    [22, 11, 17, 14],
+                    [42, 11, 17, 14]
+                ],
+                MID
+            )
+        ]
+    },
+    'display.select': {
+        box: [60, 36],
+        draw: () => [
+            rect({key: 0, className: BG, x: 2, y: 11, width: 56, height: 14, rx: 3}),
+            ...bars([[7, 16, 26, 4]], MID),
+            polyline({key: 'caret', className: STROKE, points: '46,15 50,19 54,15'})
+        ]
+    },
+    'display.toggle': {
+        box: [60, 36],
+        draw: () => [
+            rect({key: 0, className: FG, x: 16, y: 10, width: 28, height: 16, rx: 8}),
+            circle({key: 1, className: BG, cx: 36, cy: 18, r: 6})
+        ]
+    },
+    'direction.row': {
+        box: [60, 36],
+        draw: () =>
+            [0, 1, 2].map(i =>
+                rect({key: i, className: BG, x: 2 + i * 19, y: 6, width: 17, height: 24, rx: 2})
+            )
+    },
+    'direction.column': {
+        box: [60, 36],
+        draw: () =>
+            [0, 1, 2].map(i =>
+                rect({key: i, className: BG, x: 6, y: 2 + i * 11, width: 48, height: 9, rx: 2})
+            )
+    },
+    'color.linear': {
+        box: [60, 36],
+        draw: () =>
+            [0.2, 0.4, 0.6, 0.8, 1].map((opacity, i) =>
+                rect({
+                    key: i,
+                    className: FG,
+                    x: 2 + i * 11.5,
+                    y: 8,
+                    width: 10.5,
+                    height: 20,
+                    opacity
+                })
+            )
+    },
+    'color.wash': {
+        box: [60, 36],
+        draw: () =>
+            [0.1, 0.2, 0.3, 0.2, 0.15].map((opacity, i) =>
+                rect({
+                    key: i,
+                    className: FG,
+                    x: 2 + i * 11.5,
+                    y: 8,
+                    width: 10.5,
+                    height: 20,
+                    opacity
+                })
+            )
+    },
+    'color.none': {
+        box: [60, 36],
+        draw: () =>
+            [0, 1, 2, 3, 4].map(i =>
+                rect({key: i, className: MID, x: 2 + i * 11.5, y: 8, width: 10.5, height: 20})
+            )
+    },
+    'color.diverging': {
+        box: [60, 36],
+        draw: () => [
+            ...[1, 0.5].map((opacity, i) =>
+                rect({
+                    key: `n${i}`,
+                    className: `${T}__neg`,
+                    x: 2 + i * 11.5,
+                    y: 8,
+                    width: 10.5,
+                    height: 20,
+                    opacity
+                })
+            ),
+            rect({key: 'mid', className: MID, x: 25, y: 8, width: 10.5, height: 20, opacity: 0.4}),
+            ...[0.5, 1].map((opacity, i) =>
+                rect({
+                    key: `p${i}`,
+                    className: FG,
+                    x: 36.5 + i * 11.5,
+                    y: 8,
+                    width: 10.5,
+                    height: 20,
+                    opacity
+                })
+            )
+        ]
+    },
+    'color.sequential': {
+        box: [60, 36],
+        draw: () =>
+            [0.15, 0.35, 0.55, 0.75, 1].map((opacity, i) =>
+                rect({
+                    key: i,
+                    className: FG,
+                    x: 2 + i * 11.5,
+                    y: 8,
+                    width: 10.5,
+                    height: 20,
+                    opacity
+                })
+            )
+    }
+};
+
+/**
+ * A choice's thumbnail, as a property's `x-thumbnails` names it, such as `chart.line`: an SVG of the
+ * size given that takes the theme's colors, or null for a name the kit has no drawing for.
+ */
+export function thumbnailPreview(
+    name: string,
+    size: {width: number; height: number} = {width: 60, height: 36}
+): ReactElement {
+    const glyph = name ? getOwn(KIT_THUMBNAILS, name) : null;
+    if (!glyph) return null;
+    return svg({
+        className: 'xh-blueprint-preview',
+        viewBox: `0 0 ${size.width} ${size.height}`,
+        width: size.width,
+        height: size.height,
+        children: drawn(glyph, size)
+    });
+}
+
 // The shapes of a widget's glyph in a box of the size given, or null for none.
 function glyphShapes(
     spec: Pick<WidgetSpec, 'preview'>,
@@ -415,7 +694,11 @@ function glyphShapes(
     const {preview} = spec ?? {};
     if (typeof preview === 'function') return (preview as WidgetGlyph)(size);
     const glyph = typeof preview === 'string' ? getOwn(KIT_GLYPHS, preview) : null;
-    if (!glyph) return null;
+    return glyph ? drawn(glyph, size) : null;
+}
+
+// A kit drawing in a box of the size given: stretched to fill, or fitted whole.
+function drawn(glyph: KitGlyph, size: {width: number; height: number}): ReactElement {
     const [w, h] = glyph.box;
     return svg({
         x: 0,

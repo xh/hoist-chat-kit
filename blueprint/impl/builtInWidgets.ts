@@ -144,7 +144,12 @@ const BOX_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
-        direction: {type: 'string', enum: ['column', 'row'], default: 'column'},
+        direction: {
+            'x-thumbnails': {row: 'direction.row', column: 'direction.column'},
+            type: 'string',
+            enum: ['column', 'row'],
+            default: 'column'
+        },
         fill: {
             type: 'boolean',
             default: true,
@@ -568,6 +573,7 @@ const CUBE_GRID_SCHEMA = {
             maximum: 6
         },
         showSummary: {
+            'x-thumbnails': {top: 'summary.top', bottom: 'summary.bottom', false: 'summary.off'},
             'x-binding': true,
             title: 'Summary row',
             enum: ['top', 'bottom', true, false],
@@ -669,6 +675,17 @@ const CHART_SCHEMA = {
         },
         title: TITLE,
         type: {
+            'x-thumbnails': {
+                line: 'chart.line',
+                spline: 'chart.spline',
+                column: 'chart.column',
+                bar: 'chart.bar',
+                area: 'chart.area',
+                areaspline: 'chart.areaspline',
+                pie: 'chart.pie',
+                scatter: 'chart.scatter',
+                waterfall: 'chart.waterfall'
+            },
             'x-binding': true,
             enum: [
                 'line',
@@ -804,6 +821,7 @@ const HEATMAP_SCHEMA = {
         y: {type: 'string', 'x-field': 'dimension', description: 'The dimension down.'},
         value: {type: 'string', 'x-field': 'measure', description: 'Colors each cell.'},
         colorMode: {
+            'x-thumbnails': {diverging: 'color.diverging', sequential: 'color.sequential'},
             enum: ['diverging', 'sequential'],
             default: 'diverging',
             description:
@@ -836,7 +854,11 @@ const TREEMAP_SCHEMA = {
             'x-starter': false,
             description: 'Colors each node: green above zero, red below. Default value.'
         },
-        colorMode: {enum: ['linear', 'wash', 'none'], default: 'linear'},
+        colorMode: {
+            'x-thumbnails': {linear: 'color.linear', wash: 'color.wash', none: 'color.none'},
+            enum: ['linear', 'wash', 'none'],
+            default: 'linear'
+        },
         maxDepth: {
             type: 'integer',
             minimum: 1,
@@ -969,6 +991,12 @@ const PRESET_SELECTOR_SCHEMA = {
     properties: {
         group: {type: 'string', 'x-preset': true, description: 'The preset group it switches.'},
         display: {
+            'x-thumbnails': {
+                segmented: 'display.segmented',
+                buttonGroup: 'display.buttonGroup',
+                select: 'display.select',
+                toggle: 'display.toggle'
+            },
             enum: ['segmented', 'buttonGroup', 'select', 'toggle'],
             default: 'segmented',
             description: 'How it draws. A toggle switches between exactly two presets.'

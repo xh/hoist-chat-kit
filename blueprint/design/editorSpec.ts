@@ -11,7 +11,7 @@ export type EditorNode = EditorBase &
         | {kind: 'date'}
         | {kind: 'number'; integer: boolean; min?: number; max?: number}
         | {kind: 'boolean'}
-        | {kind: 'choice'; options: unknown[]}
+        | {kind: 'choice'; options: unknown[]; thumbnails?: Record<string, string>}
         | {kind: 'group'; children: EditorNode[]}
         | {kind: 'stringList'; options?: unknown[]}
         | {kind: 'list'; item: EditorNode}
@@ -123,7 +123,14 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
         const settings = toEditorSpec(withSettings).filter(it => it.key !== 'field');
         return {...base, kind: 'fieldList', role, settings};
     }
-    if (schema.enum) return {...base, kind: 'choice', options: schema.enum};
+    if (schema.enum) {
+        return {
+            ...base,
+            kind: 'choice',
+            options: schema.enum,
+            ...(schema['x-thumbnails'] ? {thumbnails: schema['x-thumbnails']} : {})
+        };
+    }
     if (schema.const !== undefined) return {...base, kind: 'choice', options: [schema.const]};
     const variants = schema.anyOf ?? schema.oneOf;
     if (variants) {

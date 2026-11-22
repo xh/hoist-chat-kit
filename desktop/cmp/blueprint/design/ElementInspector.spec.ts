@@ -781,7 +781,7 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
     });
 
-    it("sets a grid's summary row from Top, Bottom and Off, each one edit", () => {
+    it("sets a grid's summary row from cards for Top, Bottom and Off, each one edit", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = container.querySelector('[data-config-key="showSummary"]');
@@ -789,8 +789,13 @@ describe('ElementInspector', () => {
             'Summary row'
         );
         expect(
-            [...row.querySelectorAll('button')].map(it => it.textContent).filter(Boolean)
+            [...row.querySelectorAll('[role=radio] .xh-radio-card-input__label')].map(
+                it => it.textContent
+            )
         ).toEqual(['Top', 'Bottom', 'Off']);
+        // Each card pictures its choice.
+        expect(row.querySelectorAll('[role=radio] svg.xh-blueprint-preview')).toHaveLength(3);
+
         const before = model.history.length;
         inspector.commit('showSummary', 'bottom');
         expect(model.blueprint.elements.posGrid.config.showSummary).toBe('bottom');

@@ -9,6 +9,7 @@ import {
     iconPicker,
     jsonInput,
     numberInput,
+    radioCardInput,
     segmentedControl,
     select,
     switchInput,
@@ -44,6 +45,7 @@ import {
     stepsOf
 } from '../../../../../blueprint/design/configValues';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
+import {thumbnailPreview} from '../../BlueprintPreview';
 import type {ConfigEditorModel} from './ConfigEditorModel';
 import {selectChip} from './chips';
 import {filterEditor, groupingEditor} from './ChooserEditors';
@@ -223,6 +225,26 @@ function editorFor(
                 })
             });
         case 'choice':
+            // A choice with pictures shows a card for each option.
+            if (node.thumbnails) {
+                const options = node.options.filter(it => it !== true);
+                return radioCardInput({
+                    value: value === true ? options[0] : (value ?? node.default ?? null),
+                    options: [
+                        ...(node.required || node.default !== undefined
+                            ? []
+                            : [{value: null, label: 'Default'}]),
+                        ...options.map(it => ({
+                            value: it as any,
+                            label: it === false ? 'Off' : labelOf(String(it)),
+                            preview: thumbnailPreview(node.thumbnails[String(it)])
+                        }))
+                    ],
+                    disabled,
+                    cardWidth: 76,
+                    onCommit: v => commit(v === node.default || v == null ? undefined : v)
+                });
+            }
             // A choice with an off state, such as a summary row's place, shows every option at once.
             if (node.options.includes(false)) {
                 const options = node.options.filter(it => it !== true);

@@ -58,16 +58,19 @@ export function withEffectiveBindings(config: PlainObject): PlainObject {
 
 /**
  * A config schema as the Architect reads it: a property marked `x-binding: true` that would bind
- * by default loses the mark, as the prompt states the default once.
+ * by default loses the mark, as the prompt states the default once, and no property keeps its
+ * `x-thumbnails`.
  */
 export function withDefaultBindingsImplied(config: PlainObject): PlainObject {
     if (!isPlainObject(config?.properties)) return config;
     return {
         ...config,
         properties: mapValues(config.properties, (prop: PlainObject) => {
-            if (prop?.['x-binding'] !== true || !isBindableByDefault(prop)) return prop;
-            const {'x-binding': _, ...rest} = prop;
-            return rest;
+            // Thumbnails are for people, so the Architect never reads them.
+            const {'x-thumbnails': _thumbnails, ...rest} = prop ?? {};
+            if (rest['x-binding'] !== true || !isBindableByDefault(rest)) return rest;
+            const {'x-binding': _binding, ...unmarked} = rest;
+            return unmarked;
         })
     };
 }

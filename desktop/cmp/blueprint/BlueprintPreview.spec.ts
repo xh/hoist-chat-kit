@@ -7,6 +7,7 @@ import {
     blueprintSchematic,
     SCHEMATIC_SIZE,
     schematicLayout,
+    thumbnailPreview,
     widgetPreview
 } from './BlueprintPreview';
 
@@ -45,6 +46,21 @@ describe('BlueprintPreview', () => {
         const plain = draw(widgetPreview({icon: 'gauge', category: 'data'}));
         expect(plain.querySelector('svg.xh-blueprint-preview')).toBeNull();
         expect(plain.querySelector('svg')).not.toBeNull();
+    });
+
+    it('draws every thumbnail a built-in property names, one per choice', () => {
+        const named = Object.values(registry.widgets).flatMap(w =>
+            Object.values<any>(w.config?.properties ?? {}).flatMap(p =>
+                Object.values<string>(p['x-thumbnails'] ?? {})
+            )
+        );
+        expect(named.length).toBeGreaterThan(20);
+        named.forEach(name =>
+            expect(
+                draw(thumbnailPreview(name)).querySelector('svg.xh-blueprint-preview')
+            ).not.toBeNull()
+        );
+        expect(thumbnailPreview('nope')).toBeNull();
     });
 
     it("lays out a blueprint's first canvas, under its first tab, cell by cell", () => {
