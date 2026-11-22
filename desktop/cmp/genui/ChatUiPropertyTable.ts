@@ -60,6 +60,7 @@ export function chatUiPropertyTableSpec(
 
     return {
         name,
+        kitComponent: 'propertyTable',
         description,
         props: {
             type: 'object',

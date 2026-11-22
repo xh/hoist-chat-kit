@@ -2950,7 +2950,8 @@ export const BUILT_IN_RENDERER_INFO: Omit<RendererSpec, 'render' | 'exportValue'
             max: 'number, the value that fills the bar. Default 1',
             maxField: 'a field of the row whose value fills the bar, such as a limit',
             target: 'number, where to mark a goal on the bar',
-            targetField: 'a field of the row whose value marks the goal'
+            targetField: 'a field of the row whose value marks the goal',
+            intent: 'primary, success, warning or danger, the color of the fill. Default primary'
         },
         guidance:
             'Draws a value as a bar filled to its share of a max, with its formatted value, such as usage against a limit.'

@@ -8,6 +8,8 @@ import {
     chatUiChartSpec,
     chatUiGridSpec,
     chatUiInputSpecs,
+    chatUiProgressBarsSpec,
+    chatUiPropertyTableSpec,
     chatUiSectionSpec,
     chatUiSeparatorSpec,
     chatUiStackSpec,
@@ -31,6 +33,8 @@ describe('toAnswerBlueprint', () => {
             chatUiCardSpec(),
             chatUiChartSpec(),
             chatUiGridSpec(),
+            chatUiProgressBarsSpec(),
+            chatUiPropertyTableSpec(),
             chatUiSectionSpec(),
             chatUiSeparatorSpec(),
             chatUiStackSpec(),
@@ -187,6 +191,129 @@ describe('toAnswerBlueprint', () => {
 
         it('stays the spec when its props fail the catalog, so its fallback reads as one', () => {
             expect(translate({cards: [{label: 'x'}]}).elements.kpis.component).toBe('statCards');
+        });
+
+        it("draws a card's trend as a sparkline from a series field, given two values or more", () => {
+            const bp = translate({
+                cards: [
+                    {label: 'NAV', value: 3.9e9, trend: [3.7e9, 3.8e9, 3.9e9]},
+                    {label: 'P&L', value: 12, trend: [12]}
+                ]
+            });
+            expect(bp.elements['kpis-card1'].config).toEqual({
+                source: 'kpis',
+                field: 'v0',
+                trend: 't0'
+            });
+            expect(bp.elements['kpis-card2'].config).toEqual({source: 'kpis', field: 'v1'});
+            const {fields, rows} = bp.sources.kpis.inline;
+            expect(rows[0].t0).toEqual([3.7e9, 3.8e9, 3.9e9]);
+            expect(rows[0]).not.toHaveProperty('t1');
+            expect(fields.find(it => it.name === 't0')).toEqual({name: 't0', type: 'number[]'});
+            expect(
+                validateBlueprint(bp, {
+                    catalog: new DataCatalog({datasets: {}}),
+                    registry: new BlueprintRegistry()
+                }).filter(it => it.severity === 'error')
+            ).toEqual([]);
+        });
+    });
+
+    describe('property tables and progress bars', () => {
+        const translate = (component: string, props: object, partialIds: string[] = []) =>
+                toAnswerBlueprint({root: 'el', elements: {el: {component, props}}} as any, {
+                    partialIds,
+                    isValid: (name, props, isPartial) =>
+                        catalog.validate(name, props, {isPartial}).length === 0,
+                    kitComponentOf: name => catalog.getComponent(name)?.kitComponent ?? null
+                }),
+            errors = (bp: object) =>
+                validateBlueprint(bp as any, {
+                    catalog: new DataCatalog({datasets: {}}),
+                    registry: new BlueprintRegistry()
+                }).filter(it => it.severity === 'error');
+
+        it('translates a property table into a propertyTable over an inline source', () => {
+            const bp = translate('propertyTable', {
+                entries: [
+                    {label: 'Rating', value: 'A'},
+                    {label: 'Exposure', value: 1500000, format: 'currency', decimals: 0},
+                    {label: 'Active', value: true},
+                    {label: 'Notes'}
+                ],
+                columns: 2
+            });
+            expect(bp.elements.el).toEqual({
+                component: 'propertyTable',
+                config: {source: 'el', fields: ['v0', 'v1', 'v2', 'v3'], columns: 2}
+            });
+            const {fields, rows} = bp.sources.el.inline;
+            expect(rows).toEqual([{v0: 'A', v1: 1500000, v2: 'Yes', v3: null}]);
+            expect(fields.find(it => it.name === 'v1')).toMatchObject({
+                label: 'Exposure',
+                type: 'number',
+                format: {prefix: '$', precision: 0}
+            });
+            expect(errors(bp)).toEqual([]);
+            // The entry still arriving waits.
+            expect(
+                translate('propertyTable', {entries: [{label: 'A', value: 1}, {label: 'B'}]}, [
+                    'el'
+                ]).elements.el.config.fields
+            ).toEqual(['v0']);
+        });
+
+        it('translates progress bars into a propertyTable of progress renderers, each with its max and target', () => {
+            const bp = translate('progressBars', {
+                bars: [
+                    {label: 'Storage', value: 72},
+                    {label: 'Share', value: 0.4, format: 'percent'},
+                    {
+                        label: 'Budget',
+                        value: 7200,
+                        max: 10000,
+                        format: 'currency',
+                        intent: 'warning',
+                        target: 9000
+                    }
+                ]
+            });
+            expect(bp.elements.el).toEqual({
+                component: 'propertyTable',
+                config: {
+                    source: 'el',
+                    labelSide: 'top',
+                    fields: [
+                        {field: 'v0', renderer: {name: 'progress', maxField: 'm0'}},
+                        {field: 'v1', renderer: {name: 'progress', maxField: 'm1'}},
+                        {
+                            field: 'v2',
+                            renderer: {
+                                name: 'progress',
+                                maxField: 'm2',
+                                targetField: 't2',
+                                intent: 'warning'
+                            }
+                        }
+                    ]
+                }
+            });
+            expect(bp.sources.el.inline.rows).toEqual([
+                {v0: 72, m0: 100, v1: 0.4, m1: 1, v2: 7200, m2: 10000, t2: 9000}
+            ]);
+            expect(errors(bp)).toEqual([]);
+        });
+
+        it('keeps a slider and a radio input on their bridges, with the values they set', () => {
+            const {widgets} = catalog.registry;
+            expect(widgets.chatUiSlider).toMatchObject({
+                category: 'input',
+                value: {type: ['number', 'number[]']}
+            });
+            expect(widgets.radioInput).toMatchObject({category: 'input', value: {type: 'string'}});
+            expect(translate('slider', {name: 'size', min: 0, max: 10}).elements.el.component).toBe(
+                'chatUiSlider'
+            );
         });
     });
 

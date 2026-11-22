@@ -61,6 +61,7 @@ export function chatUiProgressBarsSpec(
 
     return {
         name,
+        kitComponent: 'progressBars',
         description,
         props: {
             type: 'object',

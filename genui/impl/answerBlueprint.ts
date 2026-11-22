@@ -30,8 +30,10 @@ import {CHILD_REF_PROPS, fromWidgetName, toWidgetName, TRANSLATED_COMPONENTS} fr
  * `buttonGroup`, so an answer holds the widgets a host does. A chat input stays on its bridge, as
  * its state lives in the chat.
  *
- * Stat cards and an inline grid whose props pass the catalog become a `tileFrame` of `statCard`s or
- * a `cubeGrid` over an inline source, so that their data lives in a source. While one streams, its
+ * Stat cards and an inline grid whose props pass the catalog become a `tileFrame` of `statCard`s,
+ * with any trend as a series field, or a `cubeGrid` over an inline source, so that their data lives
+ * in a source. A property table becomes a `propertyTable`, and progress bars a `propertyTable` of
+ * `progress` renderers, each over an inline row. While one streams, its
  * last card, row or point, which may be cut short, waits, so that no part-written value reaches a
  * source. A grid or chart by reference stays the spec: its artifact is its source.
  */
@@ -357,6 +359,13 @@ function toStatCards(id: string, props: PlainObject, isPartial: boolean): Transl
                 row[delta] = card.delta;
                 ret.deltaField = delta;
             }
+            // A sparkline draws two values or more.
+            const trend = isArray(card.trend) ? card.trend.filter(isFinite) : [];
+            if (trend.length > 1) {
+                fields.push({name: `t${idx}`, type: 'number[]'});
+                row[`t${idx}`] = trend;
+                ret.trend = `t${idx}`;
+            }
             if (card.deltaLabel) ret.deltaLabel = card.deltaLabel;
             if (card.invert) ret.invert = true;
             if (card.intent && card.intent !== 'none') ret.intent = card.intent;
@@ -484,6 +493,81 @@ function toCard(id: string, props: PlainObject, isPartial: boolean): Translation
     };
 }
 
+function toPropertyTable(id: string, props: PlainObject, isPartial: boolean): Translation {
+    const entries = (isPartial ? dropRight(props.entries) : (props.entries ?? [])).filter(
+        it => isPlainObject(it) && isString(it.label)
+    );
+    if (!entries.length) return null;
+    const row: PlainObject = {},
+        fields = entries.map((entry, idx) => {
+            const name = `v${idx}`,
+                {value} = entry,
+                isNumber = isFinite(value);
+            // As the chat's table shows them: a boolean as Yes or No, and a missing value as blank.
+            row[name] = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value ?? null);
+            return {
+                name,
+                label: entry.label,
+                type: isNumber ? 'number' : 'string',
+                aggregator: 'UNIQUE',
+                ...(isNumber ? toFieldFormat(entry.format, entry.decimals, false) : {})
+            };
+        });
+    return {
+        element: {
+            component: 'propertyTable',
+            config: {
+                source: id,
+                fields: fields.map(it => it.name),
+                ...(isFinite(props.columns)
+                    ? {columns: Math.min(4, Math.max(1, props.columns))}
+                    : {})
+            }
+        },
+        source: {inline: {fields, rows: [row]}} as SourceDecl
+    };
+}
+
+// Each bar a field drawn by the progress renderer, its max and any target fields of the same row.
+function toProgressBars(id: string, props: PlainObject, isPartial: boolean): Translation {
+    const bars = (isPartial ? dropRight(props.bars) : (props.bars ?? [])).filter(
+        it => isPlainObject(it) && isString(it.label) && isFinite(it.value)
+    );
+    if (!bars.length) return null;
+    const row: PlainObject = {},
+        fields: PlainObject[] = [],
+        entries = bars.map((bar, idx) => {
+            const [value, max, target] = [`v${idx}`, `m${idx}`, `t${idx}`],
+                renderer: PlainObject = {name: 'progress', maxField: max};
+            row[value] = bar.value;
+            row[max] = isFinite(bar.max) ? bar.max : bar.format === 'percent' ? 1 : 100;
+            fields.push(
+                {
+                    name: value,
+                    label: bar.label,
+                    type: 'number',
+                    aggregator: 'UNIQUE',
+                    ...toFieldFormat(bar.format, null, false)
+                },
+                {name: max, type: 'number', aggregator: 'UNIQUE'}
+            );
+            if (isFinite(bar.target)) {
+                row[target] = bar.target;
+                fields.push({name: target, type: 'number', aggregator: 'UNIQUE'});
+                renderer.targetField = target;
+            }
+            if (bar.intent && bar.intent !== 'none') renderer.intent = bar.intent;
+            return {field: value, renderer};
+        });
+    return {
+        element: {
+            component: 'propertyTable',
+            config: {source: id, labelSide: 'top', fields: entries}
+        },
+        source: {inline: {fields, rows: [row]}} as SourceDecl
+    };
+}
+
 // A titled stack draws a frame, as a card panel around its box.
 function toBox(id: string, props: PlainObject, _: boolean, el: ChatUiElement): Translation {
     const {children} = toElement(el),
@@ -519,7 +603,9 @@ const TRANSLATORS: Record<
     callout: toCallout,
     section: toPanel,
     stack: toBox,
-    card: toCard
+    card: toCard,
+    propertyTable: toPropertyTable,
+    progressBars: toProgressBars
 };
 
 function ids(value: unknown): string[] {

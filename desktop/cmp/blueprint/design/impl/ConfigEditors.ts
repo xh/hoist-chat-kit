@@ -737,7 +737,6 @@ function fieldListEditor(
                                                               ? Icon.chevronUp()
                                                               : Icon.chevronDown(),
                                                           minimal: true,
-                                                          small: true,
                                                           onClick: () =>
                                                               impl.toggleItem(`${ctx.key}/more`, i)
                                                       })

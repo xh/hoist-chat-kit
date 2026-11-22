@@ -247,10 +247,24 @@ type WidgetInfo = Pick<WidgetSpec, 'label' | 'terms' | 'category' | 'size' | 'va
  * The kit's components that an answer translates into dashboard widgets, whose bridges only the
  * kit places - see `toAnswerBlueprint()`.
  */
-export const TRANSLATED_COMPONENTS = ['text', 'callout', 'section', 'stack', 'card'];
+export const TRANSLATED_COMPONENTS = [
+    'text',
+    'callout',
+    'section',
+    'stack',
+    'card',
+    'propertyTable',
+    'progressBars'
+];
 
 const size = (w: number, h: number) => ({default: {w, h}}),
-    input = (label: string, terms: string[], type: string, w = 4, h = 1): WidgetInfo => ({
+    input = (
+        label: string,
+        terms: string[],
+        type: string | string[],
+        w = 4,
+        h = 1
+    ): WidgetInfo => ({
         label,
         terms,
         category: 'input',
@@ -330,7 +344,21 @@ const WIDGET_INFO: Record<string, WidgetInfo> = {
     select: input('Select', ['select', 'dropdown', 'choice'], 'string'),
     checkbox: input('Checkbox', ['checkbox', 'yes no'], 'bool', 2),
     switch: input('Switch', ['switch', 'toggle', 'on off'], 'bool', 2),
-    segmentedControl: input('Segmented Control', ['segmented control', 'toggle'], 'string')
+    segmentedControl: input('Segmented Control', ['segmented control', 'toggle'], 'string'),
+    radioInput: input('Radio Input', ['radio', 'choice', 'option'], 'string'),
+    slider: input('Slider', ['slider', 'range'], ['number', 'number[]']),
+    propertyTable: {
+        label: 'Property Table',
+        terms: ['property table', 'fields', 'details'],
+        category: 'data',
+        size: size(6, 4)
+    },
+    progressBars: {
+        label: 'Progress Bars',
+        terms: ['progress', 'usage', 'limit'],
+        category: 'data',
+        size: size(6, 3)
+    }
 };
 
 function deriveInfo(spec: ChatUiComponentSpec): WidgetInfo {

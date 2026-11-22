@@ -28,6 +28,11 @@ describe('progress renderer', () => {
         ).toMatchObject({value: 50, max: 400, target: 80});
     });
 
+    it("colors the fill by an intent, and ignores one Hoist's ProgressBar does not take", () => {
+        expect(draw({name: 'progress', intent: 'warning'}, 0.5).props.intent).toBe('warning');
+        expect(draw({name: 'progress', intent: 'loud'}, 0.5).props).not.toHaveProperty('intent');
+    });
+
     it('shows its value formatted as its field is', () => {
         const {container} = render(draw({name: 'progress', max: 1e9}, 5e8));
         expect(container.querySelector('.xh-progress-bar')).toBeTruthy();

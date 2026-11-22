@@ -1,5 +1,5 @@
 import {badge} from '@xh/hoist/cmp/badge';
-import type {PlainObject} from '@xh/hoist/core';
+import type {Intent, PlainObject} from '@xh/hoist/core';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {
     dateRangeContext,
@@ -14,6 +14,8 @@ import {sparkline, type SparklineColorBy, type SparklineType} from '@xh/hoist/cm
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import type {BlueprintRegistry, RendererSpec, ResolverSpec} from '../BlueprintRegistry';
 import {BUILT_IN_RENDERER_INFO, BUILT_IN_RESOLVER_INFO} from './builtInWidgets';
+
+const INTENTS: Intent[] = ['primary', 'success', 'warning', 'danger'];
 
 //------------------
 // Resolvers
@@ -104,6 +106,7 @@ const RENDER: Record<string, RendererSpec['render']> = {
             value: value as number,
             max,
             ...(target != null ? {target} : {}),
+            ...(INTENTS.includes(config.intent as Intent) ? {intent: config.intent as Intent} : {}),
             valueRenderer: (v: number) => formatValue(v)
         });
     },

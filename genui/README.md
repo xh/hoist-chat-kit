@@ -575,9 +575,10 @@ mapping, state, queries and the parts of OpenUI Lang the kit does not run.
 
 With the desktop components loaded, the catalog renders each answer as a
 [Hoist Blueprints](../blueprint/README.md) answer. It translates a document into a blueprint, in
-which each component is a widget. Stat cards, and a grid or chart with its rows in its props,
-become blueprint widgets over a source. Answers look as they did, and stored replies render as
-before.
+which each component is a widget. Stat cards with their trends, a property table, progress bars,
+a card, and a grid or chart with its rows in its props become blueprint widgets over a source.
+Chat inputs, the slider and radio input among them, stay on their bridges, as their state lives in
+the chat. Answers look as they did, and stored replies render as before.
 
 `show_ui` takes an answer blueprint: `sources`, `root`, and `elements`, each with its `component`,
 `config` and child references. A source holds rows inline, reads an artifact with
