@@ -99,6 +99,10 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
         await XH.postJson({url: this.url('delete', id)});
     }
 
+    renameAsync(id: string, spec: {name: string; description?: string}): Promise<BlueprintSummary> {
+        return XH.postJson({url: this.url('rename', id), body: spec});
+    }
+
     loadPersonalizationsAsync(blueprintId: string): Promise<BlueprintPersonalization[]> {
         return XH.fetchJson({
             url: this.url('personalizations'),
@@ -146,6 +150,7 @@ const POSTS = [
     'publish',
     'copy',
     'delete',
+    'rename',
     'savePersonalization',
     'updateAccess'
 ];

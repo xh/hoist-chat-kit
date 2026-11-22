@@ -161,4 +161,19 @@ describe('HoistCoreBlueprintRepository', () => {
         });
         expect(hoistCore.requestsTo('xhBlueprint/savePersonalization')[0].json).toEqual(p);
     });
+
+    it('renames with the ID in the query, and a duplicate name as the server refuses it', async () => {
+        hoistCore.route('POST', 'xhBlueprint/rename', req =>
+            req.json.name === 'Orders'
+                ? hoistError(400, {message: "You already have a blueprint named 'Orders'"})
+                : {...record, ...req.json}
+        );
+        expect(await repository.renameAsync('bp1', {name: 'Book'})).toMatchObject({name: 'Book'});
+        const [request] = hoistCore.requestsTo('xhBlueprint/rename');
+        expect(request.query).toEqual({id: 'bp1', type: 'acme.dashboard'});
+        expect(request.json).toEqual({name: 'Book'});
+        await expect(repository.renameAsync('bp1', {name: 'Orders'})).rejects.toMatchObject({
+            httpStatus: 400
+        });
+    });
 });
