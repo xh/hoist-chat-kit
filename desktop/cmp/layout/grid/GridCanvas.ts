@@ -5,7 +5,7 @@ import {
     gridBackground,
     type GridLayoutProps,
     type LayoutItem,
-    noCompactor,
+    getCompactor,
     reactGridLayout
 } from '@xh/hoist/kit/react-grid-layout';
 import {useOnResize} from '@xh/hoist/utils/react';
@@ -15,6 +15,9 @@ import './GridCanvas.scss';
 import {GridCanvasModel, type GridCanvasProps} from './GridCanvasModel';
 
 const CLS = 'xh-layout-grid';
+
+const FREE_PLACEMENT = getCompactor(null, false, true),
+    RESIZE_HANDLES = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] as const;
 
 /**
  * A canvas of cells placed on a grid, which a user can move and resize when `editable`. It is
@@ -54,14 +57,16 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 width,
                 layout: impl.layout,
                 gridConfig,
-                compactor: noCompactor,
+                // Free placement: no compaction, and a cell never pushes or overlaps another. A drag
+                // onto a taken place stops at the last free one.
+                compactor: FREE_PLACEMENT,
                 dragConfig: {
                     enabled: editable,
                     handle: `.${CLS}__header, .${CLS}__grip`,
                     cancel: 'button, input, select, textarea, .xh-button, [role=button]',
                     bounded: true
                 },
-                resizeConfig: {enabled: editable},
+                resizeConfig: {enabled: editable, handles: editable ? RESIZE_HANDLES : []},
                 dropConfig: {
                     enabled: editable && !!onDrop,
                     defaultItem: {w: Math.floor(columns / 3), h: Math.floor(columns / 3)},

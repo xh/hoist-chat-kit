@@ -59,6 +59,18 @@ describe('gridCanvas', () => {
         expect(container.querySelector('.xh-layout-grid .react-grid-layout')).toBeTruthy();
     });
 
+    it('resizes an editable cell from every side and corner', () => {
+        const {container} = renderCanvas({editable: true}),
+            frame = container.querySelector('[data-grid-item="chart"]'),
+            axes = [...frame.querySelectorAll('.react-resizable-handle')].map(it =>
+                [...it.classList].find(c => c.startsWith('react-resizable-handle-')).slice(23)
+            );
+        expect(axes.sort()).toEqual(['e', 'n', 'ne', 'nw', 's', 'se', 'sw', 'w']);
+        expect(renderCanvas({}).container.querySelectorAll('.react-resizable-handle').length).toBe(
+            0
+        );
+    });
+
     it('draws the grid only when asked', () => {
         expect(renderCanvas({}).container.querySelector('.xh-layout-grid__background')).toBeNull();
         expect(
