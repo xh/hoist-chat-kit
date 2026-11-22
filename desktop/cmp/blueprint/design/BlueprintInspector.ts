@@ -566,7 +566,8 @@ const wiringCard = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                       it.select
                                           ? selectChip({
                                                 key: idx,
-                                                className: `${CLS}__chip ${CLS}__chip--${it.kind}`,
+                                                className: `${CLS}__chip`,
+                                                kind: it.kind,
                                                 text: it.text,
                                                 label: `Select ${it.text}`,
                                                 onSelect: it.select

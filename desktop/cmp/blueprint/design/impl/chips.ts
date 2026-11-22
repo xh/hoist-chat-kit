@@ -1,38 +1,51 @@
-import {span} from '@xh/hoist/cmp/layout';
-import type React from 'react';
+import {chip} from '@xh/hoist/cmp/chip';
+import type {Intent} from '@xh/hoist/core';
+import classNames from 'classnames';
+
+/** What a chip names, which sets its color. */
+export type ChipKind = 'variable' | 'source' | 'element' | 'set' | 'preset';
 
 /**
- * A chip that names a part of the blueprint and selects it: a span with the role and keys of a
- * button, which stays clear of Hoist's button styling.
+ * A Hoist chip that names a part of the blueprint in its kind's color, and selects it on a click.
+ * With `onRemove`, it also takes the part away, such as a binding, from its remove button or
+ * Backspace and Delete.
  */
 export function selectChip({
     key,
     className,
+    kind = 'element',
     text,
     label,
-    onSelect
+    onSelect,
+    onRemove
 }: {
     key?: string | number;
-    className: string;
+    className?: string;
+    kind?: ChipKind | string;
     text: string;
-    /** Its accessible name, where more than its text. */
+    /** Its accessible name and tooltip, where more than its text. */
     label?: string;
-    onSelect: () => void;
+    onSelect?: () => void;
+    onRemove?: () => void;
 }) {
-    return span({
+    return chip({
         key,
-        className,
-        role: 'button',
-        tabIndex: 0,
+        className: classNames('xh-font-family-mono', className),
+        minimal: true,
+        size: 'compact',
+        intent: INTENTS[kind] ?? null,
+        // Hoist has no purple intent.
+        color: kind === 'preset' ? 'var(--xh-purple)' : null,
         title: label,
-        'aria-label': label,
-        onClick: onSelect,
-        onKeyDown: (e: React.KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelect();
-            }
-        },
+        domAttrs: label ? {'aria-label': label} : null,
+        onClick: onSelect ? () => onSelect() : null,
+        onRemove: onRemove ? () => onRemove() : null,
         children: text
-    } as object);
+    });
 }
+
+const INTENTS: Record<string, Intent> = {
+    variable: 'primary',
+    source: 'success',
+    set: 'warning'
+};

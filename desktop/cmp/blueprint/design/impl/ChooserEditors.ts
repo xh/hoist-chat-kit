@@ -1,12 +1,11 @@
 import {type FilterChooserFieldSpecConfig, FilterChooserModel} from '@xh/hoist/cmp/filter';
 import {GroupingChooserModel} from '@xh/hoist/cmp/grouping';
-import {div, hbox} from '@xh/hoist/cmp/layout';
+import {chip} from '@xh/hoist/cmp/chip';
+import {div} from '@xh/hoist/cmp/layout';
 import type {FilterLike} from '@xh/hoist/data';
 import {creates, hoistCmp, HoistModel, managed, type PlainObject} from '@xh/hoist/core';
-import {button} from '@xh/hoist/desktop/cmp/button';
 import {filterChooser} from '@xh/hoist/desktop/cmp/filter';
 import {groupingChooser} from '@xh/hoist/desktop/cmp/grouping';
-import {Icon} from '@xh/hoist/icon';
 import {isEqual} from 'lodash';
 import {isVarBinding} from '../../../../../blueprint';
 import {joinClauses, splitClauses} from '../../../../../blueprint/design/filterClauses';
@@ -92,27 +91,24 @@ export const filterEditor = hoistCmp.factory<FilterEditorModel>({
         return div({
             className: `${CLS}__filter`,
             children: [
+                // A clause that reads a variable shows as its chip, which removes it.
                 ...bound.map((clause, idx) =>
-                    hbox({
+                    chip({
                         key: idx,
-                        className: `${CLS}__chip-row`,
-                        children: [
-                            div({className: `${CLS}__chip`, children: describe(clause, labelOf)}),
-                            button({
-                                icon: Icon.x(),
-                                title: 'Remove',
-                                intent: 'danger',
-                                minimal: true,
-                                disabled,
-                                onClick: () =>
-                                    onCommit(
-                                        joinClauses(
-                                            bound.filter(it => it !== clause),
-                                            literal
-                                        )
-                                    )
-                            })
-                        ]
+                        className: `${CLS}__chip`,
+                        minimal: true,
+                        intent: 'primary',
+                        size: 'compact',
+                        disabled,
+                        title: 'A clause bound to a variable',
+                        onRemove: () =>
+                            onCommit(
+                                joinClauses(
+                                    bound.filter(it => it !== clause),
+                                    literal
+                                )
+                            ),
+                        children: describe(clause, labelOf)
                     })
                 ),
                 filterChooser({model: model.chooserModel, disabled, width: '100%'})

@@ -703,7 +703,7 @@ describe('ElementInspector', () => {
                     it.closest('.xh-blueprint-element-inspector__row').firstElementChild.textContent
             )
         ).toEqual(['Summary row', 'Title']);
-        fireEvent.click(row('Group by').querySelector('button[aria-label="Unbind grouping"]'));
+        fireEvent.click(row('Group by').querySelector('button[aria-label="Remove grouping"]'));
         expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
     });
 

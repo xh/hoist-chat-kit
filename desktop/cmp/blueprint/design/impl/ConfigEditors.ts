@@ -412,23 +412,16 @@ function bindableEditor(
         return div({
             className: `${CLS}__bindable`,
             children: [
+                // Its remove unbinds, back to a value.
                 selectChip({
                     className: `${CLS}__var-chip`,
+                    kind: 'variable',
                     text: bound,
                     // A bound value changes through its variable, so it is not personalized here.
                     label: `Set by variable ${bound}, which a user changes in its place, not here. Show the variable.`,
-                    onSelect: () => impl.designModel.select({kind: 'variable', id: bound})
+                    onSelect: () => impl.designModel.select({kind: 'variable', id: bound}),
+                    onRemove: disabled ? null : () => commit(impl.unboundValue(node))
                 }),
-                disabled
-                    ? null
-                    : button({
-                          className: `${CLS}__unbind`,
-                          icon: Icon.x(),
-                          minimal: true,
-                          title: 'Use a value',
-                          'aria-label': `Unbind ${bound}`,
-                          onClick: () => commit(impl.unboundValue(node))
-                      }),
                 // Where users could change it in place, say that the variable now takes their changes.
                 impl.isPersonalizable(ctx.key)
                     ? div({
@@ -437,6 +430,7 @@ function bindableEditor(
                               'Users change this through ',
                               selectChip({
                                   className: `${CLS}__var-chip`,
+                                  kind: 'variable',
                                   text: bound,
                                   label: `Show variable ${bound}`,
                                   onSelect: () =>
@@ -1082,6 +1076,9 @@ function linkValuesEditor(
                                         chip
                                             ? selectChip({
                                                   className: `${CLS}__var-chip`,
+                                                  kind: isVarBinding(value)
+                                                      ? 'variable'
+                                                      : 'element',
                                                   text: chip.text,
                                                   label: chip.label,
                                                   onSelect: () =>

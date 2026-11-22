@@ -320,16 +320,8 @@
     gap: var(--xh-spacing-half);
   }
 
-  &__chip-row {
-    align-items: center;
-    gap: var(--xh-spacing-half);
-  }
-
   &__chip {
-    padding: 2px var(--xh-spacing-half);
-    border: var(--xh-border-solid);
-    border-radius: var(--xh-border-radius);
-    background-color: var(--xh-bg-alt);
+    align-self: flex-start;
   }
 
   &__key {
@@ -396,21 +388,5 @@
         text-decoration: underline;
       }
     }
-  }
-}
-
-// A bound field's variable, as the Inspector's chips draw one.
-.xh-blueprint-element-inspector__var-chip {
-  padding: 0 6px;
-  font-family: var(--xh-font-family-mono);
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--xh-intent-primary-text-color);
-  cursor: pointer;
-  border-radius: 4px;
-  background-color: var(--xh-intent-primary-trans1);
-
-  &:focus-visible {
-    outline: var(--xh-focus-outline);
   }
 }

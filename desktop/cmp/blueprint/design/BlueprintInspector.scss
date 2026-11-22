@@ -142,10 +142,9 @@
   }
 
   &__chip {
-    font-family: var(--xh-font-family-mono);
-    font-size: 11px;
-
     &--plain {
+      font-family: var(--xh-font-family-mono);
+      font-size: 11px;
       padding: 0 var(--xh-spacing-half);
       color: var(--xh-text-color-muted);
     }
@@ -173,40 +172,5 @@
   &__body {
     flex: 1 1 auto;
     overflow: auto;
-  }
-}
-
-// A chip names a part of the blueprint in its kind's color, and selects it.
-.xh-blueprint-inspector__chip[role='button'] {
-  display: inline-block;
-  padding: 0 6px;
-  font-family: var(--xh-font-family-mono);
-  font-size: 11px;
-  line-height: 18px;
-  cursor: pointer;
-  border-radius: 4px;
-  background-color: var(--xh-bg-alt);
-
-  &:focus-visible {
-    outline: var(--xh-focus-outline);
-  }
-
-  &.xh-blueprint-inspector__chip--variable {
-    color: var(--xh-intent-primary-text-color);
-    background-color: var(--xh-intent-primary-trans1);
-  }
-
-  &.xh-blueprint-inspector__chip--source {
-    background-color: var(--xh-intent-success-trans1);
-  }
-
-  &.xh-blueprint-inspector__chip--set {
-    background-color: var(--xh-intent-warning-trans1);
-  }
-
-  // Hoist's purple has no dark-theme step, so it mixes with the text color to stay readable.
-  &.xh-blueprint-inspector__chip--preset {
-    color: color-mix(in srgb, var(--xh-purple) 65%, var(--xh-text-color));
-    background-color: color-mix(in srgb, var(--xh-purple) 15%, transparent);
   }
 }
