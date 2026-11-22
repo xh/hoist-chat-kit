@@ -1,4 +1,4 @@
-import {div, filler, hbox, placeholder, span, vframe} from '@xh/hoist/cmp/layout';
+import {div, filler, hbox, span, vframe} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
@@ -8,11 +8,14 @@ import {action, computed, observable} from '@xh/hoist/mobx';
 import {Fragment, createElement, useEffect, useRef} from 'react';
 import {
     type BlueprintDesignModel,
+    type BlueprintDocumentModel,
     type BlueprintIssue,
     type BlueprintSelection,
     variableTypeLabel,
-    wiringFor
+    wiringFor,
+    type WiringRef
 } from '../../../../blueprint';
+import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
 import {refuse, selectionMenu} from './impl/designActions';
@@ -24,6 +27,8 @@ export interface BlueprintInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
     /** As for `elementInspector`: open a preset group from a property's badge. */
     onShowPresetGroup?: (name: string) => void;
+    /** The stored blueprint, whose name and description show with nothing selected. */
+    documentModel?: Pick<BlueprintDocumentModel, 'document'>;
 }
 
 /**
@@ -37,18 +42,17 @@ export const [BlueprintInspector, blueprintInspector] =
         displayName: 'BlueprintInspector',
         className: 'xh-blueprint-inspector',
         model: false,
-        render({designModel, onShowPresetGroup, className}) {
+        render({designModel, onShowPresetGroup, documentModel, className}) {
             const impl = useLocalModel(() => new BlueprintInspectorModel(designModel)),
                 {selection} = impl;
-            if (!selection) {
-                return placeholder({className, children: 'Select something to inspect it.'});
-            }
+            if (!selection) return summary({className, impl, document: documentModel?.document});
             return vframe({
                 className,
                 children: [
                     breadcrumb({impl}),
                     header({impl}),
                     ...impl.issues.map((it, idx) => issueRow({key: idx, impl, issue: it})),
+                    wiringCard({impl}),
                     div({
                         className: `${CLS}__body`,
                         children: editorFor(selection, designModel, onShowPresetGroup)
@@ -127,6 +131,63 @@ export class BlueprintInspectorModel extends HoistModel {
         return [variableTypeLabel(registry, decl.type), setBy].filter(Boolean).join(' · ');
     }
 
+    /**
+     * What the selection reads and sets, and what reads and sets it, as rows of chips that each
+     * select their target: Reads, Sets and Presets for an element; Set by, Read by and Now for a
+     * variable; Read by and Waits for a source; Controls and Shown by for a preset group.
+     */
+    @computed
+    get wiringRows(): WiringRow[] {
+        const {selection, designModel} = this;
+        if (!selection) return [];
+        const {blueprintModel} = designModel,
+            w = wiringFor(blueprintModel.blueprint, selection, designModel.wiring),
+            chip = (ref: WiringRef, text = ref.label ?? ref.id): WiringChip => ({
+                text,
+                ...(['element', 'source', 'variable', 'preset'].includes(ref.kind)
+                    ? {
+                          select: () =>
+                              designModel.select({
+                                  kind: ref.kind,
+                                  id: ref.id
+                              } as BlueprintSelection)
+                      }
+                    : {})
+            }),
+            row = (label: string, refs: WiringRef[], text?: (ref: WiringRef) => string) =>
+                refs.length ? [{label, chips: refs.map(it => chip(it, text?.(it)))}] : [];
+        switch (selection.kind) {
+            case 'element':
+                return [
+                    ...row('Reads', w.reads),
+                    ...row('Sets', w.sets),
+                    ...row('Presets', w.presets)
+                ];
+            case 'variable': {
+                const v = blueprintModel.getVariable(selection.id);
+                return [
+                    ...row('Set by', w.setBy, it =>
+                        it.kind === 'prompt'
+                            ? 'prompt'
+                            : it.kind === 'resolver'
+                              ? `${it.id}()`
+                              : it.id
+                    ),
+                    ...row('Read by', w.readBy),
+                    {label: 'Now', text: (v && variableText(v.value, v.decl.type)) || '—'}
+                ];
+            }
+            case 'source':
+                return [...row('Read by', w.readBy), ...row('Waits', w.waitsFor)];
+            case 'preset':
+                return [
+                    ...row('Controls', w.presets, it => `${it.id} · ${it.path?.split('/').at(-1)}`),
+                    ...row('Shown by', w.readBy)
+                ];
+        }
+        return [];
+    }
+
     /** The issues at the selection's path, or inside it. */
     get issues(): BlueprintIssue[] {
         const {selection, designModel} = this;
@@ -162,6 +223,19 @@ export class BlueprintInspectorModel extends HoistModel {
 // Implementation
 //------------------
 const CLS = 'xh-blueprint-inspector';
+
+/** A wire's other end, which selects it when it is part of the blueprint. */
+export interface WiringChip {
+    text: string;
+    select?: () => void;
+}
+
+/** A row of the wiring card: chips, or a text such as a variable's value now. */
+export interface WiringRow {
+    label: string;
+    chips?: WiringChip[];
+    text?: string;
+}
 
 const COLLECTIONS = {
     element: 'elements',
@@ -275,6 +349,98 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                       })
                     : null
             ]
+        });
+    }
+});
+
+// The blueprint as a whole, with nothing selected: its name and description, what it holds, and
+// its root.
+const summary = hoistCmp.factory<
+    HoistProps & {impl: BlueprintInspectorModel; document: {name?: string; description?: string}}
+>({
+    displayName: 'BlueprintInspectorSummary',
+    model: false,
+    render({impl, document, className}) {
+        const {blueprint, registry} = impl.designModel.blueprintModel,
+            {elements = {}, sources = {}, variables = {}, presets = {}, root} = blueprint ?? {},
+            count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+        return vframe({
+            className: `${className} ${CLS}--summary`,
+            children: [
+                div({className: `${CLS}__summary-name`, children: document?.name ?? 'Blueprint'}),
+                document?.description
+                    ? div({className: `${CLS}__subtitle`, children: document.description})
+                    : null,
+                div({
+                    className: `${CLS}__summary-counts`,
+                    children: [
+                        count(Object.keys(elements).length, 'element'),
+                        count(Object.keys(sources).length, 'source'),
+                        count(Object.keys(variables).length, 'variable'),
+                        count(Object.keys(presets).length, 'preset group')
+                    ].join(' · ')
+                }),
+                root && elements[root]
+                    ? hbox({
+                          className: `${CLS}__wiring-row`,
+                          children: [
+                              span({className: `${CLS}__wiring-label`, children: 'Root'}),
+                              button({
+                                  className: `${CLS}__chip`,
+                                  text: root,
+                                  minimal: true,
+                                  onClick: () =>
+                                      impl.designModel.select({kind: 'element', id: root})
+                              }),
+                              span({
+                                  className: `${CLS}__subtitle`,
+                                  children: registry.widgets[elements[root].component]?.label
+                              })
+                          ]
+                      })
+                    : null
+            ]
+        });
+    }
+});
+
+const wiringCard = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
+    displayName: 'BlueprintInspectorWiring',
+    model: false,
+    render({impl}) {
+        const rows = impl.wiringRows;
+        if (!rows.length) return null;
+        return div({
+            className: `${CLS}__wiring`,
+            children: rows.map(({label, chips, text}) =>
+                hbox({
+                    key: label,
+                    className: `${CLS}__wiring-row`,
+                    children: [
+                        span({className: `${CLS}__wiring-label`, children: label}),
+                        div({
+                            className: `${CLS}__chips`,
+                            children: chips
+                                ? chips.map((it, idx) =>
+                                      it.select
+                                          ? button({
+                                                key: idx,
+                                                className: `${CLS}__chip`,
+                                                text: it.text,
+                                                minimal: true,
+                                                onClick: it.select
+                                            })
+                                          : span({
+                                                key: idx,
+                                                className: `${CLS}__chip ${CLS}__chip--plain`,
+                                                children: it.text
+                                            })
+                                  )
+                                : span({className: `${CLS}__wiring-text`, children: text})
+                        })
+                    ]
+                })
+            )
         });
     }
 });

@@ -75,6 +75,66 @@
     }
   }
 
+  &__wiring {
+    flex: none;
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    border-bottom: var(--xh-border-solid);
+  }
+
+  &__wiring-row {
+    align-items: baseline;
+    gap: var(--xh-spacing);
+    padding: 1px 0;
+  }
+
+  &__wiring-label {
+    flex: none;
+    width: 72px;
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  &__chip {
+    font-family: var(--xh-font-family-mono);
+    font-size: 11px;
+
+    &.xh-button {
+      min-height: 18px;
+      padding: 0 var(--xh-spacing-half);
+      background-color: var(--xh-intent-primary-trans1);
+    }
+
+    &--plain {
+      padding: 0 var(--xh-spacing-half);
+      color: var(--xh-text-color-muted);
+    }
+  }
+
+  &__wiring-text {
+    font-size: 12px;
+  }
+
+  &--summary {
+    gap: var(--xh-spacing-half);
+    padding: var(--xh-spacing);
+  }
+
+  &__summary-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  &__summary-counts {
+    font-size: 12px;
+    color: var(--xh-text-color-muted);
+  }
+
   &__body {
     flex: 1 1 auto;
     overflow: auto;

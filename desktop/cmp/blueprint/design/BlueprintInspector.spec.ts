@@ -60,6 +60,40 @@ describe('BlueprintInspector', () => {
         expect(inspector.subtitle).toBe('Columns');
     });
 
+    it('shows the wiring of each kind first, each chip naming its target', () => {
+        const {design, inspector} = open(),
+            rows = () =>
+                Object.fromEntries(
+                    inspector.wiringRows.map(it => [
+                        it.label,
+                        it.chips?.map(c => c.text) ?? it.text
+                    ])
+                );
+        design.select({kind: 'element', id: 'posGrid'});
+        expect(rows()).toEqual({
+            Reads: ['positions', 'grouping', 'pnlFilter'],
+            Sets: ['selection', 'symbol'],
+            Presets: ['posViews']
+        });
+        design.select({kind: 'variable', id: 'asOf'});
+        expect(rows()['Set by']).toEqual(['prompt']);
+        expect([...rows()['Read by']].sort()).toEqual(
+            ['orders', 'positions', 'prices.end', 'priceStart', 'reportActions', 'yearStart'].sort()
+        );
+        expect(typeof rows().Now).toBe('string');
+        design.select({kind: 'source', id: 'prices'});
+        expect(rows()).toMatchObject({'Read by': ['priceChart'], Waits: ['symbol']});
+        design.select({kind: 'preset', id: 'posViews'});
+        expect(rows()).toEqual({
+            Controls: ['posGrid · columnState'],
+            'Shown by': ['posViewsSelector']
+        });
+
+        // A chip selects what it names.
+        inspector.wiringRows[0].chips[0].select();
+        expect(design.selectedElementId).toBe('posGrid');
+    });
+
     it("frames each kind's editor under one header, with a clickable path", async () => {
         const {design, model} = open(),
             {container} = render(blueprintInspector({designModel: design}) as ReactElement);
@@ -83,6 +117,26 @@ describe('BlueprintInspector', () => {
         );
         expect(container.querySelector('.xh-blueprint-variables-editor')).toBeTruthy();
         expect(model.history).toHaveLength(0);
+    });
+
+    it('sums up the blueprint when nothing is selected', async () => {
+        const {design} = open(),
+            {container, getByText} = render(
+                blueprintInspector({
+                    designModel: design,
+                    documentModel: {
+                        document: {name: 'Morning report', description: 'P&L and risk'}
+                    } as any
+                }) as ReactElement
+            );
+        expect(getByText('Morning report')).toBeTruthy();
+        expect(getByText('P&L and risk')).toBeTruthy();
+        expect(container.textContent).toContain(
+            '18 elements · 3 sources · 8 variables · 1 preset group'
+        );
+        expect(container.textContent).not.toMatch(/Select/);
+        fireEvent.click(getByText('tabs'));
+        expect(design.selectedElementId).toBe('tabs');
     });
 
     it('renames from the header, and not once Escape cancels it', () => {
