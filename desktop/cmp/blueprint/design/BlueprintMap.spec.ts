@@ -190,6 +190,7 @@ describe('BlueprintMap', () => {
                 [...lane.querySelectorAll('[role=option]')] as HTMLElement[];
         expect(lanes).toHaveLength(3);
         expect(lanes[0].getAttribute('aria-label')).toBe('Variables');
+        expect(lanes[0].querySelector('[role=group]').getAttribute('aria-label')).toBe('Prompts');
         expect(container.querySelectorAll('[role=option][tabindex="0"]')).toHaveLength(1);
         expect(container.querySelector('svg').getAttribute('aria-hidden')).toBe('true');
 

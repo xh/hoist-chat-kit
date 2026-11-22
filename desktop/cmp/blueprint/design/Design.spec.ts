@@ -13,6 +13,7 @@ import {
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
 import {XH} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {blueprintView} from '../BlueprintView';
 import {cellElementAt} from '../impl/ElementHost';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
@@ -441,5 +442,29 @@ describe('design mode selection', () => {
         await removePresetGroupAsync(design, 'posViews');
         expect(confirm.mock.calls[0][0].message).toMatch(/posViewsSelector/);
         expect(model.blueprint.presets).toHaveProperty('posViews');
+    });
+
+    it('returns focus to the canvas only once a toolbar action, such as a confirm, settles', async () => {
+        let answer: (ok: boolean) => void;
+        const {design, model} = open('p3-morning-report.json'),
+            confirm = vi
+                .spyOn(XH, 'confirm')
+                .mockReturnValue(new Promise<boolean>(it => (answer = it))),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            surface = () => container.querySelector('.xh-panel__content[tabindex]');
+        onTestFinished(() => confirm.mockRestore());
+        design.select({kind: 'element', id: 'overview'});
+        const remove = await vi.waitFor(() => {
+            const it = container.querySelector(
+                '.xh-blueprint-selection-toolbar button[title^="Delete"]'
+            );
+            expect(it).toBeTruthy();
+            return it;
+        });
+        fireEvent.click(remove);
+        await wait(20);
+        expect(document.activeElement).not.toBe(surface());
+        answer(false);
+        await vi.waitFor(() => expect(document.activeElement).toBe(surface()));
     });
 });

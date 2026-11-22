@@ -23,10 +23,12 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
     model: false,
     render({designModel, id, className}) {
         const ref = useRef<HTMLDivElement>(null),
-            // Back to the canvas after an action, so the design keys keep working.
-            refocus = () => {
+            // Back to the canvas once an action settles, so the design keys keep working, and a
+            // dialog it opens, such as a confirm, keeps focus until then. The canvas is found
+            // first, as the action can take the toolbar away.
+            after = (result: unknown) => {
                 const surface = ref.current?.closest<HTMLElement>('.xh-panel__content[tabindex]');
-                wait().then(() => surface?.focus());
+                return Promise.resolve(result).finally(() => wait().then(() => surface?.focus()));
             },
             withRefocus = (items: MenuItemLike[]): MenuItemLike[] =>
                 items.map(it =>
@@ -36,8 +38,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                               ...(it.actionFn
                                   ? {
                                         actionFn: (...args) => {
-                                            it.actionFn(...args);
-                                            refocus();
+                                            after(it.actionFn(...args));
                                         }
                                     }
                                   : {}),
@@ -100,11 +101,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
         return div({
             className,
             ref,
-            onClick: e => {
-                e.stopPropagation();
-                // A menu button keeps focus for the menu it opens.
-                if (!(e.target as HTMLElement).closest(`.${CLS}__menu`)) refocus();
-            },
+            onClick: e => e.stopPropagation(),
             children: [
                 button({
                     icon: Icon.arrowUp(),
@@ -112,7 +109,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                     'aria-label': 'Select the parent (Esc)',
                     minimal: true,
                     disabled: !parent,
-                    onClick: () => designModel.select({kind: 'element', id: parent})
+                    onClick: () => after(designModel.select({kind: 'element', id: parent}))
                 }),
                 span({
                     className: `${CLS}__name`,
@@ -126,7 +123,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                               'aria-label': 'Duplicate (Ctrl+D)',
                               minimal: true,
                               disabled: !parent,
-                              onClick: () => duplicateElement(designModel, id)
+                              onClick: () => after(duplicateElement(designModel, id))
                           }),
                           designModel.addPlacesFor(id).length
                               ? menuButton({
@@ -152,7 +149,7 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                               'aria-label': 'Delete (Del)',
                               intent: 'danger',
                               minimal: true,
-                              onClick: () => removeElementAsync(designModel, id).then(refuse)
+                              onClick: () => after(removeElementAsync(designModel, id).then(refuse))
                           })
                       ]
                     : [])

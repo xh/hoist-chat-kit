@@ -74,6 +74,7 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
                                     'aria-label': lane.title,
                                     children: [
                                         div({
+                                            'aria-hidden': true,
                                             className: `${CLS}__lane-title`,
                                             children: lane.title
                                         }),
@@ -86,9 +87,13 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
                                                         group.title &&
                                                         `${CLS}__group--tab`
                                                 ),
+                                                // A listbox holds options and groups only.
+                                                role: group.title ? 'group' : 'presentation',
+                                                'aria-label': group.title || undefined,
                                                 children: [
                                                     group.title
                                                         ? div({
+                                                              'aria-hidden': true,
                                                               className: `${CLS}__group-title`,
                                                               children: group.title
                                                           })
@@ -496,7 +501,14 @@ const mapNode = hoistCmp.factory<
                 'data-map-node': node.key,
                 role: 'option',
                 'aria-selected': isSelected,
-                'aria-label': [node.id, node.detail, STATE_WORDS[state]].filter(Boolean).join(', ')
+                'aria-label': [
+                    node.id,
+                    node.detail,
+                    STATE_WORDS[state],
+                    issues.length ? issueSummary(issues) : null
+                ]
+                    .filter(Boolean)
+                    .join(', ')
             } as object),
             tabIndex: impl.tabStop === node.key ? 0 : -1,
             onFocus: () => impl.setHoverKey(node.key),
