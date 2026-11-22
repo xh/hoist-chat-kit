@@ -109,10 +109,10 @@ export class DockLayoutModel extends HoistModel {
         return stacksOf(this.props?.layout);
     }
 
-    /** Show a view in its stack. */
+    /** Show a view in its stack, in the given layout or the current one. */
     @action
-    activate(id: string) {
-        const stack = this.stacks.find(it => it.includes(id));
+    activate(id: string, layout: DockItem[] = this.props?.layout) {
+        const stack = stacksOf(layout).find(it => it.includes(id));
         if (!stack) return;
         // The view shown until now stays mounted, hidden, so it keeps its state.
         const shown = stack.find(it => this.chosen.includes(it)) ?? stack[0],
@@ -197,7 +197,10 @@ export class DockLayoutModel extends HoistModel {
         if (drop && !drop.refusal) {
             if (dragging) {
                 const next = moveView(this.props.layout, dragging, drop.target);
-                if (next) this.props.onChange?.(next, {kind: 'move', id: dragging});
+                if (next) {
+                    this.activate(dragging, next);
+                    this.props.onChange?.(next, {kind: 'move', id: dragging});
+                }
             } else if (external) {
                 this.props.onDropExternal?.(external, drop.target);
             }

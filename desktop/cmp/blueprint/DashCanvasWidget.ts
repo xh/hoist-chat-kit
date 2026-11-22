@@ -4,7 +4,7 @@ import {Icon} from '@xh/hoist/icon';
 import {pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {BlueprintWidgetModel, type ChildRef, type DashCanvasWidgetConfig} from '../../../blueprint';
-import {gridCanvas, type GridCell} from '../layout';
+import {gridCanvas, type GridCanvasChange, type GridCell} from '../layout';
 import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
 
@@ -114,11 +114,15 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         this.blueprintModel.clearTransientValues(`/elements/${this.id}/children`);
     }
 
-    /** Write moved or resized cells to the child references, as one edit, in reading order. */
-    onCellsChange(changed: GridCell[]) {
-        this.applyUserEdit([
-            {op: 'set', path: `/elements/${this.id}/children`, value: this.childrenWith(changed)}
-        ]);
+    /**
+     * Write moved or resized cells to the child references, as one edit named for the change, in
+     * reading order.
+     */
+    onCellsChange(changed: GridCell[], change?: GridCanvasChange) {
+        this.applyUserEdit(
+            [{op: 'set', path: `/elements/${this.id}/children`, value: this.childrenWith(changed)}],
+            change ? `${change.kind === 'resize' ? 'Resize' : 'Move'} ${change.id}` : null
+        );
     }
 
     /**
@@ -148,7 +152,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             {op: 'set', path: `/elements/${this.id}/children`, value: this.childrenWith([next])}
         ]);
         if (refusal) return refusal;
-        this.onCellsChange([next]);
+        this.onCellsChange([next], {kind: w !== cell.w || h !== cell.h ? 'resize' : 'move', id});
         return null;
     }
 
@@ -201,7 +205,7 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
                         'data-blueprint-view': id,
                         'data-blueprint-canvas': model.id
                     }),
-                    onChange: cells => model.onCellsChange(cells),
+                    onChange: (cells, change) => model.onCellsChange(cells, change),
                     onDropOver: () => model.onDropOver(),
                     onDrop: (place, siblings) => model.onDrop(place, siblings)
                 }),

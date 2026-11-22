@@ -71,7 +71,9 @@ export function stacksOf(layout: DockItem[]): string[][] {
 //------------------
 // Implementation
 //------------------
-const EDGE_DIR = {left: 'row', right: 'row', top: 'column', bottom: 'column'} as const;
+const EDGE_DIR = {left: 'row', right: 'row', top: 'column', bottom: 'column'} as const,
+    STACK_ZONES: string[] = ['center', 'left', 'right', 'top', 'bottom'],
+    ROOT_ZONES: string[] = ['root-left', 'root-right', 'root-top', 'root-bottom'];
 
 // The whole layout's holder, which has no direction and sizes nothing.
 const ROOT = 'root';
@@ -83,6 +85,7 @@ function tryMove(
     isNew: boolean
 ): {layout: DockItem[]} | {refusal: string} {
     try {
+        if (!isPlace(target)) return {refusal: 'There is no such place.'};
         const root = {
                 type: ROOT,
                 content: inStacks(cloneDeep(layout ?? []))
@@ -117,6 +120,14 @@ function tryMove(
     } catch (e) {
         return {refusal: `The layout cannot take that move: ${e?.message ?? e}`};
     }
+}
+
+function isPlace(target: DockTarget): boolean {
+    if (!target) return false;
+    if (!('view' in target)) return ROOT_ZONES.includes(target.zone);
+    return target.zone === 'tab'
+        ? Number.isInteger(target.index)
+        : STACK_ZONES.includes(target.zone);
 }
 
 // Wrap each view outside a stack in a stack of its own, which takes the view's size.

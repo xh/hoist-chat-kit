@@ -492,6 +492,23 @@ describe('layout and container widgets', () => {
             }
         });
 
+        it('shows a view moved into a stack, and names the move for undo', () => {
+            const {model, widget} = designing(
+                container([
+                    {
+                        type: 'row',
+                        content: [
+                            {type: 'stack', content: [{type: 'view', id: 'a'}]},
+                            {type: 'stack', content: [{type: 'view', id: 'b'}]}
+                        ]
+                    }
+                ])
+            );
+            expect(widget.moveView('b', {view: 'a', zone: 'center'})).toBeNull();
+            expect(widget.shown).toEqual(['b']);
+            expect(model.undoDescription).toBe('Move b');
+        });
+
         it('says why a move would be refused, and allows a valid one', () => {
             const {widget} = designing(container());
             expect(widget.canMove('b', {view: 'a', zone: 'left'})).toBeNull();

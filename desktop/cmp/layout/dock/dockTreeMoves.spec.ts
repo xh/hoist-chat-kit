@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {type DockItem, type DockTarget, insertView, moveView} from './dockTree';
+import {type DockItem, dockMoveRefusal, type DockTarget, insertView, moveView} from './dockTree';
 
 /**
  * Every move in every zone, from layouts of each shape, either refuses or gives a sound tree:
@@ -80,6 +80,31 @@ describe('dock tree moves, exhaustively', () => {
         const next = moveView(LAYOUTS['bare views in a row'], 'c', {view: 'a', zone: 'center'});
         expect(next).not.toBeNull();
         expect(stacksIds(next)).toEqual([['a', 'c'], ['b']]);
+    });
+
+    it('refuses a zone that is not one, or a tab with no index', () => {
+        const layout = LAYOUTS['a row of stacks'];
+        expect(dockMoveRefusal(layout, 'a', {view: 'c', zone: 'middle'} as any)).toBe(
+            'There is no such place.'
+        );
+        expect(dockMoveRefusal(layout, 'a', {zone: 'root-middle'} as any)).toBe(
+            'There is no such place.'
+        );
+        expect(dockMoveRefusal(layout, 'a', {view: 'c', zone: 'tab'} as any)).toBe(
+            'There is no such place.'
+        );
+    });
+
+    it('splits a view off its own stack to an edge, but refuses one alone there', () => {
+        const layout = LAYOUTS['a row of stacks'];
+        expect(stacksIds(moveView(layout, 'b', {view: 'b', zone: 'right'}))).toEqual([
+            ['a'],
+            ['b'],
+            ['c']
+        ]);
+        expect(dockMoveRefusal(layout, 'c', {view: 'c', zone: 'right'})).toBe(
+            'The view is there already.'
+        );
     });
 
     it('refuses a move that would nest deeper than a blueprint allows', () => {
