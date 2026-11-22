@@ -29,16 +29,33 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 designModel.selectedElementId === id &&
                     'xh-blueprint-view__design-element--selected'
             ),
+            // Read by cellElementAt, and by a selection that scrolls into view.
+            ...({'data-blueprint-element': id} as object),
             onClick: e => {
                 const native = e.nativeEvent as MouseEvent & {xhSelected?: boolean};
                 if (native.xhSelected) return;
                 native.xhSelected = true;
-                designModel.select({kind: 'element', id});
+                const inCell = cellElementAt(e.target as HTMLElement, e.currentTarget);
+                designModel.select({kind: 'element', id: inCell ?? id});
             },
             children: content
         });
     }
 });
+
+/**
+ * The element in the canvas cell whose header a click landed on, or null. Hoist draws a cell's
+ * header outside the element's own wrapper, so the click reaches the canvas: this finds the cell's
+ * element, the first in its body. A header item is an element of its own, which takes its click.
+ */
+export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
+    const cell = target?.closest('.xh-panel-header')?.closest('.xh-dash-tab');
+    if (!cell || !host.contains(cell)) return null;
+    const inBody = [...cell.querySelectorAll<HTMLElement>('[data-blueprint-element]')].find(
+        it => it.closest('.xh-panel-header')?.closest('.xh-dash-tab') !== cell
+    );
+    return inBody?.dataset.blueprintElement ?? null;
+}
 
 function renderContent(id: string, viewModel: BlueprintViewModel) {
     const model = viewModel.getWidgetModel(id),

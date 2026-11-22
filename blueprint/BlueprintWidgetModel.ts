@@ -1,4 +1,4 @@
-import {HoistModel, type PlainObject, XH} from '@xh/hoist/core';
+import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {computed} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
@@ -121,7 +121,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         }
         const {issues} = blueprintModel.applyEdit({author: 'user', ops, description}),
             error = issues.find(it => it.severity === 'error');
-        if (error) XH.dangerToast(error.message);
+        if (error) blueprintModel.showRefusal(error);
         return !error;
     }
 

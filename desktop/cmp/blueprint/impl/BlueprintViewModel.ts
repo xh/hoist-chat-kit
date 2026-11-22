@@ -1,4 +1,5 @@
 import {HoistModel, XH, type ElementFactory} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import type {ReactNode} from 'react';
 import {
     type BlueprintDesignModel,
@@ -6,6 +7,7 @@ import {
     type BlueprintModel,
     type WidgetSpec
 } from '../../../../blueprint';
+import {parentOf} from '../../../../blueprint/impl/elements';
 import {boxWidget, BoxWidgetModel} from '../BoxWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
 import {presetSelectorWidget, PresetSelectorWidgetModel} from '../PresetSelectorWidget';
@@ -122,6 +124,34 @@ export class BlueprintViewModel extends HoistModel {
         });
         // Synced now, not by fireImmediately, which MobX defers inside a batch such as a render.
         this.syncWidgets();
+
+        const {designModel} = this;
+        if (designModel) {
+            blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
+            this.addReaction({
+                track: () => designModel.selectedElementId,
+                run: id => this.bringIntoView(id)
+            });
+        }
+    }
+
+    /** Activate each tab that holds an element, then scroll it into view. */
+    bringIntoView(id: string) {
+        const elements = this.blueprintModel.blueprint?.elements ?? {};
+        if (!id || !elements[id]) return;
+        for (let child = id, parent = parentOf(elements, id); parent;) {
+            const model = this.getWidgetModel(parent);
+            if (model instanceof TabContainerWidgetModel)
+                model.tabContainerModel.activateTab(child);
+            child = parent;
+            parent = parentOf(elements, parent);
+        }
+        // Once the tab has drawn it.
+        wait().then(() =>
+            document
+                .querySelector(`[data-blueprint-element="${CSS.escape(id)}"]`)
+                ?.scrollIntoView?.({block: 'nearest', inline: 'nearest'})
+        );
     }
 
     /** Render an element by ID, or nothing if the blueprint has no such element. */

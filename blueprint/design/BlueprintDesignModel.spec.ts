@@ -35,6 +35,20 @@ describe('BlueprintDesignModel', () => {
     const errors = (r: {issues: {severity: string}[]}) =>
         r.issues.filter(it => it.severity === 'error');
 
+    it('reveals what an issue names, by its path: an element, a variable, a source or a preset group', () => {
+        const {design} = open(loadBlueprint('p3-morning-report.json'));
+        design.revealIssue({path: '/elements/posGrid/config/columnState/2'} as any);
+        expect(design.selection).toEqual({kind: 'element', id: 'posGrid'});
+        design.revealIssue({path: '/variables/asOf/default'} as any);
+        expect(design.selection).toEqual({kind: 'variable', id: 'asOf'});
+        design.revealIssue({path: '/sources/prices/params/symbol'} as any);
+        expect(design.selection).toEqual({kind: 'source', id: 'prices'});
+        design.revealIssue({path: '/presets/posViews/items/pnl'} as any);
+        expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
+        design.revealIssue({path: '/elements/nope'} as any);
+        expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
+    });
+
     it('has no design mode for a chat answer', () => {
         expect(() => open(loadBlueprint('w3-segment-1.json'), {isAnswer: true})).toThrow(
             /answer has no design mode/

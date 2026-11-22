@@ -564,11 +564,13 @@ describe('layout and container widgets', () => {
             show('tabs', {
                 tabs: {component: 'tabContainer', config: {emptyText: 'No tabs'}, children: []}
             });
-            show('canvas', {
+            const {container} = show('canvas', {
                 canvas: {component: 'dashCanvas', config: {emptyText: 'No widgets'}, children: []}
             });
             expect(screen.getByText('No tabs')).toBeTruthy();
             expect(screen.getByText('No widgets')).toBeTruthy();
+            // The hint lies over a live canvas, which still takes a drop.
+            expect(container.querySelector('.xh-dash-canvas')).toBeTruthy();
         });
     });
 });

@@ -1,4 +1,4 @@
-import {HoistModel, type LoadSpec, type PlainObject} from '@xh/hoist/core';
+import {HoistModel, type LoadSpec, type PlainObject, XH} from '@xh/hoist/core';
 import type {FilterSpec} from '@xh/hoist/data';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
@@ -111,6 +111,12 @@ export class BlueprintModel extends HoistModel {
      * `BlueprintDocumentModel` sets. Null, and the action cannot run.
      */
     drillInRepository: BlueprintRepository = null;
+
+    /**
+     * Select what an issue names, for a refusal's Show action: set by a view with a designer.
+     * Null, and a refusal shows no Show action.
+     */
+    revealIssue: (issue: BlueprintIssue) => void = null;
 
     /** The blueprint an `openBlueprint` action asked to open, which the view draws, or null. */
     @observableRef accessor drillIn: BlueprintDrillIn = null;
@@ -583,6 +589,17 @@ export class BlueprintModel extends HoistModel {
     /** An action's description, with its values as it would run now - for its tooltip. */
     describeAction(action: PlainObject, ctx: ActionRunContext = {}): string {
         return describeAction(this, action, ctx);
+    }
+
+    /** Show why an edit was refused, with a Show action that selects what it names, where it can. */
+    showRefusal(issue: BlueprintIssue) {
+        const {revealIssue} = this;
+        XH.dangerToast({
+            message: issue.message,
+            ...(revealIssue && issue.path
+                ? {actionButtonProps: {text: 'Show', onClick: () => revealIssue(issue)}}
+                : {})
+        });
     }
 
     /** Ask the view to open a blueprint as a drill-in, as `openBlueprint` does. */

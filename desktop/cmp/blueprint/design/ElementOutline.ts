@@ -8,7 +8,6 @@ import {
     type PlainObject,
     useLocalModel
 } from '@xh/hoist/core';
-import {observable, runInAction} from '@xh/hoist/mobx';
 import type React from 'react';
 import type {BlueprintDesignModel} from '../../../../blueprint';
 import {slotLists} from '../../../../blueprint/impl/elements';
@@ -31,21 +30,13 @@ export const [ElementOutline, elementOutline] = hoistCmp.withFactory<ElementOutl
         const impl = useLocalModel(() => new ElementOutlineModel(designModel));
         return vframe({
             className,
-            children: [
-                grid({model: impl.gridModel}),
-                impl.message
-                    ? div({className: `${className}__message`, children: impl.message})
-                    : null
-            ]
+            children: grid({model: impl.gridModel})
         });
     }
 });
 
 /** @internal */
 export class ElementOutlineModel extends HoistModel {
-    /** Why the last move was refused, until the next one. */
-    @observable accessor message: string = null;
-
     @managed readonly gridModel = new GridModel({
         treeMode: true,
         hideHeaders: true,
@@ -108,10 +99,11 @@ export class ElementOutlineModel extends HoistModel {
     /** Move a dragged element onto a row, as one edit, or say why it cannot go there. */
     drop(id: string, targetId: string, where: 'into' | 'before' | 'after') {
         if (!id || id === targetId) return;
-        const error = this.designModel
-            .moveTo(id, targetId, where)
-            .issues.find(it => it.severity === 'error');
-        runInAction(() => (this.message = error?.message ?? null));
+        const {designModel} = this,
+            error = designModel
+                .moveTo(id, targetId, where)
+                .issues.find(it => it.severity === 'error');
+        if (error) designModel.blueprintModel.showRefusal(error);
     }
 
     //------------------

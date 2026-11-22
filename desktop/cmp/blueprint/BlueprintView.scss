@@ -113,3 +113,11 @@
     position: relative;
   }
 }
+
+// An empty canvas's hint, over the live canvas, letting a drop through.
+.xh-blueprint-dash-canvas__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}

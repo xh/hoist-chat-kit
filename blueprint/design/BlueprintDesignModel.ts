@@ -12,7 +12,13 @@ import {
     startCase,
     uniq
 } from 'lodash';
-import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blueprint';
+import type {
+    BlueprintElement,
+    BlueprintIssue,
+    BlueprintOp,
+    ChildRef,
+    PresetGroup
+} from '../Blueprint';
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
@@ -79,6 +85,17 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     select(selection: BlueprintSelection) {
         this.selection = selection;
+    }
+
+    /**
+     * Select what an issue names, by its path: an element, a variable, a source or a preset group.
+     * An issue that names none of them, or one since gone, leaves the selection as it was.
+     */
+    revealIssue(issue: BlueprintIssue) {
+        const [, root, id] = String(issue?.path ?? '').split('/'),
+            kind = REVEALED_KINDS[root],
+            selection = kind && id ? {kind, id} : null;
+        if (selection && this.exists(selection)) this.select(selection);
     }
 
     /** The ID of the selected element, or null. */
@@ -341,11 +358,14 @@ export class BlueprintDesignModel extends HoistModel {
         if (!spec || !getOwn(elements, targetId))
             return refused(`There is no element '${targetId}'.`);
         if (this.subtree(id).includes(targetId)) {
-            return refused(`${id} cannot move inside itself.`);
+            return refused(`${id} cannot move inside itself.`, `/elements/${id}`);
         }
         const target: AddPlace = where === 'into' ? {parent: targetId} : this.placeAfter(targetId);
         if (!target || !this.elementSpec(target.parent)?.children) {
-            return refused(`${where === 'into' ? targetId : 'Its container'} holds no elements.`);
+            return refused(
+                `${where === 'into' ? targetId : 'Its container'} holds no elements.`,
+                `/elements/${id}`
+            );
         }
         const {parent, slot = 'children', of} = target,
             list = slotLists(elements[parent]).find(it => it.slot === slot && it.of === of),
@@ -1005,8 +1025,9 @@ export class BlueprintDesignModel extends HoistModel {
 
 const isError = (it: {severity: string}) => it.severity === 'error';
 
-function refused(message: string): BlueprintEditResult & {id?: string} {
-    return {issues: [{code: 'edit.refused', severity: 'error', path: '', message}]};
+// A refusal the design model makes itself, at the path of what it names, if any.
+function refused(message: string, path = ''): BlueprintEditResult & {id?: string} {
+    return {issues: [{code: 'edit.refused', severity: 'error', path, message}]};
 }
 
 // The element a path under /elements names, or null.
@@ -1083,3 +1104,11 @@ function withoutAt(o: PlainObject, path: string): PlainObject {
     else prune(ret, 0);
     return ret;
 }
+
+// The selection kind each top-level key of a blueprint holds.
+const REVEALED_KINDS: Record<string, BlueprintSelection['kind']> = {
+    elements: 'element',
+    variables: 'variable',
+    sources: 'source',
+    presets: 'preset'
+};

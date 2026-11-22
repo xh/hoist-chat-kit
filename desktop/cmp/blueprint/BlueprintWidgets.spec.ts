@@ -587,7 +587,9 @@ describe('blueprint desktop widgets', () => {
         });
 
         gridModel.setSortBy('pnlDay|desc');
-        await vi.waitFor(() => expect(toast).toHaveBeenCalledWith('Refused.'));
+        await vi.waitFor(() =>
+            expect(toast).toHaveBeenCalledWith(expect.objectContaining({message: 'Refused.'}))
+        );
         expect(gridModel.sortBy).toEqual([]);
     });
 
@@ -1013,7 +1015,9 @@ describe('blueprint desktop widgets', () => {
             onTestFinished(() => toast.mockRestore());
             canvas.canvasModel.loadState(state);
 
-            expect(toast).toHaveBeenCalledWith(expect.stringMatching(/overlaps/));
+            expect(toast).toHaveBeenCalledWith(
+                expect.objectContaining({message: expect.stringMatching(/overlaps/)})
+            );
             expect(model.version).toBe(1);
             const headline = canvas.canvasModel.state.find(it => it.viewSpecId === 'headline');
             expect(headline.layout.y).toBe(0);

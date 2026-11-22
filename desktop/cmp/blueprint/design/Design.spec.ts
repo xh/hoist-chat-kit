@@ -12,7 +12,10 @@ import {
     portfolioCatalog,
     scenarioRegistry
 } from '../../../../test/blueprintFixtures';
+import {XH} from '@xh/hoist/core';
 import {blueprintView} from '../BlueprintView';
+import {cellElementAt} from '../impl/ElementHost';
+import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {ElementOutlineModel} from './ElementOutline';
 
 /**
@@ -83,10 +86,51 @@ describe('design mode selection', () => {
         outline.drop('priceChart', 'groupChooser', 'before');
         const ids = model.blueprint.elements.positions.children.map(it => it.id);
         expect(ids.indexOf('priceChart')).toBe(ids.indexOf('groupChooser') - 1);
-        expect(outline.message).toBeNull();
+    });
 
+    it('shows a refused move as a danger toast, whose Show selects the element it names', () => {
+        const {design} = open('p3-morning-report.json'),
+            outline = new ElementOutlineModel(design),
+            toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
+        onTestFinished(() => {
+            outline.destroy();
+            toast.mockRestore();
+        });
+        new BlueprintViewModel(design.blueprintModel, {designModel: design});
         outline.drop('positions', 'posGrid', 'into');
-        expect(outline.message).toMatch(/inside/);
+        const [spec] = toast.mock.calls[0] as any[];
+        expect(spec.message).toMatch(/inside/);
+        expect(spec.actionButtonProps.text).toBe('Show');
+        spec.actionButtonProps.onClick();
+        expect(design.selectedElementId).toBe('positions');
+    });
+
+    it('activates the tab that holds a selected element', () => {
+        const {design, model} = open('p3-morning-report.json'),
+            view = new BlueprintViewModel(model, {designModel: design});
+        onTestFinished(() => view.destroy());
+        const tabs = view.getWidgetModel('tabs') as any,
+            ordersTab = model.blueprint.elements.tabs.children.find(it =>
+                JSON.stringify(model.blueprint.elements[it.id]).includes('ordersGrid')
+            ).id;
+        expect(tabs.tabContainerModel.activeTabId).not.toBe(ordersTab);
+        design.select({kind: 'element', id: 'ordersGrid'});
+        expect(tabs.tabContainerModel.activeTabId).toBe(ordersTab);
+    });
+
+    it('selects the element in a canvas cell from a click on its header, not the canvas', () => {
+        const cell = document.createElement('div');
+        cell.innerHTML =
+            '<div class="xh-dash-tab"><div class="xh-panel-header"><span class="title">Day P&L</span>' +
+            '<div data-blueprint-element="views"></div></div>' +
+            '<div class="body"><div data-blueprint-element="sectorChart"></div></div></div>';
+        const host = document.createElement('div');
+        host.appendChild(cell);
+        expect(cellElementAt(cell.querySelector('.title') as HTMLElement, host)).toBe(
+            'sectorChart'
+        );
+        // A click outside any cell header is the host's own.
+        expect(cellElementAt(cell.querySelector('.body') as HTMLElement, host)).toBeNull();
     });
 
     it('selects the innermost element a click lands on, and outlines it, in design mode only', () => {

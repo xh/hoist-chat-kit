@@ -1,3 +1,4 @@
+import {box, div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import {
     dashCanvas,
@@ -209,7 +210,17 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-dash-canvas',
     model: uses(DashCanvasWidgetModel),
     render({model, className}) {
-        return emptyContent(model) ?? dashCanvas({model: model.canvasModel, className});
+        // The hint lies over a live canvas, so an empty one still takes a drop.
+        const empty = emptyContent(model);
+        return box({
+            className,
+            flex: 1,
+            position: 'relative',
+            children: [
+                dashCanvas({model: model.canvasModel}),
+                empty ? div({className: `${className}__empty`, children: empty}) : null
+            ]
+        });
     }
 });
 
