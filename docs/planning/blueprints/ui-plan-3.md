@@ -15,7 +15,7 @@ From John's use of the built round-2 UI: modern but professional, one use of col
 |---|---|---|
 | R3-1 | Format options grouping | `formFieldSet`, collapsed unless an override is set |
 | R3-2 | Boolean labels | Positive state first, positive label ("Visible: Show \| Hide") |
-| R3-3 | Built-ins | One `wrapper()` page per widget, with an options rail |
+| R3-3 | Built-ins | Revised by John: one nav entry per role, whose page lists each widget's `wrapper()` with its options rail in sequence, under an in-page scroll-spy index. `builtins/<role>?widget=<name>` opens a widget. A nav entry per widget made the left nav too long |
 | R3-4 | Catalog fields | `dataView` cards, no grid |
 | R3-5 | Catalog JSON panel | Closed by default, remembered per user |
 

@@ -812,15 +812,16 @@ describe('layout and container widgets', () => {
             expect(header.querySelector('svg')).toBeTruthy();
         });
 
-        it("draws a header for a cell with no title, by its widget's label", () => {
-            const {canvas, view, model} = cells();
+        it('heads a cell with no title anywhere, by its widget label, so it can still move', () => {
+            const {canvas, view} = cells();
             expect(canvas.cellHasHeader('tiles')).toBe(true);
+            expect(canvas.titles.tiles).toBe(view.blueprintModel.registry.widgets.tileFrame.label);
             const {container} = renderCanvas(view);
             expect(
                 container.querySelector(
-                    '[data-blueprint-view="tiles"] .xh-blueprint-dash-canvas__cell-title'
+                    '[data-blueprint-view="tiles"] [data-blueprint-view-header] .xh-blueprint-dash-canvas__cell-title'
                 ).textContent
-            ).toBe(model.registry.widgets.tileFrame.label);
+            ).toBe(canvas.titles.tiles);
         });
 
         it("names a cell titled by its id only once in design mode, leaving out the id's tag", () => {
@@ -864,7 +865,9 @@ describe('layout and container widgets', () => {
             });
             expect(iconOf()).toBeTruthy();
             expect(iconOf()).not.toBe('chart-line');
+            // A cell with no title still takes a header, with its id beside its widget label.
             expect(design.canvas.cellHasHeader('tiles')).toBe(true);
+            expect((design.canvas.headerItemsFor('tiles')[0] as any).props.children).toBe('tiles');
         });
 
         function renderCanvas(view: BlueprintViewModel) {

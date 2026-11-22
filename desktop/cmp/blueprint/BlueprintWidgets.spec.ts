@@ -1062,7 +1062,7 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.cells.find(it => it.id === 'headline').y).toBe(0);
         });
 
-        it("shows a header for every cell, titled by its widget's label where it has no title, and follows edits to titles", () => {
+        it("heads every cell, titled by its child's title, else its widget's label, following edits", () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
 

@@ -1266,7 +1266,7 @@ const dashCanvas: WidgetSpec = {
     label: 'Dashboard',
     terms: ['dashboard', 'canvas', 'page', 'layout'],
     guidance:
-        "A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units, and may give the cell header's title in place of the widget's own, or hideHeader. Use it as the root of a dashboard, or as the content of a tab.",
+        "A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units, and may give the cell header's title in place of the widget's own, or hideHeader. Every cell has a header unless it hides it, titled by the widget's label where nothing gives a title, so give a cell such as a stat card or a button row hideHeader where a header adds nothing. Use it as the root of a dashboard, or as the content of a tab.",
     category: 'container',
     config: DASH_CANVAS_SCHEMA,
     children: {
