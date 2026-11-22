@@ -4,15 +4,12 @@ import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
-import classNames from 'classnames';
 import {isEqual} from 'lodash';
-import type React from 'react';
-import type {ReactNode} from 'react';
 import {type BlueprintDesignModel, type EditorNode, toEditorSpec} from '../../../../blueprint';
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, propertyRow} from './impl/ConfigEditors';
+import {CLS, propertyRow, sectionCard} from './impl/ConfigEditors';
 import {removeElementAsync} from './impl/designActions';
 
 export interface ElementInspectorProps extends HoistProps {
@@ -374,55 +371,6 @@ function configRow(impl: ElementInspectorModel, node: EditorNode) {
         issues: impl.issuesFor(node.key),
         badge: impl.badgeFor(node.key),
         key: `${node.key}:${impl.resets[node.key] ?? 0}`
-    });
-}
-
-// A titled group of rows, drawn as a card, which folds where it can.
-function sectionCard({
-    key,
-    title,
-    badge,
-    collapsed = false,
-    onToggle,
-    children
-}: {
-    key: string;
-    title: string;
-    /** A link beside the title, such as to the preset group a path in the card belongs to. */
-    badge?: {text: string; onClick: () => void};
-    collapsed?: boolean;
-    onToggle?: () => void;
-    children: ReactNode[];
-}) {
-    return div({
-        key,
-        className: `${CLS}__card`,
-        children: [
-            div({
-                className: classNames(
-                    `${CLS}__card-header`,
-                    onToggle && `${CLS}__card-header--toggle`
-                ),
-                onClick: onToggle,
-                children: [
-                    onToggle ? (collapsed ? Icon.chevronRight() : Icon.chevronDown()) : null,
-                    title,
-                    badge
-                        ? button({
-                              className: `${CLS}__card-badge`,
-                              text: badge.text,
-                              minimal: true,
-                              title: 'Show the preset group',
-                              onClick: (e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  badge.onClick();
-                              }
-                          })
-                        : null
-                ]
-            }),
-            collapsed ? null : div({className: `${CLS}__card-body`, children})
-        ]
     });
 }
 

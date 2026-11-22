@@ -16,7 +16,8 @@ import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {castArray, isEmpty, isEqual, isNumber, isString, omit} from 'lodash';
 import classNames from 'classnames';
-import type {ReactElement} from 'react';
+import type React from 'react';
+import type {ReactElement, ReactNode} from 'react';
 import {
     type BlueprintIssue,
     type EditorNode,
@@ -953,4 +954,53 @@ function variantLabel(node: EditorNode): string {
         choice: 'Choice',
         stringList: 'List'
     }[node.kind];
+}
+
+/** A titled group of rows, drawn as a card, which folds where it can. */
+export function sectionCard({
+    key,
+    title,
+    badge,
+    collapsed = false,
+    onToggle,
+    children
+}: {
+    key: string;
+    title: string;
+    /** A link beside the title, such as to the preset group a path in the card belongs to. */
+    badge?: {text: string; onClick: () => void};
+    collapsed?: boolean;
+    onToggle?: () => void;
+    children: ReactNode[];
+}) {
+    return div({
+        key,
+        className: `${CLS}__card`,
+        children: [
+            div({
+                className: classNames(
+                    `${CLS}__card-header`,
+                    onToggle && `${CLS}__card-header--toggle`
+                ),
+                onClick: onToggle,
+                children: [
+                    onToggle ? (collapsed ? Icon.chevronRight() : Icon.chevronDown()) : null,
+                    title,
+                    badge
+                        ? button({
+                              className: `${CLS}__card-badge`,
+                              text: badge.text,
+                              minimal: true,
+                              title: 'Show the preset group',
+                              onClick: (e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  badge.onClick();
+                              }
+                          })
+                        : null
+                ]
+            }),
+            collapsed ? null : div({className: `${CLS}__card-body`, children})
+        ]
+    });
 }

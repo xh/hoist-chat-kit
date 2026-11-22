@@ -55,6 +55,15 @@
     }
   }
 
+  &__editing {
+    flex: none;
+    padding: 0 var(--xh-spacing-half);
+    font-size: 11px;
+    color: var(--xh-intent-primary);
+    border: 1px solid var(--xh-intent-primary);
+    border-radius: 9px;
+  }
+
   &__card-badge.xh-button {
     min-height: 18px;
     margin-left: auto;

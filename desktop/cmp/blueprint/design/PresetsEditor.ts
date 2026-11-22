@@ -1,4 +1,4 @@
-import {box, div, filler, hbox, placeholder} from '@xh/hoist/cmp/layout';
+import {box, div, filler, hbox, placeholder, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
@@ -12,7 +12,7 @@ import {
     type PresetGroup
 } from '../../../../blueprint';
 import './ElementInspector.scss';
-import {CLS, labelled, type Option} from './impl/ConfigEditors';
+import {CLS, labelled, type Option, sectionCard} from './impl/ConfigEditors';
 import {removePresetGroupAsync} from './impl/designActions';
 
 export interface PresetsEditorProps extends HoistProps {
@@ -236,112 +236,132 @@ function group(impl: PresetsEditorModel) {
                   null,
                   'No selector shows the group yet, so it stays at its default.'
               ),
-        labelled(
-            'Label',
-            textInput({
-                key: `${impl.name}:label`,
-                value: impl.group.label ?? null,
-                placeholder: impl.name,
-                disabled,
-                width: '100%',
-                onCommit: (it: string) => impl.setLabel(it)
-            })
-        ),
-        labelled(
-            'Controls',
-            div({
-                className: `${CLS}__list`,
-                children: [
-                    ...impl.controls.map(it =>
-                        hbox({
-                            key: it.value,
-                            className: `${CLS}__tab`,
-                            children: [
-                                box({flex: 1, children: it.label}),
-                                button({
-                                    icon: Icon.x(),
-                                    title: 'Stop controlling it, keeping the active value',
-                                    minimal: true,
-                                    disabled,
-                                    onClick: () => impl.removeControl(it.value)
-                                })
-                            ]
-                        })
-                    ),
-                    select({
-                        key: impl.controls.length,
-                        placeholder: 'Add a path…',
-                        options: impl.candidatePaths,
-                        disabled: disabled || !impl.candidatePaths.length,
+        sectionCard({
+            key: 'group',
+            title: 'Group',
+            children: [
+                labelled(
+                    'Label',
+                    textInput({
+                        key: `${impl.name}:label`,
+                        value: impl.group.label ?? null,
+                        placeholder: impl.name,
+                        disabled,
                         width: '100%',
-                        onCommit: (path: string) => path && impl.addControl(path)
+                        onCommit: (it: string) => impl.setLabel(it)
                     })
-                ]
-            }),
-            [],
-            null,
-            "The paths the group's presets set. Each leaves the config."
-        ),
-        labelled(
-            'Default',
-            select({
-                value: impl.group.default ?? null,
-                options: items.map(it => ({value: it.id, label: it.label})),
-                enableClear: true,
-                placeholder: 'The first',
-                disabled,
-                width: '100%',
-                onCommit: (it: string) => impl.setDefault(it)
-            }),
-            [],
-            null,
-            'The preset a user starts on.'
-        ),
-        labelled(
-            'Presets',
-            div({
-                className: `${CLS}__list`,
-                children: items.map(it =>
-                    hbox({
-                        key: `${it.id}:${it.label}`,
-                        className: `${CLS}__tab`,
-                        children: [
-                            button({
-                                icon: it.isActive ? Icon.checkCircle() : Icon.circle(),
-                                title: it.isActive
-                                    ? 'Active: edits to the paths fill this preset'
-                                    : 'Make active, so edits to the paths fill it',
-                                minimal: true,
-                                onClick: () => impl.activate(it.id)
-                            }),
-                            textInput({
-                                value: it.label,
-                                disabled,
-                                flex: 1,
-                                onCommit: (label: string) =>
-                                    label !== it.label && impl.relabel(it.id, label)
-                            }),
-                            buttonGroup({
+                ),
+                labelled(
+                    'Default',
+                    select({
+                        value: impl.group.default ?? null,
+                        options: items.map(it => ({value: it.id, label: it.label})),
+                        enableClear: true,
+                        placeholder: 'The first',
+                        disabled,
+                        width: '100%',
+                        onCommit: (it: string) => impl.setDefault(it)
+                    }),
+                    [],
+                    null,
+                    'The preset a user starts on.'
+                )
+            ]
+        }),
+        sectionCard({
+            key: 'controls',
+            title: `Controls (${impl.controls.length})`,
+            children: [
+                div({
+                    className: `${CLS}__hint`,
+                    children: "The paths the group's presets set. Each leaves the config."
+                }),
+                div({
+                    className: `${CLS}__list`,
+                    children: [
+                        ...impl.controls.map(it =>
+                            hbox({
+                                key: it.value,
+                                className: `${CLS}__tab`,
                                 children: [
+                                    box({flex: 1, children: it.label}),
                                     button({
-                                        icon: Icon.copy(),
-                                        title: 'Copy',
+                                        icon: Icon.x(),
+                                        title: 'Stop controlling it, keeping the active value',
+                                        minimal: true,
                                         disabled,
-                                        onClick: () => impl.duplicate(it.id)
-                                    }),
-                                    button({
-                                        icon: Icon.delete(),
-                                        title: 'Remove',
-                                        disabled: disabled || items.length === 1,
-                                        onClick: () => impl.remove(it.id)
+                                        onClick: () => impl.removeControl(it.value)
                                     })
                                 ]
                             })
-                        ]
-                    })
-                )
-            })
-        )
+                        ),
+                        select({
+                            key: impl.controls.length,
+                            placeholder: 'Add a path…',
+                            options: impl.candidatePaths,
+                            disabled: disabled || !impl.candidatePaths.length,
+                            width: '100%',
+                            onCommit: (path: string) => path && impl.addControl(path)
+                        })
+                    ]
+                })
+            ]
+        }),
+        sectionCard({
+            key: 'presets',
+            title: `Presets (${items.length})`,
+            children: [
+                div({
+                    className: `${CLS}__list`,
+                    children: items.map(it =>
+                        hbox({
+                            key: `${it.id}:${it.label}`,
+                            className: `${CLS}__tab`,
+                            children: [
+                                button({
+                                    icon: it.isActive ? Icon.checkCircle() : Icon.circle(),
+                                    title: it.isActive
+                                        ? 'Active: edits to the paths fill this preset'
+                                        : 'Make active, so edits to the paths fill it',
+                                    minimal: true,
+                                    onClick: () => impl.activate(it.id)
+                                }),
+                                textInput({
+                                    value: it.label,
+                                    disabled,
+                                    flex: 1,
+                                    onCommit: (label: string) =>
+                                        label !== it.label && impl.relabel(it.id, label)
+                                }),
+                                it.isActive
+                                    ? span({
+                                          className: `${CLS}__editing`,
+                                          title: 'Edits to the paths fill this preset',
+                                          children: 'editing'
+                                      })
+                                    : null,
+                                buttonGroup({
+                                    children: [
+                                        button({
+                                            icon: Icon.copy(),
+                                            title: 'Copy',
+                                            disabled,
+                                            onClick: () => impl.duplicate(it.id)
+                                        }),
+                                        button({
+                                            icon: Icon.delete(),
+                                            title: 'Remove',
+                                            disabled: disabled || items.length === 1,
+                                            onClick: () => impl.remove(it.id)
+                                        })
+                                    ]
+                                })
+                            ]
+                        })
+                    )
+                })
+            ]
+        })
     ];
 }
 

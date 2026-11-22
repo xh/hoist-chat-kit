@@ -100,7 +100,19 @@ describe('PresetsEditor', () => {
             labels = [...container.querySelectorAll('.xh-blueprint-element-inspector__label')].map(
                 it => it.textContent
             );
-        expect(labels).toEqual(expect.arrayContaining(['Label', 'Controls', 'Default', 'Presets']));
+        expect(labels).toEqual(expect.arrayContaining(['Label', 'Default']));
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')].map(
+                it => it.textContent
+            )
+        ).toEqual(['Group', 'Controls (1)', 'Presets (2)']);
+        // The active preset is the one edits fill.
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__editing')].map(
+                it =>
+                    it.closest('.xh-blueprint-element-inspector__tab').querySelector('input').value
+            )
+        ).toEqual(['P&L view']);
         expect(container.textContent).not.toContain('No model found');
         expect(
             [...container.querySelectorAll('.xh-blueprint-element-inspector__hint')].map(
