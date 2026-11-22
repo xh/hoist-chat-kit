@@ -3,7 +3,14 @@ import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEqual, pick} from 'lodash';
 import {BlueprintWidgetModel, type DashContainerWidgetConfig} from '../../../blueprint';
-import {type DockItem, dockLayout, type DockTarget, insertView, moveView} from '../layout';
+import {
+    type DockItem,
+    dockLayout,
+    dockMoveRefusal,
+    type DockTarget,
+    insertView,
+    moveView
+} from '../layout';
 import {emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
 
@@ -70,10 +77,22 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
 
     /** Why moving a view to a target would be refused, or null if it would apply. */
     canMove(id: string, target: DockTarget): string {
+        const refusal = dockMoveRefusal(this.layout, id, target);
+        if (refusal) return refusal;
         const next = moveView(this.layout, id, target);
-        return next
-            ? this.canApplyUserEdit([{op: 'set', path: this.layoutPath, value: next}])
-            : null;
+        return this.canApplyUserEdit([{op: 'set', path: this.layoutPath, value: next}]);
+    }
+
+    /**
+     * Move a view to a target as a drop does, as one edit, or transient in run mode. Returns why it
+     * was refused, or null. For tests and tools that drive docking without a pointer, such as
+     * `XH.getModels('DashContainerWidgetModel')` from DevTools.
+     */
+    moveView(id: string, target: DockTarget): string {
+        const refusal = this.canMove(id, target);
+        if (refusal) return refusal;
+        this.noteLayout(moveView(this.layout, id, target));
+        return null;
     }
 
     /** The widget a palette drag carries, while this container may take it, or null. */

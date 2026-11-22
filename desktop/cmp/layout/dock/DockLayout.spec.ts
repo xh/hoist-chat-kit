@@ -157,7 +157,7 @@ describe('dockLayout', () => {
                 model = dragModel({onChange, editable: true, canMove});
             model.startDrag('chart');
             expect(model.dragOver({view: 'chart', zone: 'left'})).toBe(false);
-            expect(model.drop.refusal).toMatch(/nowhere/);
+            expect(model.drop.refusal).toMatch(/there already/);
 
             expect(model.dragOver({view: 'positions', zone: 'right'})).toBe(false);
             model.dragOver({view: 'positions', zone: 'right'});

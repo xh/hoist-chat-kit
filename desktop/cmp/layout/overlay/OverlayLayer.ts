@@ -1,7 +1,8 @@
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {useOnResize} from '@xh/hoist/utils/react';
-import {Fragment, type ReactNode, createElement, useCallback, useEffect, useRef} from 'react';
+import {Fragment, type ReactNode, createElement, useCallback, useEffect} from 'react';
+import {createPortal} from 'react-dom';
 import './OverlayLayer.scss';
 import type {OverlayModel} from './OverlayModel';
 
@@ -12,8 +13,9 @@ export interface OverlayHostProps extends HoistProps {
 }
 
 /**
- * An area with an overlay layer above it. The layer draws the model's marks over their targets,
- * clipped to the area, and moves them as anything inside the area scrolls or the area resizes.
+ * An area with an overlay layer above it. The layer draws the model's marks over their targets, in
+ * a portal on the page, so a mark can sit outside the area, such as a toolbar above its top element.
+ * Marks move as anything scrolls or the area resizes. A target out of the area's view draws none.
  * @internal
  */
 export const overlayHost = hoistCmp.factory<OverlayHostProps>({
@@ -21,23 +23,21 @@ export const overlayHost = hoistCmp.factory<OverlayHostProps>({
     className: 'xh-layout-overlay-host',
     model: false,
     render({model, className, children}) {
-        const ref = useRef<HTMLDivElement>(null),
-            resizeRef = useOnResize(() => model.layoutChanged()),
+        const resizeRef = useOnResize(() => model.layoutChanged()),
             setRef = useCallback(
                 (el: HTMLDivElement) => {
-                    ref.current = el;
                     resizeRef(el);
                     model.setHostEl(el);
                 },
                 [model, resizeRef]
             );
-        useScrollFollow(ref, model);
+        useFollowWindow(model);
         return div({
             ref: setRef,
             className,
             children: [
                 createElement(Fragment, {key: 'area'}, children),
-                overlayLayer({key: 'overlay', model})
+                createPortal(overlayLayer({model}), document.body, 'overlay')
             ]
         });
     }
@@ -50,8 +50,11 @@ const overlayLayer = hoistCmp.factory<HoistProps & {model: OverlayModel}>({
     render({model, className}) {
         // Read to measure again on each layout change.
         model.layoutVersion;
+        const host = model.hostEl?.getBoundingClientRect();
+        if (!host) return null;
         return div({
             className,
+            style: {left: host.left, top: host.top, width: host.width, height: host.height},
             children: model.marks.map(mark => {
                 const box = model.boxOf(mark.target);
                 if (!box) return null;
@@ -74,23 +77,23 @@ const overlayLayer = hoistCmp.factory<HoistProps & {model: OverlayModel}>({
     }
 });
 
-// Scroll events do not bubble, so a capturing listener hears any scroll inside the area.
-function useScrollFollow(ref: {current: HTMLElement}, model: OverlayModel) {
+// Scroll events do not bubble, so a capturing listener on the window hears a scroll anywhere.
+function useFollowWindow(model: OverlayModel) {
     useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
         let frame: number = null;
-        const onScroll = () => {
+        const follow = () => {
             if (frame != null) return;
             frame = window.requestAnimationFrame(() => {
                 frame = null;
                 model.layoutChanged();
             });
         };
-        el.addEventListener('scroll', onScroll, true);
+        window.addEventListener('scroll', follow, true);
+        window.addEventListener('resize', follow);
         return () => {
-            el.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('scroll', follow, true);
+            window.removeEventListener('resize', follow);
             if (frame != null) window.cancelAnimationFrame(frame);
         };
-    }, [ref, model]);
+    }, [model]);
 }

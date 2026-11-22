@@ -98,7 +98,14 @@ const dockSplit = hoistCmp.factory<
         useEffect(() => {
             const current = ref.current?.getLayout() ?? {};
             if (ids.some((id, idx) => Math.abs((current[id] ?? 0) - sizes[idx]) > 0.1)) {
-                ref.current?.setLayout(Object.fromEntries(ids.map((id, idx) => [id, sizes[idx]])));
+                try {
+                    ref.current?.setLayout(
+                        Object.fromEntries(ids.map((id, idx) => [id, sizes[idx]]))
+                    );
+                } catch (e) {
+                    // A group still registering its panels takes the sizes on its next draw.
+                    console.debug('dockLayout: sizes not yet applied', e);
+                }
             }
         });
 

@@ -17,11 +17,14 @@
     border: var(--xh-border-solid);
   }
 
+  // A ground apart from the cell's content, as Hoist's DashCanvas gives its views.
   &__header {
     display: flex;
     flex: none;
     align-items: center;
     min-width: 0;
+    background-color: var(--xh-intent-neutral-trans1);
+    border-bottom: var(--xh-border-solid);
   }
 
   &--editable &__header,

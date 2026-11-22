@@ -5,7 +5,6 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
 import {wait} from '@xh/hoist/promise';
-import {useRef} from 'react';
 import type {BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
 import {addWidgetAt, duplicateElement, removeElementAsync} from './designActions';
 import {widgetIcon} from './icons';
@@ -17,6 +16,8 @@ interface SelectionToolbarProps extends HoistProps {
     inside?: boolean;
     /** True for the canvas view that holds the element, rather than the element. */
     isView?: boolean;
+    /** The canvas to give focus back to once an action settles. */
+    surface: () => HTMLElement;
 }
 
 /**
@@ -28,13 +29,11 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
     displayName: 'BlueprintSelectionToolbar',
     className: 'xh-blueprint-selection-toolbar',
     model: false,
-    render({designModel, id, inside, isView, className}) {
-        const ref = useRef<HTMLDivElement>(null),
-            // Back to the canvas once an action settles, so the design keys keep working, and a
-            // dialog it opens, such as a confirm, keeps focus until then. The canvas is found
-            // first, as the action can take the toolbar away.
-            after = (result: unknown) => {
-                const surface = ref.current?.closest<HTMLElement>('.xh-panel__content[tabindex]');
+    render({designModel, id, inside, isView, surface: getSurface, className}) {
+        // Back to the canvas once an action settles, so the design keys keep working, and a
+        // dialog it opens, such as a confirm, keeps focus until then.
+        const after = (result: unknown) => {
+                const surface = getSurface();
                 return Promise.resolve(result)
                     .catch(e => XH.handleException(e))
                     .finally(() => wait().then(() => surface?.focus()));
@@ -122,7 +121,6 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
             ];
         return div({
             className: classNames(className, inside && `${CLS}--inside`),
-            ref,
             onClick: e => e.stopPropagation(),
             children: [
                 span({

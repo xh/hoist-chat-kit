@@ -1067,6 +1067,23 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.cellHasHeader('ordersGrid')).toBe(false);
         });
 
+        it('moves and resizes a cell without a pointer, refusing a place off the grid or over another', () => {
+            const model = open(loadBlueprint('p2-linked-dashboard.json'));
+            model.setAccess('write');
+            model.setMode('design');
+            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                version = model.version;
+            expect(canvas.moveCell('headline', {y: 3})).toMatch(/overlap/);
+            expect(canvas.moveCell('headline', {x: 6})).toMatch(/columns/);
+            expect(canvas.moveCell('headline', {w: 0})).toMatch(/at least|columns/);
+            expect(canvas.moveCell('nothing', {x: 0})).toMatch(/no cell/);
+            expect(model.version).toBe(version);
+
+            expect(canvas.moveCell('headline', {y: 30, w: 6})).toBeNull();
+            expect(model.version).toBe(version + 1);
+            expect(canvas.cells.find(it => it.id === 'headline')).toMatchObject({y: 30, w: 6});
+        });
+
         it("resets a reader's moves, and offers to only once there are some", () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json'));
             model.setMode('run');

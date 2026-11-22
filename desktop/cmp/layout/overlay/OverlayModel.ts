@@ -12,6 +12,8 @@ export interface OverlayBox {
     width: number;
     height: number;
     area: {width: number; height: number};
+    /** Pixels between the target's top and the top of the window, for a mark drawn above it. */
+    roomAbove: number;
 }
 
 /** Something drawn over a target, such as an outline, a tag, a toolbar or a drop preview. */
@@ -80,13 +82,21 @@ export class OverlayModel extends HoistModel {
         if (!el || !hostEl.contains(el)) return null;
         const r = el.getBoundingClientRect();
         if (!r.width && !r.height) return null;
-        const host = hostEl.getBoundingClientRect();
+        const host = hostEl.getBoundingClientRect(),
+            outside =
+                r.bottom <= host.top ||
+                r.top >= host.bottom ||
+                r.right <= host.left ||
+                r.left >= host.right;
+        // The layer does not clip, so a target scrolled out of the area must draw nothing.
+        if (host.width && host.height && outside) return null;
         return {
             x: r.left - host.left,
             y: r.top - host.top,
             width: r.width,
             height: r.height,
-            area: {width: host.width, height: host.height}
+            area: {width: host.width, height: host.height},
+            roomAbove: r.top
         };
     }
 

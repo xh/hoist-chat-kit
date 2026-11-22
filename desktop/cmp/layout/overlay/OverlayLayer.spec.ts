@@ -50,8 +50,42 @@ describe('overlay layer', () => {
             y: 0,
             width: 300,
             height: 200,
-            area: {width: 800, height: 600}
+            area: {width: 800, height: 600},
+            roomAbove: 0
         });
+    });
+
+    it('draws marks outside the area, so nothing the area holds clips them', () => {
+        const {model, container} = setup();
+        rect(target(container, 'posGrid'), {x: 0, y: 0, width: 300, height: 200});
+        mark(model, {key: 'sel', target: selector('posGrid')});
+        expect(markEl(container, 'sel')).toBeTruthy();
+        expect(container.contains(markEl(container, 'sel'))).toBe(false);
+    });
+
+    it('says how much room a target has above it, up to the top of the page', () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 100, width: 800, height: 600});
+        rect(target(container, 'posGrid'), {x: 0, y: 130, width: 300, height: 200});
+        let seen = null;
+        mark(model, {
+            key: 'toolbar',
+            target: selector('posGrid'),
+            render: it => {
+                seen = it;
+                return null;
+            }
+        });
+        expect(seen.y).toBe(30);
+        expect(seen.roomAbove).toBe(130);
+    });
+
+    it('omits a mark whose target is scrolled out of the area', () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 0, width: 800, height: 600});
+        rect(target(container, 'posGrid'), {x: 0, y: 700, width: 300, height: 200});
+        mark(model, {key: 'sel', target: selector('posGrid')});
+        expect(markEl(container, 'sel')).toBeNull();
     });
 
     it('omits a mark whose target is gone or not shown', () => {
@@ -159,8 +193,9 @@ function target(container: HTMLElement, id: string): HTMLElement {
     return container.querySelector(selector(id));
 }
 
-function markEl(container: HTMLElement, key: string): HTMLElement {
-    return container.querySelector(`[data-overlay-mark="${key}"]`);
+// Marks draw in a portal on the page, outside the area.
+function markEl(_container: HTMLElement, key: string): HTMLElement {
+    return document.body.querySelector(`[data-overlay-mark="${key}"]`);
 }
 
 function box(container: HTMLElement, key: string) {

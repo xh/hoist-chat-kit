@@ -22,38 +22,39 @@ export type DockTarget =
     | {view: string; zone: 'tab'; index: number}
     | {zone: 'root-left' | 'root-right' | 'root-top' | 'root-bottom'};
 
+/** How deep a layout may nest, and how many items a split or stack may hold, as a blueprint allows. */
+export const MAX_DOCK_DEPTH = 6,
+    MAX_DOCK_ITEMS = 20;
+
 /**
- * The layout with a view moved to a target, or null if the move has nowhere to go: an unknown view
- * or target, or a stack's only view dropped on its own stack. A stack left empty goes, a split left
- * with one child gives way to it, and each split's sizes sum to 100.
+ * The layout with a view moved to a target, or null if the move is refused: see
+ * {@link dockMoveRefusal} for why. A view outside a stack moves as one in a stack of its own. A
+ * stack left empty goes, a split left with one child gives way to it, and each split's sizes sum
+ * to 100.
  */
 export function moveView(layout: DockItem[], viewId: string, target: DockTarget): DockItem[] {
-    const root = {type: ROOT, content: cloneDeep(layout ?? [])} as unknown as DockItem,
-        from = findStackOf(root, viewId),
-        to = 'view' in target ? findStackOf(root, target.view) : null;
-    if (!from || ('view' in target && !to)) return null;
-    if (
-        to === from &&
-        target.zone !== 'tab' &&
-        (target.zone === 'center' || from.content.length === 1)
-    ) {
-        return null;
-    }
-    const [moved] = from.content.splice(indexOfView(from, viewId), 1);
-    place(root, to, target, moved);
-    return normalize(root).content;
+    const ret = tryMove(layout, viewId, target, false);
+    return 'layout' in ret ? ret.layout : null;
 }
 
 /**
  * The layout with a new view placed at a target, as {@link moveView} would place it, or null if the
- * layout already holds the view or lacks the target.
+ * placement is refused: see {@link dockMoveRefusal}.
  */
 export function insertView(layout: DockItem[], viewId: string, target: DockTarget): DockItem[] {
-    const root = {type: ROOT, content: cloneDeep(layout ?? [])} as unknown as DockItem,
-        to = 'view' in target ? findStackOf(root, target.view) : null;
-    if (findStackOf(root, viewId) || ('view' in target && !to)) return null;
-    place(root, to, target, {type: 'view', id: viewId});
-    return normalize(root).content;
+    const ret = tryMove(layout, viewId, target, true);
+    return 'layout' in ret ? ret.layout : null;
+}
+
+/** Why a move, or with `isNew` a new view's placement, is refused, or null if it may happen. */
+export function dockMoveRefusal(
+    layout: DockItem[],
+    viewId: string,
+    target: DockTarget,
+    isNew = false
+): string {
+    const ret = tryMove(layout, viewId, target, isNew);
+    return 'refusal' in ret ? ret.refusal : null;
 }
 
 /** Each stack's views, in reading order. */
@@ -74,6 +75,68 @@ const EDGE_DIR = {left: 'row', right: 'row', top: 'column', bottom: 'column'} as
 
 // The whole layout's holder, which has no direction and sizes nothing.
 const ROOT = 'root';
+
+function tryMove(
+    layout: DockItem[],
+    viewId: string,
+    target: DockTarget,
+    isNew: boolean
+): {layout: DockItem[]} | {refusal: string} {
+    try {
+        const root = {
+                type: ROOT,
+                content: inStacks(cloneDeep(layout ?? []))
+            } as unknown as DockItem,
+            from = isNew ? null : findStackOf(root, viewId),
+            to = 'view' in target ? findStackOf(root, target.view) : null;
+        if (isNew && findStackOf(root, viewId)) return {refusal: 'The layout already shows it.'};
+        if (!isNew && !from) return {refusal: 'There is no such view to move.'};
+        if ('view' in target && !to) return {refusal: 'There is no such place.'};
+        if (
+            !isNew &&
+            to === from &&
+            target.zone !== 'tab' &&
+            (target.zone === 'center' || from.content.length === 1)
+        ) {
+            return {refusal: 'The view is there already.'};
+        }
+        const moved = isNew
+            ? {type: 'view' as const, id: viewId}
+            : from.content.splice(indexOfView(from, viewId), 1)[0];
+        place(root, to, target, moved);
+        const ret = normalize(root)?.content ?? [];
+        if (depthOf(ret) > MAX_DOCK_DEPTH) {
+            return {
+                refusal: 'That would nest the layout too deep. Drop it beside a stack higher up.'
+            };
+        }
+        if (mostItems(ret) > MAX_DOCK_ITEMS) {
+            return {refusal: `A stack or split holds at most ${MAX_DOCK_ITEMS} items.`};
+        }
+        return {layout: ret};
+    } catch (e) {
+        return {refusal: `The layout cannot take that move: ${e?.message ?? e}`};
+    }
+}
+
+// Wrap each view outside a stack in a stack of its own, which takes the view's size.
+function inStacks(items: DockItem[]): DockItem[] {
+    return items.map(it =>
+        it.type === 'view'
+            ? {type: 'stack', ...sizesOf(it), content: [{type: 'view', id: it.id}]}
+            : it.type === 'stack'
+              ? it
+              : {...it, content: inStacks(it.content ?? [])}
+    );
+}
+
+function depthOf(items: DockItem[]): number {
+    return Math.max(0, ...items.map(it => 1 + depthOf(it.content ?? [])));
+}
+
+function mostItems(items: DockItem[]): number {
+    return Math.max(items.length, ...items.map(it => mostItems(it.content ?? [])));
+}
 
 function place(root: DockItem, to: DockItem, target: DockTarget, view: DockItem) {
     if (!('view' in target)) return splitRoot(root, target.zone, view);
