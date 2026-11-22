@@ -212,7 +212,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
      */
     private loadChildren() {
         const {canvasModel, children, titles, cellHeaderRefs} = this,
-            hasHeader = (id: string) => titles[id] != null || cellHeaderRefs[id]?.length > 0,
+            hasHeader = (id: string) => this.cellHasHeader(id),
             headerChanged = canvasModel.viewModels.some(
                 it => !it.viewSpec.hidePanelHeader !== hasHeader(it.viewSpec.id)
             );

@@ -1,13 +1,14 @@
 import {Icon} from '@xh/hoist/icon';
 import type {ReactElement} from 'react';
 import type {WidgetSpec} from '../../../../../blueprint';
+import {getOwn} from '../../../../../blueprint/impl/pointer';
 
 /** A widget's icon: the one its spec names, else its category's. */
 export function widgetIcon(
     spec: Pick<WidgetSpec, 'icon' | 'category'>,
     props: {className?: string} = {}
 ): ReactElement {
-    const named = spec?.icon && (Icon as any)[spec.icon],
+    const named = spec?.icon && getOwn(Icon, spec.icon),
         factory = named ?? (Icon as any)[CATEGORY_ICONS[spec?.category]] ?? Icon.square;
     return factory(props);
 }
