@@ -379,13 +379,11 @@ function bindableEditor(
         return hbox({
             className: `${CLS}__bindable`,
             children: [
-                button({
+                selectChip({
                     className: `${CLS}__var-chip`,
                     text: bound,
-                    minimal: true,
-                    title: `Show ${bound}`,
-                    'aria-label': `Show variable ${bound}`,
-                    onClick: () => impl.designModel.select({kind: 'variable', id: bound})
+                    label: `Show variable ${bound}`,
+                    onSelect: () => impl.designModel.select({kind: 'variable', id: bound})
                 }),
                 disabled
                     ? null
@@ -1015,4 +1013,40 @@ export function sectionCard({
             collapsed ? null : div({className: `${CLS}__card-body`, children})
         ]
     });
+}
+
+/**
+ * A chip that names a part of the blueprint and selects it: a span with the role and keys of a
+ * button, which stays clear of Hoist's button styling.
+ */
+export function selectChip({
+    key,
+    className,
+    text,
+    label,
+    onSelect
+}: {
+    key?: string | number;
+    className: string;
+    text: string;
+    /** Its accessible name, where more than its text. */
+    label?: string;
+    onSelect: () => void;
+}) {
+    return span({
+        key,
+        className,
+        role: 'button',
+        tabIndex: 0,
+        title: label,
+        'aria-label': label,
+        onClick: onSelect,
+        onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect();
+            }
+        },
+        children: text
+    } as object);
 }

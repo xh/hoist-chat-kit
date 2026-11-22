@@ -168,9 +168,9 @@
   background-color: var(--xh-bg);
   border-bottom: var(--xh-border-solid);
 
-  // The title wins the room: the design id truncates first.
+  // The title wins the room: the design id truncates first. Hoist sets the title's flex inline.
   .xh-panel-header__title {
-    flex: 0 0 auto;
+    flex: 0 0 auto !important;
     max-width: 70%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -180,7 +180,7 @@
   }
 
   .xh-panel-header__items {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
     justify-content: flex-end;
   }

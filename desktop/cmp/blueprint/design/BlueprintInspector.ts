@@ -18,6 +18,7 @@ import {
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
+import {selectChip} from './impl/ConfigEditors';
 import {refuse, selectionMenu} from './impl/designActions';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
@@ -405,11 +406,11 @@ const summary = hoistCmp.factory<
                           className: `${CLS}__wiring-row`,
                           children: [
                               span({className: `${CLS}__wiring-label`, children: 'Root'}),
-                              button({
+                              selectChip({
                                   className: `${CLS}__chip ${CLS}__chip--element`,
                                   text: root,
-                                  minimal: true,
-                                  onClick: () =>
+                                  label: `Select ${root}`,
+                                  onSelect: () =>
                                       impl.designModel.select({kind: 'element', id: root})
                               }),
                               span({
@@ -445,12 +446,12 @@ const wiringCard = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                             children: chips
                                 ? chips.map((it, idx) =>
                                       it.select
-                                          ? button({
+                                          ? selectChip({
                                                 key: idx,
                                                 className: `${CLS}__chip ${CLS}__chip--${it.kind}`,
                                                 text: it.text,
-                                                minimal: true,
-                                                onClick: it.select
+                                                label: `Select ${it.text}`,
+                                                onSelect: it.select
                                             })
                                           : span({
                                                 key: idx,

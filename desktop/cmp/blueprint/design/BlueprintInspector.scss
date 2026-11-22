@@ -143,16 +143,20 @@
   }
 }
 
-// A chip names a part of the blueprint by its kind's color, and selects it. Over Hoist's minimal
-// button, which would draw it as plain text.
-.xh-blueprint-inspector .xh-blueprint-inspector__chip.xh-button.xh-button--minimal {
-  min-height: 18px;
+// A chip names a part of the blueprint in its kind's color, and selects it.
+.xh-blueprint-inspector__chip[role='button'] {
+  display: inline-block;
   padding: 0 6px;
   font-family: var(--xh-font-family-mono);
   font-size: 11px;
+  line-height: 18px;
   cursor: pointer;
   border-radius: 4px;
   background-color: var(--xh-bg-alt);
+
+  &:focus-visible {
+    outline: var(--xh-focus-outline);
+  }
 
   &.xh-blueprint-inspector__chip--variable {
     color: var(--xh-intent-primary);
