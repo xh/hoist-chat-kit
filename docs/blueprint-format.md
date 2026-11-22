@@ -398,8 +398,8 @@ applies, and the edit returns its issues. One edit is one undo step and one hist
 |----|------|
 | `set` / `remove` | Sets or removes the value at a path |
 | `addElement` | Adds an element, with its reference in a `parent`'s slot list: `children` by default, or the `slot` given, on the child reference `of` names |
-| `removeElement` | Removes an element and its reference. Refuses one that still has children |
-| `moveElement` | Moves a reference to another parent, slot or index. The element does not change |
+| `removeElement` | Removes an element and its reference, and its view from a dash container's layout. Refuses one that still has children |
+| `moveElement` | Moves a reference to another parent, slot or index, dropping its view from the dash container it leaves. The element does not change |
 | `renameId` | Renames an element, variable or source, and updates every reference to it |
 
 - A path is a JSON Pointer from the root, such as `/elements/posGrid/config/groupBy`.

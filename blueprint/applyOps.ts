@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue, BlueprintOp, ChildRef} from './Blueprint';
+import {dropDockView} from './impl/dockLayout';
 import {childIds, insertRef, locate, parentOf, removeRef} from './impl/elements';
 import {renameTemplateRefs} from './impl/template';
 import {getOwn, isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
@@ -108,7 +109,10 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
                 );
             }
             const p = parentOf(bp.elements, op.id);
-            if (p) removeRef(bp.elements[p], op.id);
+            if (p) {
+                removeRef(bp.elements[p], op.id);
+                dropDockView(bp.elements[p], op.id);
+            }
             if (bp.root === op.id) delete bp.root;
             delete bp.elements[op.id];
             return bp;
@@ -120,6 +124,8 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
                 {id: _id, ...placement} = old,
                 slot = op.slot ?? 'children',
                 sameSlot = from?.parent === op.parent && from.slot === slot && from.of === op.of;
+            // A view leaving its dash container leaves its layout too.
+            if (from && from.parent !== op.parent) dropDockView(bp.elements[from.parent], op.id);
             placeChild(
                 bp,
                 op.parent,
