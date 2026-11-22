@@ -66,6 +66,19 @@ describe('BlueprintDesignModel', () => {
         expect(design.selection).toBeNull();
     });
 
+    it('moves an element any number of places in its slot list, as a drag in a list does', () => {
+        const {design, model} = open(loadBlueprint('p3-morning-report.json'));
+        design.reorder('groupChooser', 2);
+        expect(model.blueprint.elements.positions.children.map(it => it.id)).toEqual([
+            'pnlButtons',
+            'posGrid',
+            'groupChooser',
+            'priceChart'
+        ]);
+        design.reorder('groupChooser', -2);
+        expect(model.blueprint.elements.positions.children[0].id).toBe('groupChooser');
+    });
+
     describe('editing calls for the canvas', () => {
         const p3 = () => open(loadBlueprint('p3-morning-report.json'));
         const cellOf = (model: BlueprintModel, id: string) =>

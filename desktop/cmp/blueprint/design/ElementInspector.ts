@@ -1,7 +1,8 @@
 import {div, hbox, placeholder} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
-import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {segmentedControl, select, textInput} from '@xh/hoist/desktop/cmp/input';
+import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
@@ -17,7 +18,7 @@ import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {CLS, propertyRow, sectionCard} from './impl/ConfigEditors';
-import {removeElementAsync} from './impl/designActions';
+import {refuse, removeElementAsync} from './impl/designActions';
 
 export interface ElementInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -475,34 +476,49 @@ function viewCards(impl: ElementInspectorModel) {
             key: 'view-items',
             title: `Header items (${impl.headerItemIds.length})`,
             children: [
-                ...impl.headerItemIds.map(id =>
-                    hbox({
-                        key: id,
-                        className: `${CLS}__header-item`,
-                        children: [
-                            div({className: `${CLS}__header-item-id`, children: id}),
-                            div({
-                                className: `${CLS}__header-item-meta`,
-                                children: registry.widgets[blueprint.elements[id]?.component]?.label
-                            }),
-                            button({
-                                icon: Icon.arrowRight(),
-                                title: `Select ${id}`,
-                                minimal: true,
-                                onClick: () => designModel.select({kind: 'element', id})
-                            }),
-                            impl.readOnly
-                                ? null
-                                : button({
-                                      icon: Icon.delete(),
-                                      title: `Remove ${id}`,
-                                      intent: 'danger',
-                                      minimal: true,
-                                      onClick: () => removeElementAsync(designModel, id)
-                                  })
-                        ]
-                    })
-                ),
+                impl.headerItemIds.length
+                    ? sortableList({
+                          key: 'items',
+                          className: `${CLS}__columns`,
+                          value: impl.headerItemIds.map(id => ({id})),
+                          getItemLabel: (it: {id: string}) => it.id,
+                          disabled: impl.readOnly,
+                          compact: true,
+                          onReorder: e =>
+                              refuse(
+                                  designModel,
+                                  designModel.reorder(e.item.id, e.toIndex - e.fromIndex).issues
+                              ),
+                          renderItem: ({id}: {id: string}) =>
+                              hbox({
+                                  className: `${CLS}__item-header ${CLS}__header-item`,
+                                  children: [
+                                      div({className: `${CLS}__header-item-id`, children: id}),
+                                      div({
+                                          className: `${CLS}__header-item-meta`,
+                                          children:
+                                              registry.widgets[blueprint.elements[id]?.component]
+                                                  ?.label
+                                      }),
+                                      button({
+                                          icon: Icon.arrowRight(),
+                                          title: `Select ${id}`,
+                                          minimal: true,
+                                          onClick: () => designModel.select({kind: 'element', id})
+                                      }),
+                                      impl.readOnly
+                                          ? null
+                                          : button({
+                                                icon: Icon.delete(),
+                                                title: `Remove ${id}`,
+                                                intent: 'danger',
+                                                minimal: true,
+                                                onClick: () => removeElementAsync(designModel, id)
+                                            })
+                                  ]
+                              })
+                      })
+                    : null,
                 impl.readOnly
                     ? null
                     : button({
@@ -638,55 +654,47 @@ function tabsEditor(impl: ElementInspectorModel) {
         children: [
             div({className: `${CLS}__label`, children: 'Tabs'}),
             div({
-                className: `${CLS}__list`,
+                className: `${CLS}__field-list`,
                 children: [
-                    ...tabs.map((tab, i) =>
-                        hbox({
-                            key: `${tab.id}:${tab.title}`,
-                            className: `${CLS}__tab`,
-                            children: [
-                                textInput({
-                                    value: tab.title,
-                                    disabled,
-                                    flex: 1,
-                                    onCommit: (title: string) =>
-                                        title && title !== tab.title && impl.retitle(tab.id, title)
-                                }),
-                                buttonGroup({
-                                    children: [
-                                        button({
-                                            icon: Icon.arrowUp(),
-                                            title: 'Move up',
-                                            disabled: disabled || i === 0,
-                                            onClick: () => impl.moveTab(tab.id, i - 1)
-                                        }),
-                                        button({
-                                            icon: Icon.arrowDown(),
-                                            title: 'Move down',
-                                            disabled: disabled || i === tabs.length - 1,
-                                            onClick: () => impl.moveTab(tab.id, i + 1)
-                                        }),
-                                        button({
-                                            icon: Icon.edit(),
-                                            title: `Select ${tab.id}`,
-                                            onClick: () =>
-                                                impl.designModel.select({
-                                                    kind: 'element',
-                                                    id: tab.id
-                                                })
-                                        }),
-                                        button({
-                                            icon: Icon.delete(),
-                                            intent: 'danger',
-                                            title: `Remove ${tab.id}`,
-                                            disabled,
-                                            onClick: () => impl.removeAsync(tab.id)
-                                        })
-                                    ]
-                                })
-                            ]
-                        })
-                    ),
+                    sortableList({
+                        className: `${CLS}__columns`,
+                        value: tabs,
+                        itemKey: 'id',
+                        getItemLabel: (tab: {title: string}) => tab.title,
+                        disabled,
+                        compact: true,
+                        onReorder: e => impl.moveTab(e.item.id, e.toIndex),
+                        renderItem: (tab: {id: string; title: string}) =>
+                            hbox({
+                                className: `${CLS}__item-header ${CLS}__tab`,
+                                children: [
+                                    textInput({
+                                        value: tab.title,
+                                        disabled,
+                                        flex: 1,
+                                        onCommit: (title: string) =>
+                                            title &&
+                                            title !== tab.title &&
+                                            impl.retitle(tab.id, title)
+                                    }),
+                                    button({
+                                        icon: Icon.arrowRight(),
+                                        title: `Select ${tab.id}`,
+                                        minimal: true,
+                                        onClick: () =>
+                                            impl.designModel.select({kind: 'element', id: tab.id})
+                                    }),
+                                    button({
+                                        icon: Icon.delete(),
+                                        intent: 'danger',
+                                        title: `Remove ${tab.id}`,
+                                        minimal: true,
+                                        disabled,
+                                        onClick: () => impl.removeAsync(tab.id)
+                                    })
+                                ]
+                            })
+                    }),
                     button({
                         icon: Icon.add(),
                         intent: 'primary',

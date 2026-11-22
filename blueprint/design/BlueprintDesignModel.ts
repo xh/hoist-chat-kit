@@ -728,8 +728,11 @@ export class BlueprintDesignModel extends HoistModel {
         return ret;
     }
 
-    /** Move an element one place earlier or later in the slot list that holds it. */
-    reorder(id: string, step: -1 | 1): BlueprintEditResult {
+    /**
+     * Move an element earlier or later in the slot list that holds it, by the number of places
+     * given, such as -1 for one place earlier.
+     */
+    reorder(id: string, step: number): BlueprintEditResult {
         const at = locate(this.blueprintModel.blueprint?.elements, id);
         if (!at) return refused(`'${id}' is not in a container.`);
         const list = slotLists(this.blueprintModel.blueprint.elements[at.parent]).find(

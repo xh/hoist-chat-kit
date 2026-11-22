@@ -514,6 +514,18 @@ describe('ElementInspector', () => {
         expect(model.blueprint).toBe(before);
     });
 
+    it('reorders tabs with a drag or the keyboard, one edit each', () => {
+        const {design, model} = open('p3-morning-report.json', 'tabs'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            ids = () => model.blueprint.elements.tabs.children.map(it => it.id),
+            before = ids();
+        fireEvent.keyDown(container.querySelector('.xh-sortable-list__handle'), {
+            key: 'ArrowDown',
+            altKey: true
+        });
+        expect(ids()).toEqual([before[1], before[0], ...before.slice(2)]);
+    });
+
     it('reorders the columns with a drag or the keyboard, one edit each', () => {
         const {design, model} = open('p2-linked-dashboard.json', 'posGrid'),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
