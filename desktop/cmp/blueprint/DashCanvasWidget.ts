@@ -1,7 +1,7 @@
 import {box, div, hbox, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
-import {pick, sortBy} from 'lodash';
+import {differenceWith, isEqual, pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     BlueprintWidgetModel,
@@ -9,7 +9,7 @@ import {
     type ChildRef,
     type DashCanvasWidgetConfig
 } from '../../../blueprint';
-import {gridCanvas, type GridCanvasChange, type GridCell} from '../layout';
+import {gridCanvas, type GridCanvasChange, type GridCell, placeCell} from '../layout';
 import {widgetIcon} from './design/impl/icons';
 import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {paletteDrag} from './impl/paletteDrag';
@@ -132,9 +132,9 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     }
 
     /**
-     * Move or resize a cell as a drag does, as one edit, or transient in run mode. Returns why it
-     * was refused, or null: a place off the grid, under the cell's minimum size, or over another
-     * cell, as free placement never overlaps. For tests and tools that drive the canvas without a
+     * Move or resize a cell as a drag does, as one edit, or transient in run mode: the cells it
+     * lands on move down. Returns why it was refused, or null: a place off the grid, or under the
+     * cell's minimum size. For tests and tools that drive the canvas without a
      * pointer, such as `XH.getModels('DashCanvasWidgetModel')` from DevTools.
      */
     moveCell(id: string, place: Partial<Omit<GridCell, 'id'>>): string {
@@ -150,15 +150,16 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         if (w < (cell.minW ?? 1) || h < (cell.minH ?? 1)) {
             return `'${id}' is at least ${cell.minW ?? 1} by ${cell.minH ?? 1}.`;
         }
-        const over = cells.find(
-            it => it.id !== id && x < it.x + it.w && it.x < x + w && y < it.y + it.h && it.y < y + h
-        );
-        if (over) return `'${id}' would overlap '${over.id}'.`;
-        const refusal = this.canApplyUserEdit([
-            {op: 'set', path: `/elements/${this.id}/children`, value: this.childrenWith([next])}
-        ]);
+        const changed = differenceWith(placeCell(cells, next), cells, isEqual),
+            refusal = this.canApplyUserEdit([
+                {
+                    op: 'set',
+                    path: `/elements/${this.id}/children`,
+                    value: this.childrenWith(changed)
+                }
+            ]);
         if (refusal) return refusal;
-        this.onCellsChange([next], {kind: w !== cell.w || h !== cell.h ? 'resize' : 'move', id});
+        this.onCellsChange(changed, {kind: w !== cell.w || h !== cell.h ? 'resize' : 'move', id});
         return null;
     }
 

@@ -2,6 +2,7 @@ import {HoistModel, managed} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {cloneDeep, isEqual} from 'lodash';
 import type {ReactNode} from 'react';
+import {layoutGesture} from '../gesture';
 import {OverlayModel} from '../overlay';
 import {
     type DockItem,
@@ -150,6 +151,7 @@ export class DockLayoutModel extends HoistModel {
     //------------------
     @action
     startDrag(id: string) {
+        layoutGesture.start();
         this.dragging = id;
         this.drop = null;
         this.verdicts.clear();
@@ -157,6 +159,7 @@ export class DockLayoutModel extends HoistModel {
 
     @action
     endDrag() {
+        if (this.dragging) layoutGesture.end();
         this.dragging = null;
         this.drop = null;
         this.verdicts.clear();

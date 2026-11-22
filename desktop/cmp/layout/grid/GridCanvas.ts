@@ -5,7 +5,6 @@ import {
     gridBackground,
     type GridLayoutProps,
     type LayoutItem,
-    getCompactor,
     reactGridLayout
 } from '@xh/hoist/kit/react-grid-layout';
 import {useOnResize} from '@xh/hoist/utils/react';
@@ -16,8 +15,7 @@ import {GridCanvasModel, type GridCanvasProps} from './GridCanvasModel';
 
 const CLS = 'xh-layout-grid';
 
-const FREE_PLACEMENT = getCompactor(null, false, true),
-    RESIZE_HANDLES = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] as const;
+const RESIZE_HANDLES = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] as const;
 
 /**
  * A canvas of cells placed on a grid, which a user can move and resize when `editable`. It is
@@ -57,14 +55,13 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 width,
                 layout: impl.layout,
                 gridConfig,
-                // Free placement: no compaction, and a cell never pushes or overlaps another. A drag
-                // onto a taken place stops at the last free one.
-                compactor: FREE_PLACEMENT,
+                compactor: impl.compactor,
                 dragConfig: {
                     enabled: editable,
                     handle: `.${CLS}__header, .${CLS}__grip`,
                     cancel: 'button, input, select, textarea, .xh-button, [role=button]',
-                    bounded: true
+                    // Unbounded, so a cell can go below the others, into a new row.
+                    bounded: false
                 },
                 resizeConfig: {enabled: editable, handles: editable ? RESIZE_HANDLES : []},
                 dropConfig: {
@@ -72,9 +69,9 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                     defaultItem: {w: Math.floor(columns / 3), h: Math.floor(columns / 3)},
                     onDragOver: onDropOver
                 },
-                onDragStart: () => impl.startGesture(),
+                onDragStart: (_layout, _old, item) => impl.startGesture(item?.i),
                 onDragStop: (layout, _old, item) => impl.endGesture('move', item?.i, layout),
-                onResizeStart: () => impl.startGesture(),
+                onResizeStart: (_layout, _old, item) => impl.startGesture(item?.i),
                 onResizeStop: (layout, _old, item) => impl.endGesture('resize', item?.i, layout),
                 onDrop: (layout, item: LayoutItem, e) => {
                     if (item) {

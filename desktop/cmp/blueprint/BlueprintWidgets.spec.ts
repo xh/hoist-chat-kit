@@ -1095,13 +1095,12 @@ describe('blueprint desktop widgets', () => {
             expect(canvas.cellHasHeader('ordersGrid')).toBe(false);
         });
 
-        it('moves and resizes a cell without a pointer, refusing a place off the grid or over another', () => {
+        it('moves and resizes a cell without a pointer, refusing a place off the grid', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json'));
             model.setAccess('write');
             model.setMode('design');
             const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
                 version = model.version;
-            expect(canvas.moveCell('headline', {y: 3})).toMatch(/overlap/);
             expect(canvas.moveCell('headline', {x: 6})).toMatch(/columns/);
             expect(canvas.moveCell('headline', {w: 0})).toMatch(/at least|columns/);
             expect(canvas.moveCell('nothing', {x: 0})).toMatch(/no cell/);
@@ -1113,6 +1112,34 @@ describe('blueprint desktop widgets', () => {
             expect(model.undoDescription).toBe('Resize headline');
             expect(canvas.moveCell('headline', {y: 40})).toBeNull();
             expect(model.undoDescription).toBe('Move headline');
+        });
+
+        it('moves the cells a moved cell lands on down, as a drop does, in one edit', () => {
+            const model = open(loadBlueprint('p2-linked-dashboard.json'));
+            model.setAccess('write');
+            model.setMode('design');
+            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                version = model.version,
+                before = canvas.cells;
+            expect(canvas.moveCell('headline', {y: 3})).toBeNull();
+            expect(model.version).toBe(version + 1);
+            expect(model.undoDescription).toBe('Move headline');
+            const after = canvas.cells,
+                overlaps = after.filter(a =>
+                    after.some(
+                        b =>
+                            a !== b &&
+                            a.x < b.x + b.w &&
+                            b.x < a.x + a.w &&
+                            a.y < b.y + b.h &&
+                            b.y < a.y + a.h
+                    )
+                );
+            expect(after.find(it => it.id === 'headline').y).toBe(3);
+            expect(overlaps).toEqual([]);
+            expect(
+                after.filter(a => a.id !== 'headline' && before.find(b => b.id === a.id).y !== a.y)
+            ).not.toEqual([]);
         });
 
         it("resets a reader's moves, and offers to only once there are some", () => {

@@ -3,7 +3,8 @@ import {div} from '@xh/hoist/cmp/layout';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {gridCanvas, GridCanvasModel, type GridCell, type GridCanvasProps} from './index';
+import {layoutGesture} from '../gesture';
+import {gridCanvas, GridCanvasModel, type GridCell, type GridCanvasProps, placeCell} from './index';
 
 /**
  * A canvas of cells on a grid, controlled by the cells it is given. It keeps no layout of its
@@ -154,12 +155,71 @@ describe('gridCanvas', () => {
             expect(outer).toHaveBeenCalledTimes(1);
         });
 
+        it('keeps the moved cell where it is dropped, moving the cells it lands on down', () => {
+            const model = gestureModel(() => {});
+            model.startGesture('chart');
+            const at = (layout: object[]) =>
+                model.compactor
+                    .compact(layout as any, 12)
+                    .map(({i, x, y, w, h}) => ({i, x, y, w, h}));
+
+            expect(
+                at([
+                    {i: 'posGrid', x: 0, y: 0, w: 6, h: 4},
+                    {i: 'chart', x: 0, y: 0, w: 6, h: 4}
+                ])
+            ).toEqual([
+                {i: 'posGrid', x: 0, y: 4, w: 6, h: 4},
+                {i: 'chart', x: 0, y: 0, w: 6, h: 4}
+            ]);
+            // Once the moved cell passes on, the other goes back to where it was.
+            expect(
+                at([
+                    {i: 'posGrid', x: 0, y: 4, w: 6, h: 4},
+                    {i: 'chart', x: 6, y: 8, w: 6, h: 4}
+                ])
+            ).toEqual([
+                {i: 'posGrid', x: 0, y: 0, w: 6, h: 4},
+                {i: 'chart', x: 6, y: 8, w: 6, h: 4}
+            ]);
+        });
+
+        it('moves the cells a resize grows over down, so no two overlap', () => {
+            const model = gestureModel(() => {});
+            model.startGesture('posGrid');
+            const next = model.compactor.compact(
+                [
+                    {i: 'posGrid', x: 0, y: 0, w: 8, h: 4},
+                    {i: 'chart', x: 6, y: 0, w: 6, h: 4}
+                ] as any,
+                12
+            );
+            expect(next.find(it => it.i === 'chart')).toMatchObject({x: 6, y: 4});
+        });
+
+        it('marks a gesture as under way until it ends, with no text selection meanwhile', () => {
+            const model = gestureModel(() => {});
+            model.startGesture('chart');
+            expect(layoutGesture.active).toBe(true);
+            expect(document.body.classList).toContain('xh-layout-gesture');
+            model.endGesture('move', 'chart', CELLS.map(toLayout));
+            expect(layoutGesture.active).toBe(false);
+            expect(document.body.classList).not.toContain('xh-layout-gesture');
+        });
+
         function gestureModel(onChange: GridCanvasProps['onChange']) {
             const model = new GridCanvasModel();
             onTestFinished(() => model.destroy());
             model.setProps({cells: CELLS, onChange});
             return model;
         }
+    });
+
+    it('places a cell as a drop would, moving the cells it lands on down', () => {
+        expect(placeCell(CELLS, {id: 'chart', x: 0, y: 0, w: 6, h: 4})).toEqual([
+            {id: 'posGrid', x: 0, y: 4, w: 6, h: 4},
+            {id: 'chart', x: 0, y: 0, w: 6, h: 4}
+        ]);
     });
 
     //------------------

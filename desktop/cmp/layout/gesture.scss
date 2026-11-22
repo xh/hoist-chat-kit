@@ -1,0 +1,5 @@
+// Set on the page while a layout gesture is under way, so a drag selects no text.
+.xh-layout-gesture,
+.xh-layout-gesture * {
+  user-select: none !important;
+}

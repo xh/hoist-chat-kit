@@ -90,9 +90,12 @@ function useFollowWindow(model: OverlayModel) {
         };
         window.addEventListener('scroll', follow, true);
         window.addEventListener('resize', follow);
+        // A layout may animate into place, such as a grid's cells after a move.
+        window.addEventListener('transitionend', follow, true);
         return () => {
             window.removeEventListener('scroll', follow, true);
             window.removeEventListener('resize', follow);
+            window.removeEventListener('transitionend', follow, true);
             if (frame != null) window.cancelAnimationFrame(frame);
         };
     }, [model]);
