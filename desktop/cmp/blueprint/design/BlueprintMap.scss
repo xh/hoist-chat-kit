@@ -1,0 +1,150 @@
+.xh-blueprint-map {
+  &__scroll {
+    flex: 1 1 auto;
+    overflow: auto;
+  }
+
+  &__content {
+    position: relative;
+    min-width: max-content;
+    padding: var(--xh-spacing-double);
+  }
+
+  &__lanes {
+    gap: 96px;
+    align-items: flex-start;
+  }
+
+  &__lane {
+    gap: var(--xh-spacing);
+    min-width: 160px;
+  }
+
+  &__lane-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__group {
+    gap: var(--xh-spacing-half);
+    margin-bottom: var(--xh-spacing);
+  }
+
+  &__group-title {
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__node {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 2px var(--xh-spacing);
+    cursor: pointer;
+    background-color: var(--xh-bg);
+    border: var(--xh-border-solid);
+    border-left-width: 3px;
+    border-radius: var(--xh-border-radius-px);
+    transition: opacity 0.15s;
+
+    &--variable {
+      border-left-color: var(--xh-intent-success);
+    }
+
+    &--source {
+      border-left-color: var(--xh-intent-primary);
+    }
+
+    &--preset {
+      border-left-color: var(--xh-purple);
+    }
+
+    &--selected,
+    &--focus {
+      outline: 2px solid var(--xh-intent-primary);
+    }
+
+    &--upstream {
+      background-color: var(--xh-intent-primary-trans1);
+    }
+
+    &--downstream {
+      background-color: var(--xh-intent-warning-trans1);
+    }
+
+    &.xh-blueprint-map__node--preset.xh-blueprint-map__node--preset {
+      border-color: var(--xh-purple);
+    }
+
+    &--dim {
+      opacity: 0.35;
+    }
+  }
+
+  &__node-id {
+    font-family: var(--xh-font-family-mono);
+    font-size: 12px;
+  }
+
+  &__node-detail {
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__issue {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--xh-intent-warning);
+
+    &--error {
+      background-color: var(--xh-intent-danger);
+    }
+  }
+
+  &__edges {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  &__edge {
+    fill: none;
+    stroke: var(--xh-border-color);
+    stroke-width: 1.5;
+    transition: opacity 0.15s;
+
+    &--sets {
+      stroke-dasharray: 4 3;
+    }
+
+    &--upstream {
+      stroke: var(--xh-intent-primary);
+      stroke-width: 2;
+    }
+
+    &--downstream {
+      stroke: var(--xh-intent-warning-text-color);
+      stroke-dasharray: 5 3;
+      stroke-width: 2;
+    }
+
+    &--preset {
+      stroke: var(--xh-purple);
+      stroke-width: 2;
+    }
+
+    &--dim {
+      opacity: 0.15;
+    }
+  }
+}

@@ -85,9 +85,16 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added stored blueprints: the `BlueprintRepository` contract, with one shared draft per blueprint
   and numbered publishes, and `BlueprintDocumentModel`, which opens, saves, publishes, copies,
   shares and deletes them. Each repository holds one `type` of blueprint, such as
-  `acme.dashboard`, and a copy into another type must pass that type's registry and catalog. Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint`
-  endpoints, and `InMemoryBlueprintRepository`, for tests. See
+  `acme.dashboard`, and a copy into another type must pass that type's registry and catalog.
+  Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint` endpoints, and
+  `InMemoryBlueprintRepository`, for tests. See
   [Save, open and publish blueprints](blueprint/README.md#save-open-and-publish-blueprints).
+  `renameAsync` renames a blueprint where its repository implements it.
+* Added canvas editing in design mode: a hovered element's outline and name, a toolbar on the
+  selected one, delete with an Undo toast, keyboard shortcuts, and empty states that call the
+  host's `onAddWidget` and `onAskArchitect` props of `blueprintView`.
+* Added `blueprintMap`, a read-only map of a blueprint's wiring that traces what feeds the
+  selection and what it feeds, and `wiringFor()`, `wiringGraph()` and `traceWiring()` beneath it.
 
 * Added `ChatUiTextFormat`, a grammar for UI in reply text, and `ChatUiCatalogConfig.textFormats`.
   The tag grammar is now the first format, `chatUiTagFormat()`, and the default. `modes` take the

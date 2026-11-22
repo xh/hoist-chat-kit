@@ -315,6 +315,7 @@ hframe(
 | `variablesEditor` | Add, rename and remove variables, and set each one's type, writers, default and options |
 | `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
 | `presetsEditor` | Make groups of presets over widgets' preset paths and variables' defaults, and edit their presets |
+| `blueprintMap` | See every variable, source, preset group and element in lanes, with the wires between them, and trace what feeds the selection and what it feeds |
 
 Each change is one edit by the user, with a description, so undo, redo and history apply. Text
 commits on blur or Enter. A refused edit leaves the blueprint as it was, and shows its issues at
@@ -322,6 +323,13 @@ the property. A property that presets control shows a badge, and an edit of it c
 preset. Give `elementInspector` an `onShowPresetGroup(name)` and the badge opens its group: the
 group is selected, and the host shows its `presetsEditor`. Design mode needs write access, and a
 chat answer has none.
+
+On the canvas, the selected element has a toolbar, and the keys act on it: `?` lists them. A key
+pressed in a widget's own grid, button or input stays with that control. An empty container
+offers to add a widget: give `blueprintView` an `onAddWidget(place)` to open the host's palette
+there, and an `onAskArchitect()` for the empty dashboard's second button. Give `blueprintMap` an
+`onOpenElement(id)` to show an element on the canvas from a double-click. `wiringFor(blueprint,
+selection)` lists what a selection reads and sets, and what reads and sets it.
 
 ### Generate a config editor from a schema
 
