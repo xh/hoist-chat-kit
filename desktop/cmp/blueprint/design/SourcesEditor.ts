@@ -29,6 +29,8 @@ import {
 
 export interface SourcesEditorProps extends HoistProps {
     designModel: BlueprintDesignModel;
+    /** True inside `blueprintInspector`, which draws the header in place of the editor's own. */
+    framed?: boolean;
 }
 
 /**
@@ -40,8 +42,9 @@ export const [SourcesEditor, sourcesEditor] = hoistCmp.withFactory<SourcesEditor
     displayName: 'BlueprintSourcesEditor',
     className: 'xh-blueprint-element-inspector xh-blueprint-sources-editor',
     model: false,
-    render({designModel, className}) {
+    render({designModel, framed, className}) {
         const impl = useLocalModel(() => new SourceEditorModel(designModel));
+        impl.framed = !!framed;
         return sourcesBody({model: impl, className});
     }
 });
@@ -293,34 +296,36 @@ const sourcesBody = hoistCmp.factory<SourceEditorModel>({
         return div({
             className,
             children: [
-                hbox({
-                    className: `${CLS}__header`,
-                    children: [
-                        select({
-                            value: name,
-                            options: impl.sourceOptions,
-                            placeholder: 'Select a source…',
-                            flex: 1,
-                            onCommit: (id: string) =>
-                                id && impl.designModel.select({kind: 'source', id})
-                        }),
-                        filler(),
-                        button({
-                            icon: Icon.add(),
-                            title: 'Add a source',
-                            minimal: true,
-                            disabled,
-                            onClick: () => impl.add()
-                        }),
-                        button({
-                            icon: Icon.delete(),
-                            title: name ? `Remove ${name}` : 'Remove',
-                            minimal: true,
-                            disabled: disabled || !name,
-                            onClick: () => impl.remove()
-                        })
-                    ]
-                }),
+                impl.framed
+                    ? null
+                    : hbox({
+                          className: `${CLS}__header`,
+                          children: [
+                              select({
+                                  value: name,
+                                  options: impl.sourceOptions,
+                                  placeholder: 'Select a source…',
+                                  flex: 1,
+                                  onCommit: (id: string) =>
+                                      id && impl.designModel.select({kind: 'source', id})
+                              }),
+                              filler(),
+                              button({
+                                  icon: Icon.add(),
+                                  title: 'Add a source',
+                                  minimal: true,
+                                  disabled,
+                                  onClick: () => impl.add()
+                              }),
+                              button({
+                                  icon: Icon.delete(),
+                                  title: name ? `Remove ${name}` : 'Remove',
+                                  minimal: true,
+                                  disabled: disabled || !name,
+                                  onClick: () => impl.remove()
+                              })
+                          ]
+                      }),
                 ...issueRows(impl, SOURCE_KEY),
                 ...(name ? declaration(impl) : [placeholder('Select a source to edit it.')])
             ]

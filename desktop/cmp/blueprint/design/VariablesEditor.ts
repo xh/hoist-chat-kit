@@ -27,6 +27,8 @@ import {
 
 export interface VariablesEditorProps extends HoistProps {
     designModel: BlueprintDesignModel;
+    /** True inside `blueprintInspector`, which draws the header in place of the editor's own. */
+    framed?: boolean;
 }
 
 /**
@@ -38,8 +40,9 @@ export const [VariablesEditor, variablesEditor] = hoistCmp.withFactory<Variables
     displayName: 'BlueprintVariablesEditor',
     className: 'xh-blueprint-element-inspector xh-blueprint-variables-editor',
     model: false,
-    render({designModel, className}) {
+    render({designModel, framed, className}) {
         const impl = useLocalModel(() => new VariableEditorModel(designModel));
+        impl.framed = !!framed;
         return variablesBody({model: impl, className});
     }
 });
@@ -243,34 +246,36 @@ const variablesBody = hoistCmp.factory<VariableEditorModel>({
         return div({
             className,
             children: [
-                hbox({
-                    className: `${CLS}__header`,
-                    children: [
-                        select({
-                            value: name,
-                            options: impl.variableOptions,
-                            placeholder: 'Select a variable…',
-                            flex: 1,
-                            onCommit: (id: string) =>
-                                id && impl.designModel.select({kind: 'variable', id})
-                        }),
-                        filler(),
-                        button({
-                            icon: Icon.add(),
-                            title: 'Add a variable',
-                            minimal: true,
-                            disabled,
-                            onClick: () => impl.add()
-                        }),
-                        button({
-                            icon: Icon.delete(),
-                            title: name ? `Remove ${name}` : 'Remove',
-                            minimal: true,
-                            disabled: disabled || !name,
-                            onClick: () => impl.remove()
-                        })
-                    ]
-                }),
+                impl.framed
+                    ? null
+                    : hbox({
+                          className: `${CLS}__header`,
+                          children: [
+                              select({
+                                  value: name,
+                                  options: impl.variableOptions,
+                                  placeholder: 'Select a variable…',
+                                  flex: 1,
+                                  onCommit: (id: string) =>
+                                      id && impl.designModel.select({kind: 'variable', id})
+                              }),
+                              filler(),
+                              button({
+                                  icon: Icon.add(),
+                                  title: 'Add a variable',
+                                  minimal: true,
+                                  disabled,
+                                  onClick: () => impl.add()
+                              }),
+                              button({
+                                  icon: Icon.delete(),
+                                  title: name ? `Remove ${name}` : 'Remove',
+                                  minimal: true,
+                                  disabled: disabled || !name,
+                                  onClick: () => impl.remove()
+                              })
+                          ]
+                      }),
                 ...issueRows(impl, VARIABLE_KEY),
                 ...(name ? declaration(impl) : [placeholder('Select a variable to edit it.')])
             ]

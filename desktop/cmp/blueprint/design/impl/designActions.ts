@@ -1,9 +1,13 @@
-import {XH} from '@xh/hoist/core';
+import {type PlainObject, XH} from '@xh/hoist/core';
+import {Icon} from '@xh/hoist/icon';
 import type {
+    AddPlace,
     BlueprintDesignModel,
     BlueprintIssue,
-    BlueprintRemoval
+    BlueprintRemoval,
+    BlueprintSelection
 } from '../../../../../blueprint';
+import {slotLabel} from '../../../../../blueprint/impl/elements';
 import {listOf} from './ConfigEditors';
 
 /**
@@ -65,6 +69,100 @@ export async function removeElementAsync(
 export function duplicateElement(designModel: BlueprintDesignModel, id: string) {
     const error = designModel.duplicateElement(id).issues.find(it => it.severity === 'error');
     if (error) designModel.blueprintModel.showRefusal(error);
+}
+
+/** Show the first error of a refused edit, if any, as a toast. */
+export function refuse(designModel: BlueprintDesignModel, issues: BlueprintIssue[]) {
+    const error = issues.find(it => it.severity === 'error');
+    if (error) designModel.blueprintModel.showRefusal(error);
+}
+
+/** Add a widget at a place, as one edit, and select it, or show why it cannot. */
+export function addWidgetAt(designModel: BlueprintDesignModel, widget: string, place: AddPlace) {
+    const {parent, slot, of} = place,
+        {id, issues} = designModel.addWidget(widget, parent, {
+            ...(slot && slot !== 'children' ? {slot} : {}),
+            ...(of ? {of} : {})
+        });
+    refuse(designModel, issues);
+    if (id && !issues.some(it => it.severity === 'error')) {
+        designModel.select({kind: 'element', id});
+    }
+}
+
+/**
+ * The menu items for a part of the blueprint: rename, then for an element duplicate, move to a
+ * slot and add a child, then delete. Empty for a user who may not edit.
+ */
+export function selectionMenu(
+    designModel: BlueprintDesignModel,
+    {kind, id}: BlueprintSelection
+): (PlainObject | string)[] {
+    const {blueprintModel} = designModel;
+    if (blueprintModel.mode !== 'design' || blueprintModel.access !== 'write') return [];
+    const rename = {
+            text: 'Rename…',
+            disabled: kind === 'preset',
+            actionFn: async () => {
+                const to = await XH.prompt<string>({
+                    title: 'Rename',
+                    message: `New id for ${id}`,
+                    input: {initialValue: id}
+                });
+                if (to && to !== id && kind !== 'preset') {
+                    refuse(designModel, designModel.renameId(kind, id, to).issues);
+                }
+            }
+        },
+        remove = {text: 'Delete', icon: Icon.delete(), intent: 'danger'};
+    if (kind !== 'element') {
+        return [
+            rename,
+            '-',
+            {
+                ...remove,
+                actionFn: () =>
+                    refuse(
+                        designModel,
+                        (kind === 'source'
+                            ? designModel.removeSource(id)
+                            : kind === 'variable'
+                              ? designModel.removeVariable(id)
+                              : designModel.removePresetGroup(id)
+                        ).issues
+                    )
+            }
+        ];
+    }
+    const labelOf = (it: string) => blueprintModel.registry.widgets[it]?.label ?? it,
+        parent = designModel.pathTo(id).at(-1);
+    return [
+        rename,
+        {text: 'Duplicate', icon: Icon.copy(), actionFn: () => duplicateElement(designModel, id)},
+        {
+            text: 'Move to',
+            disabled: !parent,
+            items: designModel.slotsFor(id).map(({slot, of}) => ({
+                text: of ? `${of} · ${slotLabel(slot, true)}` : slotLabel(slot),
+                actionFn: () => refuse(designModel, designModel.moveToSlot(id, slot, of).issues)
+            }))
+        },
+        {
+            text: 'Add child',
+            items: designModel.addPlacesFor(id).flatMap(({place, label, widgets}) => [
+                {text: label, disabled: true},
+                ...widgets.map(it => ({
+                    text: labelOf(it),
+                    actionFn: () => addWidgetAt(designModel, it, place)
+                }))
+            ])
+        },
+        '-',
+        {
+            ...remove,
+            actionFn: () => removeElementAsync(designModel, id).then(it => refuse(designModel, it))
+        }
+    ];
 }
 
 /** What removing an element takes with it, for the user to confirm. */

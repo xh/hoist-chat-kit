@@ -555,6 +555,7 @@
         "presetsEditor",
         "blueprintMap",
         "blueprintStructure",
+        "blueprintInspector",
         "wiringFor",
         "wiringGraph",
         "toEditorSpec",

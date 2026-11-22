@@ -1,0 +1,82 @@
+.xh-blueprint-inspector {
+  overflow: hidden;
+
+  &__breadcrumb {
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    font-size: 11px;
+  }
+
+  &__crumb {
+    font-family: var(--xh-font-family-mono);
+    font-size: 11px;
+
+    &.xh-button {
+      min-height: 18px;
+      padding: 0 2px;
+    }
+
+    &--current {
+      padding: 0 2px;
+      font-weight: 600;
+    }
+  }
+
+  &__crumb-sep {
+    color: var(--xh-text-color-muted);
+  }
+
+  &__header {
+    flex: none;
+    align-items: center;
+    gap: var(--xh-spacing);
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    border-bottom: var(--xh-border-solid);
+  }
+
+  &__icon {
+    color: var(--xh-text-color-muted);
+  }
+
+  &__titles {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  &__id {
+    font-family: var(--xh-font-family-mono);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: text;
+  }
+
+  &__subtitle {
+    overflow: hidden;
+    font-size: 11px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__issue {
+    flex: none;
+    align-items: center;
+    padding: 2px var(--xh-spacing);
+    font-size: 12px;
+
+    &--error {
+      background-color: var(--xh-intent-danger-trans1);
+    }
+
+    &--warning {
+      background-color: var(--xh-intent-warning-trans1);
+    }
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    overflow: auto;
+  }
+}

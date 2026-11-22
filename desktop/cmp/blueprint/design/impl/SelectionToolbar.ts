@@ -3,8 +3,8 @@ import {hoistCmp, type HoistProps, type MenuItemLike} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
-import type {AddPlace, BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
-import {duplicateElement, removeElementAsync} from './designActions';
+import type {BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
+import {addWidgetAt, duplicateElement, removeElementAsync} from './designActions';
 
 interface SelectionToolbarProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -30,20 +30,13 @@ export const selectionToolbar = hoistCmp.factory<SelectionToolbarProps>({
                 const error = issues.find(it => it.severity === 'error');
                 if (error) blueprintModel.showRefusal(error);
             },
-            add = (widget: string, {parent, slot, of}: AddPlace) => {
-                const {id, issues} = designModel.addWidget(widget, parent, {
-                    ...(slot !== 'children' ? {slot} : {}),
-                    ...(of ? {of} : {})
-                });
-                refuse(issues);
-                if (id && !issues.some(it => it.severity === 'error')) {
-                    designModel.select({kind: 'element', id});
-                }
-            },
             addItems = (): MenuItemLike[] => {
                 const places = designModel.addPlacesFor(id),
                     itemsOf = ({place, widgets}: (typeof places)[number]): MenuItemLike[] =>
-                        widgets.map(it => ({text: labelOf(it), actionFn: () => add(it, place)}));
+                        widgets.map(it => ({
+                            text: labelOf(it),
+                            actionFn: () => addWidgetAt(designModel, it, place)
+                        }));
                 return places.flatMap(it => [{heading: it.label}, ...itemsOf(it)]);
             },
             moreItems = (): MenuItemLike[] => [

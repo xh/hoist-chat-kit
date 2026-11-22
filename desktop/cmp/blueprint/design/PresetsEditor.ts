@@ -16,6 +16,8 @@ import {CLS, labelled, type Option} from './impl/ConfigEditors';
 
 export interface PresetsEditorProps extends HoistProps {
     designModel: BlueprintDesignModel;
+    /** True inside `blueprintInspector`, which draws the header in place of the editor's own. */
+    framed?: boolean;
 }
 
 /**
@@ -28,14 +30,18 @@ export const [PresetsEditor, presetsEditor] = hoistCmp.withFactory<PresetsEditor
     displayName: 'BlueprintPresetsEditor',
     className: 'xh-blueprint-element-inspector xh-blueprint-presets-editor',
     model: false,
-    render({designModel, className}) {
+    render({designModel, framed, className}) {
         const impl = useLocalModel(() => new PresetsEditorModel(designModel));
+        impl.framed = !!framed;
         return presetsBody({model: impl, className});
     }
 });
 
 /** @internal */
 export class PresetsEditorModel extends HoistModel {
+    /** True when hosted in `blueprintInspector`, which draws the header. */
+    framed = false;
+
     /** The last refused edit's issues, until the next edit. */
     @observableRef accessor issues: BlueprintIssue[] = [];
 
@@ -170,27 +176,29 @@ const presetsBody = hoistCmp.factory<PresetsEditorModel>({
         return div({
             className,
             children: [
-                hbox({
-                    className: `${CLS}__header`,
-                    children: [
-                        select({
-                            value: name,
-                            options: impl.groupOptions,
-                            placeholder: 'Select a group of presets…',
-                            flex: 1,
-                            onCommit: (id: string) =>
-                                id && impl.designModel.select({kind: 'preset', id})
-                        }),
-                        filler(),
-                        button({
-                            icon: Icon.delete(),
-                            title: name ? `Remove ${name}` : 'Remove',
-                            minimal: true,
-                            disabled: disabled || !name,
-                            onClick: () => impl.removeGroup()
-                        })
-                    ]
-                }),
+                impl.framed
+                    ? null
+                    : hbox({
+                          className: `${CLS}__header`,
+                          children: [
+                              select({
+                                  value: name,
+                                  options: impl.groupOptions,
+                                  placeholder: 'Select a group of presets…',
+                                  flex: 1,
+                                  onCommit: (id: string) =>
+                                      id && impl.designModel.select({kind: 'preset', id})
+                              }),
+                              filler(),
+                              button({
+                                  icon: Icon.delete(),
+                                  title: name ? `Remove ${name}` : 'Remove',
+                                  minimal: true,
+                                  disabled: disabled || !name,
+                                  onClick: () => impl.removeGroup()
+                              })
+                          ]
+                      }),
                 select({
                     key: impl.groupOptions.length,
                     placeholder: 'Make presets for…',

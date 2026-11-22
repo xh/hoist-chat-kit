@@ -21,6 +21,8 @@ export interface ElementInspectorProps extends HoistProps {
      * group is selected. A host shows its presets editor. Without it, badges only label.
      */
     onShowPresetGroup?: (name: string) => void;
+    /** True inside `blueprintInspector`, which draws the header in place of the editor's own. */
+    framed?: boolean;
 }
 
 /**
@@ -33,9 +35,10 @@ export const [ElementInspector, elementInspector] = hoistCmp.withFactory<Element
     displayName: 'BlueprintElementInspector',
     className: 'xh-blueprint-element-inspector',
     model: false,
-    render({designModel, onShowPresetGroup, className}) {
+    render({designModel, onShowPresetGroup, framed, className}) {
         const impl = useLocalModel(() => new ElementInspectorModel(designModel));
         impl.onShowPresetGroup = onShowPresetGroup ?? null;
+        impl.framed = !!framed;
         return inspectorBody({model: impl, className});
     }
 });
@@ -277,28 +280,30 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
         return div({
             className,
             children: [
-                hbox({
-                    className: `${CLS}__header`,
-                    children: [
-                        textInput({
-                            key: `${impl.elementId}:${impl.resets[ID_KEY] ?? 0}`,
-                            className: `${CLS}__id`,
-                            value: impl.elementId,
-                            disabled: impl.readOnly,
-                            width: 160,
-                            onCommit: (to: string) => impl.rename(to)
-                        }),
-                        div({className: `${CLS}__widget`, children: impl.label}),
-                        filler(),
-                        button({
-                            icon: Icon.delete(),
-                            title: `Remove ${impl.elementId}`,
-                            minimal: true,
-                            disabled: impl.readOnly,
-                            onClick: () => impl.removeAsync()
-                        })
-                    ]
-                }),
+                impl.framed
+                    ? null
+                    : hbox({
+                          className: `${CLS}__header`,
+                          children: [
+                              textInput({
+                                  key: `${impl.elementId}:${impl.resets[ID_KEY] ?? 0}`,
+                                  className: `${CLS}__id`,
+                                  value: impl.elementId,
+                                  disabled: impl.readOnly,
+                                  width: 160,
+                                  onCommit: (to: string) => impl.rename(to)
+                              }),
+                              div({className: `${CLS}__widget`, children: impl.label}),
+                              filler(),
+                              button({
+                                  icon: Icon.delete(),
+                                  title: `Remove ${impl.elementId}`,
+                                  minimal: true,
+                                  disabled: impl.readOnly,
+                                  onClick: () => impl.removeAsync()
+                              })
+                          ]
+                      }),
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
                     div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),

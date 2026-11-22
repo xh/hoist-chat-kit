@@ -6,8 +6,7 @@ import {
     type HoistProps,
     managed,
     type PlainObject,
-    useLocalModel,
-    XH
+    useLocalModel
 } from '@xh/hoist/core';
 import type {StoreRecord} from '@xh/hoist/data';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -18,16 +17,11 @@ import {bindable} from '@xh/hoist/mobx';
 import classNames from 'classnames';
 import type React from 'react';
 import type {ReactElement} from 'react';
-import type {
-    AddPlace,
-    BlueprintDesignModel,
-    BlueprintIssue,
-    BlueprintSelection
-} from '../../../../blueprint';
+import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../../blueprint';
 import {slotLabel, slotLists} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
-import {duplicateElement, removeElementAsync} from './impl/designActions';
+import {selectionMenu} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
 
 export type StructureSection = 'element' | 'source' | 'variable' | 'preset';
@@ -136,86 +130,10 @@ export class BlueprintStructureModel extends HoistModel {
 
     /** The menu of a row: rename, duplicate, move, add into and delete, as its kind allows. */
     menuFor(record: StoreRecord): (PlainObject | string)[] {
-        const {designModel} = this,
-            {kind, name} = record.data,
-            isWriter =
-                designModel.blueprintModel.mode === 'design' &&
-                designModel.blueprintModel.access === 'write',
-            refuse = (issues: BlueprintIssue[]) => {
-                const error = issues.find(it => it.severity === 'error');
-                if (error) designModel.blueprintModel.showRefusal(error);
-            },
-            remove = {
-                text: 'Delete',
-                icon: Icon.delete(),
-                intent: 'danger',
-                disabled: !isWriter
-            };
-        if (!isWriter || !['element', 'source', 'variable', 'preset'].includes(kind)) return [];
-        const rename = {
-            text: 'Rename…',
-            disabled: kind === 'preset',
-            actionFn: async () => {
-                const to = await XH.prompt<string>({
-                    title: 'Rename',
-                    message: `New id for ${name}`,
-                    input: {initialValue: name}
-                });
-                if (to && to !== name) refuse(designModel.renameId(kind, name, to).issues);
-            }
-        };
-        if (kind !== 'element') {
-            return [
-                rename,
-                '-',
-                {
-                    ...remove,
-                    actionFn: () =>
-                        refuse(
-                            (kind === 'source'
-                                ? designModel.removeSource(name)
-                                : kind === 'variable'
-                                  ? designModel.removeVariable(name)
-                                  : designModel.removePresetGroup(name)
-                            ).issues
-                        )
-                }
-            ];
-        }
-        const {registry} = designModel.blueprintModel,
-            labelOf = (it: string) => registry.widgets[it]?.label ?? it,
-            parent = designModel.pathTo(name).at(-1);
-        return [
-            rename,
-            {
-                text: 'Duplicate',
-                icon: Icon.copy(),
-                actionFn: () => duplicateElement(designModel, name)
-            },
-            {
-                text: 'Move to',
-                disabled: !parent,
-                items: designModel.slotsFor(name).map(({slot, of}) => ({
-                    text: of ? `${of} · ${slotLabel(slot, true)}` : slotLabel(slot),
-                    actionFn: () => refuse(designModel.moveToSlot(name, slot, of).issues)
-                }))
-            },
-            {
-                text: 'Add child',
-                items: designModel.addPlacesFor(name).flatMap(({place, label, widgets}) => [
-                    {text: label, disabled: true},
-                    ...widgets.map(it => ({
-                        text: labelOf(it),
-                        actionFn: () => this.add(it, place)
-                    }))
-                ])
-            },
-            '-',
-            {
-                ...remove,
-                actionFn: () => removeElementAsync(designModel, name).then(refuse)
-            }
-        ];
+        const {kind, name} = record.data;
+        return ['element', 'source', 'variable', 'preset'].includes(kind)
+            ? selectionMenu(this.designModel, {kind, id: name})
+            : [];
     }
 
     /** Start dragging an element, which a row then takes or refuses. */
@@ -283,20 +201,6 @@ export class BlueprintStructureModel extends HoistModel {
     //------------------
     private dragging: string = null;
     private readonly verdicts = new Map<string, DropVerdict>();
-
-    private add(widget: string, {parent, slot, of}: AddPlace) {
-        const {designModel} = this,
-            {id, issues} = designModel.addWidget(widget, parent, {
-                ...(slot && slot !== 'children' ? {slot} : {}),
-                ...(of ? {of} : {})
-            }),
-            error = issues.find(it => it.severity === 'error');
-        if (error) {
-            designModel.blueprintModel.showRefusal(error);
-        } else {
-            designModel.select({kind: 'element', id});
-        }
-    }
 
     private selected(record: StoreRecord) {
         const {designModel} = this,

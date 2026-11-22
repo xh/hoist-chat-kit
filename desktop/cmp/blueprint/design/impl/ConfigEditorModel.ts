@@ -21,6 +21,9 @@ import type {Option} from './ConfigEditors';
  * declaration, extends it.
  */
 export abstract class ConfigEditorModel extends HoistModel {
+    /** True when hosted in `blueprintInspector`, which draws the header. */
+    framed = false;
+
     /** The refused property and its issues, until the next commit. */
     @observableRef accessor refusal: {key: string; issues: BlueprintIssue[]} = null;
     /** A counter per property, bumped on refusal, so its editors start again from the values. */

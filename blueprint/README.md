@@ -316,6 +316,7 @@ hframe(
 | `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
 | `presetsEditor` | Make groups of presets over widgets' preset paths and variables' defaults, and edit their presets |
 | `blueprintStructure` | See the elements as a tree with their slots, and the sources, variables and preset groups, each counted. Filter by id, select a slot as the place to add, and rename, duplicate, move, add into or delete from a row's menu. Give it an `onAdd(section)` for each section's "+" |
+| `blueprintInspector` | Inspect whatever is selected in one frame: the element's path, its id, which a click renames, what it reads, a menu and its issues, over the editor for its kind. Each editor takes `framed` to drop its own header there |
 | `blueprintMap` | See every variable, source, preset group and element in lanes, with the wires between them, and trace what feeds the selection and what it feeds |
 
 Each change is one edit by the user, with a description, so undo, redo and history apply. Text
