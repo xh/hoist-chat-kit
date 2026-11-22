@@ -83,15 +83,31 @@
 
 // Over an empty container in design mode. Only its buttons take the pointer, so a canvas under it
 // still takes a drop.
-.xh-blueprint-view__design-empty {
+// An empty container's one empty state, over its own surface, which still takes a drop.
+.xh-blueprint-view__design-element > .xh-blueprint-view__design-empty {
   position: absolute;
   inset: 0;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--xh-spacing);
+  padding: var(--xh-spacing);
+  text-align: center;
+  color: var(--xh-text-color-muted);
   pointer-events: none;
 
   .xh-button {
     pointer-events: auto;
+  }
+
+  // A container inside the blueprint: one quiet line rather than a block.
+  &--quiet {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 2px;
+    font-size: var(--xh-font-size-small);
   }
 }
 
