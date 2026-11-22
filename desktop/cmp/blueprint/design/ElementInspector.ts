@@ -55,6 +55,10 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return id && this.element ? id : null;
     }
 
+    override isPersonalizable(key: string): boolean {
+        return !!this.element?.personalizable?.includes(`/config/${key}`);
+    }
+
     /** True while the selection is the canvas view that holds the element, not the element. */
     get isView(): boolean {
         return !!this.designModel.selectedViewId;

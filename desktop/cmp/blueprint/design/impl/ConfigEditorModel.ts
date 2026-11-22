@@ -118,6 +118,11 @@ export abstract class ConfigEditorModel extends HoistModel {
         return node.required ? this.newValue(node.schema) : undefined;
     }
 
+    /** True for a property a user may personalize at its own path, which a binding moves to its variable. */
+    isPersonalizable(key: string): boolean {
+        return false;
+    }
+
     /** Called with a preset group's name when a badge opens it, for the host to show the group. */
     onShowPresetGroup: (name: string) => void = null;
 

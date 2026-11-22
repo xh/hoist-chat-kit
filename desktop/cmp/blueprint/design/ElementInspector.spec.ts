@@ -707,6 +707,28 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.groupBy).not.toEqual({$var: 'grouping'});
     });
 
+    it('says where users change a bound value that they could change in its place', () => {
+        const {design, model} = open();
+        model.applyEdit({
+            ops: [
+                {
+                    op: 'set',
+                    path: '/variables/label',
+                    value: {type: 'string', setBy: 'prompt', default: {value: 'Book'}}
+                },
+                {op: 'set', path: '/elements/posGrid/config/title', value: {$var: 'label'}},
+                {op: 'set', path: '/elements/posGrid/personalizable', value: ['/config/title']}
+            ]
+        });
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            note = container.querySelector(
+                '[data-config-key="title"] .xh-blueprint-element-inspector__bound-note'
+            );
+        expect(note.textContent).toBe('Users change this through label');
+        fireEvent.click(note.querySelector('[role=button]'));
+        expect(design.selection).toEqual({kind: 'variable', id: 'label'});
+    });
+
     it('badges a section that holds a preset path, and selects its group from the badge', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

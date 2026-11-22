@@ -428,7 +428,23 @@ function bindableEditor(
                           title: 'Use a value',
                           'aria-label': `Unbind ${bound}`,
                           onClick: () => commit(impl.unboundValue(node))
+                      }),
+                // Where users could change it in place, say that the variable now takes their changes.
+                impl.isPersonalizable(ctx.key)
+                    ? div({
+                          className: `${CLS}__bound-note`,
+                          children: [
+                              'Users change this through ',
+                              selectChip({
+                                  className: `${CLS}__var-chip`,
+                                  text: bound,
+                                  label: `Show variable ${bound}`,
+                                  onSelect: () =>
+                                      impl.designModel.select({kind: 'variable', id: bound})
+                              })
+                          ]
                       })
+                    : null
             ]
         });
     }
@@ -447,10 +463,22 @@ function bindableEditor(
                       minimal: true,
                       title: 'Bind to a variable',
                       'aria-label': `Bind ${node.label} to a variable`,
-                      menuItems: variables.map(it => ({
-                          text: it,
-                          actionFn: () => commit({$var: it})
-                      }))
+                      menuItems: [
+                          ...variables.map(it => ({
+                              text: it,
+                              actionFn: () => commit({$var: it})
+                          })),
+                          ...(impl.isPersonalizable(ctx.key)
+                              ? [
+                                    '-' as const,
+                                    {
+                                        text: 'Binding moves user changes to the variable.',
+                                        className: `${CLS}__menu-note`,
+                                        disabled: true
+                                    }
+                                ]
+                              : [])
+                      ]
                   })
         ]
     });

@@ -140,7 +140,8 @@
       }
 
       > .xh-blueprint-element-inspector__badge,
-      > .xh-blueprint-element-inspector__issue {
+      > .xh-blueprint-element-inspector__issue,
+      > .xh-blueprint-element-inspector__bindable > .xh-blueprint-element-inspector__bound-note {
         grid-column: 1 / -1;
       }
 
@@ -227,9 +228,22 @@
     min-width: 20px;
   }
 
-  // Shown on hover or focus, so a column of fields stays quiet.
+  // Shown on hover or focus, so a column of fields stays quiet, and muted until its own hover.
   &__bind-button {
     opacity: 0;
+
+    svg {
+      color: var(--xh-text-color-muted);
+    }
+
+    &:hover svg {
+      color: var(--xh-intent-primary-text-color);
+    }
+  }
+
+  &__bound-note {
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
   }
 
   &__row:hover &__bind-button,
