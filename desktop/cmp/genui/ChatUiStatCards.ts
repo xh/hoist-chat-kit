@@ -1,6 +1,7 @@
-import {dropRight, isEmpty, isFinite, isPlainObject} from 'lodash';
+import {dropRight, first, isArray, isEmpty, isFinite, isPlainObject, last} from 'lodash';
 import type {ReactNode} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
+import {sparkline} from '@xh/hoist/cmp/sparkline';
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
 import type {ColorSpec} from '@xh/hoist/format';
 import type {ChatUiComponentSpec} from '../../../genui';
@@ -51,6 +52,13 @@ export interface ChatUiStatCard {
 
     /** Color for the card's outline - for example `danger` for a breached limit. Default `none`. */
     intent?: ChatUiIntent;
+
+    /**
+     * Past values of this same figure, oldest first, from tool data. They show under the value as
+     * a small line, a Hoist `Sparkline`, after the `deltaLabel`. A trend needs at least two
+     * numbers. The prompt tells the model to leave it out when no tool gives that history.
+     */
+    trend?: number[];
 }
 
 /** Props of a stat cards component, as written by the model. */
@@ -63,13 +71,17 @@ export interface ChatUiStatCardsSpecProps {
 export interface ChatUiStatCardsSpecOptions extends ChatUiSpecOptions {
     /** Most figures the model may send. Default 4 - more figures read better as a table. */
     maxItems?: number;
+
+    /** Most values in the trend of a figure. Default 60. */
+    maxTrendPoints?: number;
 }
 
 /**
  * A stat cards component for a {@link ChatUiCatalog}: a row of key figures, each with a label, a
  * headline value and an optional change. It renders Hoist's `StatCardStrip`, with a `StatCard`
  * per figure. The spec formats each number, and the strip wraps cards to fit the width of the
- * chat. While the props stream, only complete figures show.
+ * chat. A figure with a `trend` draws it as a Hoist `Sparkline` under the value. While the props
+ * stream, only complete figures show.
  *
  * Only the delta has color, always with an arrow, so that color is never the only signal. Style
  * the cards through Hoist's `--xh-stat-card-*` CSS variables, under `.xh-chat-ui-stat-cards`.
@@ -79,7 +91,7 @@ export interface ChatUiStatCardsSpecOptions extends ChatUiSpecOptions {
 export function chatUiStatCardsSpec(
     opts: ChatUiStatCardsSpecOptions = {}
 ): ChatUiComponentSpec<ChatUiStatCardsSpecProps> {
-    const {name = NAME, description = DESCRIPTION, maxItems = 4} = opts;
+    const {name = NAME, description = DESCRIPTION, maxItems = 4, maxTrendPoints = 60} = opts;
 
     return {
         name,
@@ -135,6 +147,14 @@ export function chatUiStatCardsSpec(
                                 description:
                                     'Outline color, to flag a card - e.g. "danger" for a ' +
                                     'breach. Default "none".'
+                            },
+                            trend: {
+                                type: 'array',
+                                maxItems: maxTrendPoints,
+                                items: {type: 'number'},
+                                description:
+                                    'Past values of this same figure, oldest first, from tool ' +
+                                    'data. Leave it out when no tool gives that history.'
                             }
                         }
                     }
@@ -171,6 +191,9 @@ const NAME = 'statCards',
 
 const SKELETON_HEIGHT = 76;
 
+// A line needs two points.
+const MIN_TREND_POINTS = 2;
+
 // For a figure where up is bad: a rise takes Hoist's negative color.
 const INVERTED_COLOR_SPEC: ColorSpec = {
     pos: 'xh-neg-val',
@@ -179,7 +202,7 @@ const INVERTED_COLOR_SPEC: ColorSpec = {
 };
 
 function toStatCard(card: ChatUiStatCard, idx: number): ReactNode {
-    const {label, value, format, decimals, delta, deltaLabel, invert, intent} = card,
+    const {label, value, format, decimals, delta, invert, intent} = card,
         deltaFormat = card.deltaFormat ?? format,
         deltaDecimals = deltaFormat === format ? decimals : null;
 
@@ -188,8 +211,36 @@ function toStatCard(card: ChatUiStatCard, idx: number): ReactNode {
         title: label,
         value: isFinite(value) ? fmtValue(value as number, format, decimals) : String(value),
         subValue: isFinite(delta) ? fmtDelta(delta, deltaFormat, deltaDecimals, invert) : null,
-        detail: deltaLabel,
+        detail: toDetail(card),
         intent: intent && intent !== 'none' ? intent : null
+    });
+}
+
+/**
+ * The line under the value: the label of the delta, then the trend in the rest of the line. The
+ * trend has no color of its own, as only the delta has. Its name gives the figure and its first
+ * and last values, formatted as the value is.
+ */
+function toDetail({label, deltaLabel, trend, format, decimals}: ChatUiStatCard): ReactNode {
+    const data = isArray(trend) ? trend.filter(isFinite) : [];
+    if (data.length < MIN_TREND_POINTS) return deltaLabel;
+
+    const fmt = (it: number) =>
+            fmtChatUiNumber(it, format, decimals, {compact: true, asHtml: true}) as string,
+        name = `${label} trend: ${data.length} values, from ${fmt(first(data))} to ${fmt(last(data))}`;
+
+    return span({
+        className: 'xh-chat-ui-stat-cards__trend',
+        children: [
+            span({omit: !deltaLabel, children: deltaLabel}),
+            sparkline({
+                data,
+                flex: 1,
+                minWidth: 0,
+                markers: ['last'],
+                domAttrs: {'aria-label': name}
+            })
+        ]
     });
 }
 

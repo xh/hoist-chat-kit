@@ -12,93 +12,36 @@
   3. Plain ASCII punctuation only. Use " - " for in-sentence breaks, never an em dash.
 -->
 
-## 3.0.0-SNAPSHOT - unreleased
+## 4.0.0-SNAPSHOT - unreleased
 
-Requires `@xh/hoist` 91 or later.
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - update adapters)
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91, update adapters)
-
-See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
+See [`docs/upgrade-notes/v4-upgrade-notes.md`](docs/upgrade-notes/v4-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
 
-* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
-  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
-* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
-  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
-  91.
 * `ChatUiAdapter.translate()` now takes `{catalog, isPartial}` as its second argument, in place of
   the catalog. See
-  [Update Protocol Adapters](docs/upgrade-notes/v3-upgrade-notes.md#2-update-protocol-adapters).
+  [Update Protocol Adapters](docs/upgrade-notes/v4-upgrade-notes.md#2-update-protocol-adapters).
 * Renamed `chatUiMetricsSpec()` to `chatUiStatCardsSpec()`, which renders Hoist's `StatCardStrip`
   with a `StatCard` per figure. Its catalog name is now `statCards`, its tool `show_stat_cards` and
   its `metrics` prop `cards`. Renamed `ChatUiMetric` and the spec's props and options types to
   match. Removed the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes, and the `--xh-chat-tile-min-width` and
   `--xh-chat-tile-value-font-size` variables. Set Hoist's `--xh-stat-card-*` variables instead. See
-  [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v3-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
+  [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v4-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
+* `ChatUiCard` now renders a Hoist `Card` that holds a `PropertyTable`. Removed the
+  `xh-chat-ui-card__fields`, `__field`, `__label` and `__value` classes and the
+  `--xh-chat-card-section-pad` variable. Set Hoist's `--xh-card-*` and `--xh-property-table-*`
+  variables under `.xh-chat-ui-card` instead.
 * Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
   emits `STATE_SNAPSHOT` now gets its state back with every run. See
-  [Move the Agent State to the Chat](docs/upgrade-notes/v3-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
+  [Move the Agent State to the Chat](docs/upgrade-notes/v4-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
 * `ChatUiCatalogConfig.urlAllowList` now matches each entry by its parsed origin and path, not as
   a string prefix. An entry with a path now allows only URLs under that path, and only http and
   https URLs open. Check any entry with a path, and widen it to its origin if needed.
 
 ### 🎁 New Features
-
-* Added Hoist Blueprints, in `@xh/hoist-chat-kit/blueprint`: JSON definitions of dashboards and
-  reports over an app's `DataCatalog`, opened by a `BlueprintModel` and drawn with the widgets in
-  `@xh/hoist-chat-kit/desktop/cmp/blueprint`. See [`/blueprint/`](blueprint/README.md), and the
-  references [Blueprint Format](docs/blueprint-format.md),
-  [Extending Blueprints](docs/blueprint-extensions.md) and
-  [Blueprint Security](docs/blueprint-security.md).
-* Answers now render as blueprint answers, with the same look, once the desktop components load.
-  `show_ui` takes an answer blueprint and still reads input written as a document.
-* Added `ChatUiCatalogConfig.answers`, so that answers can read the app's datasets through its
-  `dataProvider`, and use widgets from its `registry`. Only the latest reply loads at once, and
-  loads draw on the chat's budget for the minute.
-* Added the Architect's chat tools in `@xh/hoist-chat-kit/genui/architect`:
-  `architectChatTools()` and `blueprintContextProvider()` let an LLM build and edit a blueprint in
-  a chat. `read_answer` and `request_design_mode` let it add a chat answer to that blueprint.
-* Added `ChatUiAnswersConfig.addToHost` and `addToBlueprint()`, for an "Add to dashboard" button on
-  each complete answer. The click switches to design mode for that turn only.
-* Added `ChatToolSpec.allowActions`. Set it to `false` for a tool that only the model may call. A
-  UI action that names the tool fails before it asks the user, and `show_ui` refuses the answer.
-* Added design mode for people: `BlueprintDesignModel`, and the placeable components
-  `elementOutline`, `elementInspector`, `widgetPalette`, `variablesEditor`, `sourcesEditor` and
-  `presetsEditor`. Each change is one edit by the user, so undo and history apply. See
-  [Build a designer for people](blueprint/README.md#build-a-designer-for-people).
-* Added `toEditorSpec()`, which turns a widget's config schema into editors, so the inspector
-  edits a new widget's config from its schema alone.
-* Added JSON Schema's `default` to widget config schemas. Design mode shows an unset property at
-  its default, and `BlueprintWidgetModel.configDefault()` applies it.
-* Added `ActionSpec.allowedIn`. The validator refuses an action outside the blueprints it names.
-* Added the `openBlueprint` action, which opens another blueprint of the same type over this one,
-  in a dialog or a popover, with values passed as a link passes them, and `cubeGrid.rowActions`.
-  The Architect lists targets with `list_blueprints`.
-* Added conditional styles to `cubeGrid`: a column's `styles` and the grid's `rowStyles` color,
-  bold or flag cells and rows where a filter matches, from a closed set of style keys, on
-  hoist-react's `cellStyle` and `rowStyle`.
-* Blueprint titles read variables: a widget's `title`, a tab's title, a `statCard`'s `label` and a
-  grid column's `headerName` take `{variable}`, such as `"P&L for {fund}"`. Mark a title prop of an
-  app widget with `'x-template': 'variables'`.
-* Added stored blueprints: the `BlueprintRepository` contract, with one shared draft per blueprint
-  and numbered publishes, and `BlueprintDocumentModel`, which opens, saves, publishes, copies,
-  shares and deletes them. Each repository holds one `type` of blueprint, such as
-  `acme.dashboard`, and a copy into another type must pass that type's registry and catalog.
-  Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint` endpoints, and
-  `InMemoryBlueprintRepository`, for tests. See
-  [Save, open and publish blueprints](blueprint/README.md#save-open-and-publish-blueprints).
-  `renameAsync` renames a blueprint where its repository implements it.
-* Added canvas editing in design mode: a hovered element's outline and name, a toolbar on the
-  selected one, delete with an Undo toast, keyboard shortcuts, and empty states that call the
-  host's `onAddWidget` and `onAskArchitect` props of `blueprintView`.
-* Added `blueprintStructure`, a tree of a blueprint's elements with their slots, sources,
-  variables and preset groups, with a filter and a menu on each row.
-* Added `blueprintInspector`, one frame over the editor for whatever is selected, with its path,
-  id, what it reads, a menu and its issues.
-* Added `blueprintMap`, a read-only map of a blueprint's wiring that traces what feeds the
-  selection and what it feeds, and `wiringFor()`, `wiringGraph()` and `traceWiring()` beneath it.
 
 * Added `ChatUiTextFormat`, a grammar for UI in reply text, and `ChatUiCatalogConfig.textFormats`.
   The tag grammar is now the first format, `chatUiTagFormat()`, and the default. `modes` take the
@@ -127,6 +70,20 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiTreeMapSpec()`, boxes sized by one number and colored by another over Hoist's
   `TreeMap`, with the `show_treemap` tool. The app imports two Highcharts modules in its
   `Bootstrap.ts`: `highcharts/modules/heatmap`, then `highcharts/modules/treemap`.
+* Added `chatUiPropertyTableSpec()`, a list of labeled values over Hoist's `PropertyTable`. It
+  formats each number, and shows its first `maxItems` entries with a count of the rest. A compact
+  chat gives it Hoist's compact size. It is not standalone.
+* Added `chatUiProgressBarsSpec()`, a column of Hoist `ProgressBar`s, each a value against a
+  maximum with an optional target. It formats the figure over each bar, and shows its first
+  `maxItems` bars with a count of the rest. Hoist's `ProgressBar` has no compact size, so the bars
+  look the same in a compact chat. It is not standalone.
+* Added `trend` to a card of `chatUiStatCardsSpec()`, the past values of that figure, which its
+  `StatCard` draws as a Hoist `Sparkline` under the value. The `maxTrendPoints` option bounds it.
+* Added `chatUiRadioInputSpec()`, a list of choices with one selected over Hoist's `RadioInput`.
+  It keeps the type of each value, number or text. `chatUiInputSpecs()` returns it.
+* Added `chatUiSliderSpec()`, a number in a range over Hoist's `Slider`. A slider with `range`
+  holds a low and a high value. It writes its value once the user stops moving a handle, so a drag
+  makes one write. `chatUiInputSpecs()` returns it.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,
@@ -207,6 +164,104 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * The OpenUI Lang prompt now offers each action prop only the steps that its schema accepts, and
   says what lang-core's text names that the catalog lacks. The kit's rules sit with lang-core's
   own rules.
+* Added Hoist Blueprints, in `@xh/hoist-chat-kit/blueprint`: JSON definitions of dashboards and
+  reports over an app's `DataCatalog`, opened by a `BlueprintModel` and drawn with the widgets in
+  `@xh/hoist-chat-kit/desktop/cmp/blueprint`. See [`/blueprint/`](blueprint/README.md), and the
+  references [Blueprint Format](docs/blueprint-format.md),
+  [Extending Blueprints](docs/blueprint-extensions.md) and
+  [Blueprint Security](docs/blueprint-security.md).
+* Answers now render as blueprint answers, with the same look, once the desktop components load.
+  `show_ui` takes an answer blueprint and still reads input written as a document.
+* Added `ChatUiCatalogConfig.answers`, so that answers can read the app's datasets through its
+  `dataProvider`, and use widgets from its `registry`. Only the latest reply loads at once, and
+  loads draw on the chat's budget for the minute.
+* Added the Architect's chat tools in `@xh/hoist-chat-kit/genui/architect`:
+  `architectChatTools()` and `blueprintContextProvider()` let an LLM build and edit a blueprint in
+  a chat. `read_answer` and `request_design_mode` let it add a chat answer to that blueprint.
+* Added `ChatUiAnswersConfig.addToHost` and `addToBlueprint()`, for an "Add to dashboard" button on
+  each complete answer. The click switches to design mode for that turn only.
+* Added `ChatToolSpec.allowActions`. Set it to `false` for a tool that only the model may call. A
+  UI action that names the tool fails before it asks the user, and `show_ui` refuses the answer.
+* Added design mode for people: `BlueprintDesignModel`, and the placeable components
+  `elementOutline`, `elementInspector`, `widgetPalette`, `variablesEditor`, `sourcesEditor` and
+  `presetsEditor`. Each change is one edit by the user, so undo and history apply. See
+  [Build a designer for people](blueprint/README.md#build-a-designer-for-people).
+* Added `toEditorSpec()`, which turns a widget's config schema into editors, so the inspector
+  edits a new widget's config from its schema alone.
+* Added JSON Schema's `default` to widget config schemas. Design mode shows an unset property at
+  its default, and `BlueprintWidgetModel.configDefault()` applies it.
+* Added `ActionSpec.allowedIn`. The validator refuses an action outside the blueprints it names.
+* Added the `openBlueprint` action, which opens another blueprint of the same type over this one,
+  in a dialog or a popover, with values passed as a link passes them, and `cubeGrid.rowActions`.
+  The Architect lists targets with `list_blueprints`.
+* Added conditional styles to `cubeGrid`: a column's `styles` and the grid's `rowStyles` color,
+  bold or flag cells and rows where a filter matches, from a closed set of style keys, on
+  hoist-react's `cellStyle` and `rowStyle`.
+* Blueprint titles read variables: a widget's `title`, a tab's title, a `statCard`'s `label` and a
+  grid column's `headerName` take `{variable}`, such as `"P&L for {fund}"`. Mark a title prop of an
+  app widget with `'x-template': 'variables'`.
+* Added stored blueprints: the `BlueprintRepository` contract, with one shared draft per blueprint
+  and numbered publishes, and `BlueprintDocumentModel`, which opens, saves, publishes, copies,
+  shares and deletes them. Each repository holds one `type` of blueprint, such as
+  `acme.dashboard`, and a copy into another type must pass that type's registry and catalog.
+  Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint` endpoints, and
+  `InMemoryBlueprintRepository`, for tests. See
+  [Save, open and publish blueprints](blueprint/README.md#save-open-and-publish-blueprints).
+  `renameAsync` renames a blueprint where its repository implements it.
+* Added canvas editing in design mode: a hovered element's outline and name, a toolbar on the
+  selected one, delete with an Undo toast, keyboard shortcuts, and empty states that call the
+  host's `onAddWidget` and `onAskArchitect` props of `blueprintView`.
+* Added `blueprintStructure`, a tree of a blueprint's elements with their slots, sources,
+  variables and preset groups, with a filter and a menu on each row.
+* Added `blueprintInspector`, one frame over the editor for whatever is selected, with its path,
+  id, what it reads, a menu and its issues.
+* Added `blueprintMap`, a read-only map of a blueprint's wiring that traces what feeds the
+  selection and what it feeds, and `wiringFor()`, `wiringGraph()` and `traceWiring()` beneath it.
+
+### 🐞 Bug Fixes
+
+* Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
+  not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
+  `send` action now shows its text and each context value as a JSON string, so text cannot pose
+  as the words around it. The url of an `openUrl` action shows in quotes too.
+* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
+  slice and category names, axis titles, and the column labels and row text of a chart by
+  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
+  skipped the chat's link checks, or an inline style that loads a URL.
+
+### ⚙️ Typescript API Adjustments
+
+* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
+  action types that must cover every type.
+* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
+  that calls a component's `render` directly.
+
+### ✨ Styles
+
+* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
+  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
+* `ChatUiCard` shows its subtitle beside the title in the card's header, and its actions in a row
+  at the foot of the card. A compact chat gives its table Hoist's compact size.
+
+### 📚 Libraries
+
+* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
+  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
+
+## 3.0.0 - 2026-11-21
+
+Requires `@xh/hoist` 91 or later.
+
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91)
+
+See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
+* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
+  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
+* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
+  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
+  91.
 
 ### 🎁 New Features
 
@@ -224,14 +279,6 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   its activity spec.
 * Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
   bare line under the header.
-* Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
-  not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
-  `send` action now shows its text and each context value as a JSON string, so text cannot pose
-  as the words around it. The url of an `openUrl` action shows in quotes too.
-* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
-  slice and category names, axis titles, and the column labels and row text of a chart by
-  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
-  skipped the chat's link checks, or an inline style that loads a URL.
 * Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
   reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
   7px more than it needed to.
@@ -245,24 +292,14 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Removed the install step that added the kit to `extraIncludePaths`. `configureRsbuild()` compiles
   the kit's TypeScript without it, so apps can drop that entry.
 
-### ⚙️ Typescript API Adjustments
+### 🤖 AI Docs + Tooling
 
-* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
-  action types that must cover every type.
-* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
-  that calls a component's `render` directly.
-
-### ✨ Styles
-
-* `ChatWorkspace` lays out its sidebar and side panel for the 1px panel splitter of Hoist 90, in
-  place of the 8px splitter of Hoist 89.
-* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
-  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
-
-### 📚 Libraries
-
-* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
-  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
+* The package now ships its Hoist Docs index (`hoist-docs/index.json.gz`), built at publish by
+  `@xh/hoist-docs-builder` and declared by `hoistDocs` in `package.json`. Hoist Docs
+  (`@xh/hoist-docs`) reads it from the installed package and serves the kit's docs and API to
+  agents in apps that install it, next to hoist-react's and hoist-core's.
+* Switched this repo's `.mcp.json` from the hoist-react MCP server to Hoist Docs, and removed
+  `.claude/start-hoist-react-mcp.sh`.
 
 ## 2.1.0 - 2026-11-16
 
@@ -355,15 +392,6 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
   `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
-
-### 🤖 AI Docs + Tooling
-
-* The package now ships its Hoist Docs index (`hoist-docs/index.json.gz`), built at publish by
-  `@xh/hoist-docs-builder` and declared by `hoistDocs` in `package.json`. Hoist Docs
-  (`@xh/hoist-docs`) reads it from the installed package and serves the kit's docs and API to
-  agents in apps that install it, next to hoist-react's and hoist-core's.
-* Switched this repo's `.mcp.json` from the hoist-react MCP server to Hoist Docs, and removed
-  `.claude/start-hoist-react-mcp.sh`.
 
 ## 1.0.0 - 2026-11-02
 

@@ -1,47 +1,57 @@
 @use '../../../styles/mixins' as *;
 
-// A record card: the title in the header strip, labeled values below, and follow-up chips
-// after the frame, at the reply's part gap.
+// A record card: a Hoist Card on the chat's surface and at its radius, with the title and subtitle
+// in its header, a PropertyTable of fields, and a row of follow-up chips at its foot.
 .xh-chat-ui-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--xh-chat-part-gap, var(--xh-spacing));
+  --xh-card-bg: var(--xh-chat-bg);
+  --xh-card-border-color: var(--xh-chat-part-border-color);
+  --xh-card-border-radius: var(--xh-chat-border-radius);
+  --xh-card-header-font-size: var(--xh-chat-font-size, var(--xh-font-size));
+
+  box-sizing: border-box;
+  font-size: var(--xh-chat-font-size, var(--xh-font-size));
+  line-height: normal;
+  margin: 0;
+
+  // A fieldset is as wide as its content unless told otherwise.
   min-width: 0;
 
-  &__fields {
-    display: grid;
-    gap: var(--xh-spacing) calc(var(--xh-spacing) * 2);
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    padding: var(--xh-chat-card-section-pad, var(--xh-spacing)) 12px;
-
-    &:empty {
-      display: none;
-    }
-  }
-
-  &__field {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  > .xh-card__content {
+    gap: var(--xh-chat-part-gap, var(--xh-spacing));
     min-width: 0;
   }
 
-  &__label {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
+  > legend {
+    max-width: 100%;
+
+    // A subtitle that does not fit beside the title wraps under it.
+    .xh-card__header {
+      flex-wrap: wrap;
+      row-gap: 0;
+    }
   }
 
-  &__value {
-    font-variant-numeric: tabular-nums;
+  &__title {
     font-weight: 500;
     overflow-wrap: anywhere;
   }
 
+  &__subtitle {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    overflow-wrap: anywhere;
+  }
+
+  // The footer row: a rule under the fields, then the chips.
   &__actions {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
-    max-width: var(--xh-chat-prose-max-width, none);
+
+    &:not(:first-child) {
+      border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
+      padding-top: var(--xh-spacing);
+    }
   }
 
   // Follow-up chips: outlined, in link color, one line each. A long chip is cut short - its
@@ -66,4 +76,10 @@
       white-space: nowrap;
     }
   }
+}
+
+// A compact chat takes the table's compact size, as `size: 'compact'` would.
+.xh-chat--compact .xh-chat-ui-card .xh-property-table {
+  --xh-property-table-font-size: var(--xh-property-table-compact-font-size);
+  --xh-property-table-row-gap: var(--xh-property-table-compact-row-gap);
 }

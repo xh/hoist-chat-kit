@@ -1,0 +1,5 @@
+// A compact chat takes the table's compact size, as `size: 'compact'` would.
+.xh-chat--compact .xh-chat-ui-property-table {
+  --xh-property-table-font-size: var(--xh-property-table-compact-font-size);
+  --xh-property-table-row-gap: var(--xh-property-table-compact-row-gap);
+}

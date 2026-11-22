@@ -183,6 +183,7 @@ describe('toOpenUiLibrary', () => {
             `StatCards(cards: {label: string; value: number | string; format?: ${formats}; ` +
                 'decimals?: number; delta?: number;'
         );
+        expect(components.StatCards.signature).toContain('; trend?: number[]}[])');
         expect(components.Chart.signature).toContain(
             'xAxis?: {type?: "category" | "datetime"; categories?: string[]; title?: string}'
         );

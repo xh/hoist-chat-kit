@@ -152,9 +152,9 @@ still in force, with their amendments. Do not read the whole file.
 | [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Amended by D132 |
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
 | [D132](#d132-a-spec-takes-the-name-of-the-hoist-component-it-renders) | A spec takes the name of the Hoist component it renders | Accepted |
-| [D133](#d133-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool) | A chat answer checks URLs as a blueprint does, and keeps callTool | Accepted |
-| [D134](#d134-the-architect-reads-a-chat-answer-to-add-it-to-its-host) | The Architect reads a chat answer to add it to its host | Accepted |
-| [D135](#d135-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
+| [D133](#d133-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
+| [D134](#d134-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool) | A chat answer checks URLs as a blueprint does, and keeps callTool | Accepted |
+| [D135](#d135-the-architect-reads-a-chat-answer-to-add-it-to-its-host) | The Architect reads a chat answer to add it to its host | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -831,7 +831,7 @@ by one list covers that case, and a newer rename survives an older one that fail
 
 **Status.** Amended by [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats): the choices
 for tag attributes apply to the tag format, one of the catalog's text formats. Amended by
-[D133](#d133-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool): an allow list entry
+[D134](#d134-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool): an allow list entry
 matches by origin and path prefix.
 
 **Decision.** WP 7 step 1 builds the generative UI core, with these choices where the spec is open
@@ -2941,7 +2941,7 @@ thread loads. Each load would call the tools of every old program, with no user 
 
 **Status.** Accepted.
 
-**Decision.** `/desktop/cmp/genui/` adds specs for a form, a button and eight inputs. Each input
+**Decision.** `/desktop/cmp/genui/` adds specs for a form, a button and ten inputs. Each input
 renders its Hoist input in a `FormField`, over a `FormModel` of one field. Its `value` is a state
 prop, per D126, and the model's `rules` run as Hoist rules. The form renders Hoist's `FormFieldSet`.
 Each input inside it registers its field with the form, which it finds through Hoist's model
@@ -2982,9 +2982,10 @@ variables. The badges, tabs, treemap and input specs already match. A tool name 
 as `show_stat_cards`, where the catalog name is in camel case.
 
 One spec waits. `section` renders `Card`, but `card` still names the record card. The record card
-will become a Hoist `Card` that holds a `KeyValueList`, with its actions in the card's footer, and
-`section` becomes `card` in that change. `callout` rendered `Banner` until Hoist 91 shipped its own
-`Callout`, and then moved onto it with no rename.
+now renders a Hoist `Card` that holds a `PropertyTable`. Hoist's `Card` has no footer, so its
+actions sit in a row at the bottom of the card. It no longer shares the frame of the grid, chart
+and treemap, as D128 had it. `section` becomes `card` in a later change. `callout` rendered
+`Banner` until Hoist 91 shipped its own `Callout`, and then moved onto it with no rename.
 
 **Why.** A developer or an agent that reads a catalog name finds the component in Hoist's docs
 under the same name. A second name for the same component is one more thing to learn and map, and
@@ -2994,7 +2995,28 @@ the two drift apart as Hoist grows.
 then needs a map to its Hoist component. Keep `metrics` as an alias of `statCards`. Two names for
 one spec double the docs and the prompt.
 
-## D133. A chat answer checks URLs as a blueprint does, and keeps callTool
+## D133. A tool opts in to being allowed for the conversation
+
+**Status.** Accepted.
+
+**Decision.** `ChatToolSpec.canAllowForConversation` lets the user allow a tool for the rest of
+the conversation, from its approval card. It is off by default. `ChatModel.allowedTools` holds the
+choice, `resetAllowedTools()` forgets it, and clearing the chat or loading another thread empties
+it. A reload of the same thread keeps it. Allowing a tool also approves its other calls that wait
+in the same step. Server approvals, through interrupts, still ask call by call.
+
+**Why.** An app asked for it, so that frequent changes that are easy to undo need no click each
+time. The kit cannot tell such a tool from one that places an order. An app that adds approval
+today expects every call to ask, and a tool that asks only for some inputs, such as orders over a
+limit, would lose that check for the rest of the conversation after one click. So the app opts
+each tool in. A server agent decides its own approvals, and the chat cannot answer its interrupts
+on the user's behalf.
+
+**Alternatives.** On by default, with a setting to keep a tool asking. Less setup for an app with
+many tools, but every existing approval would gain the choice at once. Persist the choice with the
+thread. A reloaded conversation would then run calls the user may no longer remember allowing.
+
+## D134. A chat answer checks URLs as a blueprint does, and keeps callTool
 
 **Status.** Accepted. Amends D47.
 
@@ -3014,7 +3036,7 @@ answers to guard against tools that may never change data.
 **Alternatives.** Keep two matchers. They drift, and a URL a dashboard refuses could open from a
 chat. Refuse `callTool` in every answer. That breaks buttons that run read-only tools.
 
-## D134. The Architect reads a chat answer to add it to its host
+## D135. The Architect reads a chat answer to add it to its host
 
 **Status.** Accepted.
 
@@ -3059,24 +3081,3 @@ its context.
 **Alternatives.** Keep a registry of rendered answers. It would hold an OpenUI program's current
 state, but only for answers on screen, and it couples the tool to rendering. Return the program's
 current state through lang-core's runtime. That reads the runtime's internals.
-
-## D135. A tool opts in to being allowed for the conversation
-
-**Status.** Accepted.
-
-**Decision.** `ChatToolSpec.canAllowForConversation` lets the user allow a tool for the rest of
-the conversation, from its approval card. It is off by default. `ChatModel.allowedTools` holds the
-choice, `resetAllowedTools()` forgets it, and clearing the chat or loading another thread empties
-it. A reload of the same thread keeps it. Allowing a tool also approves its other calls that wait
-in the same step. Server approvals, through interrupts, still ask call by call.
-
-**Why.** An app asked for it, so that frequent changes that are easy to undo need no click each
-time. The kit cannot tell such a tool from one that places an order. An app that adds approval
-today expects every call to ask, and a tool that asks only for some inputs, such as orders over a
-limit, would lose that check for the rest of the conversation after one click. So the app opts
-each tool in. A server agent decides its own approvals, and the chat cannot answer its interrupts
-on the user's behalf.
-
-**Alternatives.** On by default, with a setting to keep a tool asking. Less setup for an app with
-many tools, but every existing approval would gain the choice at once. Persist the choice with the
-thread. A reloaded conversation would then run calls the user may no longer remember allowing.

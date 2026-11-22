@@ -2,10 +2,10 @@
 # This is a single-package repo - the file exists for settings only, not to define a workspace.
 
 # Dependency build scripts do not run unless reviewed here. Unreviewed scripts are a hard error
-# in CI. esbuild (via tsx, which powers the @xh/hoist MCP server and CLI tools) is allowed so its
-# platform binary install is guaranteed. The rest ship prebuilt output or only print a funding
-# message. @openuidev/lang-core only runs install-time telemetry, which
-# CI also disables with OPENUI_TELEMETRY_DISABLED.
+# in CI. esbuild (via tsx, which Vite and so Vitest pull in) is allowed so its platform binary
+# install is guaranteed. The rest ship prebuilt output or only print a funding
+# message. @openuidev/lang-core only runs install-time telemetry, which CI also
+# disables with OPENUI_TELEMETRY_DISABLED.
 allowBuilds:
   '@openuidev/lang-core': false
   '@parcel/watcher': false

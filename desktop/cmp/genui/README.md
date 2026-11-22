@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, stat cards, cards, nested answers, tabs, sections, callouts, forms and inputs, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, stat cards, cards, nested answers, tabs, sections, callouts, labeled values, progress bars, forms and inputs, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -20,9 +20,10 @@
 The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
-separators and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
-a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
-place of long tables of text.
+separators and a treemap add structure and emphasis. A property table shows labeled values, and
+progress bars show values against a maximum. Each is a spec over a Hoist component. Add them to a
+`ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in place
+of long tables of text.
 
 Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
 
@@ -36,6 +37,8 @@ Key features:
 - **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
   `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiSeparatorSpec()` and `chatUiTreeMapSpec()` map
   plain props to Hoist's `TabContainer`, `Card`, `Callout`, `Badge`, `Separator` and `TreeMap`.
+- **Hoist components for one thing** - `chatUiPropertyTableSpec()` and `chatUiProgressBarsSpec()`
+  map plain props to Hoist's `PropertyTable` and `ProgressBar`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -53,9 +56,10 @@ Key features:
   `$48.5B`, with the full value in a tooltip.
 - **Follow-up actions** - a card's follow-up chips run typed actions. By default each one sends
   a message as the user's next turn, and its tooltip shows what the click does.
-- **One card frame** - every card shares a 28 px header strip, a footer for counts, and the same
-  loading, failed and empty states. `.xh-chat--compact` narrows them for a docked chat.
-- **Forms and inputs** - a form, a button and eight inputs put Hoist's `FormField`, inputs and
+- **One card frame** - the table, chart and treemap share a 28 px header strip, a footer for
+  counts, and the same loading, failed and empty states. `.xh-chat--compact` narrows them for a
+  docked chat.
+- **Forms and inputs** - a form, a button and ten inputs put Hoist's `FormField`, inputs and
   `Button` to work. Each input holds a value that the user changes, validates it with Hoist
   rules, and can bind it to the state of its document.
 
@@ -74,6 +78,8 @@ chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Call
 chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
 chatUiSeparatorSpec(opts) → ChatUiComponentSpec<ChatUiSeparatorSpecProps> → Separator (Hoist)
 chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
+chatUiPropertyTableSpec(opts) → ChatUiComponentSpec<ChatUiPropertyTableSpecProps> → PropertyTable (Hoist)
+chatUiProgressBarsSpec(opts) → ChatUiComponentSpec<ChatUiProgressBarsSpecProps> → ProgressBar (Hoist)
 ```
 
 Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec into a tool named
@@ -82,9 +88,9 @@ Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec in
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
 
-The stack, text, tabs, section, badges and separator components set `standalone: false`, so they
-have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an
-`xh.chat.ui` data part, or a text format that writes documents.
+The stack, text, tabs, section, badges, separator, property table and progress bars components
+set `standalone: false`, so they have no tool or tag of their own. They show only inside a nested
+answer: a `show_ui` document, an `xh.chat.ui` data part, or a text format that writes documents.
 
 While the model writes the props, `render` runs with `isPartial: true` and props that may be cut
 short. The components handle this:
@@ -95,7 +101,8 @@ short. The components handle this:
 - `ChatUiChart` waits until the chart type and axes are complete, creates its `ChartModel`, and
   passes the series to `setSeries()`. Hoist updates the points in place.
 - The stat cards spec shows each card once its figure is complete.
-- `ChatUiCard` shows fields as they arrive, and its actions once the props are complete.
+- `ChatUiCard` shows a placeholder until its first field is complete, then each field as it
+  completes, and its actions once the props are complete.
 - `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
   to come.
 - `ChatUiText` renders its markdown as it streams, as a reply's own text does.
@@ -107,6 +114,8 @@ short. The components handle this:
   arrives after the title, as a `CardModel` reads its config once.
 - The callout spec takes its intent and title before its text, so a warning shows as one from its
   first word. The badges spec shows complete badges only.
+- The property table spec shows each labeled value once it is complete. The progress bars spec
+  shows each bar once its value is complete.
 - `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
@@ -286,7 +295,8 @@ from the artifact. A change of type updates the series in place, so a zoom survi
 ```json
 {"cards": [
     {"label": "Revenue", "value": 1250000, "format": "currency", "decimals": 0},
-    {"label": "Margin", "value": 0.184, "format": "percent", "delta": 0.012, "deltaLabel": "vs Q2"},
+    {"label": "Margin", "value": 0.184, "format": "percent", "delta": 0.012, "deltaLabel": "vs Q2",
+        "trend": [0.162, 0.171, 0.168, 0.184]},
     {"label": "Open issues", "value": 7, "intent": "warning"}
 ]}
 ```
@@ -299,19 +309,29 @@ A screen reader hears the delta in words, such as "up 1.2%", as the arrow alone 
 way the value moved.
 With `invert`, for a figure where up is bad, a rise shows in the negative color. It takes the
 format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
-under the value. An `intent` colors the card's outline. A large `number` or `currency` value, from
-100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
-shows the full value. The model sends the full number.
+under the value. A `trend`, the past values of that same figure with the oldest first, shows on
+the same line as a Hoist `Sparkline`. The model takes it from tool data, and leaves it out when no
+tool gives that history. The trend has no color of its own, and needs at least two numbers. Its
+accessible name gives the figure and its first and last values. An `intent` colors the card's
+outline. A large `number` or `currency` value, from 100,000 up, shows to three significant digits
+with a `K`, `M`, `B` or `T` suffix. Its tooltip shows the full value. The model sends the full
+number.
 
-A card shows one record, with its title and subtitle in the header strip. Each action is a typed
-`ChatUiAction` with a `label`, shown as an outlined chip after the card. A click runs it through
-the catalog's `runActionAsync()`. A long chip is cut to one line. By default the card takes `send` actions
-only. A `send` action sends its `text` as the user's own message, with any structured `context` on
-the message's `metadata.context`. The context is a flat object of at most 8 short values, such as
-record ids. The button's tooltip describes the action and its context before the click, and the
-chat shows both after it. Sent text is at most 200 characters. Buttons that send a message or run
-a tool are disabled while the chat is busy, or while a send blocker gives a reason to wait. In a
-message list over a host that is not a `ChatModel`, the card hides them.
+A card shows one record. It renders Hoist's `Card`, with the title and a muted subtitle in its
+header, and its fields in a Hoist `PropertyTable`. A numeric field takes a `format` and `decimals`,
+and a blank value shows as `-`. The card does not collapse. Each action is a typed `ChatUiAction`
+with a `label`, shown as an outlined chip in a row at the foot of the card. Hoist's `Card` has no
+footer, so the row sits under the fields, after a thin rule. A click runs the action through the
+catalog's `runActionAsync()`. A long chip is cut to one line. By default the card takes `send`
+actions only. A `send` action sends its `text` as the user's own message, with any structured
+`context` on the message's `metadata.context`. The context is a flat object of at most 8 short
+values, such as record ids. The button's tooltip describes the action and its context before the
+click, and the chat shows both after it. Sent text is at most 200 characters. Buttons that send a
+message or run a tool are disabled while the chat is busy, or while a send blocker gives a reason to
+wait. In a message list over a host that is not a `ChatModel`, the card hides them.
+
+Style the card through Hoist's `--xh-card-*` and `--xh-property-table-*` variables, under
+`.xh-chat-ui-card`. A compact chat gives its table Hoist's compact size.
 
 ```json
 {
@@ -434,6 +454,65 @@ Hoist's `TreeMap` draws nested boxes only with a tree grid bound to it.
 The treemap needs two Highcharts modules, heatmap then treemap. See
 [Expecting a treemap without its Highcharts modules](#expecting-a-treemap-without-its-highcharts-modules).
 
+### Show labeled values
+
+A property table shows the fields of one record. It nests in a document:
+
+```json
+{
+    "root": "answer",
+    "elements": {
+        "answer": {"component": "stack", "props": {}, "children": ["facts"]},
+        "facts": {"component": "propertyTable", "props": {"columns": 2, "entries": [
+            {"label": "Counterparty", "value": "Acme Corp"},
+            {"label": "Exposure", "value": 4200000, "format": "currency", "decimals": 0},
+            {"label": "Status", "value": "Under review", "intent": "warning"}
+        ]}}
+    }
+}
+```
+
+The spec renders Hoist's `PropertyTable`: a label beside each value, in as many columns as fit.
+`columns` sets the most columns, and a narrow chat shows fewer. A number takes a `format` and
+`decimals`. Text shows as is, and a boolean as `Yes` or `No`. A missing or blank value shows as
+`-`. An `intent` colors a value to flag a status. Use the card spec for a record with a frame, a
+title and actions.
+
+The spec shows at most `maxItems` entries, and a muted count of the rest, such as
+`4 more not shown`, rather than fail as a whole. A model that writes a few too many gets no retry.
+The prompt states the maximum. Style the table through Hoist's `--xh-property-table-*` variables,
+under `.xh-chat-ui-property-table`. A compact chat gives the table Hoist's compact size.
+
+### Show progress bars
+
+Progress bars show values against a maximum, such as usage against a limit or the progress of a
+task. They nest in a document:
+
+```json
+{
+    "root": "answer",
+    "elements": {
+        "answer": {"component": "stack", "props": {}, "children": ["usage"]},
+        "usage": {"component": "progressBars", "props": {"bars": [
+            {"label": "Storage", "value": 72},
+            {"label": "Budget", "value": 7200, "max": 10000, "format": "currency", "intent": "warning", "target": 9000}
+        ]}}
+    }
+}
+```
+
+The spec renders a Hoist `ProgressBar` per bar, in a column. A bar is a `value` from 0 to `max`,
+100 by default. With no `format`, the figure over the bar is the value as a whole percent of
+`max`. With a `format`, it is the value and `max` in that format, such as `$7,200 of $10,000`. The
+`percent` format shows one figure, the share of `max`, which is 1 by default. So a fraction alone
+and a raw value with its `max` both read right. A `target` marks a goal on the bar, and an
+`intent` colors the fill. A value outside the range shows an empty or a full bar. A bar with no
+number is left out, as Hoist would draw it empty.
+
+The spec shows at most `maxItems` bars, and a muted count of the rest. Style the bars through
+Hoist's `--xh-progress-bar-*` variables, under `.xh-chat-ui-progress-bars`. Hoist's `ProgressBar`
+has no compact size, so the bars look the same in a compact chat.
+
 ### Ask the user for input
 
 `chatUiInputSpecs()` returns the form components: a form, a button, and an input of each kind.
@@ -459,6 +538,8 @@ const catalog = new ChatUiCatalog({
 | `chatUiCheckboxSpec` | `checkbox` | `Checkbox` | True or false |
 | `chatUiSwitchSpec` | `switch` | `SwitchInput` | True or false |
 | `chatUiSegmentedControlSpec` | `segmentedControl` | `SegmentedControl` | One choice |
+| `chatUiRadioInputSpec` | `radioInput` | `RadioInput` | One choice |
+| `chatUiSliderSpec` | `slider` | `Slider` | A number, or a low and a high value with `range` |
 
 The model writes a form as a document, or as the program of a text format:
 
@@ -484,15 +565,27 @@ The model writes a form as a document, or as the program of a text format:
   [Run programs with state](../../../genui/openui/README.md#run-programs-with-state).
 
 A text or number input writes its value when the user leaves it or presses Enter, as Hoist
-commits it. A select, a checkbox, a switch and a segmented control write on each change. Each
-input shows only a value of its own type, whatever the state holds.
+commits it. A select, a checkbox, a switch, a segmented control and a radio input write on each
+change. A slider writes once the user stops moving a handle for a quarter of a second, so that a
+drag makes one write. A press or a click anywhere writes it at once, so that a button reads the
+value shown. Each input shows only a value of its own type, whatever the state holds. A radio
+input shows none selected for a value that is not among its choices.
+
+**A slider** always shows a value, so it takes no rules. A value that is missing or outside the
+range shows at the nearest end, and a form sends the value that the slider shows. A range written
+backwards draws the right way round. `min` and `max` are from -1e12 to 1e12. Hoist's `Slider`
+adjusts any other scale it cannot draw, and renders a range of no width disabled. With `range` it
+has two handles, and its value is a list of the low and the high value. `format` sets how the
+slider shows its values, as a [number format](#number-formats). A large value shows in a compact
+form, such as `$150M`, so that the label at each end fits. Hoist's `Slider` has no compact size,
+so a slider looks the same in a compact chat.
 
 **Rules** are an object, such as `{required: true, email: true}`. They run as Hoist rules, and
 their messages show under the input:
 
 | Rule | Inputs | Hoist rule |
 |------|--------|------------|
-| `required` | All but the checkbox and the switch | `required` |
+| `required` | All but the checkbox, the switch and the slider | `required` |
 | `email` | Text input | `validEmail` |
 | `minLength`, `maxLength` | Text input, text area | `lengthIs` |
 | `min`, `max` | Number input | `numberIs` |
@@ -505,8 +598,8 @@ worst validation problem on show.
 **Sizing** follows Hoist: the container sets the width. The form fills the reply, and a field in
 it fills the form, or its share of a row. Put fields in a row stack to use a wide form, or set a
 `max-width` on `.xh-chat-ui-form`. Outside a form, a field is at most 360 px wide. A segmented
-control keeps the width of its options, and a row that cannot hold it wraps. A button keeps the
-size of its label. In a row, it sits at the bottom, level with the input of a field beside it.
+control keeps the width of its options, and a slider keeps the 190 px its track needs. A row that
+cannot hold either wraps. A button keeps the size of its label. In a row, it sits at the bottom, level with the input of a field beside it.
 
 **The button** runs one typed action. With no action, it sends its label as the user's next
 message. Inside a form, a click first validates every field, and shows each message. If all are
@@ -519,8 +612,8 @@ email: ann@example.com, region: EMEA
 ```
 
 The tooltip of the button shows the message and the values before the click, and the sent message
-shows them after it. A select with `multi` sends its choices as one text, joined with commas. An
-empty field sends nothing.
+shows them after it. A select with `multi` sends its choices as one text, joined with commas. A
+slider with `range` sends its two values the same way. An empty field sends nothing.
 
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:
@@ -590,6 +683,7 @@ and `description`, the text that tells the model when to use the component.
 | | `height` | `number` | Chart body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 | | `byReference` | `boolean` | Take an artifact and a chart view, not series. Default false. |
 | `chatUiStatCardsSpec` | `maxItems` | `number` | Most figures. Default 4. |
+| | `maxTrendPoints` | `number` | Most values in the trend of a figure. Default 60. |
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
@@ -598,12 +692,15 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiButtonSpec` | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the button. Default `['send', 'state']`. |
 | `chatUiSelectSpec` | `maxOptions` | `number` | Most choices. Default 50. |
 | `chatUiSegmentedControlSpec` | `maxOptions` | `number` | Most choices. Default 6. |
+| `chatUiRadioInputSpec` | `maxOptions` | `number` | Most choices. Default 8. |
 | `chatUiFormSpec` and the other inputs | - | - | No options beyond `name` and `description`. |
 | `chatUiTabsSpec` | `maxTabs` | `number` | Most tabs. Default 6. |
 | `chatUiSectionSpec` | - | - | No options beyond `name` and `description`. |
 | `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
 | `chatUiBadgesSpec` | `maxItems` | `number` | Most badges. Default 12. |
 | `chatUiSeparatorSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiPropertyTableSpec` | `maxItems` | `number` | Most labeled values shown. Default 24. |
+| `chatUiProgressBarsSpec` | `maxItems` | `number` | Most bars shown. Default 12. |
 | `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
 | | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 
@@ -639,8 +736,8 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiTabs` | `titles` | `children`, `isPartial` |
 | `ChatUiTreeMap` | `title`, `nodes`, `format`, `decimals`, `heatLabel`, `heatFormat` | `height`, `isPartial` |
 
-The section, callout, badges and separator specs render Hoist components, and have no component of
-their own. Their props from the model:
+The section, callout, badges, separator, property table and progress bars specs render Hoist
+components, and have no component of their own. Their props from the model:
 
 | Spec | Props from the model |
 |------|----------------------|
@@ -648,6 +745,8 @@ their own. Their props from the model:
 | `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
 | `chatUiSeparatorSpec` | `label` |
+| `chatUiPropertyTableSpec` | `entries`, each a `label` and an optional `value`, `format`, `decimals` and `intent`, then `columns` |
+| `chatUiProgressBarsSpec` | `bars`, each a `label` and a `value`, then an optional `max`, `format`, `intent` and `target` |
 
 See the TSDoc in each source file for the full shape of the props.
 
@@ -664,7 +763,8 @@ a model to bind a `$variable`.
 | `select` | `name`, `options`, `label`, `placeholder`, `multi`, `rules`, `value` |
 | `dateInput` | `name`, `label`, `rules`, `value` |
 | `checkbox`, `switch` | `name`, `label`, `value` |
-| `segmentedControl` | `name`, `options`, `label`, `rules`, `value` |
+| `segmentedControl`, `radioInput` | `name`, `options`, `label`, `rules`, `value` |
+| `slider` | `name`, `min`, `max`, `label`, `step`, `format`, `range`, `value` |
 
 An option is a value, or an object with a `value` and a `label`. `name` is the key of the field
 among the values a form sends, so it must be unique in its form. See `ChatUiInput.ts` for the

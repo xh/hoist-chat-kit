@@ -139,6 +139,48 @@ describe('generative UI components', () => {
             // StatCard shows a cut-off delta's text in a tooltip, which holds no words.
             expect(container.querySelector('.xh-stat-card__sub-value').textContent).toBe('▴1.2%');
         });
+
+        it('draws a trend as a Hoist Sparkline under the value, after the label of the delta', () => {
+            const {container} = renderStatCards({
+                cards: [
+                    {
+                        label: 'Revenue',
+                        value: 1250000,
+                        format: 'currency',
+                        delta: 0.04,
+                        deltaFormat: 'percent',
+                        deltaLabel: 'vs Q2',
+                        trend: [900000, 1100000, 1250000]
+                    },
+                    {label: 'Margin', value: 0.18, format: 'percent', trend: [0.2, 0.18]}
+                ]
+            });
+            const [revenue, margin] = container.querySelectorAll('.xh-stat-card__detail');
+
+            expect(revenue.textContent).toBe('vs Q2');
+            expect(revenue.querySelector('.xh-sparkline').getAttribute('aria-label')).toBe(
+                'Revenue trend: 3 values, from $900K to $1.25M'
+            );
+            expect(margin.querySelector('.xh-sparkline')).toBeTruthy();
+            expect(margin.textContent).toBe('');
+            // The trend has no color of its own. Only the delta has.
+            expect(container.querySelector('.xh-sparkline--positive')).toBeNull();
+            expect(container.querySelector('.xh-sparkline--negative')).toBeNull();
+        });
+
+        it('draws no trend for fewer than two numbers, and keeps the label of the delta', () => {
+            const {container} = renderStatCards({
+                cards: [
+                    {label: 'Revenue', value: 12, deltaLabel: 'vs Q2', trend: [5]},
+                    {label: 'Margin', value: 3, trend: ['up', null, 4] as any},
+                    {label: 'Cost', value: 3, trend: 'rising' as any}
+                ]
+            });
+
+            expect(container.querySelector('.xh-sparkline')).toBeNull();
+            expect(container.querySelectorAll('.xh-stat-card__detail')).toHaveLength(1);
+            expect(container.querySelector('.xh-stat-card__detail').textContent).toBe('vs Q2');
+        });
     });
 
     describe('ChatUiStack', () => {
@@ -258,24 +300,95 @@ describe('generative UI components', () => {
                 url: 'https://example.com/report'
             };
 
-        it('shows actions as chips after the card, each with a tooltip of what it sends', () => {
+        it('renders a Hoist Card, with the title and subtitle in its header', () => {
+            const {container} = render(
+                    chatUiCard({
+                        title: 'Acme Corp',
+                        subtitle: 'Counterparty - Tier 1',
+                        fields: [],
+                        chatModel: null,
+                        runActionAsync: vi.fn()
+                    })
+                ),
+                card = container.querySelector('fieldset.xh-card.xh-chat-ui-card');
+
+            expect(card.querySelector('legend .xh-chat-ui-card__title').textContent).toBe(
+                'Acme Corp'
+            );
+            expect(card.querySelector('legend .xh-chat-ui-card__subtitle').textContent).toBe(
+                'Counterparty - Tier 1'
+            );
+            // A record card does not collapse, so its header is not a button.
+            expect(screen.queryByRole('button')).toBeNull();
+        });
+
+        it('shows fields in a Hoist PropertyTable, each number in its format', () => {
+            const {container} = render(
+                chatUiCard({
+                    title: 'Acme Corp',
+                    fields: [
+                        {label: 'Exposure', value: 4200000, format: 'currency', decimals: 0},
+                        {label: 'Rating', value: 'A+'},
+                        {label: 'Owner', value: ' '}
+                    ],
+                    chatModel: null,
+                    runActionAsync: vi.fn()
+                })
+            );
+
+            expect(container.querySelector('.xh-card__content .xh-property-table')).toBeTruthy();
+            expect(texts(container, '.xh-property-table__label')).toEqual([
+                'Exposure',
+                'Rating',
+                'Owner'
+            ]);
+            expect(texts(container, '.xh-property-table__value')).toEqual([
+                '$4,200,000',
+                'A+',
+                '-'
+            ]);
+        });
+
+        it('leaves out the last field while streaming, and holds its place until one arrives', () => {
+            const props = {title: 'Acme', chatModel: null as ChatModel, runActionAsync: vi.fn()},
+                {container, rerender} = render(
+                    chatUiCard({...props, fields: [{label: 'Exp', value: 4}], isPartial: true})
+                );
+            expect(container.querySelector('.xh-property-table')).toBeNull();
+            expect(container.querySelector('.xh-card__content .xh-chat-ui-skeleton')).toBeTruthy();
+
+            rerender(
+                chatUiCard({
+                    ...props,
+                    fields: [
+                        {label: 'Exposure', value: 42},
+                        {label: 'Rat', value: 'A'}
+                    ],
+                    isPartial: true
+                })
+            );
+            expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
+            expect(texts(container, '.xh-property-table__label')).toEqual(['Exposure']);
+        });
+
+        it('shows actions as chips in a row at the foot of the card, under its fields', () => {
             const chatModel = createChatModel(),
                 {container} = render(
                     chatUiCard({
                         title: 'Acme Corp',
-                        fields: [],
+                        fields: [{label: 'Rating', value: 'A+'}],
                         actions: [send],
                         chatModel,
                         runActionAsync: vi.fn()
                     })
                 ),
-                chip = screen.getByRole('button', {name: 'Show trades'});
+                chip = screen.getByRole('button', {name: 'Show trades'}),
+                content = container.querySelector('.xh-chat-ui-card .xh-card__content');
 
-            expect(chip.closest('.xh-chat-ui-frame')).toBeNull();
-            expect(container.querySelector('.xh-chat-ui-frame__header').textContent).toBe(
-                'Acme Corp'
-            );
             expect(chip.className).toContain('xh-chat-ui-card__action');
+            expect(chip.parentElement.className).toBe('xh-chat-ui-card__actions');
+            expect(content.lastElementChild).toBe(chip.parentElement);
+            expect(content.firstElementChild.className).toContain('xh-property-table');
         });
 
         it('runs the clicked action, and describes it in the tooltip', () => {
@@ -386,4 +499,8 @@ function createChatModel(): ChatModel {
     const model = new ChatModel({transport: new ScriptedChatTransport()});
     onTestFinished(() => model.destroy());
     return model;
+}
+
+function texts(container: HTMLElement, selector: string): string[] {
+    return [...container.querySelectorAll(selector)].map(it => it.textContent);
 }

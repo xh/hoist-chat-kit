@@ -7,6 +7,8 @@ import {ChatUiCatalog} from '../../../genui';
 import {openUiLangFormat, toOpenUiLibrary} from '../../../genui/openui';
 import {chatUiBadgesSpec} from './ChatUiBadges';
 import {chatUiCalloutSpec} from './ChatUiCallout';
+import {chatUiProgressBarsSpec} from './ChatUiProgressBars';
+import {chatUiPropertyTableSpec} from './ChatUiPropertyTable';
 import {chatUiSeparatorSpec} from './ChatUiSeparator';
 import {chatUiSectionSpec} from './ChatUiSection';
 import {chatUiStackSpec} from './ChatUiStack';
@@ -24,7 +26,9 @@ describe('built-in specs as an OpenUI library', () => {
 
     const INTENT = '"none" | "primary" | "success" | "warning" | "danger"',
         FORMAT = '"number" | "percent" | "currency" | "none"',
-        CHILDREN = '(Stack | Text | Tabs | Section | Callout | Badges | Separator | Treemap)[]';
+        CHILDREN =
+            '(Stack | Text | Tabs | Section | Callout | Badges | Separator | Treemap | ' +
+            'PropertyTable | ProgressBars)[]';
 
     it('writes a signature per component, with a container taking its children first', () => {
         const {components} = toOpenUiLibrary(createCatalog(), {root: 'stack'});
@@ -45,6 +49,14 @@ describe('built-in specs as an OpenUI library', () => {
             'Treemap(title?: string, nodes: {label: string; value: number; heat?: number}[], ' +
                 `format?: ${FORMAT}, decimals?: number, heatLabel?: string, ` +
                 `heatFormat?: ${FORMAT})`
+        );
+        expect(components.PropertyTable.signature).toBe(
+            'PropertyTable(entries: {label: string; value?: number | string | boolean; ' +
+                `format?: ${FORMAT}; decimals?: number; intent?: ${INTENT}}[], columns?: number)`
+        );
+        expect(components.ProgressBars.signature).toBe(
+            'ProgressBars(bars: {label: string; value: number; max?: number; ' +
+                `format?: ${FORMAT}; intent?: ${INTENT}; target?: number}[])`
         );
     });
 
@@ -67,12 +79,23 @@ describe('built-in specs as an OpenUI library', () => {
         if (segment.type !== 'document') return;
 
         expect(segment.document.elements).toMatchObject({
-            root: {component: 'stack', children: ['note', 'tags', 'rule', 'views']},
+            root: {
+                component: 'stack',
+                children: ['note', 'tags', 'facts', 'usage', 'rule', 'views']
+            },
             note: {
                 component: 'callout',
                 props: {text: 'VaR is over its limit.', intent: 'warning', title: 'Limit breach'}
             },
             tags: {component: 'badges', props: {badges: [{label: 'Rates', intent: 'danger'}]}},
+            facts: {
+                component: 'propertyTable',
+                props: {entries: [{label: 'Desk', value: 'Rates'}], columns: 2}
+            },
+            usage: {
+                component: 'progressBars',
+                props: {bars: [{label: 'VaR', value: 8.1, max: 10, target: 7.5}]}
+            },
             rule: {component: 'separator', props: {}},
             views: {
                 component: 'tabs',
@@ -106,6 +129,12 @@ describe('built-in specs as an OpenUI library', () => {
         expect(container.querySelector('.xh-callout.xh-callout--intent-warning')).toBeTruthy();
         expect(container.querySelector('.xh-badge.xh-bg-intent-danger').textContent).toBe('Rates');
         expect(container.querySelector('.xh-separator.xh-chat-ui-separator')).toBeTruthy();
+        expect(
+            container.querySelector('.xh-property-table.xh-chat-ui-property-table').textContent
+        ).toBe('DeskRates');
+        expect(
+            container.querySelector('.xh-chat-ui-progress-bars [role="progressbar"]').textContent
+        ).toBe('VaR81%');
         expect(container.querySelectorAll('.xh-tab-container [role="tab"]')).toHaveLength(2);
         expect(container.querySelector('.xh-chat-ui-treemap')).toBeTruthy();
     });
@@ -150,9 +179,11 @@ describe('built-in specs as an OpenUI library', () => {
 // Helpers
 //------------------
 const PROGRAM = [
-    'root = Stack([note, tags, rule, views])',
+    'root = Stack([note, tags, facts, usage, rule, views])',
     'note = Callout("warning", "Limit breach", "VaR is over its limit.")',
     'tags = Badges([{label: "Rates", intent: "danger"}])',
+    'facts = PropertyTable([{label: "Desk", value: "Rates"}], 2)',
+    'usage = ProgressBars([{label: "VaR", value: 8.1, max: 10, target: 7.5}])',
     'rule = Separator()',
     'views = Tabs([map, detail], ["Exposure", "Detail"])',
     'map = Treemap("Exposure", [{label: "Rates", value: 42}])',
@@ -170,7 +201,9 @@ function createCatalog(): ChatUiCatalog {
             chatUiCalloutSpec(),
             chatUiBadgesSpec(),
             chatUiSeparatorSpec(),
-            chatUiTreeMapSpec()
+            chatUiTreeMapSpec(),
+            chatUiPropertyTableSpec(),
+            chatUiProgressBarsSpec()
         ],
         textFormats: [openUiLangFormat({root: 'stack'})],
         modes: ['openui']
