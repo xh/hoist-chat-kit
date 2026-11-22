@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {BUILT_IN_WIDGETS} from '../impl/builtInWidgets';
+import {childIds} from '../impl/elements';
 import {type EditorNode, toEditorSpec} from './editorSpec';
 
 /**
@@ -23,6 +24,16 @@ describe('toEditorSpec', () => {
             expect(labels.every(it => ORDER.includes(it))).toBe(true);
             expect(labels).toEqual([...labels].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)));
             expect(spec.sections.find(it => it.label === 'Style')?.collapsed ?? true).toBe(true);
+        });
+    });
+
+    it('gives each built-in example the elements its child references name', () => {
+        BUILT_IN_WIDGETS.filter(it => it.example).forEach(spec => {
+            const elements = {[spec.name]: spec.example, ...(spec.exampleElements ?? {})},
+                missing = Object.values(elements)
+                    .flatMap((el: any) => childIds(el))
+                    .filter(id => !Object.hasOwn(elements, id));
+            expect({widget: spec.name, missing}).toEqual({widget: spec.name, missing: []});
         });
     });
 

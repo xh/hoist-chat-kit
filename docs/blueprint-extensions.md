@@ -118,6 +118,8 @@ editors what a value means:
 - `category` places it in the palette and in the index: `container`, `layout`, `content`,
   `data`, `input` or `action`.
 - `example` is a valid element, which the Architect copies and a registry browser can render.
+  A container's example names its children by ID: give their elements in `exampleElements`, so
+  the example renders on its own.
 - `sections` groups config keys under headings in the inspector.
 
 ### Declare what the widget connects to

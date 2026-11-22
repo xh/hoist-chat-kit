@@ -2560,8 +2560,40 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
     }
 };
 
+// A widget's own example, with its config extended, for a container's example to hold.
+const exampleOf = (name: string, config: PlainObject = {}): PlainObject => {
+    const example = WIDGET_SPECS.find(it => it.name === name).example;
+    return {...example, config: {...example.config, ...config}};
+};
+
+// The elements each container's example names, from the other widgets' own examples.
+const EXAMPLE_ELEMENTS: Record<string, () => Record<string, PlainObject>> = {
+    dashCanvas: () => ({posGrid: exampleOf('cubeGrid')}),
+    tabContainer: () => ({
+        overview: {component: 'dashCanvas', children: [{id: 'posGrid', x: 0, y: 0, w: 12, h: 6}]},
+        detail: exampleOf('markdown'),
+        posGrid: exampleOf('cubeGrid')
+    }),
+    dashContainer: () => ({posGrid: exampleOf('cubeGrid'), chart: exampleOf('chart')}),
+    panel: () => ({exposureGrid: exampleOf('cubeGrid')}),
+    box: () => ({
+        posGrid: exampleOf('cubeGrid'),
+        divider: {component: 'separator'},
+        sectorChart: exampleOf('chart')
+    }),
+    toolbar: () => ({
+        regionSelect: exampleOf('select', {label: 'Region'}),
+        asOfInput: exampleOf('dateInput', {label: 'As of'})
+    }),
+    tileFrame: () => ({
+        mktValCard: exampleOf('statCard'),
+        pnlDayCard: exampleOf('statCard', {field: 'pnlDay'})
+    })
+};
+
 export const BUILT_IN_WIDGETS: WidgetSpec[] = WIDGET_SPECS.map(it => ({
     ...it,
+    ...(EXAMPLE_ELEMENTS[it.name] ? {exampleElements: EXAMPLE_ELEMENTS[it.name]()} : {}),
     ...(DEMANDS[it.name] ? {demand: DEMANDS[it.name]} : {}),
     ...(VALIDATORS[it.name] ? {validate: VALIDATORS[it.name]} : {})
 }));
