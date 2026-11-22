@@ -124,6 +124,11 @@ editors what a value means:
   Give what the example names beyond itself in `exampleBlueprint`: a container's child
   elements by ID, and any variables or preset groups it reads, so the example renders on its own.
 - `sections` groups config keys under headings in the inspector.
+- `icon` names a Hoist `Icon` factory. `preview` is a small picture for Add tiles, registry rows
+  and blueprint schematics: a kit glyph's name, such as `grid`, `chart`, `stat` or `input`, or a
+  function that draws SVG shapes into a `{width, height}` box. Draw with the classes
+  `xh-blueprint-preview__fg`, `__mid`, `__bg` and `__line`, so the picture takes the theme's
+  colors. A widget with no preview shows its icon.
 
 ### Declare what the widget connects to
 

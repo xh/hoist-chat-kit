@@ -334,6 +334,20 @@ there, and an `onAskArchitect()` for the empty dashboard's second button. Set th
 `onOpenElement(id)` to show an element on the canvas from a double-click. `wiringFor(blueprint,
 selection)` lists what a selection reads and sets, and what reads and sets it.
 
+### Picture widgets and blueprints
+
+`widgetPreview(spec, size)` draws a widget's `preview` glyph as an SVG, or its icon when it has
+none, for an Add tile or a registry row. `blueprintSchematic(blueprint, registry)` draws a
+blueprint's first canvas from its layout alone, each cell at its place with its widget's glyph,
+for a library card. Both take the theme's colors and need no data:
+
+```typescript
+import {blueprintSchematic, widgetPreview} from '@xh/hoist-chat-kit/desktop/cmp/blueprint';
+
+div({style: {height: 92}, item: blueprintSchematic(blueprint, model.registry)});
+widgetPreview(model.registry.widgets.cubeGrid, {width: 120, height: 40});
+```
+
 ### Generate a config editor from a schema
 
 `toEditorSpec(schema)` turns a widget's config schema into a tree of `EditorNode`s, one per

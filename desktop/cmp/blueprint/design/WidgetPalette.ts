@@ -17,7 +17,7 @@ import type {BlueprintDesignModel, BlueprintIssue, WidgetSpec} from '../../../..
 import {slotLabel} from '../../../../blueprint/impl/elements';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {paletteDrag} from '../impl/paletteDrag';
-import {widgetIcon} from './impl/icons';
+import {widgetPreview} from '../BlueprintPreview';
 import './WidgetPalette.scss';
 
 export interface WidgetPaletteProps extends HoistProps {
@@ -96,7 +96,10 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                                             }
                                         },
                                         children: [
-                                            widgetIcon(it as any, {className: `${CLS}__tile-icon`}),
+                                            div({
+                                                className: `${CLS}__tile-preview`,
+                                                children: widgetPreview(it as any)
+                                            }),
                                             div({
                                                 className: `${CLS}__tile-text`,
                                                 children: [

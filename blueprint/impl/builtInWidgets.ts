@@ -2665,10 +2665,45 @@ const exampleBlueprintFor = (spec: WidgetSpec): WidgetSpec['exampleBlueprint'] =
     };
 };
 
+// The kit glyph that pictures each built-in. See `widgetPreview`.
+const PREVIEWS: Record<string, string> = {
+    dashCanvas: 'canvas',
+    dashContainer: 'canvas',
+    tabContainer: 'tabs',
+    panel: 'panel',
+    box: 'box',
+    separator: 'separator',
+    spacer: 'spacer',
+    markdown: 'text',
+    callout: 'callout',
+    toolbar: 'toolbar',
+    select: 'input',
+    dateInput: 'input',
+    dateRangePicker: 'input',
+    numberInput: 'input',
+    textInput: 'input',
+    switchInput: 'switch',
+    slider: 'slider',
+    filterChooser: 'input',
+    groupingChooser: 'input',
+    cubeGrid: 'grid',
+    chart: 'chart',
+    propertyTable: 'table',
+    heatmap: 'heatmap',
+    treemap: 'treemap',
+    statCard: 'stat',
+    gauge: 'gauge',
+    tileFrame: 'tiles',
+    buttonGroup: 'buttons',
+    buttonGroupInput: 'buttons',
+    presetSelector: 'buttons'
+};
+
 export const BUILT_IN_WIDGETS: WidgetSpec[] = WIDGET_SPECS.map(it => {
     const exampleBlueprint = it.example ? exampleBlueprintFor(it) : null;
     return {
         ...it,
+        ...(PREVIEWS[it.name] ? {preview: PREVIEWS[it.name]} : {}),
         ...(exampleBlueprint ? {exampleBlueprint} : {}),
         ...(DEMANDS[it.name] ? {demand: DEMANDS[it.name]} : {}),
         ...(VALIDATORS[it.name] ? {validate: VALIDATORS[it.name]} : {})

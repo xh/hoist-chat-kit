@@ -547,6 +547,8 @@
         "inline source",
         "Architect",
         "blueprintView",
+        "blueprintSchematic",
+        "widgetPreview",
         "BlueprintDesignModel",
         "elementInspector",
         "elementOutline",

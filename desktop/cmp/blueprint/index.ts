@@ -1,4 +1,5 @@
 export * from './BlueprintLinkButton';
+export * from './BlueprintPreview';
 export * from './BlueprintView';
 export * from './BoxWidget';
 export * from './ButtonGroupInputWidget';

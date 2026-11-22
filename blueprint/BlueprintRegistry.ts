@@ -4,7 +4,7 @@ import {throwIf} from '@xh/hoist/utils/js';
 import {castArray, isEmpty, isPlainObject} from 'lodash';
 import {getOwn, toLookup} from './impl/pointer';
 import {findSchemaProblems} from '../impl/SchemaUtils';
-import type {ReactNode} from 'react';
+import type {ReactElement, ReactNode} from 'react';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintVariable} from './BlueprintVariable';
@@ -30,6 +30,9 @@ import {BUILT_IN_ACTIONS, BUILT_IN_WIDGETS} from './impl/builtInWidgets';
  */
 export type WidgetCategory = 'container' | 'layout' | 'content' | 'data' | 'input' | 'action';
 
+/** Draws a widget's picture as SVG shapes in a box of the size given, with `0, 0` at top left. */
+export type WidgetGlyph = (size: {width: number; height: number}) => ReactElement;
+
 export interface WidgetSpec {
     /** Registry key, the Hoist factory name of the component it renders, such as `cubeGrid`. */
     name: string;
@@ -49,6 +52,12 @@ export interface WidgetSpec {
     category: WidgetCategory;
     /** The name of a Hoist `Icon` factory that pictures it, such as `grid`. Default by category. */
     icon?: string;
+    /**
+     * A small picture of it, for an Add tile, a registry row and a blueprint's schematic: a kit
+     * glyph's name, such as `grid` or `chart`, or a function that draws SVG shapes into a box of
+     * the size given. See `widgetPreview`. Without it, a picture shows its icon.
+     */
+    preview?: string | WidgetGlyph;
     config: PlainObject;
     example?: PlainObject;
     /**
