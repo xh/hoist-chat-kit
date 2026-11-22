@@ -204,6 +204,23 @@ describe('BlueprintDesignModel', () => {
             });
         });
 
+        it('moves into a slot of any container, or says why it cannot, applying nothing', () => {
+            const {model, design} = p3(),
+                header = {parent: 'positions', slot: 'headerItems', of: 'priceChart'};
+            expect(design.canMoveToPlace('posGrid', header).map(it => it.code)).not.toEqual([]);
+            expect(design.canMoveToPlace('groupChooser', header)).toEqual([]);
+            expect(model.history).toHaveLength(0);
+            expect(
+                design
+                    .moveToPlace('groupChooser', header)
+                    .issues.filter(it => it.severity === 'error')
+            ).toEqual([]);
+            expect(cellOf(model, 'priceChart').headerItems).toEqual([{id: 'groupChooser'}]);
+            expect(
+                design.canMoveToPlace('positions', {parent: 'posGrid', slot: 'children'})
+            ).not.toEqual([]);
+        });
+
         it('tracks the hovered element as view state, never an edit', () => {
             const {model, design} = p3();
             design.setHovered('posGrid');

@@ -453,10 +453,40 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** The issues {@link moveTo} would meet, applying nothing: none if the move would apply. */
     canMoveTo(id: string, targetId: string, where: 'into' | 'before' | 'after'): BlueprintIssue[] {
-        const plan = this.planMove(id, targetId, where);
+        return this.dryRun(this.planMove(id, targetId, where));
+    }
+
+    // The errors an edit's plan would meet, applying nothing.
+    private dryRun(plan: {ops: BlueprintOp[]} | BlueprintEditResult): BlueprintIssue[] {
         if ('issues' in plan) return plan.issues.filter(isError);
         const {result, issue} = applyOps(this.blueprintModel.blueprint ?? {}, plan.ops);
         return issue ? [issue] : this.blueprintModel.validate(result).filter(isError);
+    }
+
+    // The ops that move an element to the end of a slot, or why they cannot.
+    private planPlace(
+        id: string,
+        {parent, slot = 'children', of}: AddPlace
+    ): {description: string; ops: BlueprintOp[]} | BlueprintEditResult {
+        const spec = this.elementSpec(id);
+        if (!spec || !this.elementSpec(parent)) return refused(`'${id}' cannot move there.`);
+        if (this.subtree(id).includes(parent)) {
+            return refused(`${id} cannot move inside itself.`, `/elements/${id}`);
+        }
+        const child = slot === 'children' ? this.placeChild(parent, spec) : null;
+        return {
+            description: `Move ${spec.label} to ${of ? `${of} ` : ''}${slot}`,
+            ops: [
+                {
+                    op: 'moveElement',
+                    id,
+                    parent,
+                    ...(child ? {child} : {}),
+                    ...(slot !== 'children' ? {slot} : {}),
+                    ...(of ? {of} : {})
+                }
+            ]
+        };
     }
 
     /**
@@ -764,21 +794,20 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** Move an element to another slot of its container, at its end, as one edit. */
     moveToSlot(id: string, slot: string, of?: string): BlueprintEditResult {
-        const {elements} = this.blueprintModel.blueprint ?? {},
-            parent = parentOf(elements, id),
-            spec = this.elementSpec(id);
-        if (!parent || !spec) return refused(`'${id}' is not in a container.`);
-        const child = slot === 'children' ? this.placeChild(parent, spec) : null;
-        return this.edit(`Move ${spec.label} to ${of ? `${of} ` : ''}${slot}`, [
-            {
-                op: 'moveElement',
-                id,
-                parent,
-                ...(child ? {child} : {}),
-                ...(slot !== 'children' ? {slot} : {}),
-                ...(of ? {of} : {})
-            }
-        ]);
+        const parent = parentOf(this.blueprintModel.blueprint?.elements, id);
+        if (!parent) return refused(`'${id}' is not in a container.`);
+        return this.moveToPlace(id, {parent, slot, of});
+    }
+
+    /** Move an element to the end of a slot of any container, as one edit. */
+    moveToPlace(id: string, place: AddPlace): BlueprintEditResult {
+        const plan = this.planPlace(id, place);
+        return 'issues' in plan ? plan : this.edit(plan.description, plan.ops);
+    }
+
+    /** The issues {@link moveToPlace} would meet, applying nothing: none if the move would apply. */
+    canMoveToPlace(id: string, place: AddPlace): BlueprintIssue[] {
+        return this.dryRun(this.planPlace(id, place));
     }
 
     /** Set the title an element has in its container, such as a tab's, as one edit. */

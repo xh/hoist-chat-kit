@@ -99,4 +99,26 @@ describe('BlueprintStructure', () => {
                 .map((it: any) => it.text ?? it);
         expect(texts).toEqual(['Rename…', 'Duplicate', 'Move to', 'Add child', '-', 'Delete']);
     });
+
+    it('says why a drag cannot drop before the drop, checking each target once per drag', () => {
+        const {model, design, structure} = open(),
+            check = vi.spyOn(design, 'canMoveToPlace');
+        structure.startDrag('posGrid');
+        const header = 'slot:positions|headerItems|priceChart',
+            refused = structure.dropVerdict(header, 0.5);
+        expect(refused.reason).toBeTruthy();
+        structure.dropVerdict(header, 0.4);
+        expect(check).toHaveBeenCalledTimes(1);
+        structure.drop(header, 0.5);
+        expect(model.history).toHaveLength(0);
+        structure.endDrag();
+
+        structure.startDrag('priceChart');
+        expect(structure.dropVerdict('element:groupChooser', 0.1)).toEqual({where: 'before'});
+        structure.drop('element:groupChooser', 0.1);
+        const ids = model.blueprint.elements.positions.children.map(it => it.id);
+        expect(ids.indexOf('priceChart')).toBe(ids.indexOf('groupChooser') - 1);
+        expect(structure.dropVerdict('section:source', 0.5)).toBeNull();
+        structure.endDrag();
+    });
 });

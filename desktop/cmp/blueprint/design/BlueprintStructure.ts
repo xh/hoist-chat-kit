@@ -16,6 +16,7 @@ import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
 import {bindable} from '@xh/hoist/mobx';
 import classNames from 'classnames';
+import type React from 'react';
 import type {ReactElement} from 'react';
 import type {
     AddPlace,
@@ -217,9 +218,72 @@ export class BlueprintStructureModel extends HoistModel {
         ];
     }
 
+    /** Start dragging an element, which a row then takes or refuses. */
+    startDrag(id: string) {
+        this.dragging = id;
+        this.verdicts.clear();
+    }
+
+    endDrag() {
+        this.dragging = null;
+        this.verdicts.clear();
+    }
+
+    /**
+     * Where the element dragged would go on a row, from how far down the row the pointer is, from
+     * 0 to 1, with the reason it cannot, if it cannot. Null for a row that takes no drop. Each
+     * target is checked once per drag.
+     */
+    dropVerdict(rowId: string, fraction: number): DropVerdict {
+        const {dragging, designModel} = this,
+            row = this.gridModel.store.getById(rowId)?.data;
+        if (!dragging || !row || row.name === dragging) return null;
+        let where: DropVerdict['where'];
+        if (row.kind === 'slot') {
+            where = 'into';
+        } else if (row.kind === 'element') {
+            const isContainer =
+                !!designModel.blueprintModel.registry.widgets[row.component]?.children;
+            where =
+                isContainer && fraction > 0.25 && fraction < 0.75
+                    ? 'into'
+                    : fraction < 0.5
+                      ? 'before'
+                      : 'after';
+        } else {
+            return null;
+        }
+        const key = `${rowId}|${where}`;
+        if (!this.verdicts.has(key)) {
+            const [issue] =
+                row.kind === 'slot'
+                    ? designModel.canMoveToPlace(dragging, row.place)
+                    : designModel.canMoveTo(dragging, row.name, where);
+            this.verdicts.set(key, issue ? {where, reason: issue.message} : {where});
+        }
+        return this.verdicts.get(key);
+    }
+
+    /** Drop the element dragged on a row, as one edit, if the row takes it. */
+    drop(rowId: string, fraction: number) {
+        const verdict = this.dropVerdict(rowId, fraction),
+            row = this.gridModel.store.getById(rowId)?.data;
+        if (!verdict || verdict.reason) return;
+        const {designModel, dragging} = this,
+            {issues} =
+                row.kind === 'slot'
+                    ? designModel.moveToPlace(dragging, row.place)
+                    : designModel.moveTo(dragging, row.name, verdict.where),
+            error = issues.find(it => it.severity === 'error');
+        if (error) designModel.blueprintModel.showRefusal(error);
+    }
+
     //------------------
     // Implementation
     //------------------
+    private dragging: string = null;
+    private readonly verdicts = new Map<string, DropVerdict>();
+
     private add(widget: string, {parent, slot, of}: AddPlace) {
         const {designModel} = this,
             {id, issues} = designModel.addWidget(widget, parent, {
@@ -372,7 +436,56 @@ export class BlueprintStructureModel extends HoistModel {
         this.showSelection();
     }
 
+    // A row with its drag and drop, the drop marked on it as the pointer moves.
     private renderRow(record: StoreRecord): ReactElement {
+        const {kind, name} = record.data,
+            {blueprintModel} = this.designModel,
+            canDrag =
+                kind === 'element' &&
+                blueprintModel.mode === 'design' &&
+                blueprintModel.access === 'write',
+            fractionOf = (e: React.DragEvent) => {
+                const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                return box.height ? (e.clientY - box.top) / box.height : 0.5;
+            },
+            clear = (el: HTMLElement) => {
+                delete el.dataset.drop;
+                el.removeAttribute('title');
+            };
+        return div({
+            className: `${CLS}__drop`,
+            draggable: canDrag,
+            onDragStart: (e: React.DragEvent) => {
+                this.startDrag(name);
+                e.dataTransfer.setData('text/plain', name);
+            },
+            onDragEnd: () => this.endDrag(),
+            onDragOver: (e: React.DragEvent) => {
+                const verdict = this.dropVerdict(record.id as string, fractionOf(e)),
+                    el = e.currentTarget as HTMLElement;
+                if (!verdict) return;
+                e.preventDefault();
+                if (verdict.reason) {
+                    e.dataTransfer.dropEffect = 'none';
+                    el.dataset.drop = 'refused';
+                    el.title = verdict.reason;
+                } else {
+                    el.dataset.drop = verdict.where;
+                    el.removeAttribute('title');
+                }
+            },
+            onDragLeave: (e: React.DragEvent) => clear(e.currentTarget as HTMLElement),
+            onDrop: (e: React.DragEvent) => {
+                e.preventDefault();
+                clear(e.currentTarget as HTMLElement);
+                this.drop(record.id as string, fractionOf(e));
+                this.endDrag();
+            },
+            children: this.renderContent(record)
+        });
+    }
+
+    private renderContent(record: StoreRecord): ReactElement {
         const {kind, name, label, count, place, component} = record.data,
             {designModel, onAdd} = this,
             {blueprintModel} = designModel;
@@ -439,6 +552,11 @@ export class BlueprintStructureModel extends HoistModel {
 // Implementation
 //------------------
 const CLS = 'xh-blueprint-structure';
+
+interface DropVerdict {
+    where: 'into' | 'before' | 'after';
+    reason?: string;
+}
 
 const COLLECTIONS = {
     element: 'elements',

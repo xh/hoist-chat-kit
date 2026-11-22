@@ -57,4 +57,25 @@
       background-color: var(--xh-intent-danger);
     }
   }
+
+  &__drop {
+    width: 100%;
+
+    &[data-drop='into'] {
+      background-color: var(--xh-intent-primary-trans1);
+    }
+
+    &[data-drop='before'] {
+      box-shadow: inset 0 2px 0 var(--xh-intent-primary);
+    }
+
+    &[data-drop='after'] {
+      box-shadow: inset 0 -2px 0 var(--xh-intent-primary);
+    }
+
+    &[data-drop='refused'] {
+      cursor: not-allowed;
+      background-color: var(--xh-intent-danger-trans1);
+    }
+  }
 }
