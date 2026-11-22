@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {moveView, stacksOf, type DockItem} from './dockTree';
+import {insertView, moveView, stacksOf, type DockItem} from './dockTree';
 
 /**
  * Docking as pure operations on a layout tree of splits, stacks and views: a view joins a stack,
@@ -113,6 +113,29 @@ describe('dock tree', () => {
         expect(moveView(LAYOUT, 'chart', {view: 'chart', zone: 'center'})).toBeNull();
         expect(moveView(LAYOUT, 'nothing', {view: 'chart', zone: 'left'})).toBeNull();
         expect(moveView(LAYOUT, 'chart', {view: 'nothing', zone: 'left'})).toBeNull();
+    });
+
+    it('inserts a new view where a move would put it', () => {
+        expect(insertView(LAYOUT, 'news', {view: 'chart', zone: 'center'})).toEqual([
+            {
+                type: 'row',
+                content: [
+                    {type: 'stack', width: 60, content: [view('positions'), view('orders')]},
+                    {type: 'stack', width: 40, content: [view('chart'), view('news')]}
+                ]
+            }
+        ]);
+        expect(stacksOf(insertView(LAYOUT, 'news', {view: 'positions', zone: 'left'}))).toEqual([
+            ['news'],
+            ['positions', 'orders'],
+            ['chart']
+        ]);
+        expect(stacksOf(insertView([], 'news', {zone: 'root-left'}))).toEqual([['news']]);
+    });
+
+    it('refuses to insert a view the layout already holds, or at a target it lacks', () => {
+        expect(insertView(LAYOUT, 'chart', {view: 'positions', zone: 'center'})).toBeNull();
+        expect(insertView(LAYOUT, 'news', {view: 'nothing', zone: 'center'})).toBeNull();
     });
 
     it('lists each stack by its views, for a move-to menu', () => {
