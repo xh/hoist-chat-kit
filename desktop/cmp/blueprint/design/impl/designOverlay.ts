@@ -84,8 +84,8 @@ export function elementMarks(
         tooNarrow = issues
             .filter(it => it.code === 'layout.tooNarrow')
             .map(it => {
-                const [, , canvas, , index] = it.path.split('/');
-                return elements[canvas]?.children?.[Number(index)]?.id;
+                const [, , dashboard, , index] = it.path.split('/');
+                return elements[dashboard]?.children?.[Number(index)]?.id;
             })
             .filter(Boolean);
     return [

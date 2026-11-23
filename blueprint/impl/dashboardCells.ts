@@ -24,7 +24,7 @@ export function growCell(children: ChildRef[], id: string, rows: number): ChildR
 }
 
 /** The columns of a dashboard that names none. */
-export const CANVAS_COLUMNS = 12;
+export const DASHBOARD_COLUMNS = 12;
 
 /**
  * A dashboard's cells for a new column count. Each cell's edges scale in proportion, so cells that

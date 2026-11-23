@@ -72,9 +72,9 @@ const DASHBOARD_SCHEMA = {
             title: 'Packing',
             'x-labels': {false: 'Free'},
             'x-thumbnails': {
-                vertical: 'canvas.vertical',
-                horizontal: 'canvas.horizontal',
-                false: 'canvas.free'
+                vertical: 'dashboard.vertical',
+                horizontal: 'dashboard.horizontal',
+                false: 'dashboard.free'
             },
             description:
                 'How cells pack: up, left, or not at all, so each stays where it is placed and a drop pushes the cells it lands on down.'
@@ -1422,7 +1422,7 @@ const dashboard: WidgetSpec = {
             }
         }
     },
-    // Room for widgets of its own, where it sits on another canvas.
+    // Room for widgets of its own, where it sits on another dashboard.
     size: {
         default: {
             w: 12,
@@ -1480,7 +1480,7 @@ const tabContainer: WidgetSpec = {
             }
         }
     },
-    // Room for widgets of its own, where it sits on another canvas.
+    // Room for widgets of its own, where it sits on another dashboard.
     size: {
         default: {
             w: 12,
@@ -2838,8 +2838,8 @@ const exampleBlueprintFor = (spec: WidgetSpec): WidgetSpec['exampleBlueprint'] =
 
 // The kit glyph that pictures each built-in. See `widgetPreview`.
 const PREVIEWS: Record<string, string> = {
-    dashboard: 'canvas',
-    panes: 'canvas',
+    dashboard: 'dashboard',
+    panes: 'dashboard',
     tabContainer: 'tabs',
     panel: 'panel',
     box: 'box',

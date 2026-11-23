@@ -23,7 +23,7 @@ import {bindingTypesOf} from './impl/bindable';
 import {checkConfig, checkFilter, templateStrings, toPointer} from './impl/configSchema';
 import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
-import {CANVAS_COLUMNS} from './impl/canvasCells';
+import {DASHBOARD_COLUMNS} from './impl/dashboardCells';
 import {slotLists} from './impl/elements';
 import {labelOf, listOf} from './impl/labels';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
@@ -263,7 +263,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             err('element.notContainer', `${p}/children`, `${el.component} takes no children`);
         }
         if (el.component === 'dashboard') {
-            checkCanvasLayout(el, p, err, warn, it => registry.widgets[elements[it]?.component]);
+            checkDashboardLayout(el, p, err, warn, it => registry.widgets[elements[it]?.component]);
         }
         if (el.component === 'dateRangePicker' && registry.dateRangePresets) {
             castArray(el.config?.presets ?? []).forEach((token: string, i: number) => {
@@ -1395,14 +1395,14 @@ function describeAccepts(rule: SlotAccepts): string {
  * narrower than its widget takes clips it, and a hidden header hides its items, which are worth a
  * warning.
  */
-function checkCanvasLayout(
+function checkDashboardLayout(
     el: PlainObject,
     path: string,
     err: (code: string, path: string, message: string) => void,
     warn: (code: string, path: string, message: string) => void,
     specOf: (id: string) => WidgetSpec
 ) {
-    const cols = el.config?.columns ?? CANVAS_COLUMNS,
+    const cols = el.config?.columns ?? DASHBOARD_COLUMNS,
         kids = (el.children ?? [])
             .map((c, i) => ({c, i}))
             .filter(({c}) => [c.x, c.y, c.w, c.h].every(Number.isInteger));

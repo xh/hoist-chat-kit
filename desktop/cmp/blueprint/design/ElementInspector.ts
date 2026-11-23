@@ -80,7 +80,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     /** The dashboard the element sits in a cell of, or null. */
-    get canvasId(): string {
+    get dashboardId(): string {
         const of = this.designModel.viewOf(this.elementId)?.of;
         return this.designModel.blueprintModel.blueprint?.elements?.[of]?.component === 'dashboard'
             ? of
@@ -90,15 +90,15 @@ export class ElementInspectorModel extends ConfigEditorModel {
     /** The inputs in the element's dashboard cell header. */
     get headerItemIds(): string[] {
         const ref = this.designModel.blueprintModel.blueprint?.elements?.[
-            this.canvasId
+            this.dashboardId
         ]?.children?.find(it => it.id === this.elementId);
         return ((ref?.headerItems as {id: string}[]) ?? []).map(it => it.id);
     }
 
     /** Add an input to the element's cell header, from the Add panel. */
     addHeaderItem() {
-        const {designModel, canvasId, elementId} = this;
-        designModel.selectSlot({parent: canvasId, slot: 'headerItems', of: elementId});
+        const {designModel, dashboardId, elementId} = this;
+        designModel.selectSlot({parent: dashboardId, slot: 'headerItems', of: elementId});
         designModel.requestAdd();
     }
 
@@ -478,12 +478,12 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                     }),
                 !impl.isView && impl.childIds ? childrenCard(impl) : null,
                 // A widget in a dashboard cell shows its view's settings folded, with a way there.
-                !impl.isView && impl.canvasId
+                !impl.isView && impl.dashboardId
                     ? sectionCard({
-                          key: 'canvas-view',
+                          key: 'view-card',
                           title: 'View',
-                          collapsed: !impl.toggled[CANVAS_VIEW],
-                          onToggle: () => impl.toggleSection(CANVAS_VIEW),
+                          collapsed: !impl.toggled[VIEW_CARD],
+                          onToggle: () => impl.toggleSection(VIEW_CARD),
                           children: [
                               ...viewHeaderRows(impl),
                               div({
@@ -499,14 +499,14 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                                       impl.designModel.select({
                                           kind: 'view',
                                           id: impl.elementId,
-                                          of: impl.canvasId
+                                          of: impl.dashboardId
                                       })
                               })
                           ]
                       })
                     : null,
                 !impl.isView &&
-                !impl.canvasId &&
+                !impl.dashboardId &&
                 (impl.placementNodes.length || impl.slotOptions.length > 1)
                     ? sectionCard({
                           key: 'placement',
@@ -539,7 +539,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
 });
 
 const LIST_KINDS = ['fieldList', 'list', 'stringList'],
-    CANVAS_VIEW = 'View';
+    VIEW_CARD = 'View';
 
 // A selected view's settings: a dashboard cell's header, the inputs in it and its place, or a dash
 // container view's title.
@@ -547,7 +547,7 @@ function viewCards(impl: ElementInspectorModel) {
     const {designModel} = impl,
         {registry, blueprint} = designModel.blueprintModel;
     // A panes widget's view has its title alone.
-    if (!impl.canvasId) {
+    if (!impl.dashboardId) {
         return [
             sectionCard({
                 key: 'view-header',
@@ -617,7 +617,7 @@ function viewCards(impl: ElementInspectorModel) {
         }),
         sectionCard({
             key: 'view-placement',
-            title: `Placement in ${impl.canvasId}`,
+            title: `Placement in ${impl.dashboardId}`,
             children: [
                 div({
                     key: 'row',

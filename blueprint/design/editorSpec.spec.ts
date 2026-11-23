@@ -36,7 +36,7 @@ describe('toEditorSpec', () => {
             options: ['vertical', 'horizontal', false],
             default: 'vertical'
         });
-        expect((nodes.compact as any).thumbnails.false).toBe('canvas.free');
+        expect((nodes.compact as any).thumbnails.false).toBe('dashboard.free');
         expect(nodes.layoutLocked).toMatchObject({kind: 'boolean', label: 'Rearranging'});
     });
 

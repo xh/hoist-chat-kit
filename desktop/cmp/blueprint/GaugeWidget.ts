@@ -48,7 +48,7 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
         };
     }
 
-    private get inCanvas(): boolean {
+    private get inDashboard(): boolean {
         return this.parentElement?.component === 'dashboard';
     }
 
@@ -81,7 +81,7 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
             {
                 chart: {type: 'solidgauge'},
                 // A dashboard cell draws its title in its header. Highcharts reads a title as markup.
-                title: {text: title && !this.inCanvas ? escape(title) : null},
+                title: {text: title && !this.inDashboard ? escape(title) : null},
                 pane: {
                     startAngle: -90,
                     endAngle: 90,

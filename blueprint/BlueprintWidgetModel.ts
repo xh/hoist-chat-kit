@@ -66,9 +66,9 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     get isTooNarrow(): boolean {
         const {blueprintModel} = this,
             elements = blueprintModel.blueprint?.elements,
-            canvasId = parentOf(elements, this.id),
-            index = elements?.[canvasId]?.children?.findIndex(it => it.id === this.id),
-            path = `/elements/${canvasId}/children/${index}/w`;
+            dashboardId = parentOf(elements, this.id),
+            index = elements?.[dashboardId]?.children?.findIndex(it => it.id === this.id),
+            path = `/elements/${dashboardId}/children/${index}/w`;
         return blueprintModel.issues.some(it => it.code === 'layout.tooNarrow' && it.path === path);
     }
 

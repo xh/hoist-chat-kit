@@ -28,9 +28,9 @@ export function widgetPreview(
 }
 
 /**
- * A schematic of a blueprint, drawn from its layout alone with no data: its first canvas, under
+ * A schematic of a blueprint, drawn from its layout alone with no data: its first dashboard, under
  * the first tab where the root holds tabs, with each cell at its place and its widget's glyph
- * inside. A blueprint with no canvas shows its root's glyph. The SVG fills its container.
+ * inside. A blueprint with no dashboard shows its root's glyph. The SVG fills its container.
  */
 export function blueprintSchematic(
     blueprint: Blueprint,
@@ -87,16 +87,16 @@ export function schematicLayout(blueprint: Blueprint): {
         {width, height} = SCHEMATIC_SIZE;
     let id = blueprint?.root,
         tabs = false;
-    // Down the first child of each container, to the first canvas.
+    // Down the first child of each container, to the first dashboard.
     for (let depth = 0; depth < 6 && id; depth++) {
         const el = getOwn(elements, id);
         if (!el || el.component === 'dashboard') break;
         if (el.component === 'tabContainer') tabs = true;
         id = el.children?.[0]?.id ?? null;
     }
-    const canvas = id ? getOwn(elements, id) : null,
+    const dashboard = id ? getOwn(elements, id) : null,
         top = tabs ? TAB_STRIP + GAP : 0;
-    if (canvas?.component !== 'dashboard') {
+    if (dashboard?.component !== 'dashboard') {
         const root = getOwn(elements, blueprint?.root);
         return {
             tabs: false,
@@ -105,14 +105,14 @@ export function schematicLayout(blueprint: Blueprint): {
                 : []
         };
     }
-    const refs = (canvas.children ?? []) as {
+    const refs = (dashboard.children ?? []) as {
             id: string;
             x: number;
             y: number;
             w: number;
             h: number;
         }[],
-        cols = (canvas.config?.columns as number) ?? 12,
+        cols = (dashboard.config?.columns as number) ?? 12,
         rows = Math.max(1, ...refs.map(it => it.y + it.h)),
         unitW = width / cols,
         unitH = (height - top) / rows;
@@ -340,7 +340,7 @@ const KIT_GLYPHS: Record<string, KitGlyph> = {
             rect({key: 'body', className: BG, x: 0.5, y: 9.5, width: 119, height: 30, rx: 1})
         ]
     },
-    canvas: {
+    dashboard: {
         box: [120, 40],
         stretch: true,
         draw: () =>
@@ -496,7 +496,7 @@ const KIT_THUMBNAILS: Record<string, KitGlyph> = {
         ]
     },
     // A dashboard's packing: cells drawn up to the top, to the left, or where they were put.
-    'canvas.vertical': {
+    'dashboard.vertical': {
         box: [60, 36],
         draw: () =>
             bars([
@@ -506,7 +506,7 @@ const KIT_THUMBNAILS: Record<string, KitGlyph> = {
                 [32, 14, 26, 14]
             ])
     },
-    'canvas.horizontal': {
+    'dashboard.horizontal': {
         box: [60, 36],
         draw: () =>
             bars([
@@ -516,7 +516,7 @@ const KIT_THUMBNAILS: Record<string, KitGlyph> = {
                 [19, 16, 20, 18]
             ])
     },
-    'canvas.free': {
+    'dashboard.free': {
         box: [60, 36],
         draw: () =>
             bars([

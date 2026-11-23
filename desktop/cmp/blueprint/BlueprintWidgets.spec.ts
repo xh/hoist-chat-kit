@@ -1076,8 +1076,8 @@ describe('blueprint desktop widgets', () => {
 
             canvas.onDrop({x: 0, y: 14, w: 4, h: 6}, canvas.cells.map(place));
             expect(paletteDrag.current).toBeNull();
-            const [[canvasId, {child, siblings}]] = drops as any[];
-            expect([canvasId, child]).toEqual(['dashboard', {x: 0, y: 14, w: 4, h: 6}]);
+            const [[dashboardId, {child, siblings}]] = drops as any[];
+            expect([dashboardId, child]).toEqual(['dashboard', {x: 0, y: 14, w: 4, h: 6}]);
             expect(siblings.map(it => it.id).sort()).toEqual([
                 'headline',
                 'ordersGrid',
@@ -1255,7 +1255,7 @@ describe('blueprint desktop widgets', () => {
         });
 
         describe('layout settings', () => {
-            const canvasWith = (config: PlainObject, mode: 'run' | 'design' = 'design') => {
+            const dashboardWith = (config: PlainObject, mode: 'run' | 'design' = 'design') => {
                 const bp = loadBlueprint('p2-linked-dashboard.json');
                 bp.elements.dashboard.config = config;
                 const model = open(bp);
@@ -1276,7 +1276,7 @@ describe('blueprint desktop widgets', () => {
                 );
 
             it('leaves a cell where it is put without compaction, moving the cells it lands on down', () => {
-                const {canvas} = canvasWith({compact: false}),
+                const {canvas} = dashboardWith({compact: false}),
                     at = (id: string) => canvas.cells.find(it => it.id === id);
                 expect(canvas.moveCell('headline', {y: 3})).toBeNull();
                 expect(at('headline').y).toBe(3);
@@ -1297,7 +1297,7 @@ describe('blueprint desktop widgets', () => {
 
             it('refuses a move onto another cell where collisions are prevented', () => {
                 for (const compact of ['vertical', false] as const) {
-                    const {model, canvas} = canvasWith({compact, preventCollision: true}),
+                    const {model, canvas} = dashboardWith({compact, preventCollision: true}),
                         version = model.version;
                     expect(canvas.moveCell('headline', {y: 3})).toBe(
                         "'headline' would overlap 'posGrid'."
@@ -1307,29 +1307,29 @@ describe('blueprint desktop widgets', () => {
             });
 
             it('keeps cells within its most rows', () => {
-                const {canvas} = canvasWith({compact: false, maxRows: 14});
+                const {canvas} = dashboardWith({compact: false, maxRows: 14});
                 expect(canvas.moveCell('ordersGrid', {y: 12})).toBe(
                     "'ordersGrid' must lie within the dashboard's 14 rows."
                 );
             });
 
             it('locks its layout for readers by default, never for design', () => {
-                const run = canvasWith({}, 'run');
+                const run = dashboardWith({}, 'run');
                 expect(run.canvas.isLocked).toBe(true);
                 expect(run.canvas.moveCell('ordersGrid', {y: 0})).toBe('The layout is locked.');
-                expect(canvasWith({}).canvas.isLocked).toBe(false);
-                expect(canvasWith({layoutLocked: true}).canvas.isLocked).toBe(false);
+                expect(dashboardWith({}).canvas.isLocked).toBe(false);
+                expect(dashboardWith({layoutLocked: true}).canvas.isLocked).toBe(false);
             });
 
             it('lets readers rearrange its cells where it allows them to', () => {
-                const {canvas} = canvasWith({layoutLocked: false}, 'run');
+                const {canvas} = dashboardWith({layoutLocked: false}, 'run');
                 expect(canvas.isLocked).toBe(false);
                 expect(canvas.moveCell('ordersGrid', {y: 0})).toBeNull();
                 expect(canvas.cells.find(it => it.id === 'ordersGrid').y).toBe(0);
             });
 
             it('rescales its cells for a new column count in one edit, packed up', () => {
-                const {model, canvas} = canvasWith({}),
+                const {model, canvas} = dashboardWith({}),
                     design = new BlueprintDesignModel({blueprintModel: model});
                 onTestFinished(() => design.destroy());
                 design.setConfig('dashboard', '/columns', 6);

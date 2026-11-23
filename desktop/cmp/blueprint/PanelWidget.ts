@@ -26,7 +26,7 @@ export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
         this.addReaction(
             {
                 // A dashboard cell has no header to expand it from.
-                track: () => !!this.resolvedConfig.collapsible && !this.inCanvasCell,
+                track: () => !!this.resolvedConfig.collapsible && !this.inDashboardCell,
                 run: collapsible => this.createModel(collapsible),
                 fireImmediately: true
             },
@@ -51,7 +51,7 @@ export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
     }
 
     /** True in a dashboard cell, which frames the panel and carries its header. */
-    get inCanvasCell(): boolean {
+    get inDashboardCell(): boolean {
         return this.parentElement?.component === 'dashboard';
     }
 
@@ -95,7 +95,7 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
             },
             body = emptyContent(model, content) ?? layoutChildren(model, 'column', content),
             toolbars = {tbar: slot('tbar'), bbar: slot('bbar')};
-        if (model.inCanvasCell) {
+        if (model.inDashboardCell) {
             return panel({className, model: model.panelModel, ...toolbars, children: body});
         }
         const isCard = style === 'card';

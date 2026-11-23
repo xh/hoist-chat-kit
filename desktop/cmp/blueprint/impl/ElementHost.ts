@@ -157,7 +157,7 @@ export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of:
     const view = target.closest<HTMLElement>('[data-blueprint-view]'),
         item = target.closest('[data-blueprint-element]');
     if (item && view.contains(item)) return null;
-    return {id, of: view.dataset.blueprintCanvas};
+    return {id, of: view.dataset.blueprintDashboard};
 }
 
 const CELL_CHROME = `[data-blueprint-view-header], [data-blueprint-view-grip], ${GRID_RESIZE_HANDLE}`;

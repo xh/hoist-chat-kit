@@ -1,9 +1,9 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
-import {growCell} from '../../../../blueprint/impl/canvasCells';
+import {growCell} from '../../../../blueprint/impl/dashboardCells';
 import {parentOf} from '../../../../blueprint/impl/elements';
-import {CANVAS_GAP} from './layout';
+import {DASHBOARD_GAP} from './layout';
 import {
     type BlueprintSource,
     type BlueprintWidgetConfig,
@@ -60,15 +60,15 @@ export class TemplateWidgetModel<
     /** Grow the text's dashboard cell by enough rows to show it all, and move the cells below down, in one edit. */
     makeTaller() {
         const parent = this.parentElement,
-            canvasId = parentOf(this.blueprintModel.blueprint.elements, this.id),
-            rowStep = ((parent?.config?.rowHeight as number) ?? 50) + CANVAS_GAP,
+            dashboardId = parentOf(this.blueprintModel.blueprint.elements, this.id),
+            rowStep = ((parent?.config?.rowHeight as number) ?? 50) + DASHBOARD_GAP,
             rows = Math.ceil(this.overflow / rowStep);
         if (!this.canGrow || !rows) return;
         this.applyUserEdit(
             [
                 {
                     op: 'set',
-                    path: `/elements/${canvasId}/children`,
+                    path: `/elements/${dashboardId}/children`,
                     value: growCell(parent.children, this.id, rows)
                 }
             ],

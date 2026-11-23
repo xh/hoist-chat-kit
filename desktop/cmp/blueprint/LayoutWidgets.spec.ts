@@ -380,8 +380,8 @@ describe('layout and container widgets', () => {
         it("spaces its tiles by a dashboard's cell gap unless it says otherwise", () => {
             const spacing = scenarioRegistry().widgets.tileFrame.config.properties.spacing;
             expect(spacing.default).toBe(10);
-            const canvasGap = scenarioRegistry().widgets.dashboard.config.properties.margin;
-            expect(canvasGap.default).toEqual([spacing.default, spacing.default]);
+            const dashboardGap = scenarioRegistry().widgets.dashboard.config.properties.margin;
+            expect(dashboardGap.default).toEqual([spacing.default, spacing.default]);
         });
 
         it('refuses a layout widget or a container as a tile', () => {
@@ -913,9 +913,9 @@ describe('layout and container widgets', () => {
 
         it('draws a cell header with the icon, title and items, marked as the view header', () => {
             const {view} = cells(),
-                {container} = renderCanvas(view);
+                {container} = renderDashboard(view);
             const frame = container.querySelector('[data-blueprint-view="pnl"]');
-            expect(frame.getAttribute('data-blueprint-canvas')).toBe('canvas');
+            expect(frame.getAttribute('data-blueprint-dashboard')).toBe('canvas');
             const header = frame.querySelector('[data-blueprint-view-header]');
             expect(header.querySelector('.xh-blueprint-dashboard__cell-title').textContent).toBe(
                 'Positions'
@@ -927,7 +927,7 @@ describe('layout and container widgets', () => {
             const {canvas, view} = cells();
             expect(canvas.cellHasHeader('tiles')).toBe(true);
             expect(canvas.titles.tiles).toBe(view.blueprintModel.registry.widgets.tileFrame.label);
-            const {container} = renderCanvas(view);
+            const {container} = renderDashboard(view);
             expect(
                 container.querySelector(
                     '[data-blueprint-view="tiles"] [data-blueprint-view-header] .xh-blueprint-dashboard__cell-title'
@@ -952,7 +952,7 @@ describe('layout and container widgets', () => {
 
         it("counts a cell's resize handles as its view, for hover and selection, as its header is", () => {
             const {view} = cells('design'),
-                {container} = renderCanvas(view),
+                {container} = renderDashboard(view),
                 frame = container.querySelector<HTMLElement>('[data-blueprint-view="pnl"]'),
                 handles = [
                     ...frame.querySelectorAll<HTMLElement>(':scope > .react-resizable-handle')
@@ -965,18 +965,18 @@ describe('layout and container widgets', () => {
         it('shows the column grid and element ids in design mode only', () => {
             const run = cells('run');
             expect(
-                renderCanvas(run.view).container.querySelector('.xh-layout-grid__background')
+                renderDashboard(run.view).container.querySelector('.xh-layout-grid__background')
             ).toBeNull();
             expect(run.canvas.headerItemsFor('pnl')).toHaveLength(1);
             const design = cells('design');
             expect(
-                renderCanvas(design.view).container.querySelector('.xh-layout-grid__background')
+                renderDashboard(design.view).container.querySelector('.xh-layout-grid__background')
             ).toBeTruthy();
             const [idItem] = design.canvas.headerItemsFor('pnl') as any[];
             expect(idItem.props.className).toBe('xh-blueprint-dashboard__cell-id');
             // Each header leads with an icon, the element's own or else its widget's.
             const iconOf = () =>
-                renderCanvas(design.view)
+                renderDashboard(design.view)
                     .container.querySelector(
                         '[data-blueprint-view="pnl"] .xh-blueprint-dashboard__cell-icon'
                     )
@@ -993,7 +993,7 @@ describe('layout and container widgets', () => {
             expect((design.canvas.headerItemsFor('tiles')[0] as any).props.children).toBe('tiles');
         });
 
-        function renderCanvas(view: BlueprintViewModel) {
+        function renderDashboard(view: BlueprintViewModel) {
             // jsdom has no layout: the dashboard waits for a measured width before it draws cells.
             const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
             onTestFinished(() => spy.mockRestore());

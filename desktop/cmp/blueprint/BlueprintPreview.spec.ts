@@ -65,8 +65,8 @@ describe('BlueprintPreview', () => {
 
     it("lays out a blueprint's first canvas, under its first tab, cell by cell", () => {
         const bp = loadBlueprint('p3-morning-report.json'),
-            canvasId = bp.elements[bp.root].children[0].id,
-            refs = bp.elements[canvasId].children,
+            dashboardId = bp.elements[bp.root].children[0].id,
+            refs = bp.elements[dashboardId].children,
             {tabs, cells} = schematicLayout(bp);
         expect(tabs).toBe(true);
         expect(cells.map(it => it.id)).toEqual(refs.map(it => it.id));

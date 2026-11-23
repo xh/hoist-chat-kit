@@ -155,11 +155,11 @@ describe('design mode selection', () => {
     it("finds the dashboard view a click on its header or grip lands on, but not on the header's items", () => {
         const cell = document.createElement('div');
         cell.innerHTML =
-            '<div data-blueprint-view="sectorChart" data-blueprint-canvas="overview">' +
+            '<div data-blueprint-view="sectorChart" data-blueprint-dashboard="overview">' +
             '<div data-blueprint-view-header><span class="title">Day P&L</span>' +
             '<div data-blueprint-element="views"><span class="item"></span></div></div>' +
             '<div class="body"><div data-blueprint-element="sectorChart"></div></div></div>' +
-            '<div data-blueprint-view="reportActions" data-blueprint-canvas="overview">' +
+            '<div data-blueprint-view="reportActions" data-blueprint-dashboard="overview">' +
             '<span data-blueprint-view-grip="reportActions" class="grip"></span></div>';
         const host = document.createElement('div');
         host.appendChild(cell);

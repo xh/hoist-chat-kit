@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {rescaleCells} from './canvasCells';
+import {rescaleCells} from './dashboardCells';
 
 /** A dashboard's cells follow a new column count, staying on its grid and apart. */
 describe('rescaleCells', () => {

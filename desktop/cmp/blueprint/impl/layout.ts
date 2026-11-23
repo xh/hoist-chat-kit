@@ -6,7 +6,7 @@ import type {ReactNode} from 'react';
 import type {BlueprintWidgetModel, ChildRef} from '../../../../blueprint';
 
 /** The gap between a dashboard's cells, and around them, in pixels. */
-export const CANVAS_GAP = 8;
+export const DASHBOARD_GAP = 8;
 
 /**
  * The container's `emptyText` while it has no children, or null. Design mode shows its own empty

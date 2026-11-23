@@ -1152,12 +1152,12 @@ describe('BlueprintDesignModel', () => {
                 const {model, design} = open(boxPage()),
                     edits = model.history.length;
                 design.select({kind: 'element', id: 'page'});
-                const toCanvas = changeTo(design, 'page', 'dashboard');
+                const toDashboard = changeTo(design, 'page', 'dashboard');
                 // A box's direction and gap, and a child's flex, have no place on a dashboard.
-                expect(toCanvas.confirm).toMatch(/direction/);
-                expect(toCanvas.confirm).toMatch(/gap/);
-                expect(toCanvas.confirm).toMatch(/flex/);
-                expect(toCanvas.run()).toBeNull();
+                expect(toDashboard.confirm).toMatch(/direction/);
+                expect(toDashboard.confirm).toMatch(/gap/);
+                expect(toDashboard.confirm).toMatch(/flex/);
+                expect(toDashboard.run()).toBeNull();
                 const page = model.blueprint.elements.page;
                 expect(page.component).toBe('dashboard');
                 expect(page.config).not.toHaveProperty('direction');

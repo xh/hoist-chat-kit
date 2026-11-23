@@ -5,7 +5,7 @@ import {differenceWith, isEqual, pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     BlueprintWidgetModel,
-    CANVAS_COLUMNS,
+    DASHBOARD_COLUMNS,
     type ChildRef,
     type DashboardWidgetConfig
 } from '../../../blueprint';
@@ -18,7 +18,7 @@ import {
     placeCell
 } from '../layout';
 import {widgetIcon} from './design/impl/icons';
-import {CANVAS_GAP, emptyContent, resetLayoutButton} from './impl/layout';
+import {DASHBOARD_GAP, emptyContent, resetLayoutButton} from './impl/layout';
 import {containerAt} from './design/impl/dropTargets';
 import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
@@ -45,11 +45,11 @@ export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetCo
     }
 
     /** The dashboard's settings, with Hoist's DashCanvas defaults. */
-    get settings(): CanvasSettings {
+    get settings(): DashboardSettings {
         const config = this.resolvedConfig,
-            margin = (config.margin ?? [CANVAS_GAP, CANVAS_GAP]) as [number, number];
+            margin = (config.margin ?? [DASHBOARD_GAP, DASHBOARD_GAP]) as [number, number];
         return {
-            columns: config.columns ?? CANVAS_COLUMNS,
+            columns: config.columns ?? DASHBOARD_COLUMNS,
             rowHeight: config.rowHeight ?? 50,
             compact: config.compact ?? 'vertical',
             preventCollision: !!config.preventCollision,
@@ -271,7 +271,7 @@ export const [DashboardWidget, dashboardWidget] = hoistCmp.withFactory({
     model: uses(DashboardWidgetModel),
     render({model, className}) {
         const {settings} = model,
-            // The hint lies over a live canvas, so an empty one still takes a drop.
+            // The hint lies over a live dashboard, so an empty one still takes a drop.
             empty = emptyContent(model);
         return box({
             className,
@@ -298,7 +298,7 @@ export const [DashboardWidget, dashboardWidget] = hoistCmp.withFactory({
                             : null,
                     frameProps: id => ({
                         'data-blueprint-view': id,
-                        'data-blueprint-canvas': model.id
+                        'data-blueprint-dashboard': model.id
                     }),
                     onChange: (cells, change) => model.onCellsChange(cells, change),
                     onDropOver: e => model.onDropOver(e),
@@ -340,7 +340,7 @@ const cellHeader = hoistCmp.factory<HoistProps & {model: DashboardWidgetModel; i
     }
 });
 
-interface CanvasSettings {
+interface DashboardSettings {
     columns: number;
     rowHeight: number;
     compact: GridCompact;

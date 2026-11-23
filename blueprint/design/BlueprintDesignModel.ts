@@ -25,7 +25,7 @@ import type {
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
-import {CANVAS_COLUMNS, rescaleCells} from '../impl/canvasCells';
+import {DASHBOARD_COLUMNS, rescaleCells} from '../impl/dashboardCells';
 import {
     childIds,
     hasViews,
@@ -1027,8 +1027,8 @@ export class BlueprintDesignModel extends HoistModel {
                     .filter(it => it.of === id)
                     .map(it => it.slot)
             ),
-            onCanvas = at.slot === 'children' && Number.isInteger(placement.x),
-            child = onCanvas
+            onDashboard = at.slot === 'children' && Number.isInteger(placement.x),
+            child = onDashboard
                 ? {
                       ...placement,
                       ...firstFreePlace(
@@ -1049,7 +1049,7 @@ export class BlueprintDesignModel extends HoistModel {
                     element: copyOf(id),
                     parent: at.parent,
                     ...(child ? {child} : {}),
-                    ...(onCanvas ? {} : {index: at.index + 1}),
+                    ...(onDashboard ? {} : {index: at.index + 1}),
                     ...(at.slot !== 'children' ? {slot: at.slot} : {}),
                     ...(at.of ? {of: at.of} : {})
                 },
@@ -1409,7 +1409,7 @@ export class BlueprintDesignModel extends HoistModel {
             droppedConfig = Object.keys(oldConfig).filter(it => !configKeys.includes(it)),
             refKeys = Object.keys(to.children.schema?.properties ?? {}),
             cellSlots = Object.keys(to.children.slots ?? {}),
-            onCanvas = refKeys.includes('x'),
+            onDashboard = refKeys.includes('x'),
             needsTitle = !!to.children.schema?.required?.includes('title'),
             droppedPlacement = new Set<string>(),
             removed: {slot: string; of?: string; id: string}[] = [],
@@ -1431,7 +1431,7 @@ export class BlueprintDesignModel extends HoistModel {
                     const child: ChildRef = {id: ref.id},
                         spec = this.elementSpec(ref.id);
                     Object.entries(ref).forEach(([key, value]) => {
-                        if (key === 'id' || (onCanvas && CELL_KEYS.includes(key))) return;
+                        if (key === 'id' || (onDashboard && CELL_KEYS.includes(key))) return;
                         if (isRefList(value) && !cellSlots.includes(key)) {
                             value.forEach(it => removed.push({slot: key, of: ref.id, id: it.id}));
                         } else if (refKeys.includes(key) || cellSlots.includes(key)) {
@@ -1441,8 +1441,8 @@ export class BlueprintDesignModel extends HoistModel {
                         }
                     });
                     if (needsTitle && child.title == null) child.title = spec?.label ?? ref.id;
-                    if (onCanvas) {
-                        const columns = config.columns ?? CANVAS_COLUMNS,
+                    if (onDashboard) {
+                        const columns = config.columns ?? DASHBOARD_COLUMNS,
                             {w = 4, h = 2} = spec?.size?.default ?? {},
                             width = Math.min(w, columns);
                         Object.assign(child, {
@@ -1852,8 +1852,8 @@ export class BlueprintDesignModel extends HoistModel {
     private rescaleOps(id: string, path: string, value: unknown): BlueprintOp[] {
         const el = getOwn(this.blueprintModel.blueprint?.elements, id);
         if (el?.component !== 'dashboard' || path !== '/columns' || !el.children) return [];
-        const from = (el.config?.columns as number) ?? CANVAS_COLUMNS,
-            to = (value as number) ?? CANVAS_COLUMNS,
+        const from = (el.config?.columns as number) ?? DASHBOARD_COLUMNS,
+            to = (value as number) ?? DASHBOARD_COLUMNS,
             children = rescaleCells(
                 el.children,
                 from,

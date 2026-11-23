@@ -266,10 +266,10 @@ describe('blueprint data widgets', () => {
         it('draws its title over its values, outside a dashboard, which heads its cell itself', () => {
             const bp = withTable({title: 'Fund snapshot', fields: ['mktVal']}),
                 model = open(bp),
-                onCanvas = render(
+                onDashboard = render(
                     propertyTableWidget({model: widget(PropertyTableWidgetModel, model, 'props')})
                 ).container;
-            expect(onCanvas.textContent).not.toContain('Fund snapshot');
+            expect(onDashboard.textContent).not.toContain('Fund snapshot');
 
             bp.elements.box = {component: 'box', config: {}, children: [{id: 'props'}]};
             bp.elements.dashboard.children = bp.elements.dashboard.children.map(it =>

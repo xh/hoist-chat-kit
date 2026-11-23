@@ -62,8 +62,8 @@ describe('element slots', () => {
     });
 
     it("lists a dashboard's cells and a panes widget's views as view nodes, each over its element and its own slots", () => {
-        const canvasSpec = {children: {slots: {headerItems: {}}}};
-        expect(childGroups('canvas', elements.canvas, canvasSpec)[0].nodes).toEqual([
+        const dashboardSpec = {children: {slots: {headerItems: {}}}};
+        expect(childGroups('canvas', elements.canvas, dashboardSpec)[0].nodes).toEqual([
             {
                 kind: 'view',
                 id: 'grid',

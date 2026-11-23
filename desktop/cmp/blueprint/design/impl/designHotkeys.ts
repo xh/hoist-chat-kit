@@ -86,7 +86,7 @@ const selectElement = (designModel: BlueprintDesignModel, id: string) => {
     if (id) designModel.select({kind: 'element', id});
 };
 
-const inCanvasCell = (designModel: BlueprintDesignModel, id: string) => {
+const inDashboardCell = (designModel: BlueprintDesignModel, id: string) => {
     const elements = designModel.blueprintModel.blueprint?.elements ?? {},
         parent = designModel.pathTo(id).at(-1);
     return elements[parent]?.component === 'dashboard';
@@ -95,7 +95,7 @@ const inCanvasCell = (designModel: BlueprintDesignModel, id: string) => {
 // An arrow nudges or resizes a dashboard cell, and moves to a sibling elsewhere.
 const arrow =
     (dx: number, dy: number, resize: boolean) => (dm: BlueprintDesignModel, id: string) => {
-        if (inCanvasCell(dm, id)) {
+        if (inDashboardCell(dm, id)) {
             if (isWriter(dm)) {
                 refuse(dm, dm.nudgeChild(id, resize ? {dw: dx, dh: dy} : {dx, dy}).issues);
             }

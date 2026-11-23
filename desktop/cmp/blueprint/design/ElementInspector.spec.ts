@@ -1205,7 +1205,7 @@ describe('ElementInspector', () => {
         const {container} = render(elementInspector({designModel: design}) as ReactElement);
         expect(bandsOf(container)).toEqual(['Header']);
         expect(container.querySelector('[data-config-key="hideHeader"]')).toBeNull();
-        expect(inspector.canvasId).toBeNull();
+        expect(inspector.dashboardId).toBeNull();
         inspector.commitPlacement('title', 'Exposure');
         expect(model.blueprint.elements.dock.children[0]).toEqual({id: 'a', title: 'Exposure'});
         expect(model.history.at(-1).description).toBe('a view: title');
