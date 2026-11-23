@@ -578,15 +578,17 @@ const addWidgetButton = hoistCmp.factory<
                         place: action.place,
                         onAdded: () => setIsOpen(false)
                     }),
-                    button({
-                        className: `${CLS}__add-more`,
-                        text: 'More in Add pane',
-                        icon: Icon.arrowRight(),
-                        minimal: true,
-                        onClick: () => {
-                            setIsOpen(false);
-                            runDesignActionAsync(designModel, id, action);
-                        }
+                    div({
+                        className: `${CLS}__add-footer`,
+                        children: button({
+                            text: 'More in Add pane',
+                            icon: Icon.arrowRight(),
+                            minimal: true,
+                            onClick: () => {
+                                setIsOpen(false);
+                                runDesignActionAsync(designModel, id, action);
+                            }
+                        })
                     })
                 ]
             })

@@ -75,7 +75,8 @@
   &__actions.xh-toolbar {
     flex: none;
     container-type: inline-size;
-    padding: 2px var(--xh-spacing-half);
+    gap: var(--xh-spacing-half);
+    padding: var(--xh-spacing-half) var(--xh-spacing);
     background-color: var(--xh-bg);
     border-bottom: var(--xh-border-solid);
 
@@ -143,7 +144,7 @@
   &__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px;
+    gap: var(--xh-spacing-half);
   }
 
   &__chip {
@@ -200,8 +201,8 @@
   }
 }
 
-.xh-blueprint-inspector__add-more.xh-button {
+.xh-blueprint-inspector__add-footer {
   flex: none;
-  justify-content: flex-start;
+  padding: var(--xh-spacing-half) var(--xh-spacing);
   border-top: var(--xh-border-solid);
 }
