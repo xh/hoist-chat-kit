@@ -1,6 +1,6 @@
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
-import {useOnResize} from '@xh/hoist/utils/react';
+import {useOnResize, useOnVisibleChange} from '@xh/hoist/utils/react';
 import {Fragment, type ReactNode, createElement, useCallback, useEffect} from 'react';
 import {createPortal} from 'react-dom';
 import './OverlayLayer.scss';
@@ -25,12 +25,16 @@ export const overlayHost = hoistCmp.factory<OverlayHostProps>({
     model: false,
     render({model, className, children}) {
         const resizeRef = useOnResize(() => model.layoutChanged()),
+            // A resize to nothing, or back to the size it had, is no resize to Hoist, so hiding
+            // and showing the host, as a tab does, redraws through this.
+            visibleRef = useOnVisibleChange(() => model.layoutChanged()),
             setRef = useCallback(
                 (el: HTMLDivElement) => {
                     resizeRef(el);
+                    visibleRef(el);
                     model.setHostEl(el);
                 },
-                [model, resizeRef]
+                [model, resizeRef, visibleRef]
             );
         useFollowWindow(model);
         return div({
