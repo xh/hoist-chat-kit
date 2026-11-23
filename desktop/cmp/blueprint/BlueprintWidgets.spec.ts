@@ -1276,11 +1276,19 @@ describe('blueprint desktop widgets', () => {
                 );
             });
 
-            it('locks its layout for readers, never for design', () => {
-                const run = canvasWith({layoutLocked: true}, 'run');
+            it('locks its layout for readers by default, never for design', () => {
+                const run = canvasWith({}, 'run');
                 expect(run.canvas.isLocked).toBe(true);
                 expect(run.canvas.moveCell('ordersGrid', {y: 0})).toBe('The layout is locked.');
+                expect(canvasWith({}).canvas.isLocked).toBe(false);
                 expect(canvasWith({layoutLocked: true}).canvas.isLocked).toBe(false);
+            });
+
+            it('lets readers rearrange its cells where it allows them to', () => {
+                const {canvas} = canvasWith({layoutLocked: false}, 'run');
+                expect(canvas.isLocked).toBe(false);
+                expect(canvas.moveCell('ordersGrid', {y: 0})).toBeNull();
+                expect(canvas.cells.find(it => it.id === 'ordersGrid').y).toBe(0);
             });
 
             it('rescales its cells for a new column count in one edit, packed up', () => {

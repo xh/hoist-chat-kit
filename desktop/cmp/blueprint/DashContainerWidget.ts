@@ -87,7 +87,7 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
 
     /** True if a reader may not rearrange the views, as `layoutLocked` says. Design mode may. */
     get isLocked(): boolean {
-        return !!this.resolvedConfig.layoutLocked && this.blueprintModel.mode !== 'design';
+        return !!this.configValue('layoutLocked') && this.blueprintModel.mode !== 'design';
     }
 
     /** Why moving a view to a target would be refused, or null if it would apply. */

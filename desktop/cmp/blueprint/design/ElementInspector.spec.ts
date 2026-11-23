@@ -588,6 +588,21 @@ describe('ElementInspector', () => {
         expect(row().querySelector('.bp6-switch')).toBeNull();
     });
 
+    it("shows a canvas's and a dash container's rearranging locked by default", () => {
+        for (const [file, id] of [
+            ['p2-linked-dashboard.json', 'dashboard'],
+            ['p3-morning-report.json', 'positions']
+        ]) {
+            const {model, design} = open(file, id),
+                {container} = render(elementInspector({designModel: design}) as ReactElement),
+                row = container.querySelector('[data-config-key="layoutLocked"]'),
+                checked = row.querySelector('[aria-checked="true"]');
+            expect(model.blueprint.elements[id].config?.layoutLocked).toBeUndefined();
+            expect(checked.textContent).toBe('Locked');
+            expect(row.querySelector('.xh-blueprint-element-inspector__implied')).not.toBeNull();
+        }
+    });
+
     it('shows an unset property at its default, without writing it', () => {
         const {model, design} = open(),
             before = model.blueprint,

@@ -64,7 +64,9 @@ container also lists its children.
   titled by the widget's label where nothing gives a title. A canvas packs its cells upward unless
   its `compact` says `'horizontal'`, or `false` for cells that stay where they are put. Its other
   layout settings follow Hoist's `DashCanvas`: `margin`, `containerPadding`, `maxRows`,
-  `showGridBackground`, `preventCollision` and `layoutLocked`. A `tabContainer` takes `title` and
+  `showGridBackground`, `preventCollision` and `layoutLocked`. Unlike Hoist, `layoutLocked`
+  defaults to `true` on a canvas and on a `dashContainer`: readers cannot rearrange either unless
+  it sets `layoutLocked: false`, and design mode always can. A `tabContainer` takes `title` and
   `icon`. A `box` takes `flex`,
   `width` and `height`. A child with none of these takes an equal share of the box, except an
   input, a button row, a toolbar or a separator, which keep their own size, and `markdown` or a

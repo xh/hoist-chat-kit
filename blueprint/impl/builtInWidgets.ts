@@ -122,11 +122,11 @@ const DASH_CANVAS_SCHEMA = {
         },
         layoutLocked: {
             type: 'boolean',
-            default: false,
+            default: true,
             title: 'Rearranging',
             'x-labels': {false: 'Allowed', true: 'Locked'},
             description:
-                'Stop readers moving and resizing cells. Design mode can still change the layout.'
+                'Whether readers are stopped from moving and resizing cells. Design mode can always change the layout. Set layoutLocked: false only when the user wants readers to rearrange views.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -180,11 +180,11 @@ const DASH_CONTAINER_SCHEMA = {
         emptyText: EMPTY_TEXT,
         layoutLocked: {
             type: 'boolean',
-            default: false,
+            default: true,
             title: 'Rearranging',
             'x-labels': {false: 'Allowed', true: 'Locked'},
             description:
-                'Stop readers moving, splitting and resizing views. Design mode can still change the layout.'
+                'Whether readers are stopped from moving, splitting and resizing views. Design mode can always change the layout. Set layoutLocked: false only when the user wants readers to rearrange views.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -1521,7 +1521,7 @@ const dashContainer: WidgetSpec = {
     label: 'Dash container',
     terms: ['dock', 'docking', 'stacks', 'rearrange', 'tabs and splits', 'split panes'],
     guidance:
-        'Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is rows and columns of stacks of tabs, each tab naming a child, sized in percent. Use tabContainer for plain tabs, and this only where users rearrange or split views side by side. Set layoutLocked only when the user wants the arrangement fixed for readers.',
+        'Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is rows and columns of stacks of tabs, each tab naming a child, sized in percent. Use tabContainer for plain tabs, and this to split views side by side. Set layoutLocked: false only when the user wants readers to rearrange views.',
     category: 'container',
     config: DASH_CONTAINER_SCHEMA,
     presetPaths: ['/layout'],

@@ -57,7 +57,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             containerPadding: (config.containerPadding as [number, number]) ?? margin,
             maxRows: config.maxRows ?? Infinity,
             showGridBackground: !!config.showGridBackground,
-            layoutLocked: !!config.layoutLocked
+            layoutLocked: !!this.configValue('layoutLocked')
         };
     }
 

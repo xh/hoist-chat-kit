@@ -86,6 +86,15 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return null;
     }
 
+    /** A config property's resolved value, or its schema default where unset. */
+    configValue(key: string): unknown {
+        const value = (this.resolvedConfig as PlainObject)[key];
+        if (value !== undefined) return value;
+        const props = this.blueprintModel.registry.widgets[this.element?.component]?.config
+            ?.properties as PlainObject;
+        return props?.[key]?.default;
+    }
+
     /**
      * The element's config, with each binding replaced by its variable's current value, and each
      * title that reads variables filled.
