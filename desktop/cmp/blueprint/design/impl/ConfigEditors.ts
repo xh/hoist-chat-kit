@@ -181,7 +181,14 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                         : null,
                     editorFor(node, value, commit, ctx),
                     ...issues.map((it, idx) =>
-                        div({key: idx, className: `${CLS}__issue`, children: it.message})
+                        div({
+                            key: idx,
+                            className: classNames(
+                                `${CLS}__issue`,
+                                it.severity === 'warning' && `${CLS}__issue--warning`
+                            ),
+                            children: it.message
+                        })
                     )
                 ]
             }),

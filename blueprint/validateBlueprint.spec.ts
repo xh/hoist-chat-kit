@@ -251,7 +251,7 @@ describe('validateBlueprint', () => {
             expect(check(note({text: 'h'}), ['n'])).toEqual([]);
             expect(check(note({}), ['n'])).toEqual([]);
             expect(check(note({text: 5}), ['n'])).toEqual(['schema.invalid']);
-            expect(check(note({text: 'h'}))).toEqual(['schema.invalid', 'note.never']);
+            expect(check(note({text: 'h'}))).toEqual(['config.incomplete', 'note.never']);
         });
 
         it('still applies annotations and the forbidden-key walk to a partial element', () => {
@@ -384,11 +384,9 @@ describe('validateBlueprint', () => {
                     },
                     {op: 'remove', path: '/elements/sectorChart/config/type'}
                 ]),
-                codes = validate(result)
-                    .filter(it => it.severity === 'error')
-                    .map(it => it.code);
+                codes = validate(result).map(it => it.code);
             expect(codes).toContain('preset.noItems');
-            expect(codes).toContain('schema.invalid');
+            expect(codes).toContain('config.incomplete');
         });
 
         it("lets presets control a variable's default, once it leaves the declaration", () => {
@@ -1129,7 +1127,7 @@ describe('validateBlueprint', () => {
             w: 6,
             h: 4
         });
-        expect(codes(bp)).toEqual(['treemap.noGroupBy']);
+        expect(codes(bp)).toEqual(['config.incomplete']);
         bp.presets = {
             views: {
                 controls: [{path: '/elements/map/config/groupBy'}],

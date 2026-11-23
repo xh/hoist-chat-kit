@@ -431,14 +431,14 @@ describe('blueprint data widgets', () => {
             ).toContain('/elements/headlinePnlDay/config/deltaField');
         });
 
-        it('refuses a card with no field, unless it counts', () => {
+        it('marks a card with no field unfinished, unless it counts', () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             bp.elements.headlinePnlDay.config = {source: 'positions'};
             expect(
                 open()
                     .validate(bp)
                     .map(it => it.code)
-            ).toContain('statCard.noField');
+            ).toContain('config.incomplete');
         });
     });
 

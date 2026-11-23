@@ -1,14 +1,15 @@
 import {HoistModel, XH} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {isEqual} from 'lodash';
+import {isEqual, uniq} from 'lodash';
 import type {Blueprint, BlueprintAccess, BlueprintIssue} from '../Blueprint';
 import {type BlueprintLinkParams, parseBlueprintLink} from '../BlueprintLink';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import type {DataCatalog} from '../DataCatalog';
 import {upgradeBlueprint} from '../impl/upgrade';
-import {validateBlueprint} from '../validateBlueprint';
+import {listOf} from '../impl/labels';
+import {isIncomplete, validateBlueprint} from '../validateBlueprint';
 import {
     type BlueprintAccessSpec,
     type BlueprintCreateSpec,
@@ -233,7 +234,8 @@ export class BlueprintDocumentModel extends HoistModel {
 
     /**
      * Publish the saved draft as the next number, once any save in flight has landed. A draft
-     * with unsaved edits saves first.
+     * with unsaved edits saves first. A draft with an unfinished widget is refused, naming each,
+     * so readers never see one.
      */
     publishAsync(note?: string): Promise<BlueprintIssue[]> {
         return this.inTurnAsync(async () => {
@@ -242,6 +244,15 @@ export class BlueprintDocumentModel extends HoistModel {
                 return [refusal('You may not publish this blueprint.')];
             }
             if (this.isStale) return [staleRefusal()];
+            const unfinished = this.blueprintModel.issues.filter(isIncomplete);
+            if (unfinished.length) {
+                return [
+                    refusal(
+                        `Finish ${listOf(uniq(unfinished.map(it => it.path.split('/')[2])))} before you publish.`
+                    ),
+                    ...unfinished.map(it => ({...it, severity: 'error' as const}))
+                ];
+            }
             if (this.isDirty) {
                 const issues = await this.doSaveDraftAsync();
                 if (hasErrors(issues)) return issues;

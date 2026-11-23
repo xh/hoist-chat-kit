@@ -32,7 +32,7 @@ import {fillTemplate} from './impl/template';
 import {formatValue, resolveFormat} from './impl/formats';
 import {variableText} from './impl/variableText';
 import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
-import {validateBlueprint} from './validateBlueprint';
+import {isIncomplete, validateBlueprint} from './validateBlueprint';
 import type {BlueprintAccess, BlueprintMode} from './Blueprint';
 import {checkEditAllowed} from './impl/access';
 import {boundPeriodCalendar, checkVariableValue} from './impl/variableValues';
@@ -248,9 +248,13 @@ export class BlueprintModel extends HoistModel {
 
     /**
      * Check a blueprint against the catalog and registry, without applying it.
-     * @param opts - `partialIds`, the elements of a streaming answer still arriving.
+     * @param opts - `partialIds`, the elements of a streaming answer still arriving, and `strict`,
+     *      true to count incomplete config as an error, as for the Architect.
      */
-    validate(bp: Blueprint, opts: {partialIds?: string[]} = {}): BlueprintIssue[] {
+    validate(
+        bp: Blueprint,
+        opts: {partialIds?: string[]; strict?: boolean} = {}
+    ): BlueprintIssue[] {
         const {catalog, registry, artifacts, isAnswer} = this;
         // An answer renders degraded, so it may hold the reserved widgets degradeAnswer() places.
         return validateBlueprint(bp, {
@@ -259,7 +263,8 @@ export class BlueprintModel extends HoistModel {
             artifacts,
             isAnswer,
             allowReserved: isAnswer,
-            partialIds: opts.partialIds
+            partialIds: opts.partialIds,
+            strict: opts.strict
         });
     }
 
@@ -761,6 +766,14 @@ export class BlueprintModel extends HoistModel {
         if (isEqual(result, this.blueprint)) return {version: this.version, issues: this.issues};
         const issues = this.validate(result);
         if (hasErrors(issues)) return {issues};
+        // The Architect builds complete widgets, though a person may leave one unfinished.
+        if (edit.author === 'architect') {
+            const before = new Set(this.issues.filter(isIncomplete).map(it => it.path)),
+                added = this.validate(result, {strict: true}).filter(
+                    it => isIncomplete(it) && !before.has(it.path)
+                );
+            if (added.length) return {issues: added};
+        }
         const before = this.blueprint;
         this.commit(result, issues);
         this.history = [...this.history, {...edit, version: this.version}];

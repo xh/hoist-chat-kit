@@ -4,13 +4,15 @@ import {mask} from '@xh/hoist/cmp/mask';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
-import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
 import {
     type BlueprintSelection,
     type BlueprintWidgetModel,
+    isIncomplete,
+    labelOf,
     variableLabel,
     type WidgetSpec
 } from '../../../../blueprint';
@@ -181,6 +183,18 @@ function needsField(
             action: 'Pick a source'
         };
     }
+    // A property left unfinished, such as a chart with no y, names the first one.
+    const prefix = `/elements/${model.id}/config/`,
+        unfinished = model.blueprintModel.issues.find(
+            it => isIncomplete(it) && it.path.startsWith(prefix)
+        ),
+        key = unfinished?.path.slice(prefix.length).split('/')[0];
+    if (key) {
+        const label = (
+            getOwn<PlainObject>(spec.config?.properties as PlainObject, key)?.title ?? labelOf(key)
+        ).toLowerCase();
+        return {key, text: `This ${spec.label} has no ${label} yet.`, action: `Set ${label}`};
+    }
     return null;
 }
 
@@ -287,8 +301,7 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
               : model.source?.isUnavailable
                 ? 'The data for this answer is no longer available.'
                 : (model.source?.joinWait ?? model.source?.selectionWait ?? null);
-    if (notice) return notePlaceholder(notice);
-    // A widget that needs a field set says so, and in design mode offers to set it.
+    // A widget that needs a field set says so first, and in design mode offers to set it.
     const needs = needsField(model, spec);
     if (needs) {
         const {designModel, blueprintModel} = viewModel,
@@ -311,6 +324,7 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
                 : null
         ]);
     }
+    if (notice) return notePlaceholder(notice);
     const {source} = model;
     if (source?.lastError && !source.isLoading) {
         return notePlaceholder([

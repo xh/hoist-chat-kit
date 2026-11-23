@@ -1143,4 +1143,36 @@ describe('BlueprintDesignModel', () => {
         model.setMode('run');
         expect(design.uiContext).not.toHaveProperty('interaction');
     });
+
+    describe('unfinished widgets', () => {
+        it('lets a person leave a widget unfinished, as a warning that names what it lacks, where the Architect is refused', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
+            expect(errors(design.setConfig('sectorChart', '/y', []))).toEqual([]);
+            expect(model.blueprint.elements.sectorChart.config.y).toEqual([]);
+            const [unfinished] = model.issues.filter(it => it.code === 'config.incomplete');
+            expect(unfinished).toMatchObject({
+                severity: 'warning',
+                path: '/elements/sectorChart/config/y'
+            });
+            expect(unfinished.message).toMatch(/sectorChart is unfinished/);
+
+            // A widget the person left unfinished does not block the Architect's other edits.
+            const other = model.applyEdit({
+                author: 'architect',
+                ops: [{op: 'set', path: '/elements/posGrid/config/title', value: 'Book'}]
+            });
+            expect(errors(other)).toEqual([]);
+
+            // But the Architect leaves no widget unfinished itself.
+            const fresh = open(loadBlueprint('p2-linked-dashboard.json')).model,
+                refused = fresh.applyEdit({
+                    author: 'architect',
+                    ops: [{op: 'set', path: '/elements/sectorChart/config/y', value: []}]
+                });
+            expect(refused.issues).toEqual([
+                expect.objectContaining({code: 'config.incomplete', severity: 'error'})
+            ]);
+            expect(fresh.blueprint.elements.sectorChart.config.y).toEqual(['pnlDay']);
+        });
+    });
 });

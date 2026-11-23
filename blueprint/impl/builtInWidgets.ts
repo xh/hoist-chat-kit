@@ -2640,7 +2640,7 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
         if (!isEmpty(cfg.groupBy) || isPreset) return [];
         return [
             {
-                code: 'treemap.noGroupBy',
+                code: 'config.incomplete',
                 severity: 'error',
                 path: '/groupBy',
                 message: 'a treemap needs groupBy, in its config or from a preset group'
@@ -2711,9 +2711,9 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
             ? []
             : [
                   {
-                      code: 'statCard.noField',
+                      code: 'config.incomplete',
                       severity: 'error',
-                      path: '',
+                      path: '/field',
                       message: 'a stat card needs a field, unless its agg is count'
                   }
               ],

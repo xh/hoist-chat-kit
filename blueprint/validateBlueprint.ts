@@ -50,6 +50,22 @@ export interface ValidateBlueprintContext {
      * growing. Only the stream sets this, never what a model writes.
      */
     partialIds?: string[];
+    /**
+     * True to count incomplete config, such as a missing required property or a list short of its
+     * minimum, as an error, as the Architect's edits and chat answers do. Otherwise it is a
+     * `config.incomplete` warning, so a person can leave a widget unfinished in design mode.
+     * A chat answer is always strict.
+     */
+    strict?: boolean;
+}
+
+// A config problem that adding to the config fixes: a required key, or a list or text short of
+// its minimum. Any other is wrong as it stands.
+const UNFINISHED = /is required$|^expected at least \d+ (item|character)s?\b/;
+
+/** True for an issue that marks a widget's config unfinished rather than wrong. */
+export function isIncomplete(issue: BlueprintIssue): boolean {
+    return issue.code === 'config.incomplete';
 }
 
 /** Hoist field types, plus `filter`, which every variable may take. */
@@ -113,6 +129,13 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             issues.push({code, severity: 'error', path, message}),
         warn = (code: string, path: string, message: string) =>
             issues.push({code, severity: 'warning', path, message}),
+        incomplete = (path: string, message: string) =>
+            issues.push({
+                code: 'config.incomplete',
+                severity: ctx.strict || isAnswer ? 'error' : 'warning',
+                path,
+                message
+            }),
         typeMatches = (varType: string, want: string) =>
             variableTypeMatches(registry, varType, want),
         // A field instance's params: each one the field takes, a value of its type or a binding,
@@ -206,11 +229,19 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         for (const e of checkConfig(el.config ?? {}, spec.config, {isPartial})) {
             // A key that presets control leaves the config, and each preset gives its value.
             if (e.message.endsWith(' is required') && presetKeys.has(`${id}${e.path}`)) continue;
-            err('schema.invalid', `${p}/config${e.path}`, e.message);
+            if (UNFINISHED.test(e.message)) {
+                incomplete(`${p}/config${e.path}`, `${id} is unfinished: ${e.message}`);
+            } else {
+                err('schema.invalid', `${p}/config${e.path}`, e.message);
+            }
         }
         if (!isPartial) {
             for (const it of spec.validate?.(el.config ?? {}, {blueprint: bp, id}) ?? []) {
-                issues.push({...it, path: `${p}/config${it.path}`});
+                if (isIncomplete(it)) {
+                    incomplete(`${p}/config${it.path}`, `${id} is unfinished: ${it.message}`);
+                } else {
+                    issues.push({...it, path: `${p}/config${it.path}`});
+                }
             }
         }
         if (el.children && !spec.children) {

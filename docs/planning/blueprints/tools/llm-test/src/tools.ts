@@ -108,8 +108,9 @@ export class Session implements ArchitectTarget {
         }));
     }
 
-    validate(bp: Blueprint, isAnswer = false): Issue[] {
-        return validate(bp, {artifacts: this.artifacts, isAnswer});
+    /** Always strict, as the library's validate is. */
+    validate(bp: Blueprint, opts: {strict?: boolean; isAnswer?: boolean} = {}): Issue[] {
+        return validate(bp, {artifacts: this.artifacts, isAnswer: opts.isAnswer});
     }
 
     applyEdit(edit: {base?: number; ops: any[]}): {version?: number; issues: Issue[]} {
@@ -188,7 +189,7 @@ export class Session implements ArchitectTarget {
 
     private showUi(input: any): {content: string; isError?: boolean} {
         this.stats.segments++;
-        const issues = this.validate(input ?? {}, true);
+        const issues = this.validate(input ?? {}, {isAnswer: true});
         this.count(issues);
         if (issues.some(i => i.severity === 'error')) {
             this.stats.segmentsRejected++;

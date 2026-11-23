@@ -98,6 +98,24 @@ describe('BlueprintDocumentModel', () => {
         expect(saved.blueprint.schema).toMatchObject({blueprint: 1, widgets: {cubeGrid: 1}});
     });
 
+    it('saves a draft with an unfinished widget, and refuses to publish it, naming the widget', async () => {
+        const {repository, id} = await created(),
+            {blueprintModel, doc} = session(repository);
+        await doc.openAsync(id, {as: 'draft'});
+        blueprintModel.applyEdit({
+            ops: [{op: 'set', path: '/elements/sectorChart/config/y', value: []}]
+        });
+        expect(errors(await doc.saveDraftAsync())).toEqual([]);
+        expect(
+            (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.sectorChart.config.y
+        ).toEqual([]);
+
+        const refused = await doc.publishAsync();
+        expect(refused[0].message).toBe('Finish sectorChart before you publish.');
+        expect(errors(refused)).toContain('config.incomplete');
+        expect(await repository.listPublishesAsync(id)).toEqual([]);
+    });
+
     it('publishes the draft as the next number, saving it first, and leaves the draft', async () => {
         const {repository, id} = await created(),
             {blueprintModel, doc} = session(repository);

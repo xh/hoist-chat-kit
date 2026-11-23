@@ -53,7 +53,7 @@ export interface ValidateContext {
     isAnswer?: boolean;
 }
 
-/** Check a blueprint with the library's validator. */
+/** Check a blueprint with the library's validator, strictly, as for the Architect: an unfinished widget is an error. */
 export function validate(bp: Blueprint, ctx: ValidateContext): Issue[] {
-    return validateBlueprint(bp, {catalog, registry: libraryRegistry, ...ctx});
+    return validateBlueprint(bp, {catalog, registry: libraryRegistry, strict: true, ...ctx});
 }

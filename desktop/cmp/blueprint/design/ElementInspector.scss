@@ -235,6 +235,11 @@
   &__issue {
     font-size: var(--xh-font-size-small);
     color: var(--xh-intent-danger-text-color);
+
+    // An unfinished property, which the user may leave for now.
+    &--warning {
+      color: var(--xh-intent-warning-text-color);
+    }
   }
 
   &__binding {

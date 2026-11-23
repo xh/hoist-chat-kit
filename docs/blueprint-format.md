@@ -416,6 +416,12 @@ applies, and the edit returns its issues. One edit is one undo step and one hist
 - `code` is stable, named by area, such as `structure.twoParents` or `field.notDimension`. A widget's
   own codes take its name, such as `gauge.minNotUnderMax`. Match on the code, never the message.
 - An `error` blocks an edit, an open and a publish. A `warning` does not.
+- `config.incomplete` marks a widget left unfinished: a required property missing, or a list or
+  text short of its minimum. A person editing in design mode may leave a widget so. The issue is
+  a warning on the property, and the widget draws a note that names what it lacks, with a way to
+  set it. Publishing refuses while any widget is unfinished. The Architect's edits and a chat
+  answer count it as an error, so they build complete widgets. Pass `strict` to
+  `validateBlueprint()` to count it so too.
 - `path` points into the blueprint as it would be after the edit, and `op`, when present, is the
   index of the operation that caused it.
 

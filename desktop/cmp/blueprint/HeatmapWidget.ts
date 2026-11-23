@@ -2,7 +2,7 @@ import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
-import {escape, isEqual, isFinite, sortBy, uniqBy} from 'lodash';
+import {compact, escape, isEqual, isFinite, sortBy, uniqBy} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -66,7 +66,8 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
     private get query(): PlainObject {
         const {x, y} = this.resolvedConfig;
         return {
-            dimensions: [x, y],
+            // An unfinished map, with no x or y yet, queries what it has.
+            dimensions: compact([x, y]),
             filter: this.blueprintModel.resolveFilter(this.element?.config.filter),
             includeRoot: false
         };

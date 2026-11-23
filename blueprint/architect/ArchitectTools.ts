@@ -12,7 +12,7 @@ import {withDefaultBindingsImplied} from '../impl/bindable';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
 import {fieldUsages} from '../usages';
-import {isSettableFromOutside} from '../validateBlueprint';
+import {isIncomplete, isSettableFromOutside} from '../validateBlueprint';
 import {getAt, getOwn} from '../impl/pointer';
 import {queryRows} from '../impl/queryRows';
 import {summaryOf} from './architectPrompt';
@@ -39,7 +39,8 @@ export interface ArchitectTarget {
     /** Each variable's current value. */
     readonly variables?: {name: string; value: unknown}[];
     applyEdit(edit: BlueprintEdit): {version?: number; issues: BlueprintIssue[]};
-    validate(bp: Blueprint): BlueprintIssue[];
+    /** Check a blueprint. `strict` counts incomplete config as an error, as for the Architect. */
+    validate(bp: Blueprint, opts?: {strict?: boolean}): BlueprintIssue[];
     /** Switch the user's mode. Design mode takes effect only with write access. */
     setMode?(mode: BlueprintMode): void;
     /** Set a variable that a prompt, an action or the Architect may set, and return its value. */
@@ -287,7 +288,21 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
         run: (input, target) => {
             if (!input?.ops) return {issues: target.validate(target.blueprint)};
             const {result, issue} = applyOps(target.blueprint, input.ops as BlueprintOp[]);
-            return {issues: issue ? [issue] : target.validate(result)};
+            if (issue) return {issues: [issue]};
+            // A widget the ops leave unfinished fails, as edit_blueprint refuses it.
+            const before = new Set(
+                target
+                    .validate(target.blueprint)
+                    .filter(isIncomplete)
+                    .map(it => it.path)
+            );
+            return {
+                issues: target
+                    .validate(result, {strict: true})
+                    .map(it =>
+                        isIncomplete(it) && before.has(it.path) ? {...it, severity: 'warning'} : it
+                    )
+            };
         }
     },
     {
