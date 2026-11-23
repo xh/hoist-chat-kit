@@ -142,6 +142,40 @@ describe('ElementInspector', () => {
         expect(inspector.placementValues).toMatchObject({w: expect.any(Number)});
     });
 
+    it("offers no placement for a panel's toolbar, which takes its own size", () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'positionsPanel',
+                    elements: {
+                        positionsPanel: {
+                            component: 'panel',
+                            tbar: [{id: 'positionsToolbar'}],
+                            children: [{id: 'note'}]
+                        },
+                        positionsToolbar: {component: 'toolbar', children: []},
+                        note: {component: 'markdown', config: {text: 'Inside'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            inspector = new ElementInspectorModel(design);
+        onTestFinished(() => {
+            inspector.destroy();
+            design.destroy();
+            model.destroy();
+        });
+        design.select({kind: 'element', id: 'positionsToolbar'});
+        expect(inspector.slot).toBe('tbar');
+        expect(inspector.placementNodes).toEqual([]);
+        expect(inspector.placementValues).toEqual({});
+    });
+
     it("edits where an element sits in its container, from the container's child schema", () => {
         const {model, inspector} = open('p3-morning-report.json', 'posGrid');
         expect(inspector.placementNodes.map(it => it.key)).toEqual([

@@ -1,5 +1,5 @@
 import {HoistModel, managed, XH, type ElementFactory} from '@xh/hoist/core';
-import {action, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {forEach, isEqual, last} from 'lodash';
 import type {ReactNode} from 'react';
@@ -12,7 +12,7 @@ import {
     type DropTarget,
     type WidgetSpec
 } from '../../../../blueprint';
-import {parentOf} from '../../../../blueprint/impl/elements';
+import {parentOf, slotLists} from '../../../../blueprint/impl/elements';
 import {boxWidget, BoxWidgetModel} from '../BoxWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
 import {presetSelectorWidget, PresetSelectorWidgetModel} from '../PresetSelectorWidget';
@@ -129,6 +129,19 @@ export class BlueprintViewModel extends HoistModel {
 
     /** The elements the Architect's latest edit touched, haloed for a few seconds after it lands. */
     @observableRef accessor haloIds: string[] = [];
+
+    /** The elements in a slot other than `children`, such as a panel's tbar, which take their own size. */
+    @computed
+    get ownSizeIds(): Set<string> {
+        const elements = Object.values(this.blueprintModel.effective?.elements ?? {});
+        return new Set(
+            elements.flatMap(el =>
+                slotLists(el)
+                    .filter(it => it.slot !== 'children')
+                    .flatMap(it => it.refs.map(ref => ref.id))
+            )
+        );
+    }
 
     constructor(
         blueprintModel: BlueprintModel,

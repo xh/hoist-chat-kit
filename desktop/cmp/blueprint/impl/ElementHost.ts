@@ -56,9 +56,10 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 native[flag] = true;
                 return cellElementAt(e.target as HTMLElement, e.currentTarget) ?? id;
             };
+        const ownSize = viewModel.ownSizeIds.has(id) && `${DESIGN_ELEMENT}--own-size`;
         if (!isDesign) {
             return div({
-                className: DESIGN_ELEMENT,
+                className: classNames(DESIGN_ELEMENT, ownSize),
                 ...({'data-blueprint-element': id} as object),
                 children: [content, null, null]
             });
@@ -66,6 +67,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         return div({
             className: classNames(
                 DESIGN_ELEMENT,
+                ownSize,
                 designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
                 viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
                 designModel.showAddTarget &&

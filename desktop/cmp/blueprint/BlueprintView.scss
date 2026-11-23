@@ -26,6 +26,11 @@
       pointer-events: none;
     }
 
+    // In a toolbar or header slot, such as a panel's tbar, the element takes its own size.
+    &--own-size {
+      flex: none;
+    }
+
     // Where a click in the palette adds, while the pointer is over it.
     &--add-target {
       outline: 2px dashed var(--xh-intent-primary);

@@ -299,6 +299,54 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBeNull();
     });
 
+    it("draws a panel's tbar and bbar elements as its toolbars, at their own size, in Preview too", () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'positionsPanel',
+                    elements: {
+                        positionsPanel: {
+                            component: 'panel',
+                            config: {title: 'Positions'},
+                            tbar: [{id: 'positionsToolbar'}],
+                            bbar: [{id: 'footer'}],
+                            children: [{id: 'note'}]
+                        },
+                        positionsToolbar: {component: 'toolbar', children: []},
+                        footer: {component: 'toolbar', children: []},
+                        note: {component: 'markdown', config: {text: 'Inside'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model});
+        onTestFinished(() => {
+            design.destroy();
+            model.destroy();
+        });
+        const {container, rerender} = render(
+                blueprintView({model, designModel: design}) as ReactElement
+            ),
+            wrapper = (id: string) => container.querySelector(`[data-blueprint-element="${id}"]`),
+            ownSize = 'xh-blueprint-view__design-element--own-size',
+            check = () => {
+                const content = wrapper('note').closest('.xh-panel__content');
+                expect(content.previousElementSibling).toBe(wrapper('positionsToolbar'));
+                expect(content.nextElementSibling).toBe(wrapper('footer'));
+                expect(wrapper('positionsToolbar').classList).toContain(ownSize);
+                expect(wrapper('footer').classList).toContain(ownSize);
+                expect(wrapper('note').classList).not.toContain(ownSize);
+            };
+        check();
+        model.setMode('run');
+        rerender(blueprintView({model, designModel: design}) as ReactElement);
+        check();
+    });
+
     it("selects and hovers nothing in Interact, where clicks are the widgets', switched by I and E", () => {
         stubRects();
         const {design, model} = open('p3-morning-report.json'),
