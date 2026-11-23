@@ -26,6 +26,8 @@ export interface Scenario {
     /** The user's library of published blueprints, for list_blueprints. Default none. */
     library?: LibraryItem[];
     context: string;
+    /** What the designer has in front of them, sent after the first prompt as a ui_context block, as uiContextProvider() sends it. */
+    uiContext?: object;
     steps: Step[];
     checks: [string, (o: Outcome) => unknown][];
 }
@@ -509,6 +511,31 @@ export const SCENARIOS: Scenario[] = [
             ["quotes the user's own words", o => o.featureRequests?.every(r => 'Show my positions on a world map, each country shaded by its day P&L.'.includes(r.userWords))],
             ['asks for a widget', o => o.featureRequests?.[0]?.category === 'widget'],
             ['builds the closest supported view over positions', o => [...cfg(o.blueprint, 'chart'), ...cfg(o.blueprint, 'heatmap'), ...cfg(o.blueprint, 'treemap')].some(c => c.source === 'positions' && [c.x, c.groupBy].flat().some(f => ['region', 'country'].includes(f)))]
+        ]
+    },
+    {
+        id: 'U1',
+        title: 'Make the selected widget taller',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        uiContext: {mode: 'design', interaction: 'edit', selection: {kind: 'element', id: 'posGrid', widget: 'cubeGrid', parent: 'dashboard', cell: {x: 0, y: 2, w: 8, h: 7}}},
+        steps: [{prompt: 'Make the selected widget taller.'}],
+        checks: [
+            ["grows posGrid's cell", o => (o.blueprint.elements?.dashboard?.children ?? []).find((it: any) => it.id === 'posGrid')?.h > 7],
+            ['leaves its width', o => (o.blueprint.elements?.dashboard?.children ?? []).find((it: any) => it.id === 'posGrid')?.w === 8],
+            ['changes no other widget', o => Object.keys(o.blueprint.elements ?? {}).length === Object.keys(loadBlueprint('p2-linked-dashboard.json').elements).length]
+        ]
+    },
+    {
+        id: 'U2',
+        title: 'The selected widget, with nothing selected',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        uiContext: {mode: 'design', interaction: 'edit', selection: null},
+        steps: [{prompt: 'Make the selected widget taller.'}],
+        checks: [
+            ['makes no edit', o => !o.calls.includes('edit_blueprint')],
+            ['asks which widget', o => /\?/.test(o.replies.join(' '))]
         ]
     },
     {

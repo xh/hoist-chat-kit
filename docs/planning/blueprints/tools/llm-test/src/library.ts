@@ -14,7 +14,7 @@ import {validateBlueprint} from '../../../../../../blueprint/validateBlueprint.t
 import {Blueprint, catalogs, registry} from './load.ts';
 
 export {applyOps} from '../../../../../../blueprint/applyOps.ts';
-export {architectPrompt} from '../../../../../../blueprint/architect/architectPrompt.ts';
+export {architectPrompt, UI_CONTEXT_DESCRIPTION} from '../../../../../../blueprint/architect/architectPrompt.ts';
 export {
     ArchitectToolError,
     availableArchitectTools,

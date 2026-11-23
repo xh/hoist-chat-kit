@@ -10,7 +10,16 @@ export interface ArchitectPromptConfig {
      * `architectChatTools()` gives it with a `featureRequests` sink. Default false.
      */
     withFeatureRequests?: boolean;
+    /**
+     * True if each step carries a `ui_context` block of what the user has in front of them, as
+     * `uiContextProvider()` sends it. Default false.
+     */
+    withUiContext?: boolean;
 }
+
+/** What the `ui_context` block holds, as the model reads it above its value. */
+export const UI_CONTEXT_DESCRIPTION =
+    'What the user has in front of them: the mode, the selected element or canvas view, with its widget, parent and cell, and the active tabs and presets. A null selection means nothing is selected.';
 
 /**
  * The Architect's system prompt: the blueprint format, the rules for editing it, and a compact
@@ -20,7 +29,8 @@ export function architectPrompt({
     catalogs,
     registry,
     withAnswers = false,
-    withFeatureRequests = false
+    withFeatureRequests = false,
+    withUiContext = false
 }: ArchitectPromptConfig): string {
     return [
         `You are the Architect. You build and edit blueprints: JSON documents that define dashboards and reports in a Hoist app. You change a blueprint only with the edit_blueprint tool${withAnswers ? ', and you answer questions with UI only with the show_ui tool' : ''}.`,
@@ -28,12 +38,17 @@ export function architectPrompt({
         EDITING,
         withAnswers ? ANSWERS : null,
         withFeatureRequests ? FEATURE_REQUESTS : null,
+        withUiContext ? UI_CONTEXT : null,
         'When you finish, reply with two or three plain sentences on what you did.',
         `# What exists\n\n${index(catalogs, registry)}`
     ]
         .filter(Boolean)
         .join('\n\n');
 }
+
+const UI_CONTEXT = `# What the user is looking at
+
+Each turn ends with a ui_context block: what the user has selected, with its widget, its container and its cell on a canvas, and the active tabs and presets. "This", "it", "the selected widget" and "here" mean that selection, and "this tab" the active one. A canvas widget's size is its cell's w and h, which you change in its container's children. If a request needs a target and nothing is selected, or the selection does not fit it, ask which element the user means before you edit. You never change the selection. Say which element you changed.`;
 
 //------------------
 // Implementation

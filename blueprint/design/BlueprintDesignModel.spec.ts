@@ -1122,4 +1122,25 @@ describe('BlueprintDesignModel', () => {
             expect(design.selection?.kind).toBe('element');
         });
     });
+
+    it('tells the Architect what the designer has in front of them: mode, selection with its cell, tabs and presets', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
+        expect(design.uiContext).toEqual({mode: 'design', interaction: 'edit', selection: null});
+        design.select({kind: 'element', id: 'posGrid'});
+        expect(design.uiContext.selection).toEqual({
+            kind: 'element',
+            id: 'posGrid',
+            widget: 'cubeGrid',
+            parent: 'dashboard',
+            cell: {x: 0, y: 2, w: 8, h: 7}
+        });
+        design.select({kind: 'view', id: 'posGrid', of: 'dashboard'});
+        expect(design.uiContext.selection).toMatchObject({
+            kind: 'view',
+            id: 'posGrid',
+            cell: {h: 7}
+        });
+        model.setMode('run');
+        expect(design.uiContext).not.toHaveProperty('interaction');
+    });
 });

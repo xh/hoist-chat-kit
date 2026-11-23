@@ -195,6 +195,13 @@ Send `system` as the model's system prompt, as you send `catalog.toPrompt()` for
 catalog. The context provider sends, with every step, the version that edits take as base, the
 mode and access, and each variable's current value.
 
+Beside a designer, add `uiContextProvider(designModel)` to `contextProviders` and pass
+`withUiContext: true` to `architectPrompt()`. Each step then says what the user selected, with
+its widget, container and canvas cell, and the active tabs and presets, so a request such as "make
+the selected widget taller" has a target. When a request needs a target and the user selected
+nothing, the Architect asks. It never changes the selection. Its context sits after the prompt's
+cache point, so it costs a few tokens a step and keeps the cache.
+
 | Tool | What it does |
 |------|--------------|
 | `read_blueprint` | Reads the blueprint, whole or at given paths, with its version |

@@ -13,7 +13,7 @@ import {loadBlueprint} from './load.ts';
 import {SYSTEM_PROMPT} from './prompt.ts';
 import {Scenario, SCENARIOS} from './scenarios.ts';
 import {Session, TOOLS} from './tools.ts';
-import {validate} from './library.ts';
+import {UI_CONTEXT_DESCRIPTION, validate} from './library.ts';
 
 const MODELS: Record<string, {id: string; input: number; output: number; cacheRead: number; cacheWrite: number}> = {
     opus: {id: 'claude-opus-5-5', input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5},
@@ -41,8 +41,10 @@ const system: Anthropic.Beta.BetaTextBlockParam[] = [{type: 'text', text: SYSTEM
 const tools = TOOLS as Anthropic.Beta.BetaTool[];
 
 function firstMessage(s: Scenario, prompt: string) {
-    const host = s.host ? `\n\nHost blueprint, version 0:\n${JSON.stringify(loadBlueprint(s.host))}` : '';
-    return `${s.context}${host}\n\n${prompt}`;
+    const host = s.host ? `\n\nHost blueprint, version 0:\n${JSON.stringify(loadBlueprint(s.host))}` : '',
+        // As the Anthropic codec appends a context provider's block to the user's message.
+        ui = s.uiContext ? `\n\n<context name="ui_context">\n${UI_CONTEXT_DESCRIPTION}\n${JSON.stringify(s.uiContext)}\n</context>` : '';
+    return `${s.context}${host}\n\n${prompt}${ui}`;
 }
 
 interface Usage {

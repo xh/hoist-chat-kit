@@ -95,6 +95,13 @@ const expected_: Record<string, any> = {
         featureRequests: [{summary: 'A world map widget that shades countries by a measure', category: 'widget', userWords: 'Show my positions on a world map', workaround: 'Added day P&L by region as a column chart.'}]
     },
     F2: {blueprint: applied['f2-edit.json applied to p2'].result, segments: [], replies: [''], calls: ['edit_blueprint']},
+    U1: {
+        blueprint: applyOps(p2, [{op: 'set', path: '/elements/dashboard/children', value: p2.elements.dashboard.children.map((it: any) => (it.id === 'posGrid' ? {...it, h: 10} : it))}]).result,
+        segments: [],
+        replies: ['I made posGrid taller.'],
+        calls: ['edit_blueprint']
+    },
+    U2: {blueprint: p2, segments: [], replies: ['Which widget should I make taller?'], calls: []},
     P12: {blueprint: applied['p12-edit.json applied to p12-host'].result, segments: [], replies: ['']},
     P11o: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}

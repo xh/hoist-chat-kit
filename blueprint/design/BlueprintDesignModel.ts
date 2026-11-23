@@ -9,6 +9,8 @@ import {
     isPlainObject,
     mapValues,
     omit,
+    omitBy,
+    pick,
     pickBy,
     startCase,
     uniq
@@ -248,6 +250,53 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     setHovered(id: string) {
         this.hoveredId = id;
+    }
+
+    /**
+     * What the designer has in front of them, for the Architect to read "this" and "the selected
+     * widget" by: the mode and, in design, the interaction; the selection, an element or canvas
+     * view with its widget, where it sits and its cell; each tab or dash container's active tab;
+     * and each preset group's active preset. Only what is set. See `uiContextProvider()`.
+     */
+    get uiContext(): PlainObject {
+        const {blueprintModel, selection, interaction, activeTabs} = this,
+            {mode, activePresets} = blueprintModel,
+            elements = blueprintModel.blueprint?.elements ?? {};
+        let sel: PlainObject = null;
+        if (selection?.kind === 'element' || selection?.kind === 'view') {
+            const {id} = selection,
+                at = locate(elements, id),
+                ref = at
+                    ? slotLists(elements[at.parent]).find(
+                          it => it.slot === at.slot && it.of === at.of
+                      )?.refs[at.index]
+                    : null,
+                cell = pickBy(pick(ref ?? {}, ['x', 'y', 'w', 'h']), it => it != null);
+            sel = omitBy(
+                {
+                    kind: selection.kind,
+                    id,
+                    widget: getOwn(elements, id)?.component,
+                    parent: at?.parent,
+                    slot: at && at.slot !== 'children' ? at.slot : null,
+                    of: at?.of,
+                    cell: isEmpty(cell) ? null : cell
+                },
+                it => it == null
+            );
+        } else if (selection) {
+            sel = {kind: selection.kind, id: selection.id};
+        }
+        return omitBy(
+            {
+                mode,
+                interaction: mode === 'design' ? interaction : null,
+                selection: sel,
+                activeTabs: isEmpty(activeTabs) ? null : activeTabs,
+                activePresets: isEmpty(activePresets) ? null : activePresets
+            },
+            (it, key) => it == null && key !== 'selection'
+        );
     }
 
     /** Switch between selecting on the canvas and using its widgets. See {@link interaction}. */

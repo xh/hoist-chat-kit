@@ -484,5 +484,13 @@ describe('Architect tools', () => {
                 withFeatureRequests: true
             })
         ).toMatch(/# Feature requests[\s\S]*call request_feature once/);
+        expect(prompt).not.toMatch(/ui_context/);
+        expect(
+            architectPrompt({
+                catalogs: model.catalogs,
+                registry: model.registry,
+                withUiContext: true
+            })
+        ).toMatch(/ui_context block[\s\S]*ask which element the user means/);
     });
 });
