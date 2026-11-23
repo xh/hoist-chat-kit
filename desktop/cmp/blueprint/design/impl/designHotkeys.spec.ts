@@ -1,18 +1,15 @@
-import {XH} from '@xh/hoist/core';
-import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {showDesignKeys} from './designHotkeys';
+import {describe, expect, it} from 'vitest';
+import type {BlueprintDesignModel} from '../../../../../blueprint';
+import {designHotkeys} from './designHotkeys';
 
-/** The design keys' own list, as "?" shows it. */
-describe('showDesignKeys', () => {
-    beforeAll(() => initTestAppAsync());
-
-    it('shows the keys in a dialog that Esc closes', () => {
-        const alert = vi.spyOn(XH, 'alert').mockReturnValue(null);
-        onTestFinished(() => alert.mockRestore());
-        showDesignKeys();
-        expect(alert).toHaveBeenCalledWith(
-            expect.objectContaining({title: 'Keyboard shortcuts', dismissable: true})
-        );
+/** The design keys, which Blueprint's own "?" dialog lists under Design beside the app's. */
+describe('designHotkeys', () => {
+    it("leaves ? to Blueprint's dialog, and gives each key a label there, under Design", () => {
+        const keys = designHotkeys({} as BlueprintDesignModel);
+        expect(keys.map(it => it.combo)).not.toContain('shift+/');
+        keys.forEach(it => {
+            expect(it.group).toBe('Design');
+            expect(it.label).toBeTruthy();
+        });
     });
 });

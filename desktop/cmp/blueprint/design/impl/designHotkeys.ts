@@ -1,4 +1,3 @@
-import {table, tbody, td, th, tr} from '@xh/hoist/cmp/layout';
 import {XH} from '@xh/hoist/core';
 import type {useHotkeys} from '@xh/hoist/desktop/hooks';
 import type {BlueprintDesignModel, BlueprintIssue} from '../../../../../blueprint';
@@ -10,8 +9,6 @@ type HotkeyConfig = Parameters<typeof useHotkeys>[1][number];
 interface DesignKey {
     combo: string;
     label: string;
-    /** The keys as the shortcut list shows them, when they differ from the combo. */
-    keys?: string;
     run: (designModel: BlueprintDesignModel, id: string) => void;
     /** True to run with nothing selected. */
     always?: boolean;
@@ -68,26 +65,6 @@ export function modeHotkeys(designModel: BlueprintDesignModel): HotkeyConfig[] {
 
 const MODE_COMBOS = ['e', 'i', '`'];
 
-/** Show the design keys in a dialog. */
-export function showDesignKeys() {
-    XH.alert({
-        title: 'Keyboard shortcuts',
-        // An alert has no cancel, so Hoist ignores Esc on it unless told otherwise.
-        dismissable: true,
-        message: table({
-            className: 'xh-blueprint-design-keys',
-            children: tbody(
-                DESIGN_KEYS.map(it =>
-                    tr({
-                        key: it.combo,
-                        children: [th({scope: 'row', children: it.keys ?? it.combo}), td(it.label)]
-                    })
-                )
-            )
-        })
-    });
-}
-
 //------------------
 // Implementation
 //------------------
@@ -141,7 +118,6 @@ const ARROW_RE = /^(shift\+)?(left|right|up|down)$/;
 const DESIGN_KEYS: DesignKey[] = [
     {
         combo: 'e',
-        keys: 'E',
         label: 'Edit: clicks select',
         always: true,
         anywhere: true,
@@ -149,7 +125,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'i',
-        keys: 'I',
         label: 'Interact: clicks reach the widgets',
         always: true,
         anywhere: true,
@@ -157,7 +132,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: '`',
-        keys: '`',
         label: 'Switch between Edit and Interact',
         always: true,
         anywhere: true,
@@ -165,7 +139,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'esc',
-        keys: 'Esc',
         label: 'Select the parent, else clear',
         run: (dm, id) => {
             // During a cell drag, Escape cancels the drag instead.
@@ -179,7 +152,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'enter',
-        keys: 'Enter',
         label: 'Select the first child',
         run: (dm, id) => {
             if (dm.selectedViewId) return selectElement(dm, id);
@@ -199,7 +171,6 @@ const DESIGN_KEYS: DesignKey[] = [
     {combo: ']', label: 'Next sibling', run: (dm, id) => selectElement(dm, dm.siblingOf(id, 1))},
     {
         combo: 'f2',
-        keys: 'F2',
         label: "Rename the selection's id",
         run: async (dm, id) => {
             if (!isWriter(dm)) return;
@@ -213,7 +184,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'del',
-        keys: 'Del',
         label: 'Delete',
         always: true,
         run: dm => {
@@ -222,7 +192,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'backspace',
-        keys: 'Backspace',
         label: 'Delete',
         always: true,
         run: dm => {
@@ -231,7 +200,6 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'mod+d',
-        keys: 'Ctrl+D',
         label: 'Duplicate',
         run: (dm, id) => {
             if (isWriter(dm)) duplicateElement(dm, id);
@@ -239,49 +207,42 @@ const DESIGN_KEYS: DesignKey[] = [
     },
     {
         combo: 'left',
-        keys: '←',
         label: 'Nudge a cell, or previous sibling',
         run: arrow(-1, 0, false)
     },
-    {combo: 'right', keys: '→', label: 'Nudge a cell, or next sibling', run: arrow(1, 0, false)},
-    {combo: 'up', keys: '↑', label: 'Nudge a cell, or previous sibling', run: arrow(0, -1, false)},
-    {combo: 'down', keys: '↓', label: 'Nudge a cell, or next sibling', run: arrow(0, 1, false)},
-    {combo: 'shift+left', keys: 'Shift+←', label: 'Narrow a cell', run: arrow(-1, 0, true)},
-    {combo: 'shift+right', keys: 'Shift+→', label: 'Widen a cell', run: arrow(1, 0, true)},
-    {combo: 'shift+up', keys: 'Shift+↑', label: 'Shorten a cell', run: arrow(0, -1, true)},
-    {combo: 'shift+down', keys: 'Shift+↓', label: 'Lengthen a cell', run: arrow(0, 1, true)},
+    {combo: 'right', label: 'Nudge a cell, or next sibling', run: arrow(1, 0, false)},
+    {combo: 'up', label: 'Nudge a cell, or previous sibling', run: arrow(0, -1, false)},
+    {combo: 'down', label: 'Nudge a cell, or next sibling', run: arrow(0, 1, false)},
+    {combo: 'shift+left', label: 'Narrow a cell', run: arrow(-1, 0, true)},
+    {combo: 'shift+right', label: 'Widen a cell', run: arrow(1, 0, true)},
+    {combo: 'shift+up', label: 'Shorten a cell', run: arrow(0, -1, true)},
+    {combo: 'shift+down', label: 'Lengthen a cell', run: arrow(0, 1, true)},
     {
         combo: 'alt+up',
-        keys: 'Alt+↑',
         label: 'Move earlier in its slot',
         run: (dm, id) => isWriter(dm) && refuse(dm, dm.reorder(id, -1).issues)
     },
     {
         combo: 'alt+down',
-        keys: 'Alt+↓',
         label: 'Move later in its slot',
         run: (dm, id) => isWriter(dm) && refuse(dm, dm.reorder(id, 1).issues)
     },
     {
         combo: 'mod+z',
-        keys: 'Ctrl+Z',
         label: 'Undo',
         always: true,
         run: dm => dm.blueprintModel.canUndo && refuse(dm, dm.blueprintModel.undo().issues)
     },
     {
         combo: 'mod+shift+z',
-        keys: 'Ctrl+Shift+Z',
         label: 'Redo',
         always: true,
         run: dm => dm.blueprintModel.canRedo && refuse(dm, dm.blueprintModel.redo().issues)
     },
     {
         combo: '/',
-        keys: '/',
         label: "Search Add's widgets",
         always: true,
         run: dm => isWriter(dm) && dm.requestAdd()
-    },
-    {combo: 'shift+/', keys: '?', label: 'This list', always: true, run: () => showDesignKeys()}
+    }
 ];

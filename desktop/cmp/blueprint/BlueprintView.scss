@@ -288,16 +288,6 @@
   }
 }
 
-.xh-blueprint-design-keys {
-  th {
-    padding-right: var(--xh-spacing-double);
-    font-family: var(--xh-font-family-mono);
-    font-weight: normal;
-    text-align: left;
-    white-space: nowrap;
-  }
-}
-
 // A stat card's detail with a trend: the delta's label, then a sparkline in the rest of the line.
 .xh-blueprint-stat-card__trend {
   display: flex;
