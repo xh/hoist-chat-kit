@@ -811,6 +811,10 @@ Two places declare what can vary:
   Tools and tests match on the code, never on the message.
 - `severity` is `error` or `warning`. An error blocks an edit and a publish. A warning does not,
   for example a deprecated field or a variable that nothing reads.
+- Incomplete config is a warning, `config.incomplete`, for a person in design mode: a required
+  property missing, or a list or text short of its minimum (decision 192). The widget draws a note
+  naming what it lacks, and publishing refuses while any is unfinished. The Architect's edits and
+  chat answers count it as an error.
 - `path` is a JSON Pointer into the blueprint as it would be after the edit.
 - `message` is plain text for a person and the LLM alike. It names the values involved.
 - `op` is the index of the operation in the edit that caused the issue, when one did.
@@ -1127,6 +1131,10 @@ Reconsider TypeSpec only if schemas come from a server language. The toolchain m
   its context.
 - A chat answer uses chat kit's tools: one `show_<widget>` tool per widget, and `show_ui` for a
   segment of several widgets. The editing tools above are separate.
+- Beside a designer, a `ui_context` provider sends each step what the user selected, with its
+  widget, container and cell, and the active tabs and presets (decision 190). "This" and "the
+  selected widget" mean the selection. The Architect asks when a request needs a target and the
+  user selected nothing, and it never changes the selection.
 
 ## Plan
 

@@ -16,7 +16,22 @@ In scope:
 - **The blueprint area's edit-mode interactions:** selection, hover, drop targets, add, move,
   delete, placement, undo, empty states, keyboard.
 
-Out of scope: chat kit's chat UI, and the rest of Toolbox.
+- **Widget chrome in the layout:** how widgets are framed in a blueprint: canvas cell and dash
+  view wrapping, panel headers, titles, header items, borders, spacing, density, empty and
+  loading and error states. These may change in hoist-react, for example the dash canvas view
+  frame, or be overridden for blueprints. Say which, and why.
+
+Out of scope: chat kit's chat UI, the rest of Toolbox, and redesigning hoist-react's inputs and
+controls themselves.
+
+## Tone
+
+Modern but professional. These apps run in enterprise environments, at large hedge funds and
+related businesses. Not a consumer app, but aesthetically pleasing and up to date with the UI
+standards users expect from a modern AI-integrated application. Dense data stays legible, and
+nothing is decoration for its own sake.
+
+Be exhaustive: cover every surface in scope, every state, and every interaction.
 
 ## Where the code lives (read only for now)
 

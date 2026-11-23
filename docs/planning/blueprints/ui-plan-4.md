@@ -2,9 +2,9 @@
 
 Decisions 187 (selection actions move off the canvas) and 188 (drop onto any container). Mockups for the parts that need John's eye: https://claude.ai/artifact/GysG8N2gABwH5RYmY1Ba8D. Rules from `ui-plan.md` and `ui-plan-3.md` still hold. Owners: **ck** chat kit (design model, Inspector, menus), **hr** layout and overlay, **tb** Toolbox (document bar). `blueprints-ui` reviews in page 1 of John's debug Chromium.
 
-## Choices (R4, for John)
+## Choices, resolved (decision 189: all as recommended)
 
-| # | Question | Recommendation |
+| # | Question | Resolved |
 |---|---|---|
 | R4-1 | How to switch between design actions and using the widgets | An **Edit \| Interact** segmented control at the left of the designer's canvas header, beside Undo/Redo. Hold **Alt** in Edit for a one-off Interact click. Run stays the reader's preview |
 | R4-2 | Quick-action bar shape | One compact row under the identity line: Duplicate, Wrap in ▾, the selection's own actions, then Delete at the right in danger. Labels collapse to icons below 320px |

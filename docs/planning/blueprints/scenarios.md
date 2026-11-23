@@ -483,7 +483,7 @@ locking concerns where data is kept, not the format.
   explains that the change needs write access, and offers a personal copy. If the column state
   were personalizable, it would add the column as a personalization.
 - **Personalizations meet a publish.** A PM saves a different fund, hides a column under one
-  preset, and rearranges a canvas. The designer then adds a column, adds a chart and removes
+  preset, and rearranges a canvas whose designer set `layoutLocked: false` (decision 194). The designer then adds a column, adds a chart and removes
   another, and publishes. This settles Q25.
 - **A locked copy.** A PM saves a copy of the morning report as of today's close for a
   committee. Its as-of date is fixed, its prompts are gone, and it shows the data as it was.

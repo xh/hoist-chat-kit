@@ -9,9 +9,9 @@ Out of scope: canvas and dash-container internals, covered by `layout-containers
 Coming from the `hoist-ui-components` session: `chip` and `sortableList`. Batches here use today's
 spans and list editors until they land (batch H).
 
-## Choices for John
+## Choices, resolved (decision 178: all as recommended)
 
-| # | Question | Recommendation |
+| # | Question | Resolved |
 |---|---|---|
 | R2-1 | Canvas view settings in the format | `title` and `hideHeader` on a canvas child reference |
 | R2-2 | Grid summary row | `showSummary: 'top' \| 'bottom' \| false`, as Hoist's GridModel. Existing `true` migrates to `'top'` |
@@ -19,7 +19,7 @@ spans and list editors until they land (batch H).
 | R2-4 | Concept pages | Small live example blueprints, read-only |
 | R2-5 | Maximize | Both "Expand" (hides the left nav) and "Fill" (also hides Toolbox's tab bar) |
 
-Batches A, B, D and F don't wait on any choice. C waits on R2-1. A's summary row waits on R2-2.
+Layout containers follow `layout-containers.md` (decision 179), built by hr on `blueprints-url`.
 
 ## New kit APIs
 
@@ -58,7 +58,7 @@ export function blueprintSchematic(blueprint: Blueprint, registry: BlueprintRegi
 |---|---|---|
 | B1 | `designOverlay` over the blueprint view's scroll area, drawing from element rects, repositioned on scroll, resize, tab switch and layout change | Scroll the canvas: outlines track. Switch tabs: they move |
 | B2 | Hover: 1px dashed outline and tag outside top-left (inside when no room). Selection: 2px outline and toolbar outside top-left. No tag on the selected element | Hover a stat card: the outline shows despite its border, and the tag sits above it. Select posGrid: the toolbar sits above its view, not over the grid |
-| B3 | Toolbar: `--xh-bg`, 1px border, 4px radius, shadow. Name, then Select parent, Add (primary), Duplicate (success), More, divider, Delete (danger) | Computed colours, and the order of the buttons |
+| B3 | Toolbar as a tab of the selection outline: the same 2px primary border on its top and sides, flush with the outline's left edge. Along its bottom, where the outline's top line runs beneath it, a 1px `--xh-border-color` rule replaces the primary line, so the tab is attached to the outline but visibly separate from the widget. `--xh-tbar-bg` background (button hover `--xh-bg`), top corners 5px, no shadow. Name, then Select parent, Add (primary), Duplicate (success), More, divider, Delete (danger) | Outline and toolbar read as one shape with no line between them, and the button colours and order match |
 | B4 | Remove round 1's in-cell tag, in-header toolbar and CSS outlines | No `::before` tag or `--selected` outline on design elements |
 
 ### C: Canvas views (ck, after R2-1)
@@ -115,16 +115,21 @@ export function blueprintSchematic(blueprint: Blueprint, registry: BlueprintRegi
 Swap in `chip` (wiring, bound fields, Catalog facts, Registry toggles) and `sortableList` (columns,
 row actions, steps, header items, presets, tabs) when `hoist-ui-components` lands them.
 Requirements are in the design, section 10. Their proposal (https://claude.ai/artifact/FsUkZBzcEj9xxdH4R7Rmgd,
-section 4) names the chip `tag` (pending John):
+section 4) is settled by John as `Chip` / `chip()` in hoist-react `cmp/chip`, with the list on
+@dnd-kit/react. Any key a chip or the list handles stops propagating, so it never reaches the
+canvas design keys:
 - kinds as `minimal` plus intent: variable primary, source success, element none, set warning;
   preset as `color: 'var(--xh-purple)'`;
 - mono through the `xh-font-family-mono` class;
 - `onRemove` separate from `onClick`, also on Backspace/Delete;
 - `active` for filter toggles.
 
-`sortableList` takes `renderItem` and `renderDetail(item)` (the host tracks the one open row),
-reorders on Alt+Up/Down with one `onReorder` per completed move, and leaves the "Add…" row to the
-host as a sibling.
+`sortableList` takes its array as `value` (or `bind`), plus `renderItem` and `renderDetail(item)`
+(the host tracks the one open row). It reorders on Alt+Up/Down with one `onReorder` per completed
+move, and leaves the "Add…" row to the host as a sibling. Rows carry no border or background: the
+host styles them, and the list draws only the drag chrome. A host-placed handle uses
+`handle: 'custom'` with `ctx.handleRef` from `renderItem`. Built on hoist-react branch
+`hoist-ui-components`.
 
 ## Order
 
