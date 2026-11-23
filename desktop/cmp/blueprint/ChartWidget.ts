@@ -140,7 +140,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
         // The series of y2 follow those of y, on the second axis.
         const firstY2 = this.primary.length;
-        const primaryTooltip = this.unitOf(this.primary[0])
+        const primaryTooltip = this.hasOwnFormat(this.primary[0])
                 ? seriesTooltip(this.formatOf(this.primary[0]))
                 : null,
             y2Tooltip = this.hasY2 ? seriesTooltip(this.formatOf(this.y2[0])) : null;
@@ -175,25 +175,44 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
 
     // Values of a field, formatted as a number or a percent, with its unit. A field whose format
     // names a scale, such as millions, keeps it, where an axis would otherwise compact.
-    private formatOf(field: string): (value: number, opts?: {compact?: boolean}) => string {
+    private formatOf(field: string): (value: number, opts?: AxisOpts) => string {
         const scaled = this.scaledFormatOf(field);
         if (scaled) return scaled;
         const format = this.isFraction(field) ? 'percent' : 'number',
             unit = this.unitOf(field);
-        return (value, opts = {}) => {
-            const text = String(fmtChatUiNumber(value, format, null, {asHtml: true, ...opts}));
+        return (value, {axis} = {}) => {
+            const text = String(
+                fmtChatUiNumber(value, format, null, {asHtml: true, compact: axis})
+            );
             return value == null || !unit ? text : `${text}${unit}`;
         };
     }
 
     // A field's values as its own format writes them, where that format names a scale, else null.
-    private scaledFormatOf(field: string): (value: number) => string {
+    // An axis tick drops trailing zeros, so a round one reads 280m.
+    private scaledFormatOf(field: string): (value: number, opts?: AxisOpts) => string {
         const def = this.source?.fields[field];
         if (!def) return null;
         const {catalog, blueprint} = this.blueprintModel,
             opts = resolveFormat(def, this.source.displayOf(field).formats, {catalog, blueprint});
         if (opts.scale == null) return null;
-        return value => (value == null ? '' : String(formatValue(value, def, opts, catalog, true)));
+        return (value, {axis} = {}) =>
+            value == null
+                ? ''
+                : String(
+                      formatValue(
+                          value,
+                          def,
+                          axis ? {...opts, zeroPad: false} : opts,
+                          catalog,
+                          true
+                      )
+                  );
+    }
+
+    // True where a field's format gives it a unit or a scale, which its axis and tooltips keep.
+    private hasOwnFormat(field: string): boolean {
+        return !!(this.unitOf(field) || this.scaledFormatOf(field));
     }
 
     // A field's label from its format, such as a unit its source's params choose, escaped.
@@ -211,7 +230,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     // The primary axis's labels with its first field's unit, where it has one.
     private withPrimaryUnit(config: PlainObject): PlainObject {
         const [first] = this.primary;
-        if (!this.unitOf(first) && !this.scaledFormatOf(first)) return config;
+        if (!this.hasOwnFormat(first)) return config;
         const fmt = this.formatOf(first);
         return {
             ...config,
@@ -219,7 +238,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
                 ...config.yAxis,
                 labels: {
                     formatter: function (this: any) {
-                        return fmt(this.value, {compact: true});
+                        return fmt(this.value, {axis: true});
                     }
                 }
             }
@@ -248,7 +267,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
                     title: {text: title ? escape(title) : null},
                     labels: {
                         formatter: function (this: any) {
-                            return fmtY2(this.value, {compact: true});
+                            return fmtY2(this.value, {axis: true});
                         }
                     }
                 }
@@ -368,6 +387,11 @@ function toTimestamp(value: unknown): number | string {
     if (value instanceof Date) return value.getTime();
     if (LocalDate.isLocalDate(value)) return (value as LocalDate).timestamp;
     return value as number | string;
+}
+
+// An axis tick: compact, unless the field's format names a scale.
+interface AxisOpts {
+    axis?: boolean;
 }
 
 // A series' tooltip line, with its values formatted as its field's.

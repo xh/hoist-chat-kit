@@ -1,6 +1,7 @@
 import {sortBy} from 'lodash';
 import {render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import type {PlainObject} from '@xh/hoist/core';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -725,6 +726,31 @@ describe('blueprint data widgets', () => {
             // mktVal's format writes millions as "2.5m". Compact form would write "2.5M".
             expect(second.labels.formatter.call({value: 2500000})).toMatch(/2\.5m/);
             expect(tip).toMatch(/2\.5m/);
+        });
+
+        it("writes the primary series' tooltips in its field's scale too", async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {y: ['mktVal']});
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series[0]?.data).toHaveLength(2));
+            const tip = chart.chartModel.series[0].tooltip?.pointFormatter.call({
+                y: -110975723,
+                color: '#000',
+                series: {name: 'Market Value'}
+            });
+            expect(tip).toMatch(/\(111\.0m\)/);
+        });
+
+        it('drops the trailing zeros of a round axis tick, keeping the decimals of any other', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {y: ['mktVal'], y2: ['grossExposure']});
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series).toHaveLength(2));
+            const [first, second] = chart.chartModel.highchartsConfig.yAxis,
+                tick = (axis: PlainObject, value: number) => axis.labels.formatter.call({value});
+            expect(tick(first, 280000000)).toMatch(/^280m$/);
+            expect(tick(first, -282500000)).toMatch(/^\(282\.5m\)$/);
+            expect(tick(second, 1000000000)).toMatch(/^1,000m$/);
         });
 
         it("formats the second axis and its tooltips as y2's own field, with no fraction clamp", async () => {
