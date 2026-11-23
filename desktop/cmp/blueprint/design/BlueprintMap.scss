@@ -7,8 +7,9 @@
   &__scroll {
     flex: 1 1 auto;
 
+    // Two classes deep, to outrank a node's own pointer.
     &--panning,
-    &--panning * {
+    &--panning .xh-blueprint-map__node {
       cursor: grabbing;
       user-select: none;
     }
