@@ -227,9 +227,16 @@ function editorFor(
 ): ReactElement {
     const disabled = ctx.impl.readOnly || !!ctx.locked,
         optional = (v: unknown) => (v == null || v === '' ? undefined : v),
-        placeholder = node.default !== undefined ? `Default (${node.default})` : undefined,
-        // An optional choice with no default in its schema takes one the widget decides.
-        choicePlaceholder = placeholder ?? (node.required ? undefined : 'Default');
+        unset = node.schema['x-unset'] as string,
+        // While unset, a value shows its default, else what unset means.
+        placeholder = node.default !== undefined ? String(node.default) : unset,
+        // An optional choice with neither takes one the widget decides as it draws.
+        isDecided = node.default === undefined && !unset && !node.required,
+        choicePlaceholder =
+            node.default !== undefined
+                ? `${choiceLabel(node, node.default)} (default)`
+                : (unset ?? (isDecided ? 'Default' : undefined)),
+        implied = value === undefined;
     if (node.bindable) return bindableEditor(node, value, commit, ctx);
     if (isVarBinding(value) && node.kind !== 'json') {
         return div({className: `${CLS}__binding`, children: `Bound to variable ${value.$var}`});
@@ -268,6 +275,7 @@ function editorFor(
                 value: !!(value ?? node.default),
                 labels: node.labels,
                 disabled,
+                implied,
                 onCommit: v => commit(v)
             });
         case 'choice':
@@ -288,6 +296,7 @@ function editorFor(
                     ],
                     disabled,
                     cardWidth: 76,
+                    className: classNames(implied && `${CLS}__implied`),
                     onCommit: v => commit(v === node.default || v == null ? undefined : v)
                 });
             }
@@ -302,14 +311,19 @@ function editorFor(
                     })),
                     disabled,
                     compact: true,
+                    className: classNames(implied && `${CLS}__implied`),
                     onCommit: v => commit(v === node.default ? undefined : v)
                 });
             }
             return select({
                 value: value ?? null,
-                options: node.options as any[],
+                options: (node.options as unknown[]).map(it => ({
+                    value: it as any,
+                    label: choiceLabel(node, it)
+                })),
                 enableClear: !node.required,
                 placeholder: choicePlaceholder,
+                ...(isDecided ? {title: 'The widget decides as it draws, when unset.'} : {}),
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))
@@ -672,14 +686,18 @@ export function booleanEditor({
     value,
     labels,
     disabled,
+    implied = false,
     onCommit
 }: {
     value: boolean;
     labels: {value: boolean; label: string}[];
     disabled: boolean;
+    /** True while unset, which marks the default it shows more quietly than a value set. */
+    implied?: boolean;
     onCommit: (value: boolean) => void;
 }) {
     return segmentedControl({
+        className: classNames(implied && `${CLS}__implied`),
         value,
         options: labels,
         intent: 'primary',
@@ -943,9 +961,9 @@ function columnMeta(
         .join(' · ');
 }
 
-// A picker's empty choice, naming what an unset value falls back to.
+// A picker's empty choice, naming what an unset value falls back to and where it comes from.
 function inheritedLabel(empty: string, inherited: unknown): string {
-    return inherited == null ? empty : `Default (${splitNamed(inherited).name ?? 'custom'})`;
+    return inherited == null ? empty : `${splitNamed(inherited).name ?? 'Custom'} (from the field)`;
 }
 
 // A map entry's key, by its field label where it names a field, with the key itself beside.

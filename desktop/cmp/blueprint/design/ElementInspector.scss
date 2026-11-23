@@ -375,6 +375,11 @@
     gap: 6px;
   }
 
+  // A default shown while unset, its choice marked more quietly than one set.
+  &__implied [aria-checked='true'] {
+    opacity: 0.6;
+  }
+
   // A container's child: a click selects it.
   &__child {
     cursor: pointer;

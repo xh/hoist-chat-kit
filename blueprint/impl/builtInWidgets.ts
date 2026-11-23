@@ -101,7 +101,8 @@ const DASH_CANVAS_SCHEMA = {
             type: 'integer',
             minimum: 1,
             title: 'Most rows',
-            description: 'The rows a cell may reach, none below. Default no limit.'
+            'x-unset': 'No limit',
+            description: 'The rows a cell may reach, none below.'
         },
         showGridBackground: {
             type: 'boolean',
@@ -210,6 +211,7 @@ const PANEL_SCHEMA = {
         intent: {
             type: 'string',
             enum: ['none', 'primary', 'success', 'warning', 'danger'],
+            default: 'none',
             description: "Colors a card style panel's border and title."
         },
         collapsible: {type: 'boolean', default: false},
@@ -235,7 +237,13 @@ const BOX_SCHEMA = {
             default: true,
             description: 'True to fill its parent. False to take the size of its children.'
         },
-        gap: {type: 'integer', minimum: 0, maximum: 64, description: 'Pixels between children.'},
+        gap: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 64,
+            default: 0,
+            description: 'Pixels between children.'
+        },
         align: {
             type: 'string',
             enum: ['stretch', 'start', 'center', 'end'],
@@ -386,6 +394,7 @@ const SPACER_SCHEMA = {
             type: 'integer',
             minimum: 1,
             maximum: 400,
+            'x-unset': 'The room left',
             description: 'Pixels along its parent. Leave unset to take all the room left.'
         }
     }
@@ -705,6 +714,7 @@ const CUBE_GRID_SCHEMA = {
         sizingMode: {
             'x-binding': true,
             enum: ['tiny', 'compact', 'standard', 'large'],
+            'x-unset': "The app's sizing mode",
             description: "The size of the grid's text and rows. Default the app's sizing mode."
         },
         showGroupRowCounts: {
@@ -733,6 +743,7 @@ const CUBE_GRID_SCHEMA = {
             type: 'integer',
             minimum: 16,
             maximum: 100,
+            'x-unset': 'By sizing mode',
             description:
                 'The height of a group row in pixels, in place of its sizing mode. Default by sizing mode.'
         }
@@ -836,7 +847,8 @@ const CHART_SCHEMA = {
         },
         stacking: {
             'x-binding': true,
-            enum: ['normal', 'percent']
+            enum: ['normal', 'percent'],
+            'x-unset': 'No stacking'
         },
         filter: {
             'x-filter': true,
@@ -850,7 +862,8 @@ const CHART_SCHEMA = {
         top: {
             type: 'integer',
             minimum: 1,
-            maximum: 100
+            maximum: 100,
+            'x-unset': 'All'
         },
         highchartsConfig: {
             type: 'object',
@@ -950,7 +963,8 @@ const TREEMAP_SCHEMA = {
             type: 'integer',
             minimum: 1,
             maximum: 4,
-            description: 'How many levels of groupBy to draw. Default all.'
+            'x-unset': 'All',
+            description: 'How many levels of groupBy to draw.'
         },
         filter: {'x-filter': true, 'x-binding': true, type: 'object'}
     }
@@ -970,12 +984,15 @@ const STAT_CARD_SCHEMA = {
         field: {type: 'string', 'x-field': 'measure'},
         label: {type: 'string', maxLength: 40, 'x-template': 'variables'},
         format: FORMAT_PROP,
-        agg: {enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE']},
+        agg: {
+            enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'],
+            'x-unset': "The field's aggregator"
+        },
         deltaField: {type: 'string', 'x-field': 'measure', 'x-starter': false},
         deltaFormat: FORMAT_PROP,
         deltaLabel: {type: 'string', maxLength: 40},
-        invert: {type: 'boolean'},
-        intent: {enum: ['none', 'primary', 'success', 'warning', 'danger']},
+        invert: {type: 'boolean', default: false},
+        intent: {enum: ['none', 'primary', 'success', 'warning', 'danger'], default: 'none'},
         trend: {
             type: 'string',
             'x-field': 'any',

@@ -45,6 +45,11 @@ export type BlueprintSchemaExtension = {
      */
     'x-sort'?: boolean;
     /**
+     * What an unset value means, where that is known but is no value of the property, such as
+     * `No limit` or `The app's sizing mode`. Design mode shows it in place of a default.
+     */
+    'x-unset'?: string;
+    /**
      * On a boolean, the label of each value, the positive state first, such as
      * `{false: 'Show', true: 'Hide'}` for a `hidden` titled "Visible". Design mode shows one segment
      * per value, in this order. Without it, On then Off. On a choice, the label of any option by its

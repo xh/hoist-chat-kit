@@ -596,9 +596,16 @@ describe('ElementInspector', () => {
         fireEvent.click(screen.getByText('Style'));
         expect(row('Stripe rows').querySelector('[aria-checked="true"]').textContent).toBe('On');
         expect(row('Show hover').querySelector('[aria-checked="true"]').textContent).toBe('Off');
-        expect(row('Tree style').textContent).toContain('Default (highlights)');
-        expect(row('Sizing mode').textContent).toContain('Default');
+        // Its default marked more quietly than a value set.
+        expect(
+            row('Stripe rows').querySelector('.xh-blueprint-element-inspector__implied')
+        ).not.toBeNull();
+        // A choice names its default, and one that falls back to something else says so.
+        expect(row('Tree style').textContent).toContain('Highlights (default)');
+        expect(row('Sizing mode').textContent).toContain("The app's sizing mode");
         expect(row('Sizing mode').textContent).not.toContain('Select');
+        // A number shows its default as its placeholder.
+        expect(row('Group row height').querySelector('input').placeholder).toBe('By sizing mode');
         expect(model.blueprint).toBe(before);
     });
 
@@ -778,7 +785,7 @@ describe('ElementInspector', () => {
         ).toContain(formatName);
         fireEvent.click(columnRow('mktVal').querySelector('[title="Settings"]'));
         expect(container.querySelector('[data-config-key="format"]').textContent).toContain(
-            `Default (${formatName})`
+            `${formatName} (from the field)`
         );
         expect(labels().slice(0, 6)).toEqual([
             'Header',
@@ -956,6 +963,7 @@ describe('ElementInspector', () => {
             row = (key: string) => container.querySelector(`[data-config-key="${key}"]`),
             config = () => model.blueprint.elements.overview.config ?? {};
         expect(row('compact').textContent).toContain('Free');
+        expect(row('rowHeight').querySelector('input').placeholder).toBe('50');
         expect(row('compact').querySelectorAll('.xh-blueprint-preview')).toHaveLength(3);
         const inputs = row('margin').querySelectorAll('input');
         expect([...inputs].map(it => it.placeholder)).toEqual(['10', '10']);
