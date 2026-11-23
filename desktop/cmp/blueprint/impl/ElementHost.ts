@@ -22,6 +22,7 @@ import {altHold} from '../design/impl/altHold';
 import {designMenu} from '../design/impl/designActions';
 import {selectionDragProps} from '../design/impl/elementDrag';
 import type {BlueprintViewModel} from './BlueprintViewModel';
+import {GRID_RESIZE_HANDLE} from '../../layout';
 import {missingModules} from './highchartsModules';
 
 const DESIGN_ELEMENT = 'xh-blueprint-view__design-element';
@@ -154,7 +155,7 @@ export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of:
     return {id, of: view.dataset.blueprintCanvas};
 }
 
-const CELL_CHROME = '[data-blueprint-view-header], [data-blueprint-view-grip]';
+const CELL_CHROME = `[data-blueprint-view-header], [data-blueprint-view-grip], ${GRID_RESIZE_HANDLE}`;
 
 // The field a widget needs set before it can draw: the variable an input sets, or a source.
 function needsField(

@@ -15,6 +15,12 @@ import {GridCanvasModel, type GridCanvasProps} from './GridCanvasModel';
 
 const CLS = 'xh-layout-grid';
 
+/**
+ * The selector of a cell's resize handles, which react-grid-layout draws in the cell's frame, beside
+ * its header and body, for a host to treat as the cell's chrome.
+ */
+export const GRID_RESIZE_HANDLE = '.react-resizable-handle';
+
 const RESIZE_HANDLES = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] as const;
 
 /**

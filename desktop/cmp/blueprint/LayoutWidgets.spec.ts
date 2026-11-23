@@ -19,6 +19,7 @@ import {blueprintView} from './BlueprintView';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {dashContainerWidget, DashContainerWidgetModel} from './DashContainerWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
+import {cellElementAt, viewAt} from './impl/ElementHost';
 import {MarkdownWidgetModel} from './MarkdownWidget';
 import {PanelWidgetModel} from './PanelWidget';
 
@@ -903,6 +904,18 @@ describe('layout and container widgets', () => {
             });
             expect(canvas.titles.tiles).toBe('tiles');
             expect(canvas.headerItemsFor('tiles')).toEqual([]);
+        });
+
+        it("counts a cell's resize handles as its view, for hover and selection, as its header is", () => {
+            const {view} = cells('design'),
+                {container} = renderCanvas(view),
+                frame = container.querySelector<HTMLElement>('[data-blueprint-view="pnl"]'),
+                handles = [
+                    ...frame.querySelectorAll<HTMLElement>(':scope > .react-resizable-handle')
+                ];
+            expect(handles).toHaveLength(8);
+            handles.forEach(it => expect(cellElementAt(it, container)).toBe('pnl'));
+            expect(viewAt(handles[0], container)).toEqual({id: 'pnl', of: 'canvas'});
         });
 
         it('shows the column grid and element ids in design mode only', () => {
