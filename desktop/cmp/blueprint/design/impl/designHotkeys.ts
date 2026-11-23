@@ -156,7 +156,7 @@ const DESIGN_KEYS: DesignKey[] = [
         run: (dm, id) => {
             // During a cell drag, Escape cancels the drag instead.
             if (document.querySelector('.react-draggable-dragging')) return;
-            // A widget climbs to its canvas view, and a view to its canvas.
+            // A widget climbs to its view, and a view to its container.
             const view = dm.selectedElementId ? dm.viewOf(id) : null,
                 parent = dm.pathTo(id).at(-1);
             if (view) dm.select({kind: 'view', ...view});

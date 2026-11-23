@@ -123,7 +123,7 @@ describe('BlueprintInspector', () => {
         design.select({kind: 'view', id: 'posGrid', of: 'positions'});
         expect(inspector.breadcrumb.at(-1)).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
         expect(inspector.breadcrumb).toHaveLength(3);
-        expect(inspector.subtitle).toBe('Canvas view · holds posGrid · in positions');
+        expect(inspector.subtitle).toBe('View · holds posGrid · in positions');
         design.select({kind: 'element', id: 'posGrid'});
         expect(inspector.subtitle).toBe('Grid · reads positions, grouping, pnlFilter');
         design.select({kind: 'source', id: 'prices'});
@@ -274,53 +274,73 @@ describe('BlueprintInspector', () => {
                 fireEvent.keyDown(document.activeElement, {key: 'Escape'});
             });
             openMenu(trailing);
-            // A canvas's cells in reading order.
+            // A canvas's cells, as views, in reading order.
             await vi.waitFor(() =>
                 expect(itemIds()).toEqual([
-                    'reportActions',
-                    'headline',
-                    'sectorChart',
-                    'regionChart'
+                    'view:reportActions',
+                    'view:headline',
+                    'view:sectorChart',
+                    'view:regionChart'
                 ])
             );
-            expect(item('headline').textContent).toContain('Tiles');
+            expect(item('view:headline').textContent).toContain('View');
+        });
+
+        it("opens a view step's menu of its widget and its header items", async () => {
+            const {container, design} = await show('posGrid');
+            act(() => design.select({kind: 'view', id: 'posGrid', of: 'positions'}));
+            await vi.waitFor(() =>
+                expect(
+                    container.querySelector('.xh-blueprint-inspector__crumb--current').textContent
+                ).toContain('posGrid')
+            );
+            openMenu(chevrons(container).at(-1));
+            await vi.waitFor(() => expect(itemIds()).toEqual(['posGrid', 'posViewsSelector']));
+            const headings = [
+                ...document.querySelectorAll('.xh-blueprint-inspector__crumb-menu .bp6-menu-header')
+            ].map(it => it.textContent);
+            expect(headings).toEqual(['Cell content', 'Cell header']);
+            act(() => {
+                fireEvent.click(item('posViewsSelector'));
+            });
+            expect(design.selectedElementId).toBe('posViewsSelector');
         });
 
         it('gives a leaf no trailing chevron', async () => {
             const {container} = await show('sectorChart');
             const current = container.querySelector('.xh-blueprint-inspector__crumb--current');
             expect(current.nextElementSibling).toBeNull();
-            // Its containers' chevrons still open their children.
-            expect(chevrons(container)).toHaveLength(2);
+            // Its containers' and its view's chevrons still open their children.
+            expect(chevrons(container)).toHaveLength(3);
         });
 
         it('selects a child on a click, and marks it on the canvas while hovered', async () => {
             const {container, design} = await show('overview');
             openMenu(chevrons(container).at(-1));
-            await vi.waitFor(() => expect(item('sectorChart')).toBeTruthy());
-            fireEvent.mouseEnter(item('sectorChart'));
+            await vi.waitFor(() => expect(item('view:sectorChart')).toBeTruthy());
+            fireEvent.mouseEnter(item('view:sectorChart'));
             expect(design.hoveredId).toBe('sectorChart');
-            fireEvent.mouseLeave(item('sectorChart'));
+            fireEvent.mouseLeave(item('view:sectorChart'));
             expect(design.hoveredId).toBeNull();
             act(() => {
-                fireEvent.click(item('sectorChart'));
+                fireEvent.click(item('view:sectorChart'));
             });
-            expect(design.selectedElementId).toBe('sectorChart');
+            expect(design.selection).toEqual({kind: 'view', id: 'sectorChart', of: 'overview'});
         });
 
         it("drills into a container's children through its submenu", async () => {
             const {container} = await show('overview');
             openMenu(chevrons(container).at(-1));
-            await vi.waitFor(() => expect(item('headline')).toBeTruthy());
+            await vi.waitFor(() => expect(item('view:headline')).toBeTruthy());
             act(() => {
-                fireEvent.mouseEnter(item('headline'));
+                fireEvent.mouseEnter(item('view:headline'));
             });
             const sub = (id: string) =>
                 document.querySelector<HTMLElement>(`[data-crumb-child="${id}"]`);
-            await vi.waitFor(() => expect(sub('headlineMktVal')).toBeTruthy(), {timeout: 2000});
-            expect(sub('headlinePnlYtd')).toBeTruthy();
+            // A view's submenu holds its widget.
+            await vi.waitFor(() => expect(sub('headline')).toBeTruthy(), {timeout: 2000});
             // In a portal of its own, so the menu's scrolling never clips it.
-            expect(lastMenu().contains(sub('headlineMktVal'))).toBe(false);
+            expect(lastMenu().contains(sub('headline'))).toBe(false);
         });
 
         it('groups children by slot, where a widget has several, leaving out empty ones', async () => {
@@ -329,7 +349,7 @@ describe('BlueprintInspector', () => {
             design.addWidget('markdown', panel);
             design.addWidget('buttonGroup', panel, {slot: 'tbar'});
             act(() => design.select({kind: 'element', id: panel}));
-            await vi.waitFor(() => expect(chevrons(container).length).toBe(3));
+            await vi.waitFor(() => expect(chevrons(container).length).toBe(4));
             openMenu(chevrons(container).at(-1));
             await vi.waitFor(() => expect(menuItems()).toHaveLength(2));
             const headings = [
@@ -342,7 +362,7 @@ describe('BlueprintInspector', () => {
             const {design, container} = await show('overview');
             const box = design.addWidget('box', 'overview').id;
             act(() => design.select({kind: 'element', id: box}));
-            await vi.waitFor(() => expect(chevrons(container).length).toBe(3));
+            await vi.waitFor(() => expect(chevrons(container).length).toBe(4));
             openMenu(chevrons(container).at(-1));
             const add = await vi.waitFor(() => {
                 const it = [
@@ -368,15 +388,15 @@ describe('BlueprintInspector', () => {
             act(() => {
                 fireEvent.keyDown(trailing, {key: 'ArrowDown'});
             });
-            await vi.waitFor(() => expect(document.activeElement).toBe(item('reportActions')));
+            await vi.waitFor(() => expect(document.activeElement).toBe(item('view:reportActions')));
             act(() => {
                 fireEvent.keyDown(document.activeElement, {key: 'ArrowDown'});
             });
-            expect(document.activeElement).toBe(item('headline'));
+            expect(document.activeElement).toBe(item('view:headline'));
             act(() => {
                 fireEvent.keyDown(document.activeElement, {key: 'Enter'});
             });
-            expect(design.selectedElementId).toBe('headline');
+            expect(design.selection).toEqual({kind: 'view', id: 'headline', of: 'overview'});
         });
 
         it("moves between a menu's own rows, never into a container's submenu", async () => {

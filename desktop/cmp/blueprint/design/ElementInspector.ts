@@ -14,7 +14,13 @@ import {
     labelOf,
     toEditorSpec
 } from '../../../../blueprint';
-import {locate, parentOf} from '../../../../blueprint/impl/elements';
+import {
+    type ChildNode,
+    childGroups,
+    locate,
+    parentOf,
+    viewTitle
+} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {
@@ -68,14 +74,17 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return !!this.element?.personalizable?.includes(`/config/${key}`);
     }
 
-    /** True while the selection is the canvas view that holds the element, not the element. */
+    /** True while the selection is the view that holds the element, not the element. */
     get isView(): boolean {
         return !!this.designModel.selectedViewId;
     }
 
     /** The canvas the element sits in a cell of, or null. */
     get canvasId(): string {
-        return this.designModel.viewOf(this.elementId)?.of ?? null;
+        const of = this.designModel.viewOf(this.elementId)?.of;
+        return this.designModel.blueprintModel.blueprint?.elements?.[of]?.component === 'dashCanvas'
+            ? of
+            : null;
     }
 
     /** The inputs in the element's canvas cell header. */
@@ -267,11 +276,11 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     commitPlacement(key: string, value: unknown) {
-        const {elementId: id, canvasId} = this,
-            {issues} = this.designModel.setChildPlacement(
+        const {elementId: id, designModel} = this,
+            {issues} = designModel.setChildPlacement(
                 id,
                 {[key]: value},
-                `${id}${canvasId ? ' view' : ''}: ${labelOf(key).toLowerCase()}`
+                `${id}${designModel.viewOf(id) ? ' view' : ''}: ${labelOf(key).toLowerCase()}`
             ),
             errors = issues.filter(it => it.severity === 'error');
         if (errors.length) this.refuseWith(placementKey(key), errors);
@@ -294,6 +303,14 @@ export class ElementInspectorModel extends ConfigEditorModel {
     get childIds(): string[] {
         if (!this.widgetSpec?.children || this.tabs) return null;
         return (this.element?.children ?? []).map(it => it.id);
+    }
+
+    /** The views among {@link childIds}: a canvas's cells, a dash container's views. */
+    get childViews(): ChildNode[] {
+        const {elementId, element, widgetSpec} = this;
+        return childGroups(elementId, element, {children: widgetSpec?.children})
+            .flatMap(it => it.nodes)
+            .filter(it => it.kind === 'view');
     }
 
     /** True if the container orders its children by place in the list, not by a layout. */
@@ -464,7 +481,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 !impl.isView && impl.canvasId
                     ? sectionCard({
                           key: 'canvas-view',
-                          title: 'Canvas view',
+                          title: 'View',
                           collapsed: !impl.toggled[CANVAS_VIEW],
                           onToggle: () => impl.toggleSection(CANVAS_VIEW),
                           children: [
@@ -488,7 +505,9 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                           ]
                       })
                     : null,
-                !impl.canvasId && (impl.placementNodes.length || impl.slotOptions.length > 1)
+                !impl.isView &&
+                !impl.canvasId &&
+                (impl.placementNodes.length || impl.slotOptions.length > 1)
                     ? sectionCard({
                           key: 'placement',
                           title: `Placement in ${impl.parentId}`,
@@ -520,12 +539,23 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
 });
 
 const LIST_KINDS = ['fieldList', 'list', 'stringList'],
-    CANVAS_VIEW = 'Canvas view';
+    CANVAS_VIEW = 'View';
 
-// A selected canvas view's settings: its header, the inputs in it, and its place on the canvas.
+// A selected view's settings: a canvas cell's header, the inputs in it and its place, or a dash
+// container view's title.
 function viewCards(impl: ElementInspectorModel) {
     const {designModel} = impl,
         {registry, blueprint} = designModel.blueprintModel;
+    // A dash container's view has its title alone.
+    if (!impl.canvasId) {
+        return [
+            sectionCard({
+                key: 'view-header',
+                title: 'Header',
+                children: placementRows(impl, it => it.key === 'title')
+            })
+        ];
+    }
     return [
         sectionCard({key: 'view-header', title: 'Header', children: viewHeaderRows(impl)}),
         sectionCard({
@@ -705,15 +735,28 @@ function childrenCard(impl: ElementInspectorModel) {
     const {designModel, childIds, readOnly: disabled} = impl,
         {registry, blueprint} = designModel.blueprintModel,
         row = (id: string) => {
-            const spec = registry.widgets[blueprint.elements[id]?.component];
+            const el = blueprint.elements[id],
+                spec = registry.widgets[el?.component],
+                view = impl.childViews.find(it => it.id === id),
+                ref = blueprint.elements[impl.elementId].children.find(it => it.id === id);
             return hbox({
                 className: `${CLS}__item-header ${CLS}__child`,
                 ...({'data-child': id} as object),
-                onClick: () => designModel.select({kind: 'element', id}),
+                onClick: () =>
+                    designModel.select(
+                        view ? {kind: 'view', id, of: view.of} : {kind: 'element', id}
+                    ),
                 children: [
-                    spec ? widgetIcon(spec, {className: `${CLS}__child-icon`}) : null,
-                    span({className: `${CLS}__column-label ${CLS}__child-id`, children: id}),
-                    span({className: `${CLS}__column-meta`, children: spec?.label}),
+                    view
+                        ? Icon.window({className: `${CLS}__child-icon`})
+                        : spec
+                          ? widgetIcon(spec, {className: `${CLS}__child-icon`})
+                          : null,
+                    span({
+                        className: `${CLS}__column-label ${CLS}__child-id`,
+                        children: view ? viewTitle(ref, el) : id
+                    }),
+                    span({className: `${CLS}__column-meta`, children: view ? 'View' : spec?.label}),
                     removeItemButton(`Remove ${id}`, disabled, () =>
                         removeElementAsync(designModel, id).then(it => refuse(designModel, it))
                     )

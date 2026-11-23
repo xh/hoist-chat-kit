@@ -4,6 +4,7 @@ import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blue
 import type {Blueprint} from '../Blueprint';
 import {BlueprintModel} from '../BlueprintModel';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
+import {viewTitle} from '../impl/elements';
 import {BlueprintDesignModel} from './BlueprintDesignModel';
 
 /**
@@ -1134,10 +1135,19 @@ describe('BlueprintDesignModel', () => {
             parent: 'dashboard',
             cell: {x: 0, y: 2, w: 8, h: 7}
         });
+        // A view names its title and the path of its reference, where its settings live.
         design.select({kind: 'view', id: 'posGrid', of: 'dashboard'});
+        const index = model.blueprint.elements.dashboard.children.findIndex(
+            it => it.id === 'posGrid'
+        );
         expect(design.uiContext.selection).toMatchObject({
             kind: 'view',
             id: 'posGrid',
+            title: viewTitle(
+                model.blueprint.elements.dashboard.children[index],
+                model.blueprint.elements.posGrid
+            ),
+            path: `/elements/dashboard/children/${index}`,
             cell: {h: 7}
         });
         model.setMode('run');

@@ -26,7 +26,15 @@ import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import {CANVAS_COLUMNS, rescaleCells} from '../impl/canvasCells';
-import {childIds, locate, parentOf, slotLabel, slotLists} from '../impl/elements';
+import {
+    childIds,
+    hasViews,
+    locate,
+    parentOf,
+    slotLabel,
+    slotLists,
+    viewTitle
+} from '../impl/elements';
 import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
@@ -260,8 +268,9 @@ export class BlueprintDesignModel extends HoistModel {
 
     /**
      * What the designer has in front of them, for the Architect to read "this" and "the selected
-     * widget" by: the mode and, in design, the interaction; the selection, an element or canvas
-     * view with its widget, where it sits and its cell; each tab or dash container's active tab;
+     * widget" by: the mode and, in design, the interaction; the selection, an element or a view
+     * with its widget, where it sits and its cell, and a view's title and the path of its
+     * reference; each tab or dash container's active tab;
      * and each preset group's active preset. Only what is set. See `uiContextProvider()`.
      */
     get uiContext(): PlainObject {
@@ -286,7 +295,13 @@ export class BlueprintDesignModel extends HoistModel {
                     parent: at?.parent,
                     slot: at && at.slot !== 'children' ? at.slot : null,
                     of: at?.of,
-                    cell: isEmpty(cell) ? null : cell
+                    cell: isEmpty(cell) ? null : cell,
+                    ...(selection.kind === 'view' && at
+                        ? {
+                              title: viewTitle(ref, elements[id]),
+                              path: `/elements/${at.parent}/children/${at.index}`
+                          }
+                        : {})
                 },
                 it => it == null
             );
@@ -399,17 +414,20 @@ export class BlueprintDesignModel extends HoistModel {
         return this.selection?.kind === 'element' ? this.selection.id : null;
     }
 
-    /** The ID of the element whose canvas view is selected, or null. */
+    /** The ID of the element whose view is selected, or null. */
     get selectedViewId(): string {
         return this.selection?.kind === 'view' ? this.selection.id : null;
     }
 
-    /** The canvas view (cell) that holds an element, or null for one in no canvas. */
+    /**
+     * The view that holds an element, a canvas cell or a dash container's view, or null for one
+     * in neither.
+     */
     viewOf(id: string): {id: string; of: string} {
         const elements = this.blueprintModel.blueprint?.elements ?? {},
             parent = parentOf(elements, id);
         return parent &&
-            getOwn(elements, parent)?.component === 'dashCanvas' &&
+            hasViews(getOwn(elements, parent)?.component) &&
             elements[parent].children?.some(it => it.id === id)
             ? {id, of: parent}
             : null;
@@ -514,6 +532,7 @@ export class BlueprintDesignModel extends HoistModel {
             isRoot = blueprintModel.blueprint.root === id,
             remove = this.deleteAction(id);
         if (sel.kind === 'view') {
+            if (elements[sel.of]?.component !== 'dashCanvas') return [remove];
             const hidden = !!elements[sel.of]?.children?.find(it => it.id === id)?.hideHeader;
             return [
                 {

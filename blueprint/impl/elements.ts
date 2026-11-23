@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {sortBy} from 'lodash';
+import {isString, sortBy} from 'lodash';
 import type {BlueprintElement, ChildRef} from '../Blueprint';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
@@ -38,27 +38,74 @@ export function slotLists(el: BlueprintElement): SlotList[] {
     return [...own, ...nested];
 }
 
+/** A child as a designer reads it: an element, or the view of a canvas or dash container that holds one. */
+export interface ChildNode {
+    kind: 'element' | 'view';
+    /** The element, or the one the view holds. */
+    id: string;
+    /** For a view, the container it is a view of. */
+    of?: string;
+    /** For a view, its element as `children`, then its own slots, such as a canvas cell's header. */
+    groups?: {slot: string; refs: ChildRef[]}[];
+}
+
 /**
  * An element's own children as a designer reads them, such as in Structure: a group per slot where
  * its widget has more than one, else one group of every child. A canvas lists its cells in reading
- * order. The slots of a child reference, such as a canvas cell's header, are left out. Empty for
- * an element whose widget holds no children.
+ * order. Each group's `nodes` show a canvas cell or a dash container's child as a view over its
+ * element, and any other child as itself. Empty for an element whose widget holds no children.
  */
 export function childGroups(
+    id: string,
     el: BlueprintElement,
-    spec: {children?: unknown; slots?: object}
-): {slot: string; refs: ChildRef[]}[] {
+    spec: {children?: {slots?: object}; slots?: object}
+): {slot: string; refs: ChildRef[]; nodes: ChildNode[]}[] {
     const slots = [...(spec?.children ? ['children'] : []), ...Object.keys(spec?.slots ?? {})];
     if (!el || !slots.length) return [];
     const own = slotLists(el).filter(it => !it.of),
-        ordered = (refs: ChildRef[]) =>
-            el.component === 'dashCanvas' ? sortBy(refs, ['y', 'x']) : refs;
+        views = hasViews(el.component),
+        cellSlots = Object.keys(spec.children?.slots ?? {}),
+        group = (slot: string, refs: ChildRef[]) => {
+            const ordered = el.component === 'dashCanvas' ? sortBy(refs, ['y', 'x']) : refs;
+            return {
+                slot,
+                refs: ordered,
+                nodes: ordered.map((ref): ChildNode => {
+                    if (!views || slot !== 'children') return {kind: 'element', id: ref.id};
+                    return {
+                        kind: 'view',
+                        id: ref.id,
+                        of: id,
+                        groups: [
+                            {slot: 'children', refs: [{id: ref.id}]},
+                            ...cellSlots.map(it => ({
+                                slot: it,
+                                refs: (ref[it] as ChildRef[]) ?? []
+                            }))
+                        ]
+                    };
+                })
+            };
+        };
     return slots.length > 1
-        ? slots.map(slot => ({
-              slot,
-              refs: ordered(own.find(it => it.slot === slot)?.refs ?? [])
-          }))
-        : [{slot: slots[0], refs: ordered(own.flatMap(it => it.refs))}];
+        ? slots.map(slot => group(slot, own.find(it => it.slot === slot)?.refs ?? []))
+        : [
+              group(
+                  slots[0],
+                  own.flatMap(it => it.refs)
+              )
+          ];
+}
+
+/** True for a widget whose children are views, each with a header or tab of its own. */
+export function hasViews(component: string): boolean {
+    return VIEW_CONTAINERS.includes(component);
+}
+
+/** A view's title: its reference's, else its element's, else the element's ID. */
+export function viewTitle(ref: ChildRef, el: BlueprintElement): string {
+    const title = [ref?.title, el?.config?.title].find(it => isString(it) && it);
+    return (title as string) ?? ref.id;
 }
 
 /** A slot as a designer reads it, such as `Top toolbar`, or `Cell header` for a cell's slot. */
@@ -158,6 +205,8 @@ export function upgradeSlots<T extends {elements?: Record<string, BlueprintEleme
 //------------------
 // Implementation
 //------------------
+const VIEW_CONTAINERS = ['dashCanvas', 'dashContainer'];
+
 // The keys of an element that are never slots.
 const ELEMENT_KEYS = ['component', 'config', 'personalizable'];
 

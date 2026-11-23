@@ -10,7 +10,7 @@ const CLS = 'xh-blueprint-overlay',
 
 /**
  * Design mode's marks over a blueprint, outlines only: the hovered element's dashed outline, the
- * selected one's solid outline, and a selected canvas view's outline over a tint. Structure, the
+ * selected one's solid outline, and a selected view's outline over a tint. Structure, the
  * breadcrumb and the Inspector name the element. An element in a canvas cell is marked at its cell,
  * header included. None draw in run mode, or while a cell or view is being moved or resized.
  */
@@ -44,7 +44,7 @@ export function designMarks(
     if (view && elements?.[view]) {
         ret.push({
             key: 'selection',
-            target: `${CELL}="${CSS.escape(view)}"]`,
+            target: targetOf(view, overlay),
             render: () => outline('view')
         });
     }

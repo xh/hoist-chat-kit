@@ -3,6 +3,7 @@ import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
+    type Blueprint,
     BlueprintDesignModel,
     BlueprintModel,
     FakeBlueprintDataProvider
@@ -26,8 +27,12 @@ describe('BlueprintStructure', () => {
     });
 
     function open() {
+        return openBlueprint(loadBlueprint('p3-morning-report.json'));
+    }
+
+    function openBlueprint(blueprint: Blueprint) {
         const model = new BlueprintModel({
-                blueprint: loadBlueprint('p3-morning-report.json'),
+                blueprint,
                 catalog: portfolioCatalog,
                 registry: scenarioRegistry(),
                 dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
@@ -101,17 +106,59 @@ describe('BlueprintStructure', () => {
         expect(record(structure, 'preset:posViews').data.label).toBe('Columns');
     });
 
-    it('lists a canvas view between its canvas and its widget, only when it has settings of its own', async () => {
-        const {structure, design} = open(),
-            view = record(structure, 'view:posGrid');
-        // posGrid's cell holds header items, so its view has settings. Plain cells do not.
-        expect(view.data).toMatchObject({kind: 'view', name: 'posGrid', of: 'positions'});
+    it('lists every canvas cell as a view between its canvas and its widget, titled, with its header items under it', async () => {
+        const {structure, design, model} = open(),
+            view = record(structure, 'view:posGrid'),
+            title = model.blueprint.elements.posGrid.config?.title ?? 'posGrid';
+        expect(view.data).toMatchObject({
+            kind: 'view',
+            name: title,
+            label: 'View',
+            element: 'posGrid',
+            of: 'positions'
+        });
         expect(view.parent.id).toBe('element:positions');
-        expect(view.children.map(it => it.id)).toContain('element:posGrid');
-        expect(record(structure, 'view:priceChart')).toBeFalsy();
+        expect(view.children.map(it => it.id)).toEqual([
+            'element:posGrid',
+            'slot:positions|headerItems|posGrid'
+        ]);
+        // A plain cell is a view too.
+        expect(record(structure, 'element:priceChart').parent.id).toBe('view:priceChart');
 
         await structure.gridModel.selectAsync('view:posGrid');
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
+        design.select({kind: 'view', id: 'priceChart', of: 'positions'});
+        expect(structure.gridModel.selectedId).toBe('view:priceChart');
+    });
+
+    it("lists a dash container's views as views too", () => {
+        const {structure} = openBlueprint({
+            schema: {blueprint: 1},
+            root: 'dock',
+            elements: {
+                dock: {component: 'dashContainer', children: [{id: 'a', title: 'Risk'}, {id: 'b'}]},
+                a: {component: 'markdown', config: {text: 'A'}},
+                b: {component: 'markdown', config: {text: 'B'}}
+            }
+        });
+        expect(record(structure, 'view:a').data).toMatchObject({name: 'Risk', of: 'dock'});
+        expect(record(structure, 'view:b').data).toMatchObject({name: 'b', of: 'dock'});
+        expect(record(structure, 'element:a').parent.id).toBe('view:a');
+    });
+
+    it("marks a view's cell hovered from its row, and drags and drops a view row as its widget", () => {
+        const {model, design, structure} = open();
+        const row = structure.gridModel.store.getById('view:priceChart');
+        expect(row.data.element).toBe('priceChart');
+        fireEvent.mouseEnter(render((structure as any).renderRow(row)).container.firstElementChild);
+        expect(design.hoveredId).toBe('priceChart');
+
+        structure.startDrag('groupChooser');
+        expect(structure.dropVerdict('view:priceChart', 0.1)).toEqual({where: 'before'});
+        structure.drop('view:priceChart', 0.1);
+        const ids = model.blueprint.elements.positions.children.map(it => it.id);
+        expect(ids.indexOf('groupChooser')).toBe(ids.indexOf('priceChart') - 1);
+        structure.endDrag();
     });
 
     it('counts the widgets a source feeds, through joins too', () => {
@@ -137,7 +184,6 @@ describe('BlueprintStructure', () => {
         const {design, structure} = open(),
             header = record(structure, 'element:posViewsSelector').parent;
         expect(header.data.name).toBe('Cell header');
-        // posGrid's view has settings of its own, so its header sits under the view.
         expect(header.parent.id).toBe('view:posGrid');
         // An empty slot shows only while a drag is on, or under the selected element.
         const empty = 'slot:positions|headerItems|priceChart',
@@ -179,7 +225,13 @@ describe('BlueprintStructure', () => {
             .filter(it => it.data.kind !== 'section' && it.data.kind !== 'slot')
             .filter(it => it.data.name.toLowerCase().includes('price'))
             .map(it => it.data.name);
-        expect(leaves.sort()).toEqual(['priceChart', 'priceStart', 'prices']);
+        // A view matches by its title.
+        expect(leaves.sort()).toEqual([
+            'Price, Last Three Months',
+            'priceChart',
+            'priceStart',
+            'prices'
+        ]);
         expect(structure.gridModel.store.records.some(it => it.data.name === 'posGrid')).toBe(
             false
         );

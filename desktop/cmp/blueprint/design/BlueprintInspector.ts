@@ -28,7 +28,12 @@ import {
     wiringFor,
     type WiringRef
 } from '../../../../blueprint';
-import {childGroups, slotLabel} from '../../../../blueprint/impl/elements';
+import {
+    type ChildNode,
+    childGroups,
+    slotLabel,
+    viewTitle
+} from '../../../../blueprint/impl/elements';
 import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
@@ -42,7 +47,7 @@ import {
     selectionMenu
 } from './impl/designActions';
 import {modeHotkeys} from './impl/designHotkeys';
-import {type CrumbGroup, crumbMenu} from './impl/crumbMenu';
+import {type CrumbChild, type CrumbGroup, crumbMenu} from './impl/crumbMenu';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
 import {sourcesEditor} from './SourcesEditor';
@@ -111,8 +116,8 @@ export class BlueprintInspectorModel extends HoistModel {
     }
 
     /**
-     * An element's ancestors and itself, root first, with the canvas view of each that sits in a
-     * canvas cell before it. A view's path ends with the view. Empty for other kinds.
+     * An element's ancestors and itself, root first, with the view before each that sits in one.
+     * A view's path ends with the view. Empty for other kinds.
      */
     @computed
     get breadcrumb(): BlueprintSelection[] {
@@ -135,7 +140,7 @@ export class BlueprintInspectorModel extends HoistModel {
         if (!selection) return null;
         const {blueprint, registry} = designModel.blueprintModel,
             {id} = selection;
-        if (selection.kind === 'view') return `Canvas view · holds ${id} · in ${selection.of}`;
+        if (selection.kind === 'view') return `View · holds ${id} · in ${selection.of}`;
         const what =
                 selection.kind === 'element'
                     ? (registry.widgets[blueprint.elements[id]?.component]?.label ??
@@ -280,7 +285,8 @@ export class BlueprintInspectorModel extends HoistModel {
 //------------------
 // Implementation
 //------------------
-const CLS = 'xh-blueprint-inspector';
+const CLS = 'xh-blueprint-inspector',
+    VIEW = 'view:';
 
 /** A wire's other end, which selects it when it is part of the blueprint. */
 export interface WiringChip {
@@ -335,9 +341,22 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                 step.kind === 'view' ? 'view' : specOf(step.id)?.label,
             last = path.length - 1;
         const elements = blueprint.elements,
-            groupsOf = (id: string) => childGroups(getOwn(elements, id), specOf(id)),
+            groupsOf = (id: string) => childGroups(id, getOwn(elements, id), specOf(id)),
+            // A menu names a view by its element's ID after `view:`, unique as IDs hold no colon.
+            menuId = (step: {kind: string; id: string}) =>
+                step.kind === 'view' ? `${VIEW}${step.id}` : step.id,
+            elementOf = (id: string) => (id?.startsWith(VIEW) ? id.slice(VIEW.length) : id),
+            // A view's groups: its widget, then its own slots, such as a cell's header items.
+            viewGroups = (id: string) =>
+                groupsOf(designModel.viewOf(id)?.of)
+                    .flatMap(it => it.nodes)
+                    .find(it => it.kind === 'view' && it.id === id)
+                    ?.groups.map(it => ({
+                        slot: it.slot,
+                        nodes: it.refs.map((ref): ChildNode => ({kind: 'element', id: ref.id}))
+                    })) ?? [],
             hasMenu = (step: BlueprintSelection) =>
-                step.kind === 'element' && groupsOf(step.id).length > 0,
+                step.kind === 'view' || (step.kind === 'element' && groupsOf(step.id).length > 0),
             trailing = path.length > 0 && hasMenu(path[last]);
         if (path.length < 2 && !trailing) return null;
         const {shown, hidden} = foldCrumbs(
@@ -345,35 +364,58 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                 width - BREADCRUMB_PADDING,
                 trailing
             ),
+            child = (node: ChildNode, of: string): CrumbChild => {
+                if (node.kind === 'view') {
+                    const ref = elements[of].children?.find(it => it.id === node.id);
+                    return {
+                        id: menuId(node),
+                        icon: Icon.window(),
+                        text: viewTitle(ref, elements[node.id]),
+                        label: 'View',
+                        hasChildren: true
+                    };
+                }
+                const ref = of ? elements[of].children?.find(it => it.id === node.id) : null;
+                return {
+                    id: node.id,
+                    icon: partIcon('element', specOf(node.id)),
+                    text: isString(ref?.title) ? ref.title : node.id,
+                    label: specOf(node.id)?.label,
+                    hasChildren: groupsOf(node.id).length > 0
+                };
+            },
             childrenOf = (id: string): CrumbGroup[] => {
-                const groups = groupsOf(id);
+                const isView = id.startsWith(VIEW),
+                    elId = elementOf(id),
+                    groups = (isView ? viewGroups(elId) : groupsOf(elId))
+                        .map(it => ({...it, nodes: it.nodes.filter(n => getOwn(elements, n.id))}))
+                        .filter(it => it.nodes.length);
                 return groups.map(group => ({
-                    heading: groups.length > 1 ? slotLabel(group.slot) : null,
-                    children: group.refs
-                        .filter(ref => getOwn(elements, ref.id))
-                        .map(ref => ({
-                            id: ref.id,
-                            icon: partIcon('element', specOf(ref.id)),
-                            text: isString(ref.title) ? ref.title : ref.id,
-                            label: specOf(ref.id)?.label,
-                            hasChildren: groupsOf(ref.id).length > 0
-                        }))
+                    heading: groups.length > 1 ? slotLabel(group.slot, isView) : null,
+                    // A view's own rows are its widget and header items, titled by their IDs.
+                    children: group.nodes.map(it => child(it, isView ? null : elId))
                 }));
             },
-            // A chevron after a container opens its children. Any other is a plain separator.
+            selectChild = (id: string) => {
+                const elId = elementOf(id),
+                    view = id.startsWith(VIEW) ? designModel.viewOf(elId) : null;
+                designModel.select(view ? {kind: 'view', ...view} : {kind: 'element', id: elId});
+            },
+            // A chevron after a container or a view opens its children. Any other is a plain
+            // separator.
             separatorAfter = (step: BlueprintSelection, key: string) =>
                 step && hasMenu(step)
                     ? crumbMenu({
                           key,
-                          id: step.id,
+                          id: menuId(step),
                           className: `${CLS}__crumb-sep ${CLS}__crumb-sep--menu`,
                           menuClassName: `${CLS}__crumb-menu`,
                           // The Inspector sits at the right, so each submenu opens to the left.
                           submenuPlacement: 'left-start',
-                          title: `Children of ${step.id}`,
+                          title: `Children of ${step.id}${step.kind === 'view' ? ' view' : ''}`,
                           childrenOf,
-                          onSelect: id => designModel.select({kind: 'element', id}),
-                          onHover: id => designModel.setHovered(id),
+                          onSelect: selectChild,
+                          onHover: id => designModel.setHovered(elementOf(id)),
                           emptyItems: (id, close) => addItems(designModel, id, close)
                       })
                     : separator(key),

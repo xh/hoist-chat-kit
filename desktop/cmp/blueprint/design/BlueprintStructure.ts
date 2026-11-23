@@ -19,11 +19,12 @@ import type React from 'react';
 import type {ReactElement} from 'react';
 import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../../blueprint';
 import {
+    type ChildNode,
     childGroups,
     locate,
     parentMap,
     slotLabel,
-    slotLists
+    viewTitle
 } from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
@@ -98,7 +99,18 @@ export class BlueprintStructureModel extends HoistModel {
             expandLevel: -1,
             emptyText: 'Nothing matches.',
             store: {
-                fields: ['name', 'label', 'kind', 'count', 'place', 'component', 'empty', 'of']
+                fields: [
+                    'name',
+                    'label',
+                    'kind',
+                    'count',
+                    'place',
+                    'component',
+                    'empty',
+                    'of',
+                    'element',
+                    'path'
+                ]
             },
             contextMenu: agParams => {
                 const record = agParams.node?.data as StoreRecord;
@@ -174,8 +186,9 @@ export class BlueprintStructureModel extends HoistModel {
                     ? 'category'
                     : kind === 'slot'
                       ? 'slot'
-                      : kind === 'element' &&
-                          this.designModel.blueprintModel.registry.widgets[component]?.children
+                      : kind === 'view' ||
+                          (kind === 'element' &&
+                              this.designModel.blueprintModel.registry.widgets[component]?.children)
                         ? 'container'
                         : 'leaf';
         return `xh-blueprint-tree__row--${type}`;
@@ -183,7 +196,8 @@ export class BlueprintStructureModel extends HoistModel {
 
     /** The menu of a row: rename, duplicate, move, add into and delete, as its kind allows. */
     menuFor(record: StoreRecord): (PlainObject | string)[] {
-        const {kind, name} = record.data;
+        const {kind, name, element, of} = record.data;
+        if (kind === 'view') return selectionMenu(this.designModel, {kind, id: element, of});
         return ['element', 'source', 'variable', 'preset'].includes(kind)
             ? selectionMenu(this.designModel, {kind, id: name})
             : [];
@@ -212,7 +226,7 @@ export class BlueprintStructureModel extends HoistModel {
      */
     dropVerdict(rowId: string, fraction: number): DropVerdict {
         const {dragging, designModel} = this,
-            row = this.gridModel.store.getById(rowId)?.data;
+            row = this.rowData(rowId);
         if (!dragging || !row || row.name === dragging) return null;
         let where: DropVerdict['where'];
         if (row.kind === 'slot') {
@@ -254,7 +268,7 @@ export class BlueprintStructureModel extends HoistModel {
     /** Drop the element dragged on a row, as one edit, if the row takes it. */
     drop(rowId: string, fraction: number) {
         const verdict = this.dropVerdict(rowId, fraction),
-            row = this.gridModel.store.getById(rowId)?.data;
+            row = this.rowData(rowId);
         if (!verdict || verdict.reason) return;
         const {designModel, dragging} = this,
             {issues} =
@@ -269,6 +283,15 @@ export class BlueprintStructureModel extends HoistModel {
     // Implementation
     //------------------
     @observable private accessor dragging: string = null;
+
+    // A row's data, with a view's row standing for the widget it holds, as drag and hover take it.
+    private rowData(rowId: string): PlainObject {
+        const data = this.gridModel.store.getById(rowId)?.data;
+        if (data?.kind !== 'view') return data;
+        const component =
+            this.designModel.blueprintModel.blueprint?.elements?.[data.element]?.component;
+        return {...data, kind: 'element', name: data.element, component};
+    }
 
     // Rows whose id matches the filter, with their ancestors. An empty slot shows only during a
     // drag, or under the selected element, so it is there as a target but quiet otherwise.
@@ -297,8 +320,9 @@ export class BlueprintStructureModel extends HoistModel {
         } else if (kind === 'view') {
             const {selection} = designModel,
                 {of} = record.data;
-            if (selection?.kind !== 'view' || selection.id !== name || selection.of !== of) {
-                designModel.select({kind: 'view', id: name, of});
+            const {element} = record.data;
+            if (selection?.kind !== 'view' || selection.id !== element || selection.of !== of) {
+                designModel.select({kind: 'view', id: element, of});
             }
         } else if (['element', 'source', 'variable', 'preset'].includes(kind)) {
             const {selection, slotTarget} = designModel;
@@ -333,54 +357,45 @@ export class BlueprintStructureModel extends HoistModel {
                 placed.add(id);
                 const el = elements[id],
                     spec = registry.widgets[el.component],
-                    groups = childGroups(el, spec),
-                    live = (refs: {id: string}[]) =>
-                        refs.filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id)),
-                    cellSlots = Object.keys(spec?.children?.slots ?? {}),
-                    refsOf = (slot: string, of?: string) =>
-                        live(
-                            slotLists(el).find(it => it.slot === slot && it.of === of)?.refs ?? []
-                        ),
-                    childRow = (childId: string): PlainObject => {
-                        const row = elementRow(childId),
-                            // A cell's slots, such as its header, sit under its element, or under
-                            // its canvas view where the view has settings of its own.
-                            cells = cellSlots.map(slot =>
-                                slotRow({parent: id, slot, of: childId}, refsOf(slot, childId))
-                            ),
-                            cell =
-                                el.component === 'dashCanvas'
-                                    ? el.children?.find(it => it.id === childId)
-                                    : null;
-                        if (
-                            cell &&
-                            (cell.title ||
-                                cell.hideHeader ||
-                                (cell.headerItems as unknown[])?.length)
-                        ) {
-                            return {
-                                id: `view:${childId}`,
-                                name: childId,
-                                label: 'Canvas view',
-                                kind: 'view',
-                                of: id,
-                                children: [...cells, row]
-                            };
-                        }
-                        return {...row, children: [...cells, ...row.children]};
+                    groups = childGroups(id, el, spec),
+                    live = (nodes: ChildNode[]) =>
+                        nodes.filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id)),
+                    nodeRow = (node: ChildNode): PlainObject => {
+                        if (node.kind === 'element') return elementRow(node.id);
+                        const ref = el.children.find(it => it.id === node.id),
+                            [, ...slots] = node.groups;
+                        return {
+                            id: `view:${node.id}`,
+                            name: viewTitle(ref, elements[node.id]),
+                            label: 'View',
+                            kind: 'view',
+                            element: node.id,
+                            of: id,
+                            path: `/elements/${id}/children/${el.children.indexOf(ref)}`,
+                            children: [
+                                elementRow(node.id),
+                                // A cell's slots, such as its header, sit under its view.
+                                ...slots.map(it =>
+                                    slotRow(
+                                        {parent: id, slot: it.slot, of: node.id},
+                                        it.refs.map(ref => ({kind: 'element', id: ref.id}))
+                                    )
+                                )
+                            ]
+                        };
                     },
-                    slotRow = (place: AddPlace, refs: {id: string}[]): PlainObject => ({
+                    slotRow = (place: AddPlace, nodes: ChildNode[]): PlainObject => ({
                         id: slotKey(place),
                         name: slotLabel(place.slot, !!place.of),
                         kind: 'slot',
                         place,
-                        empty: !refs.length,
-                        children: refs.map(it => childRow(it.id))
+                        empty: !live(nodes).length,
+                        children: live(nodes).map(nodeRow)
                     }),
                     children =
                         groups.length > 1
-                            ? groups.map(it => slotRow({parent: id, slot: it.slot}, live(it.refs)))
-                            : live(groups[0]?.refs ?? []).map(ref => childRow(ref.id));
+                            ? groups.map(it => slotRow({parent: id, slot: it.slot}, it.nodes))
+                            : live(groups[0]?.nodes ?? []).map(nodeRow);
                 return {
                     id: `element:${id}`,
                     name: id,
@@ -448,7 +463,7 @@ export class BlueprintStructureModel extends HoistModel {
 
     // A row with its drag and drop, the drop marked on it as the pointer moves.
     private renderRow(record: StoreRecord): ReactElement {
-        const {kind, name} = record.data,
+        const {kind, name} = this.rowData(record.id as string),
             {blueprintModel} = this.designModel,
             canDrag =
                 kind === 'element' &&
@@ -532,17 +547,16 @@ export class BlueprintStructureModel extends HoistModel {
             });
         }
         if (kind === 'slot') return span({className: `${CLS}__slot`, children: name});
-        const base =
-                kind === 'view'
-                    ? `/elements/${record.data.of}/children`
-                    : `/${COLLECTIONS[kind]}/${name}`,
+        const base = kind === 'view' ? record.data.path : `/${COLLECTIONS[kind]}/${name}`,
             issues = blueprintModel.issues.filter(
                 it => it.path === base || it.path?.startsWith(`${base}/`)
             );
         return hbox({
             className: classNames(
                 `${CLS}__row`,
-                kind === 'element' && this.isOffscreen(name) && `${CLS}__row--offscreen`
+                (kind === 'element' || kind === 'view') &&
+                    this.isOffscreen(record.data.element ?? name) &&
+                    `${CLS}__row--offscreen`
             ),
             children: [
                 kind === 'view'

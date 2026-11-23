@@ -99,7 +99,7 @@ export function actionMenuItems(
 }
 
 /**
- * The design menu for an element or a canvas view: its actions, a disabled one naming why, then
+ * The design menu for an element or a view: its actions, a disabled one naming why, then
  * a way to select what holds it, so a right-click on a nested element can climb.
  */
 export function designMenu(

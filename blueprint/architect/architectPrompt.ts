@@ -19,7 +19,7 @@ export interface ArchitectPromptConfig {
 
 /** What the `ui_context` block holds, as the model reads it above its value. */
 export const UI_CONTEXT_DESCRIPTION =
-    'What the user has in front of them: the mode, the selected element or canvas view, with its widget, parent and cell, and the active tabs and presets. A null selection means nothing is selected.';
+    "What the user has in front of them: the mode, the selected element or view, with its widget, parent and cell, a view's title and its reference's path, and the active tabs and presets. A null selection means nothing is selected.";
 
 /**
  * The Architect's system prompt: the blueprint format, the rules for editing it, and a compact
@@ -48,7 +48,7 @@ export function architectPrompt({
 
 const UI_CONTEXT = `# What the user is looking at
 
-Each turn ends with a ui_context block: what the user has selected, with its widget, its container and its cell on a canvas, and the active tabs and presets. "This", "it", "the selected widget" and "here" mean that selection, and "this tab" the active one. A canvas widget's size is its cell's w and h, which you change in its container's children. If a request needs a target and nothing is selected, or the selection does not fit it, ask which element the user means before you edit. You never change the selection. Say which element you changed.`;
+Each turn ends with a ui_context block: what the user has selected, with its widget, its container and its cell on a canvas, and the active tabs and presets. A view is a dashCanvas cell or a dashContainer view, the frame that holds one widget: its path is its child reference, where its title and, on a canvas, its header and place are set. "This", "it", "the selected widget" and "here" mean that selection, and "this tab" the active one. A canvas widget's size is its cell's w and h, which you change in its container's children. If a request needs a target and nothing is selected, or the selection does not fit it, ask which element the user means before you edit. You never change the selection. Say which element you changed.`;
 
 //------------------
 // Implementation

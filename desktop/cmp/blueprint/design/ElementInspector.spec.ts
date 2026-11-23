@@ -1064,7 +1064,7 @@ describe('ElementInspector', () => {
     it("folds a widget's canvas view settings into a section, with a way to select the view", () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement);
-        fireEvent.click(screen.getByText('Canvas view'));
+        fireEvent.click(screen.getByText('View'));
         expect(container.querySelector('[data-config-key="hideHeader"]')).not.toBeNull();
         fireEvent.click(screen.getByText('Select the view'));
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
@@ -1160,13 +1160,55 @@ describe('ElementInspector', () => {
         expect(design.selectedElementId).toBe(b);
     });
 
-    it('lists the cells of a canvas without reordering, as their layout places them', () => {
-        const {design} = open('p2-linked-dashboard.json', 'dashboard'),
-            {container} = render(elementInspector({designModel: design}) as ReactElement);
+    it('lists the cells of a canvas as views without reordering, as their layout places them', () => {
+        const {design} = open('p3-morning-report.json', 'positions'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector<HTMLElement>('[data-child="posGrid"]');
         expect(container.querySelectorAll('[data-child]').length).toBeGreaterThan(1);
         expect(
             container.querySelector('.xh-blueprint-element-inspector__columns--fixed')
         ).not.toBeNull();
+        expect(row.querySelector('.xh-blueprint-element-inspector__child-id').textContent).toBe(
+            design.blueprintModel.blueprint.elements.posGrid.config?.title ?? 'posGrid'
+        );
+        expect(row.querySelector('.xh-blueprint-element-inspector__column-meta').textContent).toBe(
+            'View'
+        );
+        fireEvent.click(row.querySelector('.xh-blueprint-element-inspector__child-id'));
+        expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
+    });
+
+    it("edits a selected dash container view's title, its one setting", () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'dock',
+                    elements: {
+                        dock: {component: 'dashContainer', children: [{id: 'a', title: 'Risk'}]},
+                        a: {component: 'markdown', config: {text: 'A'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            inspector = new ElementInspectorModel(design);
+        onTestFinished(() => {
+            inspector.destroy();
+            design.destroy();
+            model.destroy();
+        });
+        design.select({kind: 'view', id: 'a', of: 'dock'});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(bandsOf(container)).toEqual(['Header']);
+        expect(container.querySelector('[data-config-key="hideHeader"]')).toBeNull();
+        expect(inspector.canvasId).toBeNull();
+        inspector.commitPlacement('title', 'Exposure');
+        expect(model.blueprint.elements.dock.children[0]).toEqual({id: 'a', title: 'Exposure'});
+        expect(model.history.at(-1).description).toBe('a view: title');
     });
 
     describe('sort by', () => {
@@ -1295,9 +1337,9 @@ describe('ElementInspector', () => {
             'Columns 4 Preset · P&L view',
             'Interaction',
             'Style',
-            'Canvas view'
+            'View'
         ]);
-        // A canvas cell's place sits in its Canvas view card, folded until opened.
+        // A canvas cell's place sits in its View card, folded until opened.
         expect(
             container.querySelectorAll(
                 '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'

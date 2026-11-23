@@ -254,6 +254,39 @@ describe('design mode selection', () => {
         expect(container.children).toHaveLength(1);
     });
 
+    it("selects a dash container's view as a view: Esc climbs to it, it outlines its widget, and it offers Delete only", () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'dock',
+                    elements: {
+                        dock: {component: 'dashContainer', children: [{id: 'a', title: 'Risk'}]},
+                        a: {component: 'markdown', config: {text: 'A'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            overlay = new OverlayModel();
+        onTestFinished(() => {
+            overlay.destroy();
+            design.destroy();
+            model.destroy();
+        });
+        expect(design.viewOf('a')).toEqual({id: 'a', of: 'dock'});
+        design.select({kind: 'element', id: 'a'});
+        designHotkeys(design)
+            .find(it => it.combo === 'esc')
+            .onKeyDown({target: document.body, preventDefault: () => null} as any);
+        expect(design.selection).toEqual({kind: 'view', id: 'a', of: 'dock'});
+        expect(design.designActions(design.selection).map(it => it.id)).toEqual(['delete']);
+        expect(designMarks(design, overlay)[0].target).toBe('[data-blueprint-element="a"]');
+    });
+
     it('draws no marks while a cell or view is moved or resized, and draws them again after', () => {
         const {design} = open('p3-morning-report.json'),
             overlay = new OverlayModel();

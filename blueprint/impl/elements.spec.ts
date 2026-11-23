@@ -8,7 +8,8 @@ import {
     parentOf,
     removeRef,
     slotLists,
-    upgradeSlots
+    upgradeSlots,
+    viewTitle
 } from './elements';
 
 /**
@@ -48,7 +49,7 @@ describe('element slots', () => {
     it("groups an element's own children as a designer reads them: by slot where its widget has several", () => {
         const panelSpec = {children: {}, slots: {tbar: {}, bbar: {}}},
             groups = (el: BlueprintElement, spec: object) =>
-                childGroups(el, spec).map(it => [it.slot, it.refs.map(ref => ref.id)]);
+                childGroups('el', el, spec).map(it => [it.slot, it.refs.map(ref => ref.id)]);
         expect(groups(elements.page, panelSpec)).toEqual([
             ['children', ['canvas']],
             ['tbar', ['bar']],
@@ -61,6 +62,41 @@ describe('element slots', () => {
         expect(groups(elements.grid, {})).toEqual([]);
     });
 
+    it("lists a canvas's cells and a dash container's views as view nodes, each over its element and its own slots", () => {
+        const canvasSpec = {children: {slots: {headerItems: {}}}};
+        expect(childGroups('canvas', elements.canvas, canvasSpec)[0].nodes).toEqual([
+            {
+                kind: 'view',
+                id: 'grid',
+                of: 'canvas',
+                groups: [
+                    {slot: 'children', refs: [{id: 'grid'}]},
+                    {slot: 'headerItems', refs: [{id: 'views'}]}
+                ]
+            }
+        ]);
+        const dock: BlueprintElement = {
+            component: 'dashContainer',
+            children: [{id: 'a', title: 'Risk'}, {id: 'b'}]
+        };
+        expect(childGroups('dock', dock, {children: {}})[0].nodes).toEqual([
+            {kind: 'view', id: 'a', of: 'dock', groups: [{slot: 'children', refs: [{id: 'a'}]}]},
+            {kind: 'view', id: 'b', of: 'dock', groups: [{slot: 'children', refs: [{id: 'b'}]}]}
+        ]);
+        // Any other container lists its children as elements.
+        expect(childGroups('page', elements.page, {children: {}})[0].nodes).toEqual([
+            {kind: 'element', id: 'canvas'},
+            {kind: 'element', id: 'bar'}
+        ]);
+    });
+
+    it("titles a view by its reference's title, else its element's, else the element's ID", () => {
+        expect(viewTitle({id: 'a', title: 'Risk'}, {component: 'panel'})).toBe('Risk');
+        expect(viewTitle({id: 'a'}, {component: 'panel', config: {title: 'P&L'}})).toBe('P&L');
+        expect(viewTitle({id: 'a', title: ''}, {component: 'panel'})).toBe('a');
+        expect(viewTitle({id: 'a'}, null)).toBe('a');
+    });
+
     it("lists a canvas's cells in reading order, top to bottom, then left to right", () => {
         const canvas: BlueprintElement = {
             component: 'dashCanvas',
@@ -71,7 +107,7 @@ describe('element slots', () => {
                 {id: 'd', x: 0, y: 4}
             ]
         };
-        expect(childGroups(canvas, {children: {}})[0].refs.map(it => it.id)).toEqual([
+        expect(childGroups('canvas', canvas, {children: {}})[0].refs.map(it => it.id)).toEqual([
             'a',
             'b',
             'd',
