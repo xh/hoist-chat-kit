@@ -1,4 +1,6 @@
 import {fireEvent, render} from '@testing-library/react';
+import {readFileSync} from 'node:fs';
+import path from 'node:path';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -209,4 +211,27 @@ describe('BlueprintMap', () => {
         );
         expect(asOf.getAttribute('aria-label')).toMatch(/^asOf, .*feeds the selection/);
     });
+
+    it('keeps a node the same size in every state, so a hover moves nothing', () => {
+        const scss = readFileSync(path.join(import.meta.dirname, 'BlueprintMap.scss'), 'utf8'),
+            node = blockAfter(scss, '&__node {'),
+            states = [...node.matchAll(/^\s{4}&[^{]*\{/gm)].map(it => blockAfter(node, it[0])),
+            sizing =
+                /^\s*(border|border-width|padding[\w-]*|margin[\w-]*|font-size|font-weight|width|height)\s*:/m;
+        expect(states.length).toBeGreaterThan(4);
+        expect(states.filter(it => sizing.test(it))).toEqual([]);
+    });
 });
+
+// The body of the first block that opens with `head`, to its matching brace.
+function blockAfter(text: string, head: string): string {
+    const start = text.indexOf(head) + head.length;
+    let depth = 1,
+        at = start;
+    while (depth && at < text.length) {
+        if (text[at] === '{') depth++;
+        if (text[at] === '}') depth--;
+        at++;
+    }
+    return text.slice(start, at - 1);
+}

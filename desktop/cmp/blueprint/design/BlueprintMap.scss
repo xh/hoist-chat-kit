@@ -68,22 +68,27 @@
       color: var(--xh-blueprint-map-preset);
     }
 
+    // Every state keeps the 1px border and adds weight inside it, so a hover moves nothing.
     &--upstream {
-      border: 1.5px solid var(--xh-blueprint-map-up);
+      border-color: var(--xh-blueprint-map-up);
+      box-shadow: inset 0 0 0 0.5px var(--xh-blueprint-map-up);
     }
 
     &--downstream {
-      border: 1.5px dashed var(--xh-blueprint-map-down);
+      border-style: dashed;
+      border-color: var(--xh-blueprint-map-down);
     }
 
     &.xh-blueprint-map__node--preset.xh-blueprint-map__node--preset {
-      border: 1.5px solid var(--xh-blueprint-map-preset);
+      border-color: var(--xh-blueprint-map-preset);
+      box-shadow: inset 0 0 0 0.5px var(--xh-blueprint-map-preset);
     }
 
     &--selected,
     &--focus {
       background-color: var(--xh-bg-highlight);
-      border: 2px solid var(--xh-blueprint-map-up);
+      border-color: var(--xh-blueprint-map-up);
+      box-shadow: inset 0 0 0 1px var(--xh-blueprint-map-up);
     }
 
     &--dim {
