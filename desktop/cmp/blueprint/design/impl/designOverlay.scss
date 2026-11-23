@@ -25,7 +25,13 @@
   }
 }
 
+// In Edit, a press selects, so a stray drag selects no text. Interact, and Alt held, keep it.
+.xh-blueprint-view__design-element--edit {
+  user-select: none;
+}
+
 // Alt held passes the next click to the widget, as a link would take it.
 .xh-blueprint-alt-hold .xh-blueprint-view__design-element {
   cursor: pointer;
+  user-select: text;
 }

@@ -22,7 +22,6 @@ import {contextMenu} from '@xh/hoist/desktop/cmp/contextmenu';
 import {showContextMenu} from '@xh/hoist/kit/blueprint';
 import {altHold} from '../design/impl/altHold';
 import {designMenu} from '../design/impl/designActions';
-import {selectionDragProps} from '../design/impl/elementDrag';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {GRID_RESIZE_HANDLE} from '../../layout';
 import {missingModules} from './highchartsModules';
@@ -66,6 +65,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         return div({
             className: classNames(
                 DESIGN_ELEMENT,
+                designModel.interaction === 'edit' && `${DESIGN_ELEMENT}--edit`,
                 designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
                 viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
                 designModel.showAddTarget &&
@@ -75,8 +75,6 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             ),
             // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
             ...({'data-blueprint-element': id} as object),
-            // The selection drags by its body, onto any container.
-            ...selectionDragProps(designModel, id),
             onClick: e => {
                 if (designModel.interaction === 'interact') return;
                 // Alt held passes one click through to the widget, and past the elements around it.

@@ -352,17 +352,17 @@ describe('design mode selection', () => {
         expect(design.selection).toBeNull();
     });
 
-    it('drags the selected element by its body in Edit, and nothing else', () => {
+    it("leaves the selection's body undraggable, and stops text selection only in Edit", () => {
         stubRects();
         const {design, model} = open('p3-morning-report.json'),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement),
-            host = (id: string) => container.querySelector(`[data-blueprint-element="${id}"]`);
-        expect(host('overview').getAttribute('draggable')).toBeNull();
+            host = (id: string) => container.querySelector(`[data-blueprint-element="${id}"]`),
+            editClass = 'xh-blueprint-view__design-element--edit';
         act(() => design.select({kind: 'element', id: 'overview'}));
-        expect(host('overview').getAttribute('draggable')).toBe('true');
-        expect(host('tabs').getAttribute('draggable')).toBeNull();
-        act(() => design.setInteraction('interact'));
         expect(host('overview').getAttribute('draggable')).toBeNull();
+        expect(host('overview').classList).toContain(editClass);
+        act(() => design.setInteraction('interact'));
+        expect(host('overview').classList).not.toContain(editClass);
     });
 
     it('hovers the innermost element under the pointer, with a dashed outline and no tag, as view state', async () => {
