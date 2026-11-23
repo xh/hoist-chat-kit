@@ -298,6 +298,22 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     /**
+     * True if the draft open holds changes the latest publish does not, saved or not: in content,
+     * or by a rename. A host words a rollback by it, as a draft without them follows the rollback.
+     */
+    async hasUnpublishedChangesAsync(): Promise<boolean> {
+        const {document, blueprintModel} = this;
+        if (document?.kind !== 'draft') return false;
+        const {id, publishedVersion} = document;
+        if (publishedVersion == null || this.pendingRenames.length) return true;
+        const latest = await this.openRecordAsync(id, {as: 'publish', version: publishedVersion});
+        return (
+            !latest ||
+            !diffBlueprints(this.upgraded(latest.blueprint), blueprintModel.blueprint).isEmpty
+        );
+    }
+
+    /**
      * Roll readers back to a publish, leaving the writer's draft where it was: restore the publish,
      * publish it again, noted "Rolled back to v3", then reapply the draft's unpublished changes as
      * one edit, "Reapply unpublished changes", and save. Ids follow the renames the rollback
@@ -316,7 +332,7 @@ export class BlueprintDocumentModel extends HoistModel {
         // so undo still takes back the writer's own last edit.
         const {blueprintModel} = this,
             draft = blueprintModel.blueprint,
-            unpublished = await this.hasUnpublishedAsync(draft),
+            unpublished = await this.hasUnpublishedChangesAsync(),
             restore = await this.restoreEditAsync(version, ROLLBACK);
         if (hasErrors(restore.issues)) return restore.issues;
         const published = await this.publishAsync(`Rolled back to v${version}`);
@@ -630,14 +646,6 @@ export class BlueprintDocumentModel extends HoistModel {
             {undoable: author !== ROLLBACK}
         );
         return {description, issues, renames, version};
-    }
-
-    // True if the draft differs from the latest publish, in content or by a rename.
-    private async hasUnpublishedAsync(draft: Blueprint): Promise<boolean> {
-        const {id, publishedVersion} = this.document;
-        if (publishedVersion == null || this.pendingRenames.length) return true;
-        const latest = await this.openRecordAsync(id, {as: 'publish', version: publishedVersion});
-        return !latest || !diffBlueprints(this.upgraded(latest.blueprint), draft).isEmpty;
     }
 
     private upgraded(blueprint: Blueprint): Blueprint {

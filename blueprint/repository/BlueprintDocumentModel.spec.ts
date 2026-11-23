@@ -761,6 +761,19 @@ describe('BlueprintDocumentModel', () => {
             expect(doc.pendingRenames).toEqual([]);
         });
 
+        it('says whether the draft holds changes the latest publish does not', async () => {
+            const {blueprintModel, doc} = await twoPublishes();
+            expect(await doc.hasUnpublishedChangesAsync()).toBe(false);
+            title(blueprintModel, 'Third');
+            expect(await doc.hasUnpublishedChangesAsync()).toBe(true);
+            blueprintModel.undo();
+            expect(await doc.hasUnpublishedChangesAsync()).toBe(false);
+            blueprintModel.applyEdit({
+                ops: [{op: 'renameId', kind: 'element', from: 'priceChart', to: 'prices'}]
+            });
+            expect(await doc.hasUnpublishedChangesAsync()).toBe(true);
+        });
+
         it('refuses a rollback for a user who may not publish, or from a stale draft', async () => {
             const {doc, grant, repository, id, blueprintModel} = await twoPublishes();
             grant.canPublish = false;
