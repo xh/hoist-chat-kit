@@ -20,7 +20,7 @@ import {cellElementAt, viewAt} from '../impl/ElementHost';
 import {altHold} from './impl/altHold';
 import {paletteDrag} from '../impl/paletteDrag';
 import {designHotkeys} from './impl/designHotkeys';
-import {designMarks} from './impl/designOverlay';
+import {designMarks, elementMarks} from './impl/designOverlay';
 import {BlueprintViewModel} from '../impl/BlueprintViewModel';
 import {elementInspector} from './ElementInspector';
 import {ElementOutlineModel} from './ElementOutline';
@@ -287,6 +287,22 @@ describe('design mode selection', () => {
         expect(designMarks(design, overlay)[0].target).toBe('[data-blueprint-element="a"]');
     });
 
+    it("marks an element's state in the overlay, not on its wrapper: readers, halo, add target and an empty container", () => {
+        const {design, model} = open('p3-morning-report.json'),
+            empty = design.addWidget('box', 'overview').id,
+            keys = (haloIds: string[] = []) =>
+                elementMarks(design, {haloIds, empty: () => null}).map(it => it.key);
+        expect(keys()).toEqual([`empty:${empty}`]);
+        expect(keys(['posGrid'])).toContain('halo:posGrid');
+        design.select({kind: 'source', id: 'positions'});
+        expect(keys().filter(it => it.startsWith('reader:')).length).toBeGreaterThan(0);
+        design.selectSlot({parent: 'overview'});
+        design.setShowAddTarget(true);
+        expect(keys()).toContain('add-target:overview');
+        model.setMode('run');
+        expect(keys(['posGrid'])).toEqual([]);
+    });
+
     it('draws no marks while a cell or view is moved or resized, and draws them again after', () => {
         const {design} = open('p3-morning-report.json'),
             overlay = new OverlayModel();
@@ -332,7 +348,7 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBeNull();
     });
 
-    it("draws a panel's tbar and bbar elements as its toolbars, at their own size, in Preview too", () => {
+    it("draws a panel's tbar and bbar elements as its toolbars, in Preview too", () => {
         const model = new BlueprintModel({
                 blueprint: {
                     schema: {blueprint: 1},
@@ -365,14 +381,10 @@ describe('design mode selection', () => {
                 blueprintView({model, designModel: design}) as ReactElement
             ),
             wrapper = (id: string) => container.querySelector(`[data-blueprint-element="${id}"]`),
-            ownSize = 'xh-blueprint-view__design-element--own-size',
             check = () => {
                 const content = wrapper('note').closest('.xh-panel__content');
                 expect(content.previousElementSibling).toBe(wrapper('positionsToolbar'));
                 expect(content.nextElementSibling).toBe(wrapper('footer'));
-                expect(wrapper('positionsToolbar').classList).toContain(ownSize);
-                expect(wrapper('footer').classList).toContain(ownSize);
-                expect(wrapper('note').classList).not.toContain(ownSize);
             };
         check();
         model.setMode('run');
@@ -850,7 +862,8 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBe('sectorChart');
     });
 
-    it("shows an empty dashboard in design mode, with the host's Add and Architect", async () => {
+    it("shows an empty dashboard in design mode, in the overlay, with the host's Add and Architect", async () => {
+        stubRects();
         const model = new BlueprintModel({
                 blueprint: {
                     root: 'canvas',
@@ -872,7 +885,7 @@ describe('design mode selection', () => {
         const {getByText} = render(
             blueprintView({model, designModel: design, onAddWidget, onAskArchitect}) as ReactElement
         );
-        expect(getByText('This dashboard is empty.')).toBeTruthy();
+        await vi.waitFor(() => expect(getByText('This dashboard is empty.')).toBeTruthy());
         fireEvent.click(getByText('Add a widget'));
         expect(design.selectedElementId).toBe('canvas');
         expect(onAddWidget).toHaveBeenCalledWith({parent: 'canvas', slot: 'children'});
@@ -880,23 +893,32 @@ describe('design mode selection', () => {
         expect(onAskArchitect).toHaveBeenCalled();
     });
 
-    it('shows an empty container one quiet empty state over its own surface, with a way to add', () => {
+    it('shows an empty container one quiet empty state, in the overlay over it, with a way to add', async () => {
         // jsdom has no layout: the canvas waits for a measured width before it draws cells.
-        const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
-        onTestFinished(() => spy.mockRestore());
+        const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200),
+            // And the overlay clips a mark to each scroller's client area.
+            tall = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(800);
+        onTestFinished(() => {
+            spy.mockRestore();
+            tall.mockRestore();
+        });
+        stubRects();
         const {model, design} = open('p2-linked-dashboard.json'),
             dc = design.addWidget('dashContainer').id,
             onAddWidget = vi.fn(),
             {container} = render(
                 blueprintView({model, designModel: design, onAddWidget}) as ReactElement
-            ),
-            host = container.querySelector(`[data-blueprint-element="${dc}"]`),
-            empties = host.querySelectorAll('.xh-blueprint-view__design-empty');
+            );
+        // Nothing in the view itself, so the container lays out as a reader sees it.
+        expect(container.querySelector('.xh-blueprint-view__design-empty')).toBeNull();
+        const mark = await vi.waitFor(() => {
+            const it = overlayMark(container, `empty:${dc}`);
+            expect(it).not.toBeNull();
+            return it as HTMLElement;
+        });
+        const empties = mark.querySelectorAll('.xh-blueprint-view__design-empty');
         expect(empties).toHaveLength(1);
         const [empty] = empties as unknown as HTMLElement[];
-        expect(empty.parentElement).toBe(host);
-        // No inline position, which would stack it below the container rather than over it.
-        expect(empty.style.position).toBe('');
         expect(empty.classList).toContain('xh-blueprint-view__design-empty--quiet');
         fireEvent.click(within(empty).getByText('Add a widget to this container'));
         expect(onAddWidget).toHaveBeenCalledWith({parent: dc, slot: 'children'});

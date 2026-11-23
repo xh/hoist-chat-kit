@@ -1,5 +1,5 @@
 import {HoistModel, managed, XH, type ElementFactory} from '@xh/hoist/core';
-import {action, computed, observableRef} from '@xh/hoist/mobx';
+import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {forEach, isEqual, last} from 'lodash';
 import type {ReactNode} from 'react';
@@ -12,7 +12,7 @@ import {
     type DropTarget,
     type WidgetSpec
 } from '../../../../blueprint';
-import {parentOf, slotLists} from '../../../../blueprint/impl/elements';
+import {parentOf} from '../../../../blueprint/impl/elements';
 import {boxWidget, BoxWidgetModel} from '../BoxWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
 import {presetSelectorWidget, PresetSelectorWidgetModel} from '../PresetSelectorWidget';
@@ -58,9 +58,9 @@ import {dropMarks} from '../design/impl/dropMarks';
 import {type DropPlace, dropPlaceAt} from '../design/impl/dropTargets';
 import {currentDropSource, elementDrag} from '../design/impl/elementDrag';
 import {paletteDrag} from './paletteDrag';
-import {designMarks} from '../design/impl/designOverlay';
-import {OverlayModel} from '../../layout/overlay';
-import {elementHost} from './ElementHost';
+import {designMarks, elementMarks} from '../design/impl/designOverlay';
+import {boxElement, OverlayModel} from '../../layout/overlay';
+import {designEmpty, elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
 const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> = {
@@ -130,19 +130,6 @@ export class BlueprintViewModel extends HoistModel {
     /** The elements the Architect's latest edit touched, haloed for a few seconds after it lands. */
     @observableRef accessor haloIds: string[] = [];
 
-    /** The elements in a slot other than `children`, such as a panel's tbar, which take their own size. */
-    @computed
-    get ownSizeIds(): Set<string> {
-        const elements = Object.values(this.blueprintModel.effective?.elements ?? {});
-        return new Set(
-            elements.flatMap(el =>
-                slotLists(el)
-                    .filter(it => it.slot !== 'children')
-                    .flatMap(it => it.refs.map(ref => ref.id))
-            )
-        );
-    }
-
     constructor(
         blueprintModel: BlueprintModel,
         opts: {
@@ -170,6 +157,12 @@ export class BlueprintViewModel extends HoistModel {
         const {designModel, overlay} = this;
         if (designModel) {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
+            overlay.addMarks('elements', () =>
+                elementMarks(designModel, {
+                    haloIds: this.haloIds,
+                    empty: id => designEmpty(id, this)
+                })
+            );
             overlay.addMarks('design', () => designMarks(designModel, overlay));
             this.stopAltHold = altHold.follow();
             this.stopSelectGuard = this.guardTextSelection();
@@ -248,9 +241,9 @@ export class BlueprintViewModel extends HoistModel {
         }
         // Once the tab has drawn it.
         wait().then(() =>
-            document
-                .querySelector(`[data-blueprint-element="${CSS.escape(id)}"]`)
-                ?.scrollIntoView?.({block: 'nearest', inline: 'nearest'})
+            boxElement(
+                document.querySelector(`[data-blueprint-element="${CSS.escape(id)}"]`)
+            )?.scrollIntoView?.({block: 'nearest', inline: 'nearest'})
         );
     }
 

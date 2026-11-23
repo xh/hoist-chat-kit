@@ -8,53 +8,10 @@
     color: var(--xh-text-color-muted);
   }
 
-  // In design mode, each element fills its place as it would without this wrapper.
+  // A designer's wrapper of each element, for its events and to find it by: it draws no box, so
+  // the element lays out as a reader sees it. Its marks draw in the overlay.
   &__design-element {
-    position: relative;
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    min-height: 0;
-    min-width: 0;
-
-    // The wash and the halo draw over the widget, which paints its own background.
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    // In a toolbar or header slot, such as a panel's tbar, the element takes its own size.
-    &--own-size {
-      flex: none;
-    }
-
-    // Where a click in the palette adds, while the pointer is over it.
-    &--add-target {
-      outline: 2px dashed var(--xh-intent-primary);
-      outline-offset: -2px;
-    }
-
-    &--reader::after {
-      background-color: var(--xh-intent-primary-trans1);
-    }
-
-    &--halo::after {
-      box-shadow: inset 0 0 0 3px var(--xh-intent-primary-trans2);
-      animation: xh-blueprint-halo 4s ease-out forwards;
-
-      @media (prefers-reduced-motion: reduce) {
-        animation: none;
-      }
-    }
-
-    // A cell narrower than its widget takes, as the validator warns.
-    &--too-narrow {
-      outline: 1px solid var(--xh-intent-warning);
-      outline-offset: -1px;
-    }
+    display: contents;
   }
 }
 
@@ -86,10 +43,9 @@
   min-width: 0;
 }
 
-// Over an empty container in design mode. Only its buttons take the pointer, so a canvas under it
-// still takes a drop.
-// An empty container's one empty state, over its own surface, which still takes a drop.
-.xh-blueprint-view__design-element > .xh-blueprint-view__design-empty {
+// An empty container's one empty state, in the overlay over its surface. Only its buttons take the
+// pointer, so the container under it still takes a drop.
+.xh-blueprint-view__design-empty {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -199,17 +155,6 @@
   }
 }
 
-// In a toolbar, a child takes its own width, but a spacer with no size fills the room left.
-.xh-toolbar > .xh-blueprint-view__design-element {
-  flex: none;
-  flex-direction: row;
-  align-items: center;
-
-  &:has(> .xh-blueprint-spacer--fill) {
-    flex: 1 1 auto;
-  }
-}
-
 .xh-blueprint-input {
   gap: var(--xh-spacing);
 }
@@ -220,15 +165,55 @@
   min-width: 0;
   min-height: 0;
 
-  > * {
+  > *,
+  > .xh-blueprint-view__design-element > * {
     min-width: 0;
     min-height: 0;
   }
 }
 
-// In a box, a child runs along the box's direction, so a vertical separator spans a row.
-.xh-blueprint-box__item > .xh-blueprint-view__design-element {
-  flex-direction: inherit;
+// Hoist's rules for a container's direct children, which a designer's wrapper sits between.
+.xh-toolbar:not(.xh-toolbar--overflow) > .xh-blueprint-view__design-element > *,
+.xh-toolbar .bp6-overflow-list > .xh-blueprint-view__design-element > * {
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  &:not([class*='xh-no-pad']) {
+    margin-left: var(--xh-toolbar-item-spacing);
+  }
+}
+
+.xh-toolbar--vertical:not(.xh-toolbar--overflow)
+  > .xh-blueprint-view__design-element
+  > *:not([class*='xh-no-pad']) {
+  margin-top: var(--xh-toolbar-item-spacing);
+  margin-left: 0;
+}
+
+.xh-toolbar-overflow-popover
+  .bp6-popover-content
+  > .xh-vbox
+  > .xh-blueprint-view__design-element
+  > * {
+  margin: 2px var(--xh-toolbar-item-spacing);
+}
+
+.xh-panel-header__items > .xh-blueprint-view__design-element:not(:last-child) > * {
+  margin-right: var(--xh-toolbar-item-spacing);
+}
+
+// A toolbar is always its wrapper's only child, so its border follows the wrapper's place.
+.xh-blueprint-view__design-element:not(:last-child) > .xh-toolbar:not(.xh-toolbar--vertical) {
+  border-top: none;
+  border-bottom: 1px solid var(--xh-toolbar-border-color);
+}
+
+.xh-blueprint-view__design-element:not(:first-child) > .xh-toolbar--vertical {
+  border-right: none;
+}
+
+.xh-blueprint-view__design-element:not(:last-child) > .xh-toolbar--vertical {
+  border-left: none;
 }
 
 .xh-blueprint-bar {
@@ -281,16 +266,6 @@
 // A stat card's value steps to its compact form and shrinks, rather than end in an ellipsis.
 .xh-blueprint-stat-card .xh-stat-card__value-primary {
   text-overflow: clip;
-}
-
-@keyframes xh-blueprint-halo {
-  from {
-    box-shadow: inset 0 0 0 3px var(--xh-intent-primary-trans2);
-  }
-
-  to {
-    box-shadow: inset 0 0 0 3px transparent;
-  }
 }
 
 // A stat card's detail with a trend: the delta's label, then a sparkline in the rest of the line.

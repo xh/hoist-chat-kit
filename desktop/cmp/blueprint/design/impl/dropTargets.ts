@@ -1,4 +1,5 @@
 import type {BlueprintModel, DropSource, DropTarget} from '../../../../../blueprint';
+import {elementBox} from '../../../layout/overlay';
 
 /** Where a drag over a blueprint would drop, and how to show it. */
 export interface DropPlace {
@@ -38,7 +39,7 @@ export function dropPlaceAt(
 
     const container = el.dataset.blueprintElement,
         layout = layoutOf(blueprintModel, container),
-        box = el.getBoundingClientRect(),
+        box = elementBox(el),
         pointer = {x: x - box.left, y: y - box.top},
         refuse = (target: DropTarget) => canDropAt(source, target);
     if (layout === 'own') {
@@ -47,7 +48,7 @@ export function dropPlaceAt(
     }
 
     if (layout === 'tabs') return tabsPlace(el, hit, blueprintModel, x, y, pointer, box, refuse);
-    const rects = childEls(el, blueprintModel, container).map(it => it.getBoundingClientRect()),
+    const rects = childEls(el, blueprintModel, container).map(elementBox),
         index = layout === 'grid' ? gridIndex(rects, x, y) : lineIndex(rects, layout, x, y),
         target = {container, index};
     return {

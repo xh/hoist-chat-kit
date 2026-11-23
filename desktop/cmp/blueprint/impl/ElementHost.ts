@@ -56,25 +56,15 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 native[flag] = true;
                 return cellElementAt(e.target as HTMLElement, e.currentTarget) ?? id;
             };
-        const ownSize = viewModel.ownSizeIds.has(id) && `${DESIGN_ELEMENT}--own-size`;
         if (!isDesign) {
             return div({
-                className: classNames(DESIGN_ELEMENT, ownSize),
+                className: DESIGN_ELEMENT,
                 ...({'data-blueprint-element': id} as object),
                 children: [content, null, null]
             });
         }
         return div({
-            className: classNames(
-                DESIGN_ELEMENT,
-                ownSize,
-                designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
-                viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
-                designModel.showAddTarget &&
-                    (designModel.addTarget?.of ?? designModel.addTarget?.parent) === id &&
-                    `${DESIGN_ELEMENT}--add-target`,
-                viewModel.getWidgetModel(id)?.isTooNarrow && `${DESIGN_ELEMENT}--too-narrow`
-            ),
+            className: DESIGN_ELEMENT,
             // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
             ...({'data-blueprint-element': id} as object),
             // In Edit, a left press into a widget selects it, and the widget never sees it: no
@@ -141,7 +131,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 designModel.select(sel);
                 showContextMenu(contextMenu({menuItems: items}), {left: e.clientX, top: e.clientY});
             },
-            children: [content, designEmpty(id, viewModel), null]
+            children: [content, null, null]
         });
     }
 });
@@ -269,8 +259,12 @@ function notePlaceholder(children: ReactNode) {
     });
 }
 
-// A container with no children in design mode, with a way to fill it. The root says so plainly.
-function designEmpty(id: string, viewModel: BlueprintViewModel) {
+/**
+ * A container with no children in design mode, with a way to fill it, drawn in the overlay over
+ * it. The root says so plainly.
+ * @internal
+ */
+export function designEmpty(id: string, viewModel: BlueprintViewModel) {
     const {blueprintModel, designModel, onAddWidget, onAskArchitect} = viewModel,
         el = blueprintModel.effective?.elements?.[id];
     if (!blueprintModel.registry.widgets[el?.component]?.children || el.children?.length) {

@@ -1,4 +1,5 @@
 import {div} from '@xh/hoist/cmp/layout';
+import type {ReactNode} from 'react';
 import type {BlueprintDesignModel} from '../../../../../blueprint';
 import {layoutGesture} from '../../../layout';
 import type {OverlayMark, OverlayModel} from '../../../layout/overlay';
@@ -58,13 +59,59 @@ export function designMarks(
     return ret;
 }
 
+/**
+ * Design mode's marks of each element's state, under the hover and selection: an empty container's
+ * way to fill it, the readers of the selected source tinted, the elements the Architect's latest
+ * edit touched haloed, where a click in the palette adds, and a canvas cell too narrow for its
+ * widget. None draw in run mode, or while a cell or view is being moved or resized.
+ */
+export function elementMarks(
+    designModel: BlueprintDesignModel,
+    opts: {haloIds: string[]; empty: (id: string) => ReactNode}
+): OverlayMark[] {
+    const {blueprintModel} = designModel,
+        {effective, registry, issues} = blueprintModel,
+        elements = effective?.elements ?? {};
+    if (blueprintModel.mode !== 'design' || layoutGesture.active) return [];
+    const mark = (kind: string, id: string): OverlayMark => ({
+            key: `${kind}:${id}`,
+            target: elementTarget(id),
+            render: () => div({className: `${CLS}__state ${CLS}__state--${kind}`})
+        }),
+        addTarget = designModel.showAddTarget
+            ? (designModel.addTarget?.of ?? designModel.addTarget?.parent)
+            : null,
+        tooNarrow = issues
+            .filter(it => it.code === 'layout.tooNarrow')
+            .map(it => {
+                const [, , canvas, , index] = it.path.split('/');
+                return elements[canvas]?.children?.[Number(index)]?.id;
+            })
+            .filter(Boolean);
+    return [
+        ...Object.entries(elements)
+            .filter(([, el]) => registry.widgets[el.component]?.children && !el.children?.length)
+            .map(([id]) => ({
+                key: `empty:${id}`,
+                target: elementTarget(id),
+                render: () => opts.empty(id)
+            })),
+        ...designModel.readerIds.map(id => mark('reader', id)),
+        ...opts.haloIds.map(id => mark('halo', id)),
+        ...(addTarget ? [mark('add-target', addTarget)] : []),
+        ...tooNarrow.map(id => mark('too-narrow', id))
+    ];
+}
+
 //------------------
 // Implementation
 //------------------
 // An element's canvas cell where it has one, so its marks frame the header too, else its wrapper.
 function targetOf(id: string, overlay: OverlayModel): string {
     const cell = `${CELL}="${CSS.escape(id)}"]`;
-    return overlay.hostEl?.querySelector(cell)
-        ? cell
-        : `[data-blueprint-element="${CSS.escape(id)}"]`;
+    return overlay.hostEl?.querySelector(cell) ? cell : elementTarget(id);
+}
+
+function elementTarget(id: string): string {
+    return `[data-blueprint-element="${CSS.escape(id)}"]`;
 }

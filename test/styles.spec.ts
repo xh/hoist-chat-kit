@@ -56,6 +56,30 @@ describe('styles', () => {
             .map(it => it.at);
         expect(rails).toEqual([]);
     });
+
+    it("keeps a designer's element wrapper layout-neutral, so a designer lays out as a reader does", () => {
+        const scss = readFileSync(
+                path.join(root, 'desktop/cmp/blueprint/BlueprintView.scss'),
+                'utf8'
+            ),
+            body = scss.match(/&__design-element \{([^}]*)\}/)[1],
+            rules = body
+                .split('\n')
+                .map(it => it.trim())
+                .filter(it => it && !it.startsWith('//'));
+        expect(rules).toEqual(['display: contents;']);
+        // Nothing else styles the wrapper's own box.
+        const others = findSources(root)
+            .filter(file => file.endsWith('.scss'))
+            .flatMap(
+                file => readFileSync(file, 'utf8').match(/[^\n{}]*design-element[^\n{]*\{/g) ?? []
+            )
+            .map(it => it.trim())
+            .filter(
+                it => !/design-element(:[a-z-()]+)*\s*>/.test(it) && it !== '&__design-element {'
+            );
+        expect(others).toEqual(['.xh-blueprint-alt-hold .xh-blueprint-view__design-element {']);
+    });
 });
 
 // A 2px or wider rule down the left or right side: an inset shadow offset sideways, or a border.

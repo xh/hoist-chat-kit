@@ -29,3 +29,46 @@
 .xh-blueprint-alt-hold .xh-blueprint-view__design-element {
   cursor: pointer;
 }
+
+// An element's state in design mode, over its box.
+.xh-blueprint-overlay__state {
+  position: absolute;
+  inset: 0;
+
+  // A reader of the selected source.
+  &--reader {
+    background-color: var(--xh-intent-primary-trans1);
+  }
+
+  // What the Architect's latest edit touched, fading out.
+  &--halo {
+    box-shadow: inset 0 0 0 3px var(--xh-intent-primary-trans2);
+    animation: xh-blueprint-halo 4s ease-out forwards;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+
+  // Where a click in the palette adds, while the pointer is over it.
+  &--add-target {
+    outline: 2px dashed var(--xh-intent-primary);
+    outline-offset: -2px;
+  }
+
+  // A cell narrower than its widget takes, as the validator warns.
+  &--too-narrow {
+    outline: 1px solid var(--xh-intent-warning);
+    outline-offset: -1px;
+  }
+}
+
+@keyframes xh-blueprint-halo {
+  from {
+    box-shadow: inset 0 0 0 3px var(--xh-intent-primary-trans2);
+  }
+
+  to {
+    box-shadow: inset 0 0 0 3px transparent;
+  }
+}

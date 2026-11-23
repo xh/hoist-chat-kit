@@ -1,6 +1,7 @@
 import {HoistModel} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import type {ReactNode} from 'react';
+import {elementBox} from './elementBox';
 
 /** Where a mark draws: an element, or a selector matched within the overlay's area. */
 export type OverlayTarget = Element | string;
@@ -100,7 +101,7 @@ export class OverlayModel extends HoistModel {
         if (!hostEl) return null;
         const el = typeof target === 'string' ? hostEl.querySelector(target) : target;
         if (!el || !hostEl.contains(el)) return null;
-        const r = el.getBoundingClientRect();
+        const r = elementBox(el);
         if (!r.width && !r.height) return null;
         const host = hostEl.getBoundingClientRect(),
             view = viewOf(el, hostEl, host);
