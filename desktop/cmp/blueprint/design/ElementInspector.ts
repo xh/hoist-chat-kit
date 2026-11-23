@@ -17,7 +17,14 @@ import {
 import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {booleanEditor, CLS, propertyRow, removeItemButton, sectionCard} from './impl/ConfigEditors';
+import {
+    booleanEditor,
+    CLS,
+    countLabel,
+    propertyRow,
+    removeItemButton,
+    sectionCard
+} from './impl/ConfigEditors';
 import {refuse, removeElementAsync} from './impl/designActions';
 import {widgetIcon} from './impl/icons';
 
@@ -123,11 +130,20 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     /** The element's editors, from its widget's config schema. */
     /** What a section's header counts: a lone list's items, else its properties. */
-    countOf(nodes: EditorNode[]): number {
+    /**
+     * What a card's header counts: a lone list's items, else the settings set in it. A binding or
+     * a preset counts as set, and a schema default does not.
+     */
+    countOf(nodes: EditorNode[]): {count: number; countTitle: string} {
         const [only] = nodes;
-        return nodes.length === 1 && LIST_KINDS.includes(only.kind)
-            ? castArray(this.values[only.key] ?? []).length
-            : nodes.length;
+        if (nodes.length === 1 && LIST_KINDS.includes(only.kind)) {
+            const n = castArray(this.values[only.key] ?? []).length;
+            return {count: n, countTitle: countLabel(n, 'item')};
+        }
+        const n = nodes.filter(
+            it => this.values[it.key] !== undefined || this.presetFor(it.key)
+        ).length;
+        return {count: n, countTitle: `${countLabel(n, 'setting')} set`};
     }
 
     get nodes(): EditorNode[] {
@@ -427,7 +443,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                         return sectionCard({
                             key: `section:${section.label}`,
                             title: section.label,
-                            count: impl.countOf(section.nodes),
+                            ...impl.countOf(section.nodes),
                             badge: preset
                                 ? {
                                       text: `Preset · ${preset.itemLabel}`,
@@ -516,6 +532,7 @@ function viewCards(impl: ElementInspectorModel) {
             key: 'view-items',
             title: 'Header items',
             count: impl.headerItemIds.length,
+            countTitle: countLabel(impl.headerItemIds.length, 'item'),
             children: [
                 impl.headerItemIds.length
                     ? sortableList({
@@ -707,6 +724,7 @@ function childrenCard(impl: ElementInspectorModel) {
         key: 'children',
         title: 'Children',
         count: childIds.length,
+        countTitle: countLabel(childIds.length, 'child', 'children'),
         children: [
             childIds.length
                 ? impl.ordersChildren

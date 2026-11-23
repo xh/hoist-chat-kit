@@ -12,7 +12,7 @@ import {
     type PresetGroup
 } from '../../../../blueprint';
 import './ElementInspector.scss';
-import {CLS, labelled, type Option, sectionCard} from './impl/ConfigEditors';
+import {CLS, countLabel, labelled, type Option, sectionCard} from './impl/ConfigEditors';
 import {removePresetGroupAsync} from './impl/designActions';
 
 export interface PresetsEditorProps extends HoistProps {
@@ -272,6 +272,7 @@ function group(impl: PresetsEditorModel) {
             key: 'controls',
             title: 'Controls',
             count: impl.controls.length,
+            countTitle: countLabel(impl.controls.length, 'control'),
             children: [
                 div({
                     className: `${CLS}__hint`,
@@ -312,6 +313,7 @@ function group(impl: PresetsEditorModel) {
             key: 'presets',
             title: 'Presets',
             count: items.length,
+            countTitle: countLabel(items.length, 'preset'),
             children: [
                 div({
                     className: `${CLS}__list`,

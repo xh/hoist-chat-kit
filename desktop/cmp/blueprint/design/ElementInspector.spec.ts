@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -586,6 +586,29 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.hideHeaders).toBe(true);
         expect(model.history.length).toBe(before + 1);
         expect(row().querySelector('.bp6-switch')).toBeNull();
+    });
+
+    it('counts in each card header only the settings set there, a binding or preset included', () => {
+        const {design} = open(),
+            id = design.addWidget('markdown', 'overview').id;
+        act(() => design.select({kind: 'element', id}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            countOf = (title: string) =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')]
+                    .find(it => it.textContent.startsWith(title))
+                    ?.querySelector('.xh-blueprint-element-inspector__card-count');
+        expect(countOf('Data')).toBeNull();
+        act(() => {
+            design.setConfig(id, '/source', 'positions');
+        });
+        expect(countOf('Data').classList).toContain('xh-badge');
+        expect(countOf('Data').textContent).toBe('1');
+        expect(countOf('Data').getAttribute('title')).toBe('1 setting set');
+        // A bound value is set too.
+        act(() => {
+            design.setConfig(id, '/source', {$var: 'fund'});
+        });
+        expect(countOf('Data').textContent).toBe('1');
     });
 
     it("shows a canvas's and a dash container's rearranging locked by default", () => {
@@ -1215,19 +1238,21 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(before + 2);
     });
 
-    it('draws sections under bands with counts, and a one-line value beside its label', () => {
+    it('draws sections under bands counting what is set, and a one-line value beside its label', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = (label: string) =>
                 [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
                     it => it.firstElementChild?.textContent === label
                 );
+        // Each band counts what is set in it: posGrid's source, sort, and its bound grouping and
+        // filter. A band with nothing set shows no count.
         expect(bandsOf(container)).toEqual([
-            'Data 7',
-            'Display 1',
+            'Data 4',
+            'Display',
             'Columns 4 Preset · P&L view',
-            'Interaction 0',
-            'Style 10',
+            'Interaction',
+            'Style',
             'Canvas view'
         ]);
         // A canvas cell's place sits in its Canvas view card, folded until opened.

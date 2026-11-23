@@ -1,3 +1,4 @@
+import {badge as hoistBadge} from '@xh/hoist/cmp/badge';
 import {card} from '@xh/hoist/cmp/card';
 import {div, hbox, span} from '@xh/hoist/cmp/layout';
 import type {PlainObject} from '@xh/hoist/core';
@@ -1674,10 +1675,16 @@ function variantLabel(node: EditorNode): string {
  * A titled group of rows under a band that spans the Inspector and sticks as its rows scroll past.
  * The whole band folds the group, where it can.
  */
+/** A count with its noun, such as "1 item" or "3 children", for a card header's tooltip. */
+export function countLabel(n: number, one: string, many = `${one}s`): string {
+    return `${n} ${n === 1 ? one : many}`;
+}
+
 export function sectionCard({
     key,
     title,
     count,
+    countTitle,
     badge,
     collapsed = false,
     onToggle,
@@ -1685,8 +1692,10 @@ export function sectionCard({
 }: {
     key: string;
     title: string;
-    /** What the group holds, such as its properties or a list's items, shown beside the title. */
+    /** What is set in the group, or the items of its list, beside the title. None when 0. */
     count?: number;
+    /** The count's tooltip, such as "2 settings set". */
+    countTitle?: string;
     /** A link beside the title, such as to the preset group a path in the card belongs to. */
     badge?: {text: string; onClick: () => void};
     collapsed?: boolean;
@@ -1723,8 +1732,12 @@ export function sectionCard({
                         ...toggle,
                         children: [
                             span({className: `${CLS}__card-title`, children: title}),
-                            count != null
-                                ? span({className: `${CLS}__card-count`, children: count})
+                            count
+                                ? hoistBadge({
+                                      className: `${CLS}__card-count`,
+                                      title: countTitle,
+                                      children: String(count)
+                                  })
                                 : null
                         ]
                     } as object),
