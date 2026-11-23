@@ -328,15 +328,12 @@
       padding: 0;
     }
 
-    // The open item and its drawer share one ground, the Inspector's, and one primary rule.
+    // The open item's row takes a light tint, as Hoist marks a selection.
     .xh-sortable-list__item:has(
-      > .xh-sortable-list__row .xh-blueprint-element-inspector__column--open
-    ) {
-      box-shadow: inset 2px 0 0 var(--xh-intent-primary);
-
+        > .xh-sortable-list__row .xh-blueprint-element-inspector__column--open
+      )
       > .xh-sortable-list__row {
-        background-color: var(--xh-intent-primary-trans1);
-      }
+      background-color: var(--xh-intent-primary-trans1);
     }
   }
 
@@ -415,7 +412,7 @@
     color: var(--xh-text-color-muted);
   }
 
-  // The drawer spans the row under it, on the Inspector's ground, with the open item's rule.
+  // The drawer spans the row under it, on the Inspector's ground.
   &__sort-drawer {
     display: flex;
     flex-direction: column;
@@ -423,7 +420,6 @@
     gap: var(--xh-spacing-half);
     margin-top: 4px;
     padding: 6px 0 8px 12px;
-    box-shadow: inset 2px 0 0 var(--xh-intent-primary);
   }
 
   &__sort-key {

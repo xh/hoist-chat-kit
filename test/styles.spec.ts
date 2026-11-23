@@ -20,7 +20,26 @@ describe('styles', () => {
             );
         expect(unread).toEqual([]);
     });
+
+    it('draws no accent rail down one side of a card or row, as Hoist marks a selection by a tint', () => {
+        const rails = findSources(root)
+            .filter(file => file.endsWith('.scss'))
+            .flatMap(file =>
+                readFileSync(file, 'utf8')
+                    .split('\n')
+                    .map((line, idx) => ({at: `${path.relative(root, file)}:${idx + 1}`, line}))
+            )
+            .filter(({line}) => SIDE_RAIL.some(it => it.test(line)))
+            .map(it => it.at);
+        expect(rails).toEqual([]);
+    });
 });
+
+// A 2px or wider rule down the left or right side: an inset shadow offset sideways, or a border.
+const SIDE_RAIL = [
+    /box-shadow:\s*inset\s+-?[2-9]\d*px\s+0\s+0/,
+    /border-(left|right|inline-start|inline-end)(-width)?:\s*[2-9]\d*px/
+];
 
 //------------------
 // Implementation
