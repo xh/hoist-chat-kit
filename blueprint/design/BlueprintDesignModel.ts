@@ -203,6 +203,12 @@ export class BlueprintDesignModel extends HoistModel {
     /** The host's Add, opened to search, as from the `/` key. Set by the host. */
     onRequestAdd: () => void = null;
 
+    /**
+     * The host's Preview toggle, between the designer and the reader's view, as from the P key,
+     * which the design keys bind only while it is set. Set by the host.
+     */
+    @observableRef accessor onPreview: () => void = null;
+
     /** When Add was last asked for, for a palette to focus its search, even one opening for it. */
     @observable accessor addRequestedAt = 0;
 

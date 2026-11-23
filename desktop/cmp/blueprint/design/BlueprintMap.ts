@@ -34,6 +34,8 @@ export interface BlueprintMapProps extends HoistProps {
     designModel: BlueprintDesignModel;
     /** Show an element on the canvas, from a double-click on it. It is selected first. */
     onOpenElement?: (id: string) => void;
+    /** False to leave out the legend strip, giving its height to the map. Default true. */
+    showLegend?: boolean;
 }
 
 /**
@@ -46,7 +48,7 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
     displayName: 'BlueprintMap',
     className: 'xh-blueprint-map',
     model: false,
-    render({designModel, onOpenElement, className}) {
+    render({designModel, onOpenElement, showLegend = true, className}) {
         const impl = useLocalModel(() => new BlueprintMapModel(designModel)),
             contentRef = useRef<HTMLDivElement>(null),
             pan = usePan(
@@ -59,7 +61,7 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
         return panel({
             className,
             hotkeys: designHotkeys(designModel, {arrows: false}),
-            tbar: legend(),
+            tbar: showLegend ? legend() : null,
             contentBoxProps: {tabIndex: 0} as object,
             children: box({
                 ref: resizeRef,

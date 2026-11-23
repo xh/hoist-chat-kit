@@ -212,6 +212,17 @@ describe('BlueprintMap', () => {
         expect(asOf.getAttribute('aria-label')).toMatch(/^asOf, .*feeds the selection/);
     });
 
+    it('shows its legend unless told not to, giving its height back to the map', () => {
+        const {design} = open(),
+            legend = (showLegend?: boolean) =>
+                render(
+                    blueprintMap({designModel: design, showLegend}) as ReactElement
+                ).container.querySelector('.xh-blueprint-map__legend');
+        expect(legend()).not.toBeNull();
+        expect(legend(true)).not.toBeNull();
+        expect(legend(false)).toBeNull();
+    });
+
     it('scrolls the map itself on both axes, with nothing around it scrolling too', () => {
         const {design} = open(),
             {container} = render(blueprintMap({designModel: design}) as ReactElement),

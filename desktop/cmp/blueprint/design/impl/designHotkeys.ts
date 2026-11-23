@@ -14,6 +14,10 @@ interface DesignKey {
     always?: boolean;
     /** True to run with focus in a widget's own control too, as the mode keys do. */
     anywhere?: boolean;
+    /** True to run in run mode too, as Preview's key does from the reader's view. */
+    anyMode?: boolean;
+    /** True to bind only while the design model has a Preview toggle. */
+    needsPreview?: boolean;
 }
 
 /**
@@ -34,13 +38,14 @@ export function designHotkeys(
     } = {}
 ): HotkeyConfig[] {
     const {arrows = true, fromWidgets = false} = opts;
-    return DESIGN_KEYS.filter(it => arrows || !ARROW_RE.test(it.combo)).map(
-        ({combo, label, run, always, anywhere}) => ({
+    return DESIGN_KEYS.filter(it => arrows || !ARROW_RE.test(it.combo))
+        .filter(it => !it.needsPreview || designModel.onPreview)
+        .map(({combo, label, run, always, anywhere, anyMode}) => ({
             combo,
             label,
             group: 'Design',
             onKeyDown: (e: KeyboardEvent) => {
-                if (designModel.blueprintModel.mode !== 'design') return;
+                if (!anyMode && designModel.blueprintModel.mode !== 'design') return;
                 if (fromWidgets && !anywhere && (e.target as Element)?.closest?.(INTERACTIVE)) {
                     return;
                 }
@@ -50,20 +55,19 @@ export function designHotkeys(
                 e.preventDefault();
                 run(designModel, id);
             }
-        })
-    );
+        }));
 }
 
 /**
- * The keys that switch between Edit and Interact alone, for a part of the designer that binds no
- * other design keys, such as the Inspector. Never bind them inside a part that does, or a toggle
- * runs twice.
+ * The keys that switch between Edit and Interact, and to Preview, alone, for a part of the
+ * designer that binds no other design keys, such as the Inspector. Never bind them inside a part
+ * that does, or a toggle runs twice.
  */
 export function modeHotkeys(designModel: BlueprintDesignModel): HotkeyConfig[] {
     return designHotkeys(designModel, {arrows: false}).filter(it => MODE_COMBOS.includes(it.combo));
 }
 
-const MODE_COMBOS = ['e', 'i', '`'];
+const MODE_COMBOS = ['e', 'i', '`', 'p'];
 
 //------------------
 // Implementation
@@ -136,6 +140,15 @@ const DESIGN_KEYS: DesignKey[] = [
         always: true,
         anywhere: true,
         run: dm => dm.setInteraction(dm.interaction === 'edit' ? 'interact' : 'edit')
+    },
+    {
+        combo: 'p',
+        label: "Preview: the reader's view",
+        always: true,
+        anywhere: true,
+        anyMode: true,
+        needsPreview: true,
+        run: dm => dm.onPreview?.()
     },
     {
         combo: 'esc',
