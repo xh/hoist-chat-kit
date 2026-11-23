@@ -77,20 +77,18 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
                     : root[name],
             value = rollUp(def.name),
             // A narrow card steps a number to its compact form, such as 3.96b, before its text
-            // shrinks, so its value never cuts short.
-            isCompact = this.width != null && this.width < COMPACT_BELOW,
+            // shrinks, so its value never cuts short, unless its format names its own scale.
+            own = source.displayOf(def.name, {format: config.format}),
+            isCompact =
+                this.width != null &&
+                this.width < COMPACT_BELOW &&
+                resolveFormat(def, own.formats, {catalog, blueprint}).scale == null,
             display = fieldDisplay(
                 def,
-                source.displayOf(
-                    def.name,
-                    {format: config.format},
-                    isCompact ? {format: {scale: 'auto'}} : null
-                ),
-                {
-                    catalog,
-                    blueprint,
-                    registry
-                }
+                isCompact
+                    ? source.displayOf(def.name, {format: config.format}, {format: {scale: 'auto'}})
+                    : own,
+                {catalog, blueprint, registry}
             ),
             deltaDef = source.fields[config.deltaField];
         return {

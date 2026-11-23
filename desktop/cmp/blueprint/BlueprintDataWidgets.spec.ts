@@ -125,13 +125,32 @@ describe('blueprint data widgets', () => {
             expect(text(pnl.card.value)).toMatch(/^4/);
         });
 
-        it('steps a number to its compact form in a narrow card, rather than cut it short', async () => {
-            const model = open(),
+        it('steps a number to its compact form in a narrow card, unless its format names a scale', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.sources.big = {
+                inline: {fields: [{name: 'total', type: 'number'}], rows: [{total: 4500000}]}
+            } as any;
+            bp.elements.headlinePnlDay.config = {source: 'big', field: 'total'};
+            const model = open(bp),
+                plain = widget(StatCardWidgetModel, model, 'headlinePnlDay'),
                 gross = widget(StatCardWidgetModel, model, 'headlineGrossExposure');
+            await vi.waitFor(() => expect(text(plain.card.value)).toBe('4,500,000'));
+            plain.setWidth(120);
+            expect(text(plain.card.value)).toBe('4.5M');
+            plain.setWidth(400);
+            expect(text(plain.card.value)).toBe('4,500,000');
+
+            // A scale the card's format names, or its field's, holds however narrow the card.
+            bp.elements.headlinePnlDay.config = {
+                ...bp.elements.headlinePnlDay.config,
+                format: {scale: 'millions'}
+            };
+            const scaled = widget(StatCardWidgetModel, open(bp), 'headlinePnlDay');
+            await vi.waitFor(() => expect(text(scaled.card.value)).toMatch(/^4\.\d+m$/));
+            scaled.setWidth(120);
+            expect(text(scaled.card.value)).toMatch(/^4\.\d+m$/);
             await vi.waitFor(() => expect(text(gross.card.value)).toMatch(/^0\.0m/));
             gross.setWidth(120);
-            expect(text(gross.card.value)).toMatch(/^450/);
-            gross.setWidth(400);
             expect(text(gross.card.value)).toMatch(/^0\.0m/);
         });
 
