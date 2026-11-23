@@ -360,6 +360,8 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                           id: step.id,
                           className: `${CLS}__crumb-sep ${CLS}__crumb-sep--menu`,
                           menuClassName: `${CLS}__crumb-menu`,
+                          // The Inspector sits at the right, so each submenu opens to the left.
+                          submenuPlacement: 'left-start',
                           title: `Children of ${step.id}`,
                           childrenOf,
                           onSelect: id => designModel.select({kind: 'element', id}),
@@ -437,7 +439,10 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                               ]
                             : [];
                 return [
-                    ...(at ? [separatorAfter(path[shown[at - 1]], `${keyOf(step)}-sep`)] : []),
+                    // Keyed by the step it follows, so picking from its menu keeps its focus.
+                    ...(at
+                        ? [separatorAfter(path[shown[at - 1]], `${keyOf(path[shown[at - 1]])}-sep`)]
+                        : []),
                     ...fold,
                     crumb
                 ];
@@ -445,7 +450,10 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
         return hbox({
             ref,
             className: `${CLS}__breadcrumb`,
-            children: [...steps, ...(trailing ? [separatorAfter(path[last], '_children')] : [])]
+            children: [
+                ...steps,
+                ...(trailing ? [separatorAfter(path[last], `${keyOf(path[last])}-sep`)] : [])
+            ]
         });
     }
 });

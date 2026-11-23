@@ -32,8 +32,10 @@ export interface CrumbMenuProps extends HoistProps {
     onHover?: (id: string) => void;
     /** Rows for a step with no children, after a disabled "No children", such as a way to add one. */
     emptyItems?: (id: string, close: () => void) => ReactElement[];
-    /** Css class name for the menu. */
+    /** Css class name for the menu and its submenus' popovers. */
     menuClassName?: string;
+    /** Where each submenu opens beside its row. Default `right-start`. */
+    submenuPlacement?: 'left-start' | 'right-start';
     title?: string;
 }
 
@@ -47,7 +49,17 @@ export interface CrumbMenuProps extends HoistProps {
 export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
     displayName: 'CrumbMenu',
     model: false,
-    render({id, childrenOf, onSelect, onHover, emptyItems, menuClassName, title, className}) {
+    render({
+        id,
+        childrenOf,
+        onSelect,
+        onHover,
+        emptyItems,
+        menuClassName,
+        submenuPlacement = 'right-start',
+        title,
+        className
+    }) {
         const [isOpen, setOpen] = useState(false),
             chevronRef = useRef<HTMLElement>(null),
             close = () => setOpen(false),
@@ -84,7 +96,12 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
                             children: child.hasChildren ? rows(child.id) : undefined,
                             // Portaled, as the menu's scrolling would clip a submenu nested in
                             // it. Focus opens none, so the arrows stay in the menu.
-                            popoverProps: {usePortal: true, openOnTargetFocus: false},
+                            popoverProps: {
+                                usePortal: true,
+                                openOnTargetFocus: false,
+                                placement: submenuPlacement,
+                                popoverClassName: menuClassName
+                            },
                             ...({'data-crumb-child': child.id} as object)
                         })
                     )

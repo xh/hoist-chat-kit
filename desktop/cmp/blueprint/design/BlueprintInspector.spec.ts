@@ -224,7 +224,9 @@ describe('BlueprintInspector', () => {
             ],
             // The menu opened last, as one closing may linger in the page.
             lastMenu = () =>
-                [...document.querySelectorAll('.xh-blueprint-inspector__crumb-menu')].at(-1),
+                [...document.querySelectorAll('.bp6-menu.xh-blueprint-inspector__crumb-menu')].at(
+                    -1
+                ),
             menuItems = (): HTMLElement[] => [
                 ...(lastMenu()?.querySelectorAll<HTMLElement>('[data-crumb-child]') ?? [])
             ],
@@ -363,7 +365,7 @@ describe('BlueprintInspector', () => {
         });
 
         it("moves between a menu's own rows, never into a container's submenu", async () => {
-            const {container} = await show('overview');
+            const {container, design} = await show('overview');
             const afterTabs = chevrons(container)[0];
             act(() => {
                 afterTabs.focus();
@@ -381,6 +383,21 @@ describe('BlueprintInspector', () => {
                 fireEvent.keyDown(document.activeElement, {key: 'Escape'});
             });
             await vi.waitFor(() => expect(document.activeElement).toBe(afterTabs));
+
+            // So does picking a row, as the same chevron still follows tabs.
+            act(() => {
+                fireEvent.keyDown(afterTabs, {key: 'Enter'});
+            });
+            await vi.waitFor(() => expect(document.activeElement).toBe(item('overview')));
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'ArrowDown'});
+            });
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'Enter'});
+            });
+            expect(design.selectedElementId).toBe('positions');
+            await vi.waitFor(() => expect(document.activeElement).toBe(chevrons(container)[0]));
+            expect(chevrons(container)[0]).toBe(afterTabs);
         });
 
         it('leaves room for the trailing chevron when it folds the path', () => {
