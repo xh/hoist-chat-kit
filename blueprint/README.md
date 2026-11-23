@@ -419,8 +419,9 @@ await doc.publishAsync('Adds the risk view');
   since the last publish, and each publish records them.
 - **Publish history.** `restoreAsync(3)` brings publish 3's content back into the draft as one
   edit, "Restore v3", which undo takes back. It renames back the ids renamed since, so the next
-  publish records those renames and personalizations follow them. `rollbackAsync(3)` restores,
-  then publishes with the note "Rolled back to v3". `updatePublishAsync(3, {note, label, pinned})`
+  publish records those renames and personalizations follow them. `rollbackAsync(3)` publishes
+  v3's content again, noted "Rolled back to v3", and leaves the writer's unpublished draft as it
+  was. `updatePublishAsync(3, {note, label, pinned})`
   changes a publish's note, label or pin, never its content, where `canUpdatePublishes`.
   `diffBlueprints(a, b, renames)` says what each part of a blueprint added, removed, renamed and
   changed between two versions.

@@ -5,6 +5,7 @@ import {isEqual, uniq} from 'lodash';
 import {applyOps} from '../applyOps';
 import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../Blueprint';
 import {type BlueprintLinkParams, parseBlueprintLink} from '../BlueprintLink';
+import {diffBlueprints} from '../diffBlueprints';
 import {diffOps} from '../diffOps';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
@@ -293,47 +294,38 @@ export class BlueprintDocumentModel extends HoistModel {
      * @returns the edit's issues, with a refusal if nothing changed.
      */
     async restoreAsync(version: number): Promise<BlueprintIssue[]> {
-        const {document, blueprintModel, repository} = this;
-        if (document?.kind !== 'draft' || document.access !== 'write') {
-            return [refusal('Open the draft, with write access, to restore a publish into it.')];
-        }
-        const [record, publishes] = await Promise.all([
-            this.openRecordAsync(document.id, {as: 'publish', version}),
-            repository.listPublishesAsync(document.id)
-        ]);
-        if (record?.kind !== 'publish') {
-            return [refusal(`There is no version ${version} of this blueprint to restore.`)];
-        }
-        const restored = upgradeBlueprint(
-                this.migrate ? this.migrate(record.blueprint) : record.blueprint
-            ),
-            since = [
-                ...publishes.filter(it => it.version > version).flatMap(it => it.renames),
-                ...this.pendingRenames
-            ],
-            current = blueprintModel.blueprint,
-            {ops: renameOps, result: renamed} = renamesBack(current, restored, since),
-            // The draft keeps its own schema map, which each save writes.
-            target = {...restored, schema: renamed.schema} as Blueprint;
-        if (renamed.schema === undefined) delete target.schema;
-        const ops = [...renameOps, ...diffOps(renamed, target)];
-        if (!ops.length) return [];
-        return blueprintModel.applyEdit({description: `Restore v${version}`, ops}).issues;
+        return (await this.restoreEditAsync(version)).issues;
     }
 
     /**
-     * Roll back to a publish: restore it into the draft, then publish it again, noted "Rolled back
-     * to v3". Refused for a user who may not publish, or a stale draft. If the publish is then
-     * refused, the restore stays in the draft, unsaved, for the user to fix or undo.
+     * Roll readers back to a publish, leaving the writer's draft where it was: restore the publish,
+     * publish it again, noted "Rolled back to v3", then reapply the draft's unpublished changes as
+     * one edit, "Reapply unpublished changes", and save. Ids follow the renames the rollback
+     * recorded, so the next publish carries the draft's changes and renames forward. A draft
+     * with no unpublished changes stays at the publish rolled back to.
+     *
+     * Refused for a user who may not publish, or a stale draft. If the rollback's publish is
+     * refused, the restore is undone, leaving the draft as it was.
      */
     async rollbackAsync(version: number): Promise<BlueprintIssue[]> {
         if (this.document?.kind !== 'draft' || !this.canPublish) {
             return [refusal('You may not publish this blueprint.')];
         }
         if (this.isStale) return [staleRefusal()];
-        const restored = await this.restoreAsync(version);
-        if (hasErrors(restored)) return restored;
-        return [...restored, ...(await this.publishAsync(`Rolled back to v${version}`))];
+        const {blueprintModel} = this,
+            draft = blueprintModel.blueprint,
+            unpublished = await this.hasUnpublishedAsync(draft),
+            restore = await this.restoreEditAsync(version);
+        if (hasErrors(restore.issues)) return restore.issues;
+        const published = await this.publishAsync(`Rolled back to v${version}`);
+        if (hasErrors(published)) {
+            if (blueprintModel.undoDescription === restore.description) blueprintModel.undo();
+            return [...restore.issues, ...published];
+        }
+        if (!unpublished) return [...restore.issues, ...published];
+        const reapplied = this.replaceContent(draft, restore.renames, REAPPLY);
+        if (hasErrors(reapplied.issues)) return [...published, ...reapplied.issues];
+        return [...published, ...reapplied.issues, ...(await this.saveDraftAsync())];
     }
 
     /** Open the draft again as it is stored, discarding unsaved edits, as after going stale. */
@@ -570,6 +562,69 @@ export class BlueprintDocumentModel extends HoistModel {
         this.blueprintModel.clear();
     }
 
+    // Restore a publish's content into the draft, as one edit, with the renames back it made.
+    private async restoreEditAsync(version: number): Promise<ContentEdit> {
+        const {document, repository} = this,
+            description = `Restore v${version}`;
+        if (document?.kind !== 'draft' || document.access !== 'write') {
+            return failed(description, 'Open the draft, with write access, to restore into it.');
+        }
+        const [record, publishes] = await Promise.all([
+            this.openRecordAsync(document.id, {as: 'publish', version}),
+            repository.listPublishesAsync(document.id)
+        ]);
+        if (record?.kind !== 'publish') {
+            return failed(
+                description,
+                `There is no version ${version} of this blueprint to restore.`
+            );
+        }
+        return this.replaceContent(
+            this.upgraded(record.blueprint),
+            [
+                ...publishes.filter(it => it.version > version).flatMap(it => it.renames),
+                ...this.pendingRenames
+            ],
+            description
+        );
+    }
+
+    /**
+     * Replace the draft's content with another blueprint's, as one edit: its ids, followed through
+     * the renames given to the draft's, are renamed back first, so references and the next
+     * publish's renames follow them. The draft keeps its own schema map, which each save writes.
+     */
+    private replaceContent(
+        content: Blueprint,
+        since: BlueprintRename[],
+        description: string
+    ): ContentEdit {
+        const {blueprintModel} = this,
+            {ops: renameOps, result: renamed} = renamesBack(
+                blueprintModel.blueprint,
+                content,
+                since
+            ),
+            target = {...content, schema: renamed.schema} as Blueprint;
+        if (renamed.schema === undefined) delete target.schema;
+        const ops = [...renameOps, ...diffOps(renamed, target)],
+            renames = renameOps.map(({kind, from, to}: any) => ({kind, from, to}));
+        if (!ops.length) return {description, issues: [], renames};
+        return {description, issues: blueprintModel.applyEdit({description, ops}).issues, renames};
+    }
+
+    // True if the draft differs from the latest publish, in content or by a rename.
+    private async hasUnpublishedAsync(draft: Blueprint): Promise<boolean> {
+        const {id, publishedVersion} = this.document;
+        if (publishedVersion == null || this.pendingRenames.length) return true;
+        const latest = await this.openRecordAsync(id, {as: 'publish', version: publishedVersion});
+        return !latest || !diffBlueprints(this.upgraded(latest.blueprint), draft).isEmpty;
+    }
+
+    private upgraded(blueprint: Blueprint): Blueprint {
+        return upgradeBlueprint(this.migrate ? this.migrate(blueprint) : blueprint);
+    }
+
     // The library's own check, for a repository that cannot check on its server.
     private async staleIssueAsync(): Promise<BlueprintIssue> {
         const {document, repository} = this;
@@ -644,6 +699,19 @@ function fallbackNotice(open: BlueprintOpenOptions, refused: BlueprintIssue[]): 
 function refusal(message: string): BlueprintIssue {
     return {code: 'edit.notAllowed', severity: 'error', path: '', message};
 }
+
+// An edit that replaced the draft's content, with the renames back it made.
+interface ContentEdit {
+    description: string;
+    issues: BlueprintIssue[];
+    renames: BlueprintRename[];
+}
+
+function failed(description: string, message: string): ContentEdit {
+    return {description, issues: [refusal(message)], renames: []};
+}
+
+const REAPPLY = 'Reapply unpublished changes';
 
 // Renames that take each of a publish's ids, followed through the renames since, back to its own,
 // where the draft still has it and the publish's id is free, with the draft as they leave it.

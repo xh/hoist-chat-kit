@@ -696,6 +696,54 @@ describe('BlueprintDocumentModel', () => {
             });
         });
 
+        it("rolls readers back without touching the writer's unpublished draft", async () => {
+            const {blueprintModel, doc, repository, id} = await twoPublishes();
+            title(blueprintModel, 'In progress');
+            blueprintModel.applyEdit({
+                ops: [{op: 'renameId', kind: 'element', from: 'priceChart', to: 'prices'}]
+            });
+            const before = blueprintModel.blueprint;
+
+            expect(await doc.rollbackAsync(1)).toEqual([]);
+            // The new publish is v1's content, with v1's ids, and records the way back to them.
+            const v3 = await repository.openAsync(id, {as: 'publish'}),
+                latest = (await repository.listPublishesAsync(id)).at(-1);
+            expect(v3.blueprint.elements.posGrid.config.title).toBe('First');
+            expect(v3.blueprint.elements.priceChart).toBeTruthy();
+            expect(latest.renames).toContainEqual({
+                kind: 'element',
+                from: 'prices',
+                to: 'priceChart'
+            });
+
+            // The draft is as it was, saved, and carries its renames forward from v3.
+            const {elements} = blueprintModel.blueprint;
+            expect(elements.posGrid.config.title).toBe('In progress');
+            expect(Object.keys(elements).sort()).toEqual(Object.keys(before.elements).sort());
+            expect(blueprintModel.undoDescription).toBe('Reapply unpublished changes');
+            expect(doc.pendingRenames).toEqual([
+                {kind: 'element', from: 'priceChart', to: 'prices'}
+            ]);
+            expect(doc.isDirty).toBe(false);
+            expect(
+                (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config
+                    .title
+            ).toBe('In progress');
+        });
+
+        it('leaves the draft exactly as it was when the rollback publish is refused', async () => {
+            const {blueprintModel, doc, repository} = await twoPublishes();
+            title(blueprintModel, 'In progress');
+            const before = blueprintModel.blueprint,
+                publish = vi.spyOn(repository, 'publishAsync').mockResolvedValue({
+                    issues: [{code: 'edit.notAllowed', severity: 'error', path: '', message: 'No.'}]
+                });
+            onTestFinished(() => publish.mockRestore());
+            expect(errors(await doc.rollbackAsync(1))).toEqual(['edit.notAllowed']);
+            expect(blueprintModel.blueprint).toEqual(before);
+            expect(blueprintModel.undoDescription).not.toBe('Restore v1');
+        });
+
         it('refuses a rollback for a user who may not publish, or from a stale draft', async () => {
             const {doc, grant, repository, id, blueprintModel} = await twoPublishes();
             grant.canPublish = false;
