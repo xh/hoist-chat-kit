@@ -314,6 +314,7 @@
 
     // Every row, sortable or not, takes the same insets.
     .xh-sortable-list__row {
+      gap: var(--xh-spacing-half);
       padding: 0 var(--xh-spacing-half);
     }
 

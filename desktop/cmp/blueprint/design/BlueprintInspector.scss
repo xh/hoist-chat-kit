@@ -72,13 +72,21 @@
 
   // The selection's quick actions, on the Inspector's ground, their labels giving way to icons
   // when narrow.
+  // Its padding and gap are its only spacing, in place of a compact toolbar's fixed height and
+  // margins.
   &__actions.xh-toolbar {
     flex: none;
     container-type: inline-size;
     gap: var(--xh-spacing-half);
+    height: auto;
+    min-height: 24px;
     padding: var(--xh-spacing-half) var(--xh-spacing);
     background-color: var(--xh-bg);
     border-bottom: var(--xh-border-solid);
+
+    > * {
+      margin-left: 0;
+    }
 
     @container (width < 320px) {
       .bp6-button-text {
