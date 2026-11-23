@@ -1,9 +1,9 @@
-import {fireEvent, render} from '@testing-library/react';
+import {act, fireEvent, render} from '@testing-library/react';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
-import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     BlueprintDesignModel,
     BlueprintModel,
@@ -212,15 +212,44 @@ describe('BlueprintMap', () => {
         expect(asOf.getAttribute('aria-label')).toMatch(/^asOf, .*feeds the selection/);
     });
 
-    it('shows its legend unless told not to, giving its height back to the map', () => {
-        const {design} = open(),
-            legend = (showLegend?: boolean) =>
-                render(
-                    blueprintMap({designModel: design, showLegend}) as ReactElement
-                ).container.querySelector('.xh-blueprint-map__legend');
-        expect(legend()).not.toBeNull();
-        expect(legend(true)).not.toBeNull();
-        expect(legend(false)).toBeNull();
+    describe('legend', () => {
+        beforeEach(() => window.localStorage.clear());
+
+        const show = (design: BlueprintDesignModel, showLegend?: boolean) =>
+            render(blueprintMap({designModel: design, showLegend}) as ReactElement).container;
+
+        it('floats over the map in a corner, not scrolling with it, unless the host hides it', () => {
+            const {design} = open(),
+                container = show(design),
+                legend = container.querySelector('.xh-blueprint-map__legend'),
+                scroll = container.querySelector('.xh-blueprint-map__scroll');
+            expect(legend).not.toBeNull();
+            expect(scroll.contains(legend)).toBe(false);
+            expect(legend.querySelectorAll('.xh-blueprint-map__legend-item')).toHaveLength(4);
+            expect(show(design, false).querySelector('.xh-blueprint-map__legend')).toBeNull();
+        });
+
+        it('folds to its header, and stays folded for the user next time', async () => {
+            const {design} = open(),
+                container = show(design),
+                header = () =>
+                    container.querySelector<HTMLElement>('.xh-blueprint-map__legend-header'),
+                items = (c: Element) => c.querySelectorAll('.xh-blueprint-map__legend-item');
+            expect(header().textContent).toBe('Legend');
+            expect(header().getAttribute('aria-expanded')).toBe('true');
+            act(() => {
+                fireEvent.click(header());
+            });
+            expect(items(container)).toHaveLength(0);
+            expect(header().getAttribute('aria-expanded')).toBe('false');
+            // A map opened again remembers, once the choice is written.
+            await act(() => new Promise(resolve => setTimeout(resolve, 300)));
+            expect(items(show(open().design))).toHaveLength(0);
+            act(() => {
+                fireEvent.click(header());
+            });
+            expect(items(container)).toHaveLength(4);
+        });
     });
 
     it('scrolls the map itself on both axes, with nothing around it scrolling too', () => {

@@ -211,11 +211,49 @@
     }
   }
 
+  // The map's scroll box, with the legend over it.
+  &__frame {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  // Room under the last nodes, so the legend never hides one for good.
+  &__frame--legend &__content {
+    padding-bottom: 112px;
+  }
+
+  // A key to the wires in the map's bottom-left corner, which stays put as the map scrolls. A pan
+  // passes beneath it: only its header takes the pointer.
   &__legend {
-    gap: var(--xh-spacing-double);
-    padding: var(--xh-spacing-half) var(--xh-spacing);
+    position: absolute;
+    bottom: var(--xh-spacing-double);
+    left: var(--xh-spacing);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
     font-size: 11px;
     color: var(--xh-text-color-muted);
+    background-color: var(--xh-bg);
+    border: var(--xh-border-solid);
+    border-radius: var(--xh-border-radius-px);
+    pointer-events: none;
+  }
+
+  &__legend-header {
+    justify-content: space-between;
+    min-height: 24px;
+    padding: 0 var(--xh-spacing-half) 0 var(--xh-spacing);
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: auto;
+  }
+
+  &__legend-items {
+    gap: 4px;
+    padding: 0 var(--xh-spacing) var(--xh-spacing-half);
   }
 
   &__legend-item::before {

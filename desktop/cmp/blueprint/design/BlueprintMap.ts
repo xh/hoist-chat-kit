@@ -7,7 +7,9 @@ import {
     useLocalModel,
     XH
 } from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
+import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
 import classNames from 'classnames';
@@ -61,9 +63,16 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
         return panel({
             className,
             hotkeys: designHotkeys(designModel, {arrows: false}),
-            tbar: showLegend ? legend() : null,
             contentBoxProps: {tabIndex: 0} as object,
-            children: box({
+            children: div({
+                className: classNames(`${CLS}__frame`, showLegend && `${CLS}__frame--legend`),
+                children: [mapScroll(), showLegend ? legend({key: 'legend', impl}) : null]
+            })
+        });
+
+        function mapScroll() {
+            return box({
+                key: 'scroll',
                 ref: resizeRef,
                 className: `${CLS}__scroll`,
                 // Box writes an inline overflow, which the stylesheet cannot override.
@@ -123,8 +132,8 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
                         edgeLayer({key: 'edges', impl})
                     ]
                 })
-            })
-        });
+            });
+        }
     }
 });
 
@@ -168,8 +177,17 @@ export class BlueprintMapModel extends HoistModel {
     /** Each node's box within the map's content, by key, as last drawn. */
     @observableRef accessor boxes: Record<string, Box> = {};
 
+    /** True while the legend shows its header alone, as the user last left it. */
+    @observable accessor legendCollapsed = false;
+
     constructor(readonly designModel: BlueprintDesignModel) {
         super();
+        this.markPersist('legendCollapsed', {localStorageKey: 'xhBlueprintMap'});
+    }
+
+    @action
+    toggleLegend() {
+        this.legendCollapsed = !this.legendCollapsed;
     }
 
     @action
@@ -692,25 +710,44 @@ const edgeLayer = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
     }
 });
 
-// What the trace's colors mean.
-const legend = hoistCmp.factory({
+// What the trace's colors mean, in a corner over the map, which folds to its header.
+const legend = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
     displayName: 'BlueprintMapLegend',
     model: false,
-    render() {
-        return hbox({
-            className: `${CLS}__legend`,
+    render({impl}) {
+        const collapsed = impl.legendCollapsed;
+        return div({
+            className: classNames(`${CLS}__legend`, collapsed && `${CLS}__legend--collapsed`),
+            ...({role: 'group', 'aria-label': 'Legend'} as object),
             children: [
-                ['upstream', 'Upstream (reads)'],
-                ['downstream', 'Downstream (sets, then onward)'],
-                ['preset', 'Preset controls a path'],
-                ['dim', 'Other bindings']
-            ].map(([state, text]) =>
-                span({
-                    key: state,
-                    className: `${CLS}__legend-item ${CLS}__legend-item--${state}`,
-                    children: text
-                })
-            )
+                button({
+                    key: 'header',
+                    className: `${CLS}__legend-header`,
+                    text: 'Legend',
+                    rightIcon: collapsed ? Icon.chevronUp() : Icon.chevronDown(),
+                    minimal: true,
+                    onClick: () => impl.toggleLegend(),
+                    ...({'aria-expanded': !collapsed} as object)
+                }),
+                collapsed
+                    ? null
+                    : vbox({
+                          key: 'items',
+                          className: `${CLS}__legend-items`,
+                          children: [
+                              ['upstream', 'Upstream (reads)'],
+                              ['downstream', 'Downstream (sets, then onward)'],
+                              ['preset', 'Preset controls a path'],
+                              ['dim', 'Other bindings']
+                          ].map(([state, text]) =>
+                              span({
+                                  key: state,
+                                  className: `${CLS}__legend-item ${CLS}__legend-item--${state}`,
+                                  children: text
+                              })
+                          )
+                      })
+            ]
         });
     }
 });
