@@ -46,20 +46,18 @@ right doc, then read it. Use the symbol tools for exact signatures and members.
 
 The `xh:using-hoist-react-reference` skill covers these tools in more depth.
 
-### Other MCP Servers (opt-in)
+### Chrome DevTools MCP Server (opt-in)
 
-`.mcp.json` also defines three servers that are off by default. Each needs a local dependency. To
-turn one on for yourself, add its name to `enabledMcpjsonServers` in `.claude/settings.local.json`.
+`.mcp.json` also defines `chrome-devtools`, which is off by default. It lets an agent drive and
+inspect a Chrome window: navigate, click, read the console, and take screenshots. It needs Chrome
+started with `--remote-debugging-port=9222` and a separate `--user-data-dir`. To turn it on for
+yourself, add `"chrome-devtools"` to `enabledMcpjsonServers` in `.claude/settings.local.json`.
 Local settings merge with the shared `settings.json`.
 
-| Server | Provides | Requires |
-|--------|----------|----------|
-| `github` | GitHub API tools: issues, PRs, code search | Docker running, and `gh auth login` done. The server reads its token from `gh auth token`. |
-| `idea` | IntelliJ navigation, inspections, and symbol lookup | A running IntelliJ with its MCP server on port `64342` |
-| `chrome-devtools` | Drive and inspect a Chrome window: navigate, click, read the console, take screenshots | Chrome started with `--remote-debugging-port=9222` and a separate `--user-data-dir` |
+### GitHub
 
-If the `github` server is off, use the `gh` CLI. It covers the same operations. IntelliJ rewrites
-its own `.mcp.json` entry on startup. Take its changes rather than revert them.
+Use the GitHub CLI (`gh`) for GitHub operations: `gh pr view`, `gh issue list`, `gh pr create`,
+and `gh api` for anything else. Prefer it over raw `curl` calls to the GitHub API.
 
 ### hoist-ai plugin (`xh@hoist-ai`)
 
