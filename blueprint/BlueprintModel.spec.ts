@@ -1236,4 +1236,23 @@ describe('BlueprintModel', () => {
         expect(set('Two').issues.filter(it => it.severity === 'error')).toEqual([]);
         expect(model.blueprint.elements.posGrid.config.title).toBe('Two');
     });
+
+    it('shows one refusal at a time, each replacing the one before', () => {
+        const model = open(loadBlueprint('p3-morning-report.json')),
+            toasts: {dismiss: () => void}[] = [],
+            toast = vi.spyOn(XH, 'dangerToast').mockImplementation(() => {
+                const it = {dismiss: vi.fn()};
+                toasts.push(it);
+                return it as any;
+            });
+        onTestFinished(() => toast.mockRestore());
+        const issue = {code: 'edit.blocked', severity: 'error' as const, path: '', message: 'No.'};
+        model.showRefusal(issue);
+        model.showRefusal(issue);
+        model.showRefusal(issue);
+        expect(toast).toHaveBeenCalledTimes(3);
+        expect(toasts[0].dismiss).toHaveBeenCalled();
+        expect(toasts[1].dismiss).toHaveBeenCalled();
+        expect(toasts[2].dismiss).not.toHaveBeenCalled();
+    });
 });

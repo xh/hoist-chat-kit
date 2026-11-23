@@ -139,6 +139,7 @@ export class BlueprintModel extends HoistModel {
     @observable accessor editBlocker: string = null;
 
     @observableRef private accessor undoStack: UndoEntry[] = [];
+    private refusalToast: {dismiss: () => void} = null;
     @observableRef private accessor redoStack: UndoEntry[] = [];
 
     /**
@@ -647,7 +648,9 @@ export class BlueprintModel extends HoistModel {
     /** Show why an edit was refused, with a Show action that selects what it names, where it can. */
     showRefusal(issue: BlueprintIssue) {
         const {revealIssue} = this;
-        XH.dangerToast({
+        // One at a time, so a key pressed again and again shows one toast, not a stack.
+        this.refusalToast?.dismiss();
+        this.refusalToast = XH.dangerToast({
             message: issue.message,
             ...(revealIssue && issue.path
                 ? {
