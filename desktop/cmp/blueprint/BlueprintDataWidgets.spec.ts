@@ -711,6 +711,22 @@ describe('blueprint data widgets', () => {
             expect(chart.chartModel.series.map(it => it.yAxis ?? 0)).toEqual([0, 1]);
         });
 
+        it("writes the axis and tooltips in a field's own scale, never stepping to compact form", async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {y: ['pnlDay'], y2: ['mktVal']});
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series).toHaveLength(2));
+            const [, second] = chart.chartModel.highchartsConfig.yAxis,
+                tip = chart.chartModel.series[1].tooltip.pointFormatter.call({
+                    y: 2500000,
+                    color: '#000',
+                    series: {name: 'Market Value'}
+                });
+            // mktVal's format writes millions as "2.5m". Compact form would write "2.5M".
+            expect(second.labels.formatter.call({value: 2500000})).toMatch(/2\.5m/);
+            expect(tip).toMatch(/2\.5m/);
+        });
+
         it("formats the second axis and its tooltips as y2's own field, with no fraction clamp", async () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             Object.assign(bp.elements.sectorChart.config, {

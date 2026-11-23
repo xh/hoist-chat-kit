@@ -21,7 +21,7 @@ import {
     type ChartWidgetConfig
 } from '../../../blueprint';
 import {checkHighchartsConfig} from '../../../blueprint/impl/builtInWidgets';
-import {resolveFormat} from '../../../blueprint/impl/formats';
+import {formatValue, resolveFormat} from '../../../blueprint/impl/formats';
 import {fmtChatUiNumber} from '../genui/ChatUiFormat';
 import {
     type ChatUiChartLayoutProps,
@@ -173,14 +173,27 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         return castArray(this.resolvedConfig.y ?? []).filter(it => this.source?.fields[it]);
     }
 
-    // Values of a field, formatted as a number or a percent, with its unit.
+    // Values of a field, formatted as a number or a percent, with its unit. A field whose format
+    // names a scale, such as millions, keeps it, where an axis would otherwise compact.
     private formatOf(field: string): (value: number, opts?: {compact?: boolean}) => string {
+        const scaled = this.scaledFormatOf(field);
+        if (scaled) return scaled;
         const format = this.isFraction(field) ? 'percent' : 'number',
             unit = this.unitOf(field);
         return (value, opts = {}) => {
             const text = String(fmtChatUiNumber(value, format, null, {asHtml: true, ...opts}));
             return value == null || !unit ? text : `${text}${unit}`;
         };
+    }
+
+    // A field's values as its own format writes them, where that format names a scale, else null.
+    private scaledFormatOf(field: string): (value: number) => string {
+        const def = this.source?.fields[field];
+        if (!def) return null;
+        const {catalog, blueprint} = this.blueprintModel,
+            opts = resolveFormat(def, this.source.displayOf(field).formats, {catalog, blueprint});
+        if (opts.scale == null) return null;
+        return value => (value == null ? '' : String(formatValue(value, def, opts, catalog, true)));
     }
 
     // A field's label from its format, such as a unit its source's params choose, escaped.
@@ -198,7 +211,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     // The primary axis's labels with its first field's unit, where it has one.
     private withPrimaryUnit(config: PlainObject): PlainObject {
         const [first] = this.primary;
-        if (!this.unitOf(first)) return config;
+        if (!this.unitOf(first) && !this.scaledFormatOf(first)) return config;
         const fmt = this.formatOf(first);
         return {
             ...config,
