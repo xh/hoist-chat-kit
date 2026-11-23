@@ -405,6 +405,38 @@ describe('design mode selection', () => {
         expect(keys()).toContain('hover');
     });
 
+    it('keeps the Alt hold through the click that ends a text selection, so the text stays selected', () => {
+        stubRects();
+        const {design, model} = open('p3-morning-report.json'),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            host = container.querySelector('[data-blueprint-element="overview"]'),
+            stop = altHold.follow();
+        const text = document.body.appendChild(document.createElement('p'));
+        text.textContent = 'Write this';
+        onTestFinished(() => {
+            stop();
+            window.getSelection().removeAllRanges();
+            text.remove();
+        });
+        const press = () => window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Alt'}));
+        act(press);
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        // A selection takes no second range.
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        expect(window.getSelection().isCollapsed).toBe(false);
+        fireEvent.click(host);
+        expect(altHold.active).toBe(true);
+        expect(design.selectedElementId).toBeNull();
+
+        // A plain click passes through, and uses the hold up.
+        window.getSelection().removeAllRanges();
+        fireEvent.click(host);
+        expect(altHold.active).toBe(false);
+        expect(design.selectedElementId).toBeNull();
+    });
+
     it('previews a drop at a point, and drops a dragged widget there with a line marking the place', async () => {
         const model = new BlueprintModel({
                 blueprint: {

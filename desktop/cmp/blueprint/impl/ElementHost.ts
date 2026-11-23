@@ -83,7 +83,8 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 // The key's state on the click itself too, in case its key-up was lost.
                 if (altHold.active || e.altKey) {
                     native.xhPassed = true;
-                    altHold.consume();
+                    // The click that ends a text drag keeps the hold, which keeps the text selectable.
+                    if (window.getSelection()?.isCollapsed !== false) altHold.consume();
                     return;
                 }
                 // A click on a canvas cell's header or grip selects its view.
