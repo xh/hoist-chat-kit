@@ -1,5 +1,5 @@
 import {HoistBase, type LoadSpec, managed, type PlainObject, XH} from '@xh/hoist/core';
-import type {CubeFieldSpec, FilterSpec, SuppliedAggregate} from '@xh/hoist/data';
+import type {CubeFieldSpec, FilterSpec} from '@xh/hoist/data';
 import {
     Cube,
     FirstAggregator,
@@ -610,7 +610,6 @@ export class BlueprintSource extends HoistBase {
                 settle();
                 if (!isCurrent()) return;
                 runInAction(() => (this.aggregatesError = null));
-                this.noteSupplied(aggregates);
                 return this.cube.updateAggregatesAsync(aggregates);
             })
             .catch(e => {
@@ -655,7 +654,6 @@ export class BlueprintSource extends HoistBase {
                     ));
                 }
             }
-            this.noteSupplied(aggregates, !!replace);
             if (replace) {
                 await this.cube.loadDataAsync(replace, {}, aggregates ?? null);
                 runInAction(() => {
@@ -787,12 +785,7 @@ export class BlueprintSource extends HoistBase {
         return [...ids].map(id => this.rawRows.get(id)).filter(Boolean);
     }
 
-    /**
-     * Write a joined source's current values onto every row they change, once per tick. A change
-     * that moves many rows, as a new as-of date does, reloads the cube in one pass: a view
-     * re-aggregates each parent once for each row updated, which for a keyed measure re-reads
-     * every leaf below it, so thousands of updates would stall the page.
-     */
+    /** Write a joined source's current values onto every row they change, once per tick. */
     private flushJoins() {
         if (this.flushPending) return;
         this.flushPending = true;
@@ -805,31 +798,10 @@ export class BlueprintSource extends HoistBase {
                 changed = update.filter(it => {
                     const data = store.getById(it.id)?.data;
                     return names.some(n => !isEqual(data?.[n] ?? null, it[n]));
-                }),
-                count = add.length + changed.length + remove.length;
-            if (count >= REJOIN_RELOAD_AT) {
-                const test = this.browserTest,
-                    rows = this.withJoins([...this.rawRows.values()]).filter(
-                        it => !test || test(it)
-                    );
-                this.cube
-                    .loadDataAsync(rows, {}, [...this.supplied.values()])
-                    .catch(e => this.fail(e));
-            } else if (count) {
+                });
+            if (add.length || changed.length || remove.length) {
                 this.cube.updateDataAsync({add, update: changed, remove}).catch(e => this.fail(e));
             }
-        });
-    }
-
-    // The supplied totals the cube holds, merged as it merges them, for a reload to carry over.
-    private readonly supplied = new Map<string, SuppliedAggregate>();
-
-    private noteSupplied(aggregates: SuppliedAggregate[], replace = false) {
-        if (replace) this.supplied.clear();
-        aggregates?.forEach(({dims, values}) => {
-            const key = JSON.stringify(sortBy(Object.entries(dims ?? {}), 0)),
-                prev = this.supplied.get(key);
-            this.supplied.set(key, {dims, values: {...prev?.values, ...values}});
         });
     }
 
@@ -982,9 +954,6 @@ const SELECTION_NOUNS: Record<string, string> = {
 };
 
 // The catalog aggregators a keyed field's root can apply once per key.
-// The number of rows a join's change may update one by one, past which the cube reloads instead.
-const REJOIN_RELOAD_AT = 100;
-
 const ROOT_AGGREGATORS = ['SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'];
 
 // The most keys a joined source's filter sends to the server: past it, the filter runs in the browser.

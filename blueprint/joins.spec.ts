@@ -487,7 +487,7 @@ describe('joins', () => {
             await vi.waitFor(() => expect(leaf('b2')?.fundNav).toBe(200));
         });
 
-        it("rejoins in one reload when a joined source's change moves many rows, keeping supplied totals", async () => {
+        it("rejoins every row a joined source's change moves in one update, in place, keeping supplied totals", async () => {
             const {dataProvider, leaf, positions} = open([fundJoin], ['fundNav'], ['fund']),
                 many = Array.from({length: 200}, (_, i) => ({
                     id: `p${i}`,
@@ -518,8 +518,8 @@ describe('joins', () => {
             });
             await vi.waitFor(() => expect(leaf('p1').fundNav).toBe(150));
             expect(leaf('p0').fundNav).toBe(250);
-            expect(load).toHaveBeenCalledTimes(1);
-            expect(update).not.toHaveBeenCalled();
+            expect(update).toHaveBeenCalledTimes(1);
+            expect(load).not.toHaveBeenCalled();
             expect(positions.cube._getSuppliedValue({}, 'risk')).toBe(42);
         });
 
