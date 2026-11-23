@@ -1074,6 +1074,18 @@ describe('BlueprintDesignModel', () => {
         });
     });
 
+    it('returns no id for an add the blueprint refuses', () => {
+        const {model, design} = open({
+            schema: {blueprint: 1},
+            root: 'bar',
+            elements: {bar: {component: 'toolbar', children: []}}
+        });
+        const refused = design.addWidget('buttonGroup', 'bar');
+        expect(errors(refused)).not.toEqual([]);
+        expect(refused.id).toBeUndefined();
+        expect(model.blueprint.elements).toEqual({bar: {component: 'toolbar', children: []}});
+    });
+
     describe('design actions', () => {
         it("lists an element's actions in order, with why any cannot run, and none for a reader", () => {
             const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),

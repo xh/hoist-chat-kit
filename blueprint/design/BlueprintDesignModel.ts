@@ -440,7 +440,7 @@ export class BlueprintDesignModel extends HoistModel {
      * and in tabs, a tab titled by its label. The first element of an empty blueprint becomes its
      * root.
      *
-     * @returns the edit's result, with the new element's ID.
+     * @returns the edit's result, with the new element's ID if it landed.
      */
     addWidget(
         component: string,
@@ -465,7 +465,9 @@ export class BlueprintDesignModel extends HoistModel {
         } = {}
     ): BlueprintEditResult & {id?: string} {
         const plan = this.planAdd(component, parentId, opts);
-        return 'issues' in plan ? plan : {...this.edit(plan.description, plan.ops), id: plan.id};
+        if ('issues' in plan) return plan;
+        const ret = this.edit(plan.description, plan.ops);
+        return ret.issues.some(isError) ? ret : {...ret, id: plan.id};
     }
 
     // The ops that add a widget, with its new id, or why it cannot be added. See addWidget.
