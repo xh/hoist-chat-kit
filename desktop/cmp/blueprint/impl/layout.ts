@@ -5,7 +5,7 @@ import {Icon} from '@xh/hoist/icon';
 import type {ReactNode} from 'react';
 import type {BlueprintWidgetModel, ChildRef} from '../../../../blueprint';
 
-/** The gap between a canvas's cells, and around them, in pixels. */
+/** The gap between a dashboard's cells, and around them, in pixels. */
 export const CANVAS_GAP = 8;
 
 /**

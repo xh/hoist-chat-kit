@@ -4,7 +4,7 @@ import type {BlueprintOp} from '../../../../blueprint';
 
 /** Where a dropped widget goes in its container, as `BlueprintDesignModel.addWidget` takes it. */
 export interface PaletteAddOpts {
-    /** Its child reference, such as a canvas cell's place. */
+    /** Its child reference, such as a dashboard cell's place. */
     child?: PlainObject;
     /** The container's other children, as the drop left them. */
     siblings?: PlainObject[];
@@ -15,7 +15,7 @@ export interface PaletteAddOpts {
 /** A widget being dragged from the palette, and what adds it once dropped on a container. */
 export interface PaletteDragItem {
     component: string;
-    /** Its default size on a canvas, in grid units. */
+    /** Its default size on a dashboard, in grid units. */
     size: {w: number; h: number};
     /** Add the widget to a container, as one edit. */
     add(parentId: string, opts: PaletteAddOpts): void;
@@ -23,7 +23,7 @@ export interface PaletteDragItem {
 
 const current = observable.box<PaletteDragItem>(null, {deep: false});
 
-/** The palette drag in progress, which canvases observe, to take a drop only during one. */
+/** The palette drag in progress, which dashboards observe, to take a drop only during one. */
 export const paletteDrag = {
     get current(): PaletteDragItem {
         return current.get();

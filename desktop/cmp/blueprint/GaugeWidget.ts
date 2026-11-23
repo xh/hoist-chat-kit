@@ -49,7 +49,7 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
     }
 
     private get inCanvas(): boolean {
-        return this.parentElement?.component === 'dashCanvas';
+        return this.parentElement?.component === 'dashboard';
     }
 
     private setCube(cube: Cube) {
@@ -80,7 +80,7 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
             chartModel,
             {
                 chart: {type: 'solidgauge'},
-                // A canvas cell draws its title in its header. Highcharts reads a title as markup.
+                // A dashboard cell draws its title in its header. Highcharts reads a title as markup.
                 title: {text: title && !this.inCanvas ? escape(title) : null},
                 pane: {
                     startAngle: -90,

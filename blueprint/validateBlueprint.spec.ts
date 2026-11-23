@@ -637,7 +637,7 @@ describe('validateBlueprint', () => {
             });
         });
 
-        it('refuses a canvas child past the last column', () => {
+        it('refuses a dashboard child past the last column', () => {
             const bp = p2();
             bp.elements.dashboard.config = {columns: 10};
             expect(codes(bp)).toEqual([
@@ -864,7 +864,7 @@ describe('validateBlueprint', () => {
     describe('canvas views', () => {
         const at = '/elements/dashboard/children/1';
 
-        it('takes a title that reads variables, and a hidden header, on a canvas cell', () => {
+        it('takes a title that reads variables, and a hidden header, on a dashboard cell', () => {
             const bp = p2(),
                 cell = bp.elements.dashboard.children[1] as PlainObject;
             Object.assign(cell, {title: 'Positions {asOf}', hideHeader: true});
@@ -895,7 +895,7 @@ describe('validateBlueprint', () => {
         });
     });
 
-    it('warns of a canvas cell narrower than its widget takes, at its width', () => {
+    it('warns of a dashboard cell narrower than its widget takes, at its width', () => {
         const bp = p2();
         const cells = bp.elements.dashboard.children as PlainObject[];
         cells.find(it => it.id === 'posGrid').w = 1;
@@ -1117,7 +1117,7 @@ describe('validateBlueprint', () => {
     it("counts only a widget's own missing property as unfinished, never a nested key a structure needs", () => {
         const bp = p2();
         bp.elements.page = {
-            component: 'dashContainer',
+            component: 'panes',
             config: {layout: [{content: [{type: 'view', id: 'pageGrid'}]}]},
             children: [{id: 'pageGrid'}]
         };

@@ -274,7 +274,7 @@ describe('BlueprintInspector', () => {
                 fireEvent.keyDown(document.activeElement, {key: 'Escape'});
             });
             openMenu(trailing);
-            // A canvas's cells, as views, in reading order.
+            // A dashboard's cells, as views, in reading order.
             await vi.waitFor(() =>
                 expect(itemIds()).toEqual([
                     'view:reportActions',
@@ -314,7 +314,7 @@ describe('BlueprintInspector', () => {
             expect(chevrons(container)).toHaveLength(3);
         });
 
-        it('selects a child on a click, and marks it on the canvas while hovered', async () => {
+        it('selects a child on a click, and marks it on the dashboard while hovered', async () => {
             const {container, design} = await show('overview');
             openMenu(chevrons(container).at(-1));
             await vi.waitFor(() => expect(item('view:sectorChart')).toBeTruthy());

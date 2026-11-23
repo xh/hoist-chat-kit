@@ -37,7 +37,7 @@ A blueprint configures registered entries, and nothing else:
 - **Every key is known.** Every object refuses keys it does not know, and every value passes its
   schema, before any widget sees it. A chart's `highchartsConfig` is the one exception below its
   top level, with its own guards. An ID is never `__proto__`, `prototype` or `constructor`.
-- **Bounded size.** Inline sources hold at most 50 rows outside an answer, a `dashContainer`
+- **Bounded size.** Inline sources hold at most 50 rows outside an answer, a `panes`
   layout at most 20,000 characters, and a chart's `highchartsConfig` at most 20,000 characters
   and 10 levels.
 

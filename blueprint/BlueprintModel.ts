@@ -26,7 +26,6 @@ import {
     describeAction,
     runActionsAsync
 } from './impl/actions';
-import {upgradeBlueprint} from './impl/upgrade';
 import {resolveBindings, resolveFilter} from './impl/bindings';
 import {fillTemplate} from './impl/template';
 import {formatValue, resolveFormat} from './impl/formats';
@@ -284,7 +283,7 @@ export class BlueprintModel extends HoistModel {
      */
     @action
     setBlueprint(blueprint: Blueprint): BlueprintIssue[] {
-        const bp = upgradeBlueprint(blueprint);
+        const bp = blueprint;
         if (isEqual(bp, this.blueprint)) return this.issues;
         const issues = this.validate(bp);
         if (!hasErrors(issues)) {

@@ -8,7 +8,7 @@ import type {BlueprintElement, ChildRef} from '../Blueprint';
 export interface SlotPlace {
     parent: string;
     slot: string;
-    /** The child of the parent whose reference holds the slot, such as a canvas cell. */
+    /** The child of the parent whose reference holds the slot, such as a dashboard cell. */
     of?: string;
     index: number;
 }
@@ -22,7 +22,7 @@ export interface SlotList {
 
 /**
  * An element's slot lists: `children` and its other slots, such as a panel's `tbar`, then those of
- * its child references, such as a canvas cell's `headerItems`. A slot list is a key whose value is
+ * its child references, such as a dashboard cell's `headerItems`. A slot list is a key whose value is
  * a list of child references, objects with an `id`.
  */
 export function slotLists(el: BlueprintElement): SlotList[] {
@@ -38,21 +38,21 @@ export function slotLists(el: BlueprintElement): SlotList[] {
     return [...own, ...nested];
 }
 
-/** A child as a designer reads it: an element, or the view of a canvas or dash container that holds one. */
+/** A child as a designer reads it: an element, or the view of a dashboard or panes widget that holds one. */
 export interface ChildNode {
     kind: 'element' | 'view';
     /** The element, or the one the view holds. */
     id: string;
     /** For a view, the container it is a view of. */
     of?: string;
-    /** For a view, its element as `children`, then its own slots, such as a canvas cell's header. */
+    /** For a view, its element as `children`, then its own slots, such as a dashboard cell's header. */
     groups?: {slot: string; refs: ChildRef[]}[];
 }
 
 /**
  * An element's own children as a designer reads them, such as in Structure: a group per slot where
- * its widget has more than one, else one group of every child. A canvas lists its cells in reading
- * order. Each group's `nodes` show a canvas cell or a dash container's child as a view over its
+ * its widget has more than one, else one group of every child. A dashboard lists its cells in reading
+ * order. Each group's `nodes` show a dashboard cell or a panes widget's child as a view over its
  * element, and any other child as itself. Empty for an element whose widget holds no children.
  */
 export function childGroups(
@@ -66,7 +66,7 @@ export function childGroups(
         views = hasViews(el.component),
         cellSlots = Object.keys(spec.children?.slots ?? {}),
         group = (slot: string, refs: ChildRef[]) => {
-            const ordered = el.component === 'dashCanvas' ? sortBy(refs, ['y', 'x']) : refs;
+            const ordered = el.component === 'dashboard' ? sortBy(refs, ['y', 'x']) : refs;
             return {
                 slot,
                 refs: ordered,
@@ -179,33 +179,10 @@ export function insertRef(
     else refs.splice(Math.max(0, index), 0, ref);
 }
 
-/**
- * A blueprint with each child reference that marks a slot, `{id, slot: 'tbar'}` as blueprints wrote
- * it before slot lists, moved into the list it names. The same blueprint if it has none.
- */
-export function upgradeSlots<T extends {elements?: Record<string, BlueprintElement>}>(bp: T): T {
-    const marked = Object.values(bp?.elements ?? {}).some(el =>
-        el.children?.some(it => typeof it.slot === 'string')
-    );
-    if (!marked) return bp;
-    const elements = Object.fromEntries(
-        Object.entries(bp.elements).map(([id, el]) => {
-            if (!el.children?.some(it => typeof it.slot === 'string')) return [id, el];
-            const ret: PlainObject = {...el, children: []};
-            el.children.forEach(({slot, ...ref}) => {
-                const list = typeof slot === 'string' && slot !== 'default' ? slot : 'children';
-                (ret[list] ??= []).push(ref);
-            });
-            return [id, ret as BlueprintElement];
-        })
-    );
-    return {...bp, elements};
-}
-
 //------------------
 // Implementation
 //------------------
-const VIEW_CONTAINERS = ['dashCanvas', 'dashContainer'];
+const VIEW_CONTAINERS = ['dashboard', 'panes'];
 
 // The keys of an element that are never slots.
 const ELEMENT_KEYS = ['component', 'config', 'personalizable'];

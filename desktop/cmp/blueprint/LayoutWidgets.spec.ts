@@ -16,8 +16,8 @@ import {
 import {elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 import {blueprintView} from './BlueprintView';
-import {DashCanvasWidgetModel} from './DashCanvasWidget';
-import {dashContainerWidget, DashContainerWidgetModel} from './DashContainerWidget';
+import {DashboardWidgetModel} from './DashboardWidget';
+import {panesWidget, PanesWidgetModel} from './PanesWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {cellElementAt, viewAt} from './impl/ElementHost';
 import {MarkdownWidgetModel} from './MarkdownWidget';
@@ -337,10 +337,10 @@ describe('layout and container widgets', () => {
             expect(model.blueprint.elements.page.config.collapsed).toBe(true);
         });
 
-        it('never collapses in a canvas cell, which has no header to expand it from', () => {
+        it('never collapses in a dashboard cell, which has no header to expand it from', () => {
             const {model} = show('canvas', {
                     canvas: {
-                        component: 'dashCanvas',
+                        component: 'dashboard',
                         children: [{id: 'page', x: 0, y: 0, w: 6, h: 4}]
                     },
                     page: {
@@ -380,7 +380,7 @@ describe('layout and container widgets', () => {
         it("spaces its tiles by a dashboard's cell gap unless it says otherwise", () => {
             const spacing = scenarioRegistry().widgets.tileFrame.config.properties.spacing;
             expect(spacing.default).toBe(10);
-            const canvasGap = scenarioRegistry().widgets.dashCanvas.config.properties.margin;
+            const canvasGap = scenarioRegistry().widgets.dashboard.config.properties.margin;
             expect(canvasGap.default).toEqual([spacing.default, spacing.default]);
         });
 
@@ -394,10 +394,10 @@ describe('layout and container widgets', () => {
         });
     });
 
-    describe('dashContainer', () => {
+    describe('panes', () => {
         const container = (layout?: object[]) => ({
                 tabs: {
-                    component: 'dashContainer',
+                    component: 'panes',
                     config: layout ? {layout} : {},
                     children: [{id: 'a', title: 'First'}, {id: 'b'}]
                 },
@@ -413,7 +413,7 @@ describe('layout and container widgets', () => {
                     mode: 'run'
                 });
                 onTestFinished(() => model.destroy());
-                const ret = new DashContainerWidgetModel({
+                const ret = new PanesWidgetModel({
                     blueprintModel: model,
                     id: 'tabs',
                     renderElement: () => null
@@ -432,7 +432,7 @@ describe('layout and container widgets', () => {
                     access: 'write'
                 }),
                 design = new BlueprintDesignModel({blueprintModel: model}),
-                widget = new DashContainerWidgetModel({
+                widget = new PanesWidgetModel({
                     blueprintModel: model,
                     id: 'tabs',
                     renderElement: () => null
@@ -447,7 +447,7 @@ describe('layout and container widgets', () => {
 
         it('draws nothing of its own while empty, and takes its first view anywhere', () => {
             const {model, design, widget} = designing({
-                tabs: {component: 'dashContainer', children: []}
+                tabs: {component: 'panes', children: []}
             });
             expect(widget.layout).toEqual([]);
             paletteDrag.start({
@@ -465,7 +465,7 @@ describe('layout and container widgets', () => {
 
         it('moves an element dragged onto it in as a view, leaving a drag over a container in a view to that container', () => {
             const {model, design, widget} = designing({
-                    tabs: {component: 'dashContainer', children: [{id: 'a'}, {id: 'b'}]},
+                    tabs: {component: 'panes', children: [{id: 'a'}, {id: 'b'}]},
                     a: {component: 'box', children: [{id: 'note'}]},
                     note: {component: 'markdown', config: {text: 'Note'}},
                     b: emptyPanel('B')
@@ -536,7 +536,7 @@ describe('layout and container widgets', () => {
         it('moves every view to every place without a pointer, refusing with a reason or leaving a valid blueprint', () => {
             const elements = {
                     tabs: {
-                        component: 'dashContainer',
+                        component: 'panes',
                         config: {
                             layout: [
                                 {
@@ -732,14 +732,14 @@ describe('layout and container widgets', () => {
             const elements = container();
             (elements.tabs.children as PlainObject[])[0].title = '<img src=x onerror=alert(1)>';
             const {widget} = open(elements),
-                {container: el} = render(dashContainerWidget({model: widget}) as ReactElement);
+                {container: el} = render(panesWidget({model: widget}) as ReactElement);
             expect(el.querySelector('img')).toBeNull();
             expect(el.querySelector('[role=tab]').textContent).toBe('<img src=x onerror=alert(1)>');
         });
 
         it('reports the views no tab shows, and shows one asked for', async () => {
             const {widget} = open(container());
-            render(dashContainerWidget({model: widget}) as ReactElement);
+            render(panesWidget({model: widget}) as ReactElement);
             expect(widget.hiddenViews).toEqual(['b']);
             await act(async () => widget.activateView('b'));
             expect(widget.hiddenViews).toEqual(['a']);
@@ -770,14 +770,14 @@ describe('layout and container widgets', () => {
                 },
                 {catalog: portfolioCatalog, registry: scenarioRegistry()}
             );
-            expect(issues.map(it => it.code)).toContain('dashContainer.unknownView');
+            expect(issues.map(it => it.code)).toContain('panes.unknownView');
         });
     });
 
     describe('titles with variables', () => {
         const FUND = {type: 'string', setBy: 'prompt', default: {value: 'Oak Mount'}} as const;
 
-        it('fills tab, canvas cell and panel titles from variables, and follows them', async () => {
+        it('fills tab, dashboard cell and panel titles from variables, and follows them', async () => {
             const model = new BlueprintModel({
                 blueprint: {
                     schema: {blueprint: 1},
@@ -789,7 +789,7 @@ describe('layout and container widgets', () => {
                             children: [{id: 'canvas', title: 'Funds: {fund}'}]
                         },
                         canvas: {
-                            component: 'dashCanvas',
+                            component: 'dashboard',
                             children: [
                                 {id: 'tiles', x: 0, y: 0, w: 6, h: 4},
                                 {id: 'pnl', x: 6, y: 0, w: 6, h: 4}
@@ -811,7 +811,7 @@ describe('layout and container widgets', () => {
             };
             onTestFinished(() => model.destroy());
             render(blueprintView({model}));
-            const canvas = of(DashCanvasWidgetModel, 'canvas'),
+            const canvas = of(DashboardWidgetModel, 'canvas'),
                 panel = of(PanelWidgetModel, 'pnl');
             expect(await screen.findByText('Funds: Oak Mount')).toBeTruthy();
             expect(canvas.titles.tiles).toBe('Tiles for Oak Mount');
@@ -823,7 +823,7 @@ describe('layout and container widgets', () => {
             expect(panel.resolvedConfig.title).toBe('P&L for Elm Street');
         });
 
-        it("fills a dashContainer's view titles, from its references and its children", () => {
+        it("fills a panes's view titles, from its references and its children", () => {
             const model = new BlueprintModel({
                     blueprint: {
                         schema: {blueprint: 1},
@@ -831,7 +831,7 @@ describe('layout and container widgets', () => {
                         root: 'views',
                         elements: {
                             views: {
-                                component: 'dashContainer',
+                                component: 'panes',
                                 children: [{id: 'a', title: 'A <b>{fund}</b>'}, {id: 'b'}]
                             },
                             a: emptyPanel('A'),
@@ -843,7 +843,7 @@ describe('layout and container widgets', () => {
                     dataProvider: null,
                     mode: 'run'
                 }),
-                widget = new DashContainerWidgetModel({
+                widget = new PanesWidgetModel({
                     blueprintModel: model,
                     id: 'views',
                     renderElement: () => null
@@ -856,14 +856,14 @@ describe('layout and container widgets', () => {
         });
     });
 
-    describe('canvas cells', () => {
+    describe('dashboard cells', () => {
         const cells = (mode: 'run' | 'design' = 'run') => {
             const model = new BlueprintModel({
                     blueprint: {
                         root: 'canvas',
                         elements: {
                             canvas: {
-                                component: 'dashCanvas',
+                                component: 'dashboard',
                                 children: [
                                     {id: 'pnl', x: 0, y: 0, w: 6, h: 4},
                                     {id: 'tiles', x: 6, y: 0, w: 6, h: 2},
@@ -895,7 +895,7 @@ describe('layout and container widgets', () => {
                 view.destroy();
                 model.destroy();
             });
-            const canvas = view.getWidgetModel('canvas') as DashCanvasWidgetModel;
+            const canvas = view.getWidgetModel('canvas') as DashboardWidgetModel;
             return {model, view, canvas};
         };
 
@@ -917,7 +917,7 @@ describe('layout and container widgets', () => {
             const frame = container.querySelector('[data-blueprint-view="pnl"]');
             expect(frame.getAttribute('data-blueprint-canvas')).toBe('canvas');
             const header = frame.querySelector('[data-blueprint-view-header]');
-            expect(header.querySelector('.xh-blueprint-dash-canvas__cell-title').textContent).toBe(
+            expect(header.querySelector('.xh-blueprint-dashboard__cell-title').textContent).toBe(
                 'Positions'
             );
             expect(header.querySelector('svg')).toBeTruthy();
@@ -930,7 +930,7 @@ describe('layout and container widgets', () => {
             const {container} = renderCanvas(view);
             expect(
                 container.querySelector(
-                    '[data-blueprint-view="tiles"] [data-blueprint-view-header] .xh-blueprint-dash-canvas__cell-title'
+                    '[data-blueprint-view="tiles"] [data-blueprint-view-header] .xh-blueprint-dashboard__cell-title'
                 ).textContent
             ).toBe(canvas.titles.tiles);
         });
@@ -973,12 +973,12 @@ describe('layout and container widgets', () => {
                 renderCanvas(design.view).container.querySelector('.xh-layout-grid__background')
             ).toBeTruthy();
             const [idItem] = design.canvas.headerItemsFor('pnl') as any[];
-            expect(idItem.props.className).toBe('xh-blueprint-dash-canvas__cell-id');
+            expect(idItem.props.className).toBe('xh-blueprint-dashboard__cell-id');
             // Each header leads with an icon, the element's own or else its widget's.
             const iconOf = () =>
                 renderCanvas(design.view)
                     .container.querySelector(
-                        '[data-blueprint-view="pnl"] .xh-blueprint-dash-canvas__cell-icon'
+                        '[data-blueprint-view="pnl"] .xh-blueprint-dashboard__cell-icon'
                     )
                     ?.getAttribute('data-icon');
             expect(iconOf()).toBe('chart-line');
@@ -994,7 +994,7 @@ describe('layout and container widgets', () => {
         });
 
         function renderCanvas(view: BlueprintViewModel) {
-            // jsdom has no layout: the canvas waits for a measured width before it draws cells.
+            // jsdom has no layout: the dashboard waits for a measured width before it draws cells.
             const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
             onTestFinished(() => spy.mockRestore());
             return render(view.renderElement('canvas') as ReactElement);
@@ -1008,7 +1008,7 @@ describe('layout and container widgets', () => {
                         root: 'canvas',
                         elements: {
                             canvas: {
-                                component: 'dashCanvas',
+                                component: 'dashboard',
                                 children: [{id: 'note', x: 0, y: 0, w: 6, h: 1}, ...below]
                             },
                             note: {component: 'markdown', config: {text: 'A long note'}},
@@ -1081,7 +1081,7 @@ describe('layout and container widgets', () => {
                 tabs: {component: 'tabContainer', config: {emptyText: 'No tabs'}, children: []}
             });
             const {container} = show('canvas', {
-                canvas: {component: 'dashCanvas', config: {emptyText: 'No widgets'}, children: []}
+                canvas: {component: 'dashboard', config: {emptyText: 'No widgets'}, children: []}
             });
             expect(screen.getByText('No tabs')).toBeTruthy();
             expect(screen.getByText('No widgets')).toBeTruthy();

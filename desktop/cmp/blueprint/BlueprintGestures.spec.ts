@@ -13,7 +13,7 @@ import {
 } from '../../../blueprint';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {blueprintView} from './BlueprintView';
-import type {DashCanvasWidgetModel} from './DashCanvasWidget';
+import type {DashboardWidgetModel} from './DashboardWidget';
 import type {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {paletteDrag} from './impl/paletteDrag';
 
@@ -49,7 +49,7 @@ describe('blueprint gestures', () => {
                     {id: 'heat', x: 3, y: 14, w: 6, h: 4}
                 );
             }),
-            canvas = view.getWidgetModel('dashboard') as DashCanvasWidgetModel,
+            canvas = view.getWidgetModel('dashboard') as DashboardWidgetModel,
             charts = ['sectorChart', 'gauge', 'heat'].map(
                 id => view.getWidgetModel(id) as unknown as {chartModel: ChartModel}
             ),
@@ -184,7 +184,7 @@ async function setup(adjust: (bp: Blueprint) => void = null) {
         expect(it).toBeTruthy();
         return it;
     });
-    const canvas = view.getWidgetModel('dashboard') as DashCanvasWidgetModel,
+    const canvas = view.getWidgetModel('dashboard') as DashboardWidgetModel,
         layoutEl = () => container.querySelector<HTMLElement>('.react-grid-layout'),
         was = document.elementFromPoint;
     await vi.waitFor(() => expect(layoutEl()).toBeTruthy());
@@ -201,7 +201,7 @@ async function setup(adjust: (bp: Blueprint) => void = null) {
         });
     };
 
-    // One of each gesture: a palette drag over the canvas that leaves, one that drops, a cell
+    // One of each gesture: a palette drag over the dashboard that leaves, one that drops, a cell
     // move, and the undo of both edits.
     const round = async () => {
         for (const drops of [false, true]) {

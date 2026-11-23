@@ -72,11 +72,11 @@
   }
 }
 
-// Inside the selected element's top edge, as a cell clips what lies outside it. In a canvas cell's
+// Inside the selected element's top edge, as a cell clips what lies outside it. In a dashboard cell's
 // header, it takes the id's place instead, beside the title, covering none of the content.
-// A canvas cell's header: its title, then in design mode the element's id, which gives way first,
+// A dashboard cell's header: its title, then in design mode the element's id, which gives way first,
 // then its header items.
-.xh-blueprint-dash-canvas__cell-header {
+.xh-blueprint-dashboard__cell-header {
   flex: 1 1 auto;
   align-items: center;
   gap: var(--xh-spacing-half);
@@ -85,14 +85,14 @@
   padding: 0 var(--xh-spacing-half);
 }
 
-.xh-blueprint-dash-canvas__cell-icon {
+.xh-blueprint-dashboard__cell-icon {
   flex: none;
   width: 12px;
   font-size: 12px;
   color: var(--xh-intent-primary-text-color);
 }
 
-.xh-blueprint-dash-canvas__cell-title {
+.xh-blueprint-dashboard__cell-title {
   flex: 0 0 auto;
   max-width: 70%;
   overflow: hidden;
@@ -103,7 +103,7 @@
   color: var(--xh-text-color);
 }
 
-.xh-blueprint-dash-canvas__cell-items {
+.xh-blueprint-dashboard__cell-items {
   display: flex;
   flex: 1 1 0;
   align-items: center;
@@ -112,7 +112,7 @@
   min-width: 0;
 }
 
-.xh-blueprint-dash-canvas__cell-id {
+.xh-blueprint-dashboard__cell-id {
   flex: 0 1000 auto;
   min-width: 0;
   margin-right: auto;
@@ -231,8 +231,8 @@
   }
 }
 
-// An empty canvas's hint, over the live canvas, letting a drop through.
-.xh-blueprint-dash-canvas__empty {
+// An empty dashboard's hint, over the live canvas, letting a drop through.
+.xh-blueprint-dashboard__empty {
   position: absolute;
   inset: 0;
   display: flex;

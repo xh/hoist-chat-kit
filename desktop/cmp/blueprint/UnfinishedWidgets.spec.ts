@@ -32,7 +32,7 @@ describe('unfinished widgets', () => {
                 const props = (spec.config?.properties ?? {}) as Record<string, any>,
                     keys = uniq([
                         ...((spec.config?.required ?? []) as string[]).filter(k => k !== 'source'),
-                        // A pair, such as a canvas's gap, is never emptied, only unset.
+                        // A pair, such as a dashboard's gap, is never emptied, only unset.
                         ...Object.keys(props).filter(
                             k => props[k]?.minItems > 0 && props[k].minItems !== props[k].maxItems
                         )
@@ -74,7 +74,7 @@ describe('unfinished widgets', () => {
                     access: 'write'
                 }),
                 design = new BlueprintDesignModel({blueprintModel: model}),
-                // jsdom has no layout: a canvas waits for a measured width before it draws cells.
+                // jsdom has no layout: a dashboard waits for a measured width before it draws cells.
                 spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
             onTestFinished(() => {
                 spy.mockRestore();

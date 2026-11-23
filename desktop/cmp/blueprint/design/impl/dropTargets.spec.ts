@@ -150,9 +150,9 @@ describe('dropPlaceAt', () => {
         });
     });
 
-    it('leaves a canvas or a dash container to place its own drops', () => {
+    it('leaves a dashboard or a panes widget to place its own drops', () => {
         const {at} = setup({
-            page: {component: 'dashCanvas', children: [{id: 'a', x: 0, y: 0, w: 6, h: 4}]},
+            page: {component: 'dashboard', children: [{id: 'a', x: 0, y: 0, w: 6, h: 4}]},
             ...leaves('a')
         });
         layOut('page', {x: 0, y: 0, width: 600, height: 400});

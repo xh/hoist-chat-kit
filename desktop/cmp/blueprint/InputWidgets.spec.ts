@@ -493,18 +493,5 @@ describe('input widgets', () => {
                 })
             ).toThrow(/panel cannot hold 'top', a markdown, in tbar/);
         });
-
-        it('reads a toolbar written with the old slot marker as in its slot list', () => {
-            show({
-                bar: {
-                    component: 'panel',
-                    config: {title: 'Page'},
-                    children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
-                },
-                top: {component: 'toolbar', config: {}, children: []},
-                body: {component: 'markdown', config: {text: 'Body'}}
-            });
-            expect(document.querySelector('.xh-panel .xh-toolbar')).toBeTruthy();
-        });
     });
 });

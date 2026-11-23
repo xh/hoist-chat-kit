@@ -62,7 +62,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return ((holder as PlainObject)?.[slot] as ChildRef[]) ?? [];
     }
 
-    /** True in a canvas cell narrower than the widget's least width, which clips it. */
+    /** True in a dashboard cell narrower than the widget's least width, which clips it. */
     get isTooNarrow(): boolean {
         const {blueprintModel} = this,
             elements = blueprintModel.blueprint?.elements,

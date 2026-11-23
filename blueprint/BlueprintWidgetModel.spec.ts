@@ -180,7 +180,7 @@ describe('BlueprintWidgetModel', () => {
         expect(long.endsWith('…')).toBe(true);
     });
 
-    it('knows when its canvas cell is narrower than its widget takes', () => {
+    it('knows when its dashboard cell is narrower than its widget takes', () => {
         const model = open();
         expect(widget(model, 'posGrid').isTooNarrow).toBe(false);
         model.setBlueprint({

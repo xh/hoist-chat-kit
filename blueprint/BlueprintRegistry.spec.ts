@@ -132,7 +132,7 @@ describe('BlueprintRegistry bindings', () => {
         expect(panel.collapsed['x-binding']).toBe(false);
         expect(grid.sortBy['x-binding']).toBe(false);
         expect(grid.columnState['x-binding']).toBe(false);
-        expect(props(registry, 'dashContainer').layout['x-binding']).toBe(false);
+        expect(props(registry, 'panes').layout['x-binding']).toBe(false);
         // A reference to the blueprint, or template text, never binds by default.
         expect(grid.source['x-binding']).toBeUndefined();
         expect(panel.icon['x-binding']).toBeUndefined();

@@ -2,7 +2,7 @@ import {clamp, sortBy} from 'lodash';
 import type {ChildRef} from '../Blueprint';
 
 /**
- * A canvas's cells with one cell grown by some rows, and each cell it would then cover moved down
+ * A dashboard's cells with one cell grown by some rows, and each cell it would then cover moved down
  * below it, in turn.
  */
 export function growCell(children: ChildRef[], id: string, rows: number): ChildRef[] {
@@ -23,11 +23,11 @@ export function growCell(children: ChildRef[], id: string, rows: number): ChildR
     return ret;
 }
 
-/** The columns of a canvas that names none. */
+/** The columns of a dashboard that names none. */
 export const CANVAS_COLUMNS = 12;
 
 /**
- * A canvas's cells for a new column count. Each cell's edges scale in proportion, so cells that
+ * A dashboard's cells for a new column count. Each cell's edges scale in proportion, so cells that
  * shared an edge still do. A cell narrower than `minWidth` gives for it, such as its widget's
  * `size.min.w`, takes the columns it lacks from the cells on one side of it that can spare them,
  * else widens into the grid, and any cell then overlapping another moves down below it, in reading

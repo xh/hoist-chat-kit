@@ -14,7 +14,7 @@ issues.
 
 ```json
 {
-    "schema": {"blueprint": 1, "widgets": {"dashCanvas": 1, "cubeGrid": 1, "chart": 1}},
+    "schema": {"blueprint": 1, "widgets": {"dashboard": 1, "cubeGrid": 1, "chart": 1}},
     "variables": {
         "asOf": {"type": "localDate", "label": "As of", "setBy": "prompt", "default": {"resolver": "previousBusinessDay"}},
         "selection": {"type": "filter", "setBy": {"element": "posGrid", "output": "selection"}}
@@ -25,7 +25,7 @@ issues.
     "root": "dashboard",
     "elements": {
         "dashboard": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {"id": "posGrid", "x": 0, "y": 0, "w": 8, "h": 6},
                 {"id": "sectorChart", "x": 8, "y": 0, "w": 4, "h": 6}
@@ -58,14 +58,14 @@ registered widget, and an optional `config`, checked against that widget's confi
 container also lists its children.
 
 - **Child references.** A container's `children` is a list of references: the child's ID, plus
-  what the container needs to place it. A `dashCanvas` takes `x`, `y`, `w` and `h` on a grid of
+  what the container needs to place it. A `dashboard` takes `x`, `y`, `w` and `h` on a grid of
   its `columns`, 12 by default. It can also take `title`, which replaces the widget's title in the
   cell header, and `hideHeader`, which draws the cell without one. Every other cell has a header,
-  titled by the widget's label where nothing gives a title. A canvas packs its cells upward unless
+  titled by the widget's label where nothing gives a title. A dashboard packs its cells upward unless
   its `compact` says `'horizontal'`, or `false` for cells that stay where they are put. Its other
   layout settings follow Hoist's `DashCanvas`: `margin`, `containerPadding`, `maxRows`,
   `showGridBackground`, `preventCollision` and `layoutLocked`. Unlike Hoist, `layoutLocked`
-  defaults to `true` on a canvas and on a `dashContainer`: readers cannot rearrange either unless
+  defaults to `true` on a dashboard and on a `panes`: readers cannot rearrange either unless
   it sets `layoutLocked: false`, and design mode always can. A `tabContainer` takes `title` and
   `icon`. A `box` takes `flex`,
   `width` and `height`. A child with none of these takes an equal share of the box, except an
@@ -74,7 +74,7 @@ container also lists its children.
 - **Slot lists.** A container can hold named lists beside `children`, each named for the
   component prop it fills. A `panel` has `tbar` and `bbar`, toolbars above and below its
   content, and `headerItems`, inputs in its header. A child reference can hold a slot list too,
-  as a `dashCanvas` cell holds `headerItems` for its header. A reference in a slot other than
+  as a `dashboard` cell holds `headerItems` for its header. A reference in a slot other than
   `children` holds the ID alone.
 
     ```json
@@ -85,10 +85,10 @@ container also lists its children.
   none (`structure.twoParents`, `structure.notPlaced`). Each slot accepts only the widgets or
   categories its spec names (`element.notAccepted`), up to its `maxItems` (`slot.full`).
 - **No layout in config.** A move or a rearrange changes only child references.
-- **A free canvas.** A `dashCanvas` does not compact. The validator refuses cells that overlap or
+- **A free canvas.** A `dashboard` does not compact. The validator refuses cells that overlap or
   reach past the last column (`layout.overlap`, `layout.outOfBounds`).
 
-Containers nest, so a `tabContainer` can hold canvases, and a canvas can hold a `panel` with a
+Containers nest, so a `tabContainer` can hold dashboards, and a dashboard can hold a `panel` with a
 grid and its toolbar. [Built-in Widgets](#built-in-widgets) lists each container.
 
 ## Share Values with Variables
@@ -320,7 +320,7 @@ reference, and warns of a figure written into the text, such as `$4.2m` or `3.5%
 (`template.literalFigure`), as it would be wrong the next day.
 
 Titles read variables too, so a title can say what the user chose: `"P&L for {fund}"`. A widget's
-`title`, a tab's or a `dashContainer` view's `title` on its child reference, a `statCard`'s
+`title`, a tab's or a `panes` view's `title` on its child reference, a `statCard`'s
 `label` and a grid column's `headerName` all fill each `{variable}` as plain text, and follow the
 variable as it changes. A title reads variables only. A source reference in one is an error
 (`template.variablesOnly`), as is a name that is no variable (`template.unknownRef`).
@@ -352,7 +352,7 @@ and Risk columns.
 - A preset's `set` has the shape of the blueprint itself, holding only the controlled paths.
 - A `presetSelector` widget shows the group, as a segmented control, buttons, a select, or a
   toggle for exactly two presets. Put it in the header of the widget the group controls: its
-  canvas cell's `headerItems`, or its panel's. A group with no selector stays at its default, and
+  dashboard cell's `headerItems`, or its panel's. A group with no selector stays at its default, and
   the validator warns (`preset.noSelector`).
 
 ## Run Actions
@@ -400,8 +400,8 @@ applies, and the edit returns its issues. One edit is one undo step and one hist
 |----|------|
 | `set` / `remove` | Sets or removes the value at a path |
 | `addElement` | Adds an element, with its reference in a `parent`'s slot list: `children` by default, or the `slot` given, on the child reference `of` names |
-| `removeElement` | Removes an element and its reference, and its view from a dash container's layout. Refuses one that still has children |
-| `moveElement` | Moves a reference to another parent, slot or index, dropping its view from the dash container it leaves. The element does not change |
+| `removeElement` | Removes an element and its reference, and its view from a panes widget's layout. Refuses one that still has children |
+| `moveElement` | Moves a reference to another parent, slot or index, dropping its view from the panes widget it leaves. The element does not change |
 | `renameId` | Renames an element, variable or source, and updates every reference to it |
 
 - A path is a JSON Pointer from the root, such as `/elements/posGrid/config/groupBy`.
@@ -448,9 +448,9 @@ beside these under dotted names.
 
 | Widget | Category | Shows |
 |--------|----------|-------|
-| `dashCanvas` | container | A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root |
+| `dashboard` | container | A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root |
 | `tabContainer` | container | One child at a time, under a row of tabs |
-| `dashContainer` | container | Views a user drags into tabs, stacks, rows and columns |
+| `panes` | container | Views a user drags into tabs, stacks, rows and columns |
 | `panel` | container | A titled section or card that stacks its children, with `tbar`, `bbar` and `headerItems` |
 | `box` | layout | A row or column of children, with no chrome |
 | `tileFrame` | container | Equal tiles that wrap, such as a row of stat cards |

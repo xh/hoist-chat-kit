@@ -102,7 +102,7 @@ describe('show_ui with answer blueprints', () => {
                 .find(it => it.startsWith(`- ${name}:`));
         expect(line('panel')).toMatch(/ Slots: tbar \(A toolbar along the top/);
         expect(line('panel')).toMatch(/headerItems \(Inputs in the panel's header/);
-        expect(line('dashCanvas')).toMatch(/Each child reference may hold: headerItems \(/);
+        expect(line('dashboard')).toMatch(/Each child reference may hold: headerItems \(/);
     });
 
     it('lists the values of a short enum beside its key', () => {

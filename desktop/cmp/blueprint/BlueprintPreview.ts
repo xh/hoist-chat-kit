@@ -90,13 +90,13 @@ export function schematicLayout(blueprint: Blueprint): {
     // Down the first child of each container, to the first canvas.
     for (let depth = 0; depth < 6 && id; depth++) {
         const el = getOwn(elements, id);
-        if (!el || el.component === 'dashCanvas') break;
+        if (!el || el.component === 'dashboard') break;
         if (el.component === 'tabContainer') tabs = true;
         id = el.children?.[0]?.id ?? null;
     }
     const canvas = id ? getOwn(elements, id) : null,
         top = tabs ? TAB_STRIP + GAP : 0;
-    if (canvas?.component !== 'dashCanvas') {
+    if (canvas?.component !== 'dashboard') {
         const root = getOwn(elements, blueprint?.root);
         return {
             tabs: false,
@@ -495,7 +495,7 @@ const KIT_THUMBNAILS: Record<string, KitGlyph> = {
             rect({key: 'neg', className: `${T}__neg`, x: 43, y: 18, width: 9, height: 8})
         ]
     },
-    // A canvas's packing: cells drawn up to the top, to the left, or where they were put.
+    // A dashboard's packing: cells drawn up to the top, to the left, or where they were put.
     'canvas.vertical': {
         box: [60, 36],
         draw: () =>

@@ -133,8 +133,8 @@ export const SCENARIOS: Scenario[] = [
             prompt: 'Build me a P&L dashboard. Put headline numbers across the top, positions by strategy and trader below, and a chart of P&L by sector that follows whatever I select in the grid. Under the positions, show the orders for whatever I select.'
         }],
         checks: [
-            // The canvas may sit under a box with a toolbar of inputs, since step 11.
-            ['a dashCanvas lays out the widgets', o => els(o.blueprint, 'dashCanvas').length],
+            // The dashboard may sit under a box with a toolbar of inputs, since step 11.
+            ['a dashboard lays out the widgets', o => els(o.blueprint, 'dashboard').length],
             ['stat cards over positions, at least three', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'positions').length >= 3],
             ['a grid grouped by strategy, then trader', o => gridId(o.blueprint, c => c.groupBy?.[0] === 'strategy' && c.groupBy?.[1] === 'trader')],
             ['its selection sets a filter variable', o => filterVarFrom(o.blueprint, gridId(o.blueprint, c => c.groupBy?.[0] === 'strategy')!).length],
@@ -427,7 +427,7 @@ export const SCENARIOS: Scenario[] = [
                     cell = (o.blueprint.elements?.positions?.children ?? []).find((it: any) => it.id === 'posPanel');
                 return slotHolds(o.blueprint, 'posPanel', 'headerItems', isViews) || (cell?.headerItems ?? []).some((it: any) => isViews(o.blueprint.elements[it.id]));
             }],
-            ['no new cell on the canvas', o => (o.blueprint.elements?.positions?.children ?? []).length === loadBlueprint('p12-host.json').elements.positions.children.length]
+            ['no new cell on the dashboard', o => (o.blueprint.elements?.positions?.children ?? []).length === loadBlueprint('p12-host.json').elements.positions.children.length]
         ]
     },
     {

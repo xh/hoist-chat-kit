@@ -153,7 +153,7 @@ See [Read Data from Sources](../docs/blueprint-format.md#read-data-from-sources)
 ### Place toolbars and header items in slots
 
 A container holds named slot lists beside `children`: a `panel`'s `tbar`, `bbar` and
-`headerItems`, and a `dashCanvas` cell's `headerItems`. An element sits in exactly one slot list
+`headerItems`, and a `dashboard` cell's `headerItems`. An element sits in exactly one slot list
 of one parent. `addElement` and `moveElement` take a `slot`, and `of` for a slot on a child
 reference. See [Lay Out Elements](../docs/blueprint-format.md#lay-out-elements).
 
@@ -198,7 +198,7 @@ mode and access, and each variable's current value.
 
 Beside a designer, add `uiContextProvider(designModel)` to `contextProviders` and pass
 `withUiContext: true` to `architectPrompt()`. Each step then says what the user selected, with
-its widget, container and canvas cell, and the active tabs and presets, so a request such as "make
+its widget, container and dashboard cell, and the active tabs and presets, so a request such as "make
 the selected widget taller" has a target. When a request needs a target and the user selected
 nothing, the Architect asks. It never changes the selection. Its context sits after the prompt's
 cache point, so it costs a few tokens a step and keeps the cache.
@@ -319,7 +319,7 @@ hframe(
 |-----------|------------------------------|
 | `elementOutline` | See the element tree, select an element, and drag one into a container or before or after another |
 | `elementInspector` | Edit the selected element's config, its place in its container and the variable an input sets, rename or remove it, and edit a tab container's tabs |
-| `widgetPalette` | Add a widget into the selected container or the root, or drag one onto a canvas cell |
+| `widgetPalette` | Add a widget into the selected container or the root, or drag one onto a dashboard cell |
 | `variablesEditor` | Add, rename and remove variables, and set each one's type, writers, default and options |
 | `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
 | `presetsEditor` | Make groups of presets over widgets' preset paths and variables' defaults, and edit their presets |
@@ -334,12 +334,12 @@ preset. Give `elementInspector` an `onShowPresetGroup(name)` and the badge opens
 group is selected, and the host shows its `presetsEditor`. Design mode needs write access, and a
 chat answer has none.
 
-On the canvas, the selected element has a toolbar, and the keys act on it: `?` lists them. A key
+On the dashboard, the selected element has a toolbar, and the keys act on it: `?` lists them. A key
 pressed in a widget's own grid, button or input stays with that control. An empty container
 offers to add a widget: give `blueprintView` an `onAddWidget(place)` to open the host's palette
 there, and an `onAskArchitect()` for the empty dashboard's second button. Set the design model's
 `onRequestAdd` to open that palette from the `/` key; the palette then focuses its search. Give `blueprintMap` an
-`onOpenElement(id)` to show an element on the canvas from a double-click. `wiringFor(blueprint,
+`onOpenElement(id)` to show an element on the dashboard from a double-click. `wiringFor(blueprint,
 selection)` lists what a selection reads and sets, and what reads and sets it.
 
 ### Picture widgets and blueprints

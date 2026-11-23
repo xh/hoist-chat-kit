@@ -7,7 +7,7 @@ import {
     BlueprintWidgetModel,
     CANVAS_COLUMNS,
     type ChildRef,
-    type DashCanvasWidgetConfig
+    type DashboardWidgetConfig
 } from '../../../blueprint';
 import {
     compactCells,
@@ -24,11 +24,11 @@ import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 
 /**
- * The `dashCanvas` widget: a grid canvas that places each child at the `x`, `y`, `w` and `h` of its
+ * The `dashboard` widget: a grid canvas that places each child at the `x`, `y`, `w` and `h` of its
  * child reference. The references are the layout: a finished drag or resize is one edit of them,
- * in reading order, and the canvas keeps no copy.
+ * in reading order, and the dashboard keeps no copy.
  */
-export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidgetConfig> {
+export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetConfig> {
     /** The cells, as the child references place them. */
     get cells(): GridCell[] {
         const {blueprint, registry} = this.blueprintModel,
@@ -44,7 +44,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         return compactCells(cells, this.settings);
     }
 
-    /** The canvas's settings, with Hoist's DashCanvas defaults. */
+    /** The dashboard's settings, with Hoist's DashCanvas defaults. */
     get settings(): CanvasSettings {
         const config = this.resolvedConfig,
             margin = (config.margin ?? [CANVAS_GAP, CANVAS_GAP]) as [number, number];
@@ -206,8 +206,8 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     /**
      * Move or resize a cell as a drag does, as one edit, or transient in run mode: the cells it
      * lands on move down. Returns why it was refused, or null: a place off the grid, or under the
-     * cell's minimum size. For tests and tools that drive the canvas without a
-     * pointer, such as `XH.getModels('DashCanvasWidgetModel')` from DevTools.
+     * cell's minimum size. For tests and tools that drive the dashboard without a
+     * pointer, such as `XH.getModels('DashboardWidgetModel')` from DevTools.
      */
     moveCell(id: string, place: Partial<Omit<GridCell, 'id'>>): string {
         const {cells} = this,
@@ -224,7 +224,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         if (w < (cell.minW ?? 1) || h < (cell.minH ?? 1)) {
             return `'${id}' is at least ${cell.minW ?? 1} by ${cell.minH ?? 1}.`;
         }
-        if (y + h > maxRows) return `'${id}' must lie within the canvas's ${maxRows} rows.`;
+        if (y + h > maxRows) return `'${id}' must lie within the dashboard's ${maxRows} rows.`;
         const placed = placeCell(cells, next, settings);
         if (!placed) {
             const over = cells.find(
@@ -239,7 +239,7 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         }
         const changed = differenceWith(placed, cells, isEqual);
         if (!changed.length) {
-            return `'${id}' stays where it is, as the canvas packs its cells ${settings.compact === 'horizontal' ? 'left' : 'up'}.`;
+            return `'${id}' stays where it is, as the dashboard packs its cells ${settings.compact === 'horizontal' ? 'left' : 'up'}.`;
         }
         const refusal = this.canApplyUserEdit([
             {
@@ -265,10 +265,10 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     }
 }
 
-export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
-    displayName: 'DashCanvasWidget',
-    className: 'xh-blueprint-dash-canvas',
-    model: uses(DashCanvasWidgetModel),
+export const [DashboardWidget, dashboardWidget] = hoistCmp.withFactory({
+    displayName: 'DashboardWidget',
+    className: 'xh-blueprint-dashboard',
+    model: uses(DashboardWidgetModel),
     render({model, className}) {
         const {settings} = model,
             // The hint lies over a live canvas, so an empty one still takes a drop.
@@ -314,12 +314,12 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
 //------------------
 // Implementation
 //------------------
-const CLS = 'xh-blueprint-dash-canvas';
+const CLS = 'xh-blueprint-dashboard';
 
 // A cell's header: its icon, the element's own or else its widget's, and its title, then in design
 // mode its element's id or toolbar, which gives way first, then its header items.
-const cellHeader = hoistCmp.factory<HoistProps & {model: DashCanvasWidgetModel; id: string}>({
-    displayName: 'DashCanvasCellHeader',
+const cellHeader = hoistCmp.factory<HoistProps & {model: DashboardWidgetModel; id: string}>({
+    displayName: 'DashboardCellHeader',
     model: false,
     render({model, id}) {
         const {blueprint, registry} = model.blueprintModel,

@@ -21,7 +21,7 @@ interface DesignKey {
 }
 
 /**
- * The design keys, for a canvas or Structure to bind with a panel's `hotkeys`. They act on the
+ * The design keys, for a dashboard or Structure to bind with a panel's `hotkeys`. They act on the
  * selected element in design mode only, and never while focus is in an input, which keeps its own
  * keys.
  */
@@ -31,7 +31,7 @@ export function designHotkeys(
         /** False to leave the arrows to a host that moves with them, such as a grid. */
         arrows?: boolean;
         /**
-         * True for a surface that draws live widgets, such as the canvas, whose own controls keep
+         * True for a surface that draws live widgets, such as the dashboard, whose own controls keep
          * their keys: a key pressed in a grid, a button or a slider never reaches the design.
          */
         fromWidgets?: boolean;
@@ -89,10 +89,10 @@ const selectElement = (designModel: BlueprintDesignModel, id: string) => {
 const inCanvasCell = (designModel: BlueprintDesignModel, id: string) => {
     const elements = designModel.blueprintModel.blueprint?.elements ?? {},
         parent = designModel.pathTo(id).at(-1);
-    return elements[parent]?.component === 'dashCanvas';
+    return elements[parent]?.component === 'dashboard';
 };
 
-// An arrow nudges or resizes a canvas cell, and moves to a sibling elsewhere.
+// An arrow nudges or resizes a dashboard cell, and moves to a sibling elsewhere.
 const arrow =
     (dx: number, dy: number, resize: boolean) => (dm: BlueprintDesignModel, id: string) => {
         if (inCanvasCell(dm, id)) {
@@ -171,7 +171,7 @@ const DESIGN_KEYS: DesignKey[] = [
             const el = dm.blueprintModel.blueprint?.elements?.[id],
                 child = el ? childIds(el)[0] : null,
                 view = child ? dm.viewOf(child) : null;
-            // A canvas goes to its first view, and a view to the widget in it.
+            // A dashboard goes to its first view, and a view to the widget in it.
             if (view) dm.select({kind: 'view', ...view});
             else selectElement(dm, child);
         }

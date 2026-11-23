@@ -117,7 +117,7 @@ describe('applyOps', () => {
                 {
                     op: 'addElement',
                     id: 'canvas',
-                    element: {component: 'dashCanvas'},
+                    element: {component: 'dashboard'},
                     parent: 'page'
                 },
                 {
@@ -243,7 +243,7 @@ describe('applyOps', () => {
                     op: 'addElement',
                     id: 'root',
                     element: {
-                        component: 'dashCanvas',
+                        component: 'dashboard',
                         children: [{id: 'a', x: 0, y: 0, w: 6, h: 2}]
                     }
                 },

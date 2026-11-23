@@ -87,7 +87,7 @@ export interface WidgetSpec {
     /**
      * For a container, the schema of its child references, and the widgets it accepts as
      * children: those of any category listed, plus any widget named. Default any widget. `slots`
-     * names the slot lists a child reference can hold, such as a canvas cell's `headerItems`.
+     * names the slot lists a child reference can hold, such as a dashboard cell's `headerItems`.
      */
     children?: {
         schema: PlainObject;

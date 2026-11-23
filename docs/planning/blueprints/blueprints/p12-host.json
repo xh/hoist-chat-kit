@@ -3,7 +3,7 @@
         "blueprint": 1,
         "widgets": {
             "tabContainer": 1,
-            "dashCanvas": 1,
+            "dashboard": 1,
             "tileFrame": 1,
             "statCard": 1,
             "chart": 1,
@@ -232,7 +232,7 @@
             ]
         },
         "overview": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {
                     "id": "reportActions",
@@ -355,7 +355,7 @@
             }
         },
         "positions": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {
                     "id": "groupChooser",
@@ -464,7 +464,7 @@
             }
         },
         "orders": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {
                     "id": "ordersGrid",

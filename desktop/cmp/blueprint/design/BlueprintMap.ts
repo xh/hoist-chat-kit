@@ -34,7 +34,7 @@ import {usePan} from './impl/usePan';
 
 export interface BlueprintMapProps extends HoistProps {
     designModel: BlueprintDesignModel;
-    /** Show an element on the canvas, from a double-click on it. It is selected first. */
+    /** Show an element on the dashboard, from a double-click on it. It is selected first. */
     onOpenElement?: (id: string) => void;
     /** False to leave out the legend strip, giving its height to the map. Default true. */
     showLegend?: boolean;
@@ -478,7 +478,7 @@ interface Box {
 
 const CLS = 'xh-blueprint-map';
 const VARIABLE_GROUPS = ['Prompts', 'Computed', 'Set by widgets', 'Set by actions', 'Constants'];
-const TABBED = ['tabContainer', 'dashContainer'];
+const TABBED = ['tabContainer', 'panes'];
 
 // The source parameter at a path a wire reads: `/params/asOf`, or `/fields/retYtd/params/end`.
 const portOf = (path: string): string => {

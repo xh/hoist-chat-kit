@@ -8,7 +8,7 @@ export interface DropPlace {
     refusal: string;
     /** The container's element on the page. */
     containerEl: HTMLElement;
-    /** True for a canvas or a dash container, which places drops itself. */
+    /** True for a dashboard or a panes widget, which places drops itself. */
     ownDrop: boolean;
     /**
      * The insertion line, in pixels from the container's top-left: across its main axis at `at`,
@@ -63,7 +63,7 @@ export function dropPlaceAt(
 
 /**
  * The wrapper of the deepest container holding a point of the page, never the dragged element or
- * one inside it, or null. A canvas or a dash container takes a drag only where it is this one.
+ * one inside it, or null. A dashboard or a panes widget takes a drag only where it is this one.
  */
 export function containerAt(
     hit: Element,
@@ -99,8 +99,8 @@ function layoutOf(blueprintModel: BlueprintModel, id: string): Layout {
     const el = blueprintModel.effective?.elements?.[id];
     if (!blueprintModel.registry.widgets[el?.component]?.children) return null;
     switch (el.component) {
-        case 'dashCanvas':
-        case 'dashContainer':
+        case 'dashboard':
+        case 'panes':
             return 'own';
         case 'box':
             return el.config?.direction === 'row' ? 'row' : 'column';

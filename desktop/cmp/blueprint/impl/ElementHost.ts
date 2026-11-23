@@ -91,7 +91,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                     if (window.getSelection()?.isCollapsed !== false) altHold.consume();
                     return;
                 }
-                // A click on a canvas cell's header or grip selects its view.
+                // A click on a dashboard cell's header or grip selects its view.
                 const view = viewAt(e.target as HTMLElement, e.currentTarget),
                     target = innermost(e, 'xhSelected');
                 if (!target) return;
@@ -137,8 +137,8 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
 });
 
 /**
- * The element in the canvas cell whose header a click landed on, or null. A cell's header sits
- * outside the element's own wrapper, so the click reaches the canvas: the cell names its element.
+ * The element in the dashboard cell whose header a click landed on, or null. A cell's header sits
+ * outside the element's own wrapper, so the click reaches the dashboard: the cell names its element.
  * A header item is an element of its own, which takes its click.
  */
 export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
@@ -148,7 +148,7 @@ export function cellElementAt(target: HTMLElement, host: HTMLElement): string {
 }
 
 /**
- * The canvas view whose header or grip a click landed on, outside the header's own items, or
+ * The dashboard view whose header or grip a click landed on, outside the header's own items, or
  * null.
  */
 export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of: string} {
@@ -162,7 +162,7 @@ export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of:
 
 const CELL_CHROME = `[data-blueprint-view-header], [data-blueprint-view-grip], ${GRID_RESIZE_HANDLE}`;
 
-// What takes its own press in Edit: a cell's chrome, a tab strip, a dash container's splitter, an
+// What takes its own press in Edit: a cell's chrome, a tab strip, a panes widget's splitter, an
 // empty container's way to add, and the designer's own buttons drawn in a widget.
 const DESIGN_CHROME = [
     CELL_CHROME,

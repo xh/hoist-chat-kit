@@ -46,7 +46,7 @@ describe('WidgetPalette', () => {
         expect(palette.groups.map(it => it.category)).toEqual(
             expect.arrayContaining(['container', 'data', 'input', 'action'])
         );
-        expect(names).toEqual(expect.arrayContaining(['cubeGrid', 'chart', 'dashCanvas']));
+        expect(names).toEqual(expect.arrayContaining(['cubeGrid', 'chart', 'dashboard']));
         expect(names).not.toContain('placeholder');
         expect(names).not.toContain('fallback');
     });
@@ -116,7 +116,7 @@ describe('WidgetPalette', () => {
 
     it('offers to add a source over a dataset for a widget that needs one, then adds it', () => {
         const {model, design, palette} = open(undefined);
-        palette.add('dashCanvas');
+        palette.add('dashboard');
         palette.add('cubeGrid');
         expect(palette.needsSource).toBe('cubeGrid');
         expect(palette.datasetOptions.map(it => it.value)).toContain('positions');
@@ -137,7 +137,7 @@ describe('WidgetPalette', () => {
         expect(palette.message).toBeNull();
     });
 
-    it('adds a widget dropped on a canvas where it fell, and selects it', () => {
+    it('adds a widget dropped on a dashboard where it fell, and selects it', () => {
         const {model, design, palette} = open(loadBlueprint('p2-linked-dashboard.json'));
         palette.addAt('chart', 'dashboard', {child: {x: 0, y: 14, w: 4, h: 6}, siblings: []});
         const id = design.selectedElementId;
@@ -165,7 +165,7 @@ describe('WidgetPalette', () => {
 
     it('says why a widget or its source was not added', () => {
         const {palette} = open(undefined);
-        palette.add('dashCanvas');
+        palette.add('dashboard');
         palette.add('chart');
         expect(palette.needsSource).toBe('chart');
         palette.addOver('nope');

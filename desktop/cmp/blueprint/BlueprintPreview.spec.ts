@@ -81,12 +81,12 @@ describe('BlueprintPreview', () => {
         if (first.y === second.y) expect(at(first.id).x).toBeLessThan(at(second.id).x);
     });
 
-    it('scales a canvas to its columns and rows', () => {
+    it('scales a dashboard to its columns and rows', () => {
         const bp: any = {
                 root: 'c',
                 elements: {
                     c: {
-                        component: 'dashCanvas',
+                        component: 'dashboard',
                         config: {columns: 4},
                         children: [
                             {id: 'a', x: 0, y: 0, w: 2, h: 1},

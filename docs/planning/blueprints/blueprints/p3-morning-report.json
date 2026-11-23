@@ -3,7 +3,7 @@
         "blueprint": 1,
         "widgets": {
             "tabContainer": 1,
-            "dashCanvas": 1,
+            "dashboard": 1,
             "tileFrame": 1, "statCard": 1,
             "chart": 1,
             "groupingChooser": 1,
@@ -93,7 +93,7 @@
             ]
         },
         "overview": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {"id": "reportActions", "x": 0, "y": 0, "w": 12, "h": 1},
                 {"id": "headline", "x": 0, "y": 1, "w": 12, "h": 2},
@@ -127,7 +127,7 @@
             "config": {"source": "positions", "title": "Day P&L by Region", "type": "column", "x": "region", "y": ["pnlDay"]}
         },
         "positions": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {"id": "groupChooser", "x": 0, "y": 0, "w": 4, "h": 1},
                 {"id": "pnlButtons", "x": 4, "y": 0, "w": 4, "h": 1},
@@ -174,7 +174,7 @@
             "component": "chart",
             "config": {"source": "prices", "title": "Price, Last Three Months", "type": "line", "x": "day", "y": ["close"]}
         },
-        "orders": {"component": "dashCanvas", "children": [{"id": "ordersGrid", "x": 0, "y": 0, "w": 12, "h": 10}]},
+        "orders": {"component": "dashboard", "children": [{"id": "ordersGrid", "x": 0, "y": 0, "w": 12, "h": 10}]},
         "ordersGrid": {
             "component": "cubeGrid",
             "config": {

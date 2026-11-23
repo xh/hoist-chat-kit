@@ -263,7 +263,7 @@ describe('blueprint data widgets', () => {
             await vi.waitFor(() => expect(text(table.entries[0]?.value)).toBe('3,754.9m'));
         });
 
-        it('draws its title over its values, outside a canvas, which heads its cell itself', () => {
+        it('draws its title over its values, outside a dashboard, which heads its cell itself', () => {
             const bp = withTable({title: 'Fund snapshot', fields: ['mktVal']}),
                 model = open(bp),
                 onCanvas = render(

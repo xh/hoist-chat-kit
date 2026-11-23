@@ -157,7 +157,7 @@ export class BlueprintStructureModel extends HoistModel {
         );
     }
 
-    /** True for an element on a tab its container is not showing, as the canvas reports it. */
+    /** True for an element on a tab its container is not showing, as the dashboard reports it. */
     isOffscreen(id: string): boolean {
         const {activeTabs, hiddenViews} = this.designModel;
         for (let it = id, parent = this.parents.get(id); parent;) {
@@ -208,7 +208,7 @@ export class BlueprintStructureModel extends HoistModel {
     startDrag(id: string) {
         this.dragging = id;
         this.verdicts.clear();
-        // Also a drag the canvas takes, onto any container in it.
+        // Also a drag the dashboard takes, onto any container in it.
         elementDrag.start({element: id, designModel: this.designModel});
     }
 
@@ -480,7 +480,7 @@ export class BlueprintStructureModel extends HoistModel {
         return div({
             className: `${CLS}__drop`,
             draggable: canDrag,
-            // An element's row marks it in the blueprint as the canvas's hover does, where it shows.
+            // An element's row marks it in the blueprint as the dashboard's hover does, where it shows.
             onMouseEnter: () => kind === 'element' && this.designModel.setHovered(name),
             onMouseLeave: () => {
                 if (this.designModel.hoveredId === name) this.designModel.setHovered(null);

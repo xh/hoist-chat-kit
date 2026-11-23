@@ -594,7 +594,7 @@ describe('ElementInspector', () => {
             inspector.moveTab(second, 0);
             expect(ids().slice(0, 2)).toEqual([second, first]);
             inspector.addTab();
-            expect(model.blueprint.elements[ids().at(-1)].component).toBe('dashCanvas');
+            expect(model.blueprint.elements[ids().at(-1)].component).toBe('dashboard');
             expect(inspector.designModel.selectedElementId).toBe('tabs');
         });
 
@@ -653,7 +653,7 @@ describe('ElementInspector', () => {
         expect(countOf('Data').textContent).toBe('1');
     });
 
-    it("shows a canvas's and a dash container's rearranging locked by default", () => {
+    it("shows a dashboard's and a panes widget's rearranging locked by default", () => {
         for (const [file, id] of [
             ['p2-linked-dashboard.json', 'dashboard'],
             ['p3-morning-report.json', 'positions']
@@ -1112,7 +1112,7 @@ describe('ElementInspector', () => {
         );
     });
 
-    it("sets a canvas's packing from picture cards and its gap from two numbers, each one edit", () => {
+    it("sets a dashboard's packing from picture cards and its gap from two numbers, each one edit", () => {
         const {design, model} = open('p3-morning-report.json', 'overview'),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = (key: string) => container.querySelector(`[data-config-key="${key}"]`),
@@ -1160,7 +1160,7 @@ describe('ElementInspector', () => {
         expect(design.selectedElementId).toBe(b);
     });
 
-    it('lists the cells of a canvas as views without reordering, as their layout places them', () => {
+    it('lists the cells of a dashboard as views without reordering, as their layout places them', () => {
         const {design} = open('p3-morning-report.json', 'positions'),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = container.querySelector<HTMLElement>('[data-child="posGrid"]');
@@ -1178,13 +1178,13 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
     });
 
-    it("edits a selected dash container view's title, its one setting", () => {
+    it("edits a selected panes widget view's title, its one setting", () => {
         const model = new BlueprintModel({
                 blueprint: {
                     schema: {blueprint: 1},
                     root: 'dock',
                     elements: {
-                        dock: {component: 'dashContainer', children: [{id: 'a', title: 'Risk'}]},
+                        dock: {component: 'panes', children: [{id: 'a', title: 'Risk'}]},
                         a: {component: 'markdown', config: {text: 'A'}}
                     }
                 },
@@ -1339,7 +1339,7 @@ describe('ElementInspector', () => {
             'Style',
             'View'
         ]);
-        // A canvas cell's place sits in its View card, folded until opened.
+        // A dashboard cell's place sits in its View card, folded until opened.
         expect(
             container.querySelectorAll(
                 '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'

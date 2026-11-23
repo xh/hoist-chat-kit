@@ -215,7 +215,7 @@ export class WidgetPaletteModel extends HoistModel {
         }));
     }
 
-    /** Note the pointer over the palette, for the canvas to outline where a click adds. */
+    /** Note the pointer over the palette, for the dashboard to outline where a click adds. */
     setPointerOver(over: boolean) {
         this.designModel.setShowAddTarget(over);
     }
@@ -276,7 +276,7 @@ export class WidgetPaletteModel extends HoistModel {
         this.done(component, this.designModel.addWidget(component, parentId, opts));
     }
 
-    /** Start dragging a widget, for a canvas to take. */
+    /** Start dragging a widget, for a dashboard to take. */
     dragStart(component: string) {
         const size = this.designModel.blueprintModel.registry.widgets[component]?.size?.default;
         paletteDrag.start({

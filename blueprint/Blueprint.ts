@@ -174,7 +174,7 @@ export type BlueprintOp =
           index?: number;
           /** The parent's slot list to add into. Default `children`. */
           slot?: string;
-          /** The child of the parent whose reference holds the slot, such as a canvas cell. */
+          /** The child of the parent whose reference holds the slot, such as a dashboard cell. */
           of?: string;
       }
     | {op: 'removeElement'; id: string}

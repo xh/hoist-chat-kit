@@ -12,7 +12,7 @@ const CLS = 'xh-blueprint-drop';
 /**
  * The marks of a drag over a blueprint: its target container outlined, and the line where it would
  * insert, or, where the container refuses it, the outline in danger and the reason at the pointer.
- * A canvas or a dash container draws its own preview, so only its outline shows here.
+ * A dashboard or a panes widget draws its own preview, so only its outline shows here.
  */
 export function dropMarks(place: DropPlace): OverlayMark[] {
     if (!place) return [];

@@ -46,7 +46,7 @@ const EMPTY_TEXT = {
     description: 'Text shown while the container has no children.'
 } as const satisfies BlueprintSchema;
 
-const DASH_CANVAS_SCHEMA = {
+const DASHBOARD_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
@@ -96,7 +96,8 @@ const DASH_CANVAS_SCHEMA = {
             maxItems: 2,
             title: 'Padding',
             'x-unit': 'px',
-            description: 'The space inside the canvas edge, across and down. Default the cell gap.'
+            description:
+                'The space inside the dashboard edge, across and down. Default the cell gap.'
         },
         maxRows: {
             type: 'integer',
@@ -164,7 +165,7 @@ function dashLayoutItem(depth: number): BlueprintSchema {
     };
 }
 
-const DASH_CONTAINER_SCHEMA = {
+const PANES_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
@@ -1190,19 +1191,16 @@ const BUTTON_GROUP_INPUT_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
-/** The config of a `dashCanvas` widget, with bindings resolved. */
-export type DashCanvasWidgetConfig = FromExtendedSchema<
+/** The config of a `dashboard` widget, with bindings resolved. */
+export type DashboardWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
-    typeof DASH_CANVAS_SCHEMA
+    typeof DASHBOARD_SCHEMA
 >;
 
 /** The config of a `tabContainer` widget, with bindings resolved. */
 export type PanelWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof PANEL_SCHEMA>;
 
-export type DashContainerWidgetConfig = FromExtendedSchema<
-    BlueprintSchemaExtension,
-    typeof DASH_CONTAINER_SCHEMA
->;
+export type PanesWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof PANES_SCHEMA>;
 
 export type BoxWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof BOX_SCHEMA>;
 
@@ -1350,8 +1348,8 @@ const TOOLBAR_SLOT_ACCEPTS: SlotAccepts = {
     widgets: ['toolbar', 'separator', 'spacer']
 };
 
-const dashCanvas: WidgetSpec = {
-    name: 'dashCanvas',
+const dashboard: WidgetSpec = {
+    name: 'dashboard',
     icon: 'layout',
     sections: [
         {label: 'Content', keys: ['emptyText']},
@@ -1369,14 +1367,14 @@ const dashCanvas: WidgetSpec = {
         },
         {label: 'Interaction', keys: ['preventCollision', 'layoutLocked']}
     ],
-    summary: "A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root.",
+    summary: "A 12-column grid of widgets placed by x, y, w and h. A blueprint's usual root.",
     version: 1,
     label: 'Dashboard',
     terms: ['dashboard', 'canvas', 'page', 'layout'],
     guidance:
         "A 12-column grid of widgets. Each child reference gives x, y, w and h in grid units, and may give the cell header's title in place of the widget's own, or hideHeader. Every cell has a header unless it hides it, titled by the widget's label where nothing gives a title, so give a cell such as a stat card or a button row hideHeader where a header adds nothing. Cells pack upward by default; set compact false only when the user wants each cell to stay exactly where it is placed. Leave the other layout settings unset unless the user asks for them. Use it as the root of a dashboard, or as the content of a tab.",
     category: 'container',
-    config: DASH_CANVAS_SCHEMA,
+    config: DASHBOARD_SCHEMA,
     children: {
         schema: {
             type: 'object',
@@ -1436,7 +1434,7 @@ const dashCanvas: WidgetSpec = {
         }
     },
     example: {
-        component: 'dashCanvas',
+        component: 'dashboard',
         children: [
             {
                 id: 'posGrid',
@@ -1461,7 +1459,7 @@ const tabContainer: WidgetSpec = {
     label: 'Tabs',
     terms: ['tabs', 'tab', 'pages'],
     guidance:
-        "Shows one child at a time, under a row of tabs. Each child reference gives the tab's title. Children are usually dashCanvas elements. Keep tab titles to one or two words. Use the label a person would say, not a raw value.",
+        "Shows one child at a time, under a row of tabs. Each child reference gives the tab's title. Children are usually dashboard elements. Keep tab titles to one or two words. Use the label a person would say, not a raw value.",
     category: 'container',
     config: TAB_CONTAINER_SCHEMA,
     children: {
@@ -1508,8 +1506,8 @@ const tabContainer: WidgetSpec = {
     }
 };
 
-const dashContainer: WidgetSpec = {
-    name: 'dashContainer',
+const panes: WidgetSpec = {
+    name: 'panes',
     icon: 'window',
     sections: [
         {label: 'Content', keys: ['emptyText']},
@@ -1518,12 +1516,12 @@ const dashContainer: WidgetSpec = {
     ],
     summary: 'Views a user drags into tabs, stacks, rows and columns, and resizes.',
     version: 1,
-    label: 'Dash container',
-    terms: ['dock', 'docking', 'stacks', 'rearrange', 'tabs and splits', 'split panes'],
+    label: 'Panes',
+    terms: ['panes', 'dock', 'docking', 'stacks', 'rearrange', 'tabs and splits', 'split panes'],
     guidance:
         'Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is rows and columns of stacks of tabs, each tab naming a child, sized in percent. Use tabContainer for plain tabs, and this to split views side by side. Set layoutLocked: false only when the user wants readers to rearrange views.',
     category: 'container',
-    config: DASH_CONTAINER_SCHEMA,
+    config: PANES_SCHEMA,
     presetPaths: ['/layout'],
     children: {
         schema: {
@@ -1538,7 +1536,7 @@ const dashContainer: WidgetSpec = {
     },
     size: {default: {w: 12, h: 8}, min: {w: 3, h: 3}},
     example: {
-        component: 'dashContainer',
+        component: 'panes',
         config: {
             layout: [
                 {
@@ -2282,7 +2280,7 @@ const presetSelector: WidgetSpec = {
     label: 'Preset selector',
     terms: ['preset', 'view switcher', 'saved views', 'layouts'],
     guidance:
-        "Shows a preset group's presets and switches the active one, such as a grid's P&L and Risk views. Put it beside the widget its group controls: in that widget's header on a canvas or in a panel. A group with no selector stays at its default. display toggle switches between exactly two presets.",
+        "Shows a preset group's presets and switches the active one, such as a grid's P&L and Risk views. Put it beside the widget its group controls: in that widget's header on a dashboard or in a panel. A group with no selector stays at its default. display toggle switches between exactly two presets.",
     category: 'input',
     config: PRESET_SELECTOR_SCHEMA,
     size: {default: {w: 3, h: 1}, min: {w: 2, h: 1}},
@@ -2375,9 +2373,9 @@ const fallback: WidgetSpec = {
 const WIDGET_SPECS: WidgetSpec[] = [
     placeholder,
     fallback,
-    dashCanvas,
+    dashboard,
     tabContainer,
-    dashContainer,
+    panes,
     panel,
     box,
     separator,
@@ -2614,7 +2612,7 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
             : [])
     ],
     // A layout takes a size cap, and each view names a child.
-    dashContainer: (cfg, {blueprint, id}) => {
+    panes: (cfg, {blueprint, id}) => {
         if (!cfg.layout) return [];
         const children = (blueprint.elements?.[id]?.children ?? []).map(it => it.id),
             issue = (code: string, path: string, message: string): BlueprintIssue => ({
@@ -2625,11 +2623,7 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
             });
         if (JSON.stringify(cfg.layout).length > 20000) {
             return [
-                issue(
-                    'dashContainer.layoutTooLarge',
-                    '/layout',
-                    'the layout is past 20,000 characters'
-                )
+                issue('panes.layoutTooLarge', '/layout', 'the layout is past 20,000 characters')
             ];
         }
         const ret: BlueprintIssue[] = [],
@@ -2638,11 +2632,7 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
                     const at = `${path}/${idx}`;
                     if (it?.type === 'view' && !children.includes(it.id)) {
                         ret.push(
-                            issue(
-                                'dashContainer.unknownView',
-                                `${at}/id`,
-                                `'${it.id}' is not a child`
-                            )
+                            issue('panes.unknownView', `${at}/id`, `'${it.id}' is not a child`)
                         );
                     }
                     walk(it?.content, `${at}/content`);
@@ -2763,18 +2753,18 @@ const exampleOf = (name: string, config: PlainObject = {}): PlainObject => {
 // What each example names beyond itself: a container's children, from the other widgets' own
 // examples, and the variables and preset groups an example reads.
 const EXAMPLE_BLUEPRINTS: Record<string, () => WidgetSpec['exampleBlueprint']> = {
-    dashCanvas: () => ({elements: {posGrid: exampleOf('cubeGrid')}}),
+    dashboard: () => ({elements: {posGrid: exampleOf('cubeGrid')}}),
     tabContainer: () => ({
         elements: {
             overview: {
-                component: 'dashCanvas',
+                component: 'dashboard',
                 children: [{id: 'posGrid', x: 0, y: 0, w: 12, h: 6}]
             },
             detail: exampleOf('markdown'),
             posGrid: exampleOf('cubeGrid')
         }
     }),
-    dashContainer: () => ({
+    panes: () => ({
         elements: {
             posGrid: exampleOf('cubeGrid'),
             ordersGrid: exampleOf('cubeGrid'),
@@ -2848,8 +2838,8 @@ const exampleBlueprintFor = (spec: WidgetSpec): WidgetSpec['exampleBlueprint'] =
 
 // The kit glyph that pictures each built-in. See `widgetPreview`.
 const PREVIEWS: Record<string, string> = {
-    dashCanvas: 'canvas',
-    dashContainer: 'canvas',
+    dashboard: 'canvas',
+    panes: 'canvas',
     tabContainer: 'tabs',
     panel: 'panel',
     box: 'box',

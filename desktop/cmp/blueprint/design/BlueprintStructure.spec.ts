@@ -52,7 +52,7 @@ describe('BlueprintStructure', () => {
     const record = (structure: BlueprintStructureModel, id: string) =>
         structure.gridModel.store.getById(id);
 
-    it("marks an element hovered from its row, as the canvas's hover does, and clears it on leave", () => {
+    it("marks an element hovered from its row, as the dashboard's hover does, and clears it on leave", () => {
         const {structure, design} = open(),
             row = (test: (data: any) => boolean) =>
                 render(
@@ -106,7 +106,7 @@ describe('BlueprintStructure', () => {
         expect(record(structure, 'preset:posViews').data.label).toBe('Columns');
     });
 
-    it('lists every canvas cell as a view between its canvas and its widget, titled, with its header items under it', async () => {
+    it('lists every dashboard cell as a view between its dashboard and its widget, titled, with its header items under it', async () => {
         const {structure, design, model} = open(),
             view = record(structure, 'view:posGrid'),
             title = model.blueprint.elements.posGrid.config?.title ?? 'posGrid';
@@ -131,12 +131,12 @@ describe('BlueprintStructure', () => {
         expect(structure.gridModel.selectedId).toBe('view:priceChart');
     });
 
-    it("lists a dash container's views as views too", () => {
+    it("lists a panes widget's views as views too", () => {
         const {structure} = openBlueprint({
             schema: {blueprint: 1},
             root: 'dock',
             elements: {
-                dock: {component: 'dashContainer', children: [{id: 'a', title: 'Risk'}, {id: 'b'}]},
+                dock: {component: 'panes', children: [{id: 'a', title: 'Risk'}, {id: 'b'}]},
                 a: {component: 'markdown', config: {text: 'A'}},
                 b: {component: 'markdown', config: {text: 'B'}}
             }
@@ -197,7 +197,7 @@ describe('BlueprintStructure', () => {
         expect(shown()).toBe(true);
     });
 
-    it('marks the elements on tabs not showing, as the canvas reports them', () => {
+    it('marks the elements on tabs not showing, as the dashboard reports them', () => {
         const {design, structure} = open();
         expect(structure.isOffscreen('posGrid')).toBe(false);
         design.setCanvasTabs({tabs: 'overview'}, {});
@@ -206,12 +206,12 @@ describe('BlueprintStructure', () => {
         expect(structure.isOffscreen('sectorChart')).toBe(false);
         expect(structure.isOffscreen('tabs')).toBe(false);
 
-        // A dash container's views behind another in their stack.
+        // A panes widget's views behind another in their stack.
         design.setCanvasTabs({tabs: 'positions'}, {positions: ['priceChart']});
         expect(structure.isOffscreen('priceChart')).toBe(true);
         expect(structure.isOffscreen('posGrid')).toBe(false);
 
-        // The canvas reports every container at once, so one gone takes its entry with it.
+        // The dashboard reports every container at once, so one gone takes its entry with it.
         design.setCanvasTabs({tabs: 'positions'}, {});
         expect(structure.isOffscreen('priceChart')).toBe(false);
         design.setCanvasTabs({}, {});
@@ -297,7 +297,7 @@ describe('BlueprintStructure', () => {
         expect(texts('positions')).not.toContain('Move earlier');
     });
 
-    it('drags a row as an element the canvas takes too, until the drag ends', () => {
+    it('drags a row as an element the dashboard takes too, until the drag ends', () => {
         const {design, structure} = open();
         structure.startDrag('posGrid');
         expect(elementDrag.current).toEqual({element: 'posGrid', designModel: design});

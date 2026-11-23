@@ -47,7 +47,7 @@ import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring
 export interface BlueprintSelection {
     kind: 'element' | 'variable' | 'source' | 'preset' | 'view';
     id: string;
-    /** For a `view`, the canvas whose cell it is. */
+    /** For a `view`, the dashboard whose cell it is. */
     of?: string;
 }
 
@@ -57,7 +57,7 @@ export interface AddPlace {
     parent: string;
     /** Default `children`. */
     slot?: string;
-    /** The child of the parent whose reference holds the slot, such as a canvas cell. */
+    /** The child of the parent whose reference holds the slot, such as a dashboard cell. */
     of?: string;
     after?: string;
 }
@@ -95,12 +95,12 @@ export interface DropTarget {
     index?: number;
     /** Default `children`. */
     slot?: string;
-    /** The child of the container whose reference holds the slot, such as a canvas cell. */
+    /** The child of the container whose reference holds the slot, such as a dashboard cell. */
     of?: string;
-    /** Its footprint on a canvas: x, y, w and h. */
+    /** Its footprint on a dashboard: x, y, w and h. */
     cell?: PlainObject;
     /**
-     * A dash container's layout once the dropped element's view is in it, given that element's
+     * A panes widget's layout once the dropped element's view is in it, given that element's
      * id, as the dock computes it for the zone the drop is in.
      */
     layoutWith?: (id: string) => PlainObject[];
@@ -128,11 +128,11 @@ export class BlueprintDesignModel extends HoistModel {
     /** The selection, or null. It clears when what it names is gone. */
     @observableRef accessor selection: BlueprintSelection = null;
 
-    /** The element under the pointer on the canvas, in the outline or the map: view state, never an edit. */
+    /** The element under the pointer on the dashboard, in the outline or the map: view state, never an edit. */
     @observableRef accessor hoveredId: string = null;
 
     /**
-     * How the canvas takes the pointer in design mode: `edit` selects what a click lands on and
+     * How the dashboard takes the pointer in design mode: `edit` selects what a click lands on and
      * opens the design menu, and `interact` lets clicks and menus reach the widgets, selecting
      * nothing new. The host sets it, and keeps it if it should last. Run mode ignores it.
      */
@@ -167,7 +167,7 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
-     * Select a slot as the place to add, such as a canvas cell's header: the element that holds
+     * Select a slot as the place to add, such as a dashboard cell's header: the element that holds
      * it is selected, and {@link addTarget} is the slot until the selection changes.
      */
     @action
@@ -176,14 +176,14 @@ export class BlueprintDesignModel extends HoistModel {
         this.slotTarget = place;
     }
 
-    /** The tab each tab container on the canvas shows, by container id: view state, never an edit. */
+    /** The tab each tab container on the dashboard shows, by container id: view state, never an edit. */
     @observableRef accessor activeTabs: Record<string, string> = {};
 
-    /** The views each dash container's stacks hide behind others, by container id: view state. */
+    /** The views each panes widget's stacks hide behind others, by container id: view state. */
     @observableRef accessor hiddenViews: Record<string, string[]> = {};
 
     /**
-     * Set what every tab and dash container on the canvas shows, replacing what was reported
+     * Set what every tab and panes widget on the dashboard shows, replacing what was reported
      * before, so a container that is gone leaves no entry.
      */
     @action
@@ -227,7 +227,7 @@ export class BlueprintDesignModel extends HoistModel {
         this.onRequestAdd?.();
     }
 
-    /** True while the pointer is over the host's palette, for the canvas to outline the add target. */
+    /** True while the pointer is over the host's palette, for the dashboard to outline the add target. */
     @observable accessor showAddTarget = false;
 
     @action
@@ -270,7 +270,7 @@ export class BlueprintDesignModel extends HoistModel {
      * What the designer has in front of them, for the Architect to read "this" and "the selected
      * widget" by: the mode and, in design, the interaction; the selection, an element or a view
      * with its widget, where it sits and its cell, and a view's title and the path of its
-     * reference; each tab or dash container's active tab;
+     * reference; each tab or panes widget's active tab;
      * and each preset group's active preset. Only what is set. See `uiContextProvider()`.
      */
     get uiContext(): PlainObject {
@@ -320,7 +320,7 @@ export class BlueprintDesignModel extends HoistModel {
         );
     }
 
-    /** Switch between selecting on the canvas and using its widgets. See {@link interaction}. */
+    /** Switch between selecting on the dashboard and using its widgets. See {@link interaction}. */
     @action
     setInteraction(mode: 'edit' | 'interact') {
         this.interaction = mode;
@@ -420,7 +420,7 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
-     * The view that holds an element, a canvas cell or a dash container's view, or null for one
+     * The view that holds an element, a dashboard cell or a panes widget's view, or null for one
      * in neither.
      */
     viewOf(id: string): {id: string; of: string} {
@@ -436,7 +436,7 @@ export class BlueprintDesignModel extends HoistModel {
     /**
      * Add a widget of the registry, with a config it can start with - see `starterConfig()`. It
      * goes into `parentId`, else the selected container, else right after the selected element in
-     * its container, else the root. On a canvas, it takes the first free place at its default size,
+     * its container, else the root. On a dashboard, it takes the first free place at its default size,
      * and in tabs, a tab titled by its label. The first element of an empty blueprint becomes its
      * root.
      *
@@ -456,7 +456,7 @@ export class BlueprintDesignModel extends HoistModel {
             siblings?: PlainObject[];
             /** The slot of `parentId` to add into. Default `children`. */
             slot?: string;
-            /** The child of `parentId` whose reference holds the slot, such as a canvas cell. */
+            /** The child of `parentId` whose reference holds the slot, such as a dashboard cell. */
             of?: string;
             /** More ops for the same edit, given the new element's id, such as a layout naming it. */
             extraOps?: (id: string) => BlueprintOp[];
@@ -519,7 +519,7 @@ export class BlueprintDesignModel extends HoistModel {
 
     /**
      * The actions on a selection, in the order a bar or menu shows them: for an element, its own,
-     * such as Add a widget for a container, then Duplicate and Wrap in, then Delete; for a canvas
+     * such as Add a widget for a container, then Duplicate and Wrap in, then Delete; for a dashboard
      * view, its header's toggle, then Delete. None for a user who may not edit.
      */
     designActions(sel: BlueprintSelection): DesignAction[] {
@@ -534,7 +534,7 @@ export class BlueprintDesignModel extends HoistModel {
             isRoot = blueprintModel.blueprint.root === id,
             remove = this.deleteAction(id);
         if (sel.kind === 'view') {
-            if (elements[sel.of]?.component !== 'dashCanvas') return [remove];
+            if (elements[sel.of]?.component !== 'dashboard') return [remove];
             const hidden = !!elements[sel.of]?.children?.find(it => it.id === id)?.hideHeader;
             return [
                 {
@@ -637,9 +637,7 @@ export class BlueprintDesignModel extends HoistModel {
     // True for a container whose children's order is their order in its list, not a layout's.
     private ordersChildren(id: string): boolean {
         const component = getOwn(this.blueprintModel.blueprint?.elements, id)?.component;
-        return (
-            !!this.elementSpec(id)?.children && !['dashCanvas', 'dashContainer'].includes(component)
-        );
+        return !!this.elementSpec(id)?.children && !['dashboard', 'panes'].includes(component);
     }
 
     // Delete an element and what it holds, asking first when more goes with it, then select its
@@ -986,7 +984,7 @@ export class BlueprintDesignModel extends HoistModel {
 
     /**
      * Copy an element and everything inside it, with fresh ids, in one edit, and select the copy.
-     * On a canvas the copy takes the first free place at the same size. Elsewhere it goes right
+     * On a dashboard the copy takes the first free place at the same size. Elsewhere it goes right
      * after the element, in the same slot.
      */
     duplicateElement(id: string): BlueprintEditResult & {id?: string} {
@@ -1072,7 +1070,7 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
-     * Move or resize a canvas cell by whole grid units. Calls on the same cell within a second, with
+     * Move or resize a dashboard cell by whole grid units. Calls on the same cell within a second, with
      * no other edit between, fold into one edit, so a run of arrow keys undoes in one step.
      */
     nudgeChild(
@@ -1085,7 +1083,8 @@ export class BlueprintDesignModel extends HoistModel {
             children = parent ? elements[parent].children : [],
             index = children.findIndex(it => it.id === id),
             cell = children[index] as PlainObject;
-        if (!cell || !Number.isInteger(cell.x)) return refused(`'${id}' is not in a canvas cell.`);
+        if (!cell || !Number.isInteger(cell.x))
+            return refused(`'${id}' is not in a dashboard cell.`);
         const columns = elements[parent].config?.columns ?? 12,
             w = Math.min(columns, Math.max(1, cell.w + dw)),
             h = Math.max(1, cell.h + dh),
@@ -1185,7 +1184,7 @@ export class BlueprintDesignModel extends HoistModel {
 
     /**
      * The slots of an element's container that take it: `children`, the container's other slots,
-     * and its child references' slots, such as each canvas cell's header.
+     * and its child references' slots, such as each dashboard cell's header.
      */
     slotsFor(id: string): {slot: string; of?: string}[] {
         const {elements} = this.blueprintModel.blueprint ?? {},
@@ -1222,7 +1221,7 @@ export class BlueprintDesignModel extends HoistModel {
     /**
      * The places a designer can add a widget from an element, with the widgets each takes: the
      * element's own children and slots, if it is a container, then its cell's slots, such as a
-     * canvas cell's header.
+     * dashboard cell's header.
      */
     addPlacesFor(id: string): {place: AddPlace; label: string; widgets: string[]}[] {
         const {elements} = this.blueprintModel.blueprint ?? {},
@@ -1342,7 +1341,7 @@ export class BlueprintDesignModel extends HoistModel {
      * Change a container to another container widget, as one edit that keeps its id, so whatever
      * names it still does. Its children move to the new widget's children, in order, and its other
      * slots to the same slots where the new widget has them. Config and child placement the new
-     * widget has no place for are dropped, as are the elements in slots it lacks. A canvas packs
+     * widget has no place for are dropped, as are the elements in slots it lacks. A dashboard packs
      * its new children. See {@link changeTypeLosses} for what a change drops.
      *
      * @returns why it cannot, or null.
@@ -1543,7 +1542,7 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
-     * Change where an element sits in its container, such as its size on a canvas or its flex in
+     * Change where an element sits in its container, such as its size on a dashboard or its flex in
      * a box, as one edit. A key given as `undefined` is removed.
      */
     setChildPlacement(
@@ -1849,10 +1848,10 @@ export class BlueprintDesignModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
-    // A canvas's new column count rescales its cells in the same edit, so they stay on the grid.
+    // A dashboard's new column count rescales its cells in the same edit, so they stay on the grid.
     private rescaleOps(id: string, path: string, value: unknown): BlueprintOp[] {
         const el = getOwn(this.blueprintModel.blueprint?.elements, id);
-        if (el?.component !== 'dashCanvas' || path !== '/columns' || !el.children) return [];
+        if (el?.component !== 'dashboard' || path !== '/columns' || !el.children) return [];
         const from = (el.config?.columns as number) ?? CANVAS_COLUMNS,
             to = (value as number) ?? CANVAS_COLUMNS,
             children = rescaleCells(
@@ -2075,7 +2074,7 @@ export class BlueprintDesignModel extends HoistModel {
             at = controlled ? locate(elements, controlled) : null,
             parentWidget = at ? elements[at.parent]?.component : null,
             config = {group};
-        if (at?.slot === 'children' && parentWidget === 'dashCanvas') {
+        if (at?.slot === 'children' && parentWidget === 'dashboard') {
             return this.addWidget('presetSelector', at.parent, {
                 config,
                 slot: 'headerItems',
@@ -2088,7 +2087,7 @@ export class BlueprintDesignModel extends HoistModel {
         return this.addWidget('presetSelector', null, {config, ...(at ? {after: controlled} : {})});
     }
 
-    // A child reference for a container: a free place on a canvas, or a title in tabs.
+    // A child reference for a container: a free place on a dashboard, or a title in tabs.
     private placeChild(parentId: string, spec: WidgetSpec): PlainObject {
         const parent = getOwn(this.blueprintModel.blueprint?.elements, parentId),
             required: string[] = this.elementSpec(parentId)?.children?.schema?.required ?? [];
@@ -2153,7 +2152,7 @@ function accepts(rule: SlotAccepts, spec: WidgetSpec): boolean {
     );
 }
 
-// A canvas cell's place, which a change to a canvas packs anew.
+// A dashboard cell's place, which a change to a dashboard packs anew.
 const CELL_KEYS = ['x', 'y', 'w', 'h'];
 
 const isRefList = (value: unknown): value is ChildRef[] =>
@@ -2161,7 +2160,7 @@ const isRefList = (value: unknown): value is ChildRef[] =>
 
 // A refusal the design model makes itself, at the path of what it names, if any.
 // A child's reference in a new container of a widget: titled where it takes titles, and at the
-// top-left of a canvas at its default size.
+// top-left of a dashboard at its default size.
 function childRefIn(container: WidgetSpec, child: WidgetSpec): PlainObject {
     const required: string[] = container.children?.schema?.required ?? [];
     if (required.includes('title')) return {title: child.label};
@@ -2185,7 +2184,7 @@ function elementOfPath(path: string): string {
     return coll === 'elements' ? id : null;
 }
 
-// The first place, row by row, where a w by h box fits among a canvas's children.
+// The first place, row by row, where a w by h box fits among a dashboard's children.
 function firstFreePlace(
     children: ChildRef[],
     columns: number,

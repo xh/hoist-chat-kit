@@ -13,7 +13,7 @@ import {emptyContent, layoutChildren} from './impl/layout';
 
 /**
  * The `panel` widget: a Hoist `Panel` over its children in a column. Its `tbar` and `bbar` slots
- * fill the panel's toolbars, and `headerItems` its header. In a canvas cell it draws no header or
+ * fill the panel's toolbars, and `headerItems` its header. In a dashboard cell it draws no header or
  * border, as the cell is its frame and carries its title, icon and header items, and it never
  * collapses. Elsewhere its card style is a compact header in a bordered frame. Its collapsed state follows `collapsed` in its
  * config, and a user's collapse writes it back, so it stays transient in run mode.
@@ -25,7 +25,7 @@ export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
         super(config);
         this.addReaction(
             {
-                // A canvas cell has no header to expand it from.
+                // A dashboard cell has no header to expand it from.
                 track: () => !!this.resolvedConfig.collapsible && !this.inCanvasCell,
                 run: collapsible => this.createModel(collapsible),
                 fireImmediately: true
@@ -50,9 +50,9 @@ export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
         );
     }
 
-    /** True in a canvas cell, which frames the panel and carries its header. */
+    /** True in a dashboard cell, which frames the panel and carries its header. */
     get inCanvasCell(): boolean {
-        return this.parentElement?.component === 'dashCanvas';
+        return this.parentElement?.component === 'dashboard';
     }
 
     override destroy() {

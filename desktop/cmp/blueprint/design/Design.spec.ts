@@ -144,7 +144,7 @@ describe('design mode selection', () => {
         expect(tabs.tabContainerModel.activeTabId).toBe('positions');
     });
 
-    it('brings the selection into view when the canvas mounts, as after the Map', () => {
+    it('brings the selection into view when the dashboard mounts, as after the Map', () => {
         const {design, model} = open('p3-morning-report.json');
         design.select({kind: 'element', id: 'ordersGrid'});
         const view = new BlueprintViewModel(model, {designModel: design});
@@ -152,7 +152,7 @@ describe('design mode selection', () => {
         expect((view.getWidgetModel('tabs') as any).tabContainerModel.activeTabId).toBe('orders');
     });
 
-    it("finds the canvas view a click on its header or grip lands on, but not on the header's items", () => {
+    it("finds the dashboard view a click on its header or grip lands on, but not on the header's items", () => {
         const cell = document.createElement('div');
         cell.innerHTML =
             '<div data-blueprint-view="sectorChart" data-blueprint-canvas="overview">' +
@@ -174,7 +174,7 @@ describe('design mode selection', () => {
         );
     });
 
-    it('climbs from a widget to its view to its canvas with Esc, and back down with Enter', () => {
+    it('climbs from a widget to its view to its dashboard with Esc, and back down with Enter', () => {
         const {design} = open('p3-morning-report.json'),
             keys = designHotkeys(design),
             press = (combo: string) =>
@@ -254,13 +254,13 @@ describe('design mode selection', () => {
         expect(container.children).toHaveLength(1);
     });
 
-    it("selects a dash container's view as a view: Esc climbs to it, it outlines its widget, and it offers Delete only", () => {
+    it("selects a panes widget's view as a view: Esc climbs to it, it outlines its widget, and it offers Delete only", () => {
         const model = new BlueprintModel({
                 blueprint: {
                     schema: {blueprint: 1},
                     root: 'dock',
                     elements: {
-                        dock: {component: 'dashContainer', children: [{id: 'a', title: 'Risk'}]},
+                        dock: {component: 'panes', children: [{id: 'a', title: 'Risk'}]},
                         a: {component: 'markdown', config: {text: 'A'}}
                     }
                 },
@@ -546,7 +546,7 @@ describe('design mode selection', () => {
     describe('Edit captures presses into a widget', () => {
         async function positions() {
             stubRects();
-            // jsdom has no layout: a canvas waits for a measured width before it draws.
+            // jsdom has no layout: a dashboard waits for a measured width before it draws.
             const width = vi
                 .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
                 .mockReturnValue(1200);
@@ -605,7 +605,7 @@ describe('design mode selection', () => {
             await vi.waitFor(() => expect(model.getVariable('pnlFilter').value).toBeTruthy());
         });
 
-        it("leaves a canvas cell's header its press, to move the cell", async () => {
+        it("leaves a dashboard cell's header its press, to move the cell", async () => {
             const {container} = await positions(),
                 header = container.querySelector<HTMLElement>('[data-blueprint-view-header]'),
                 seen = vi.fn();
@@ -714,14 +714,14 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBe(children[2]);
     });
 
-    it('previews and drops onto a container inside a canvas cell, though the canvas takes drags over it', async () => {
+    it('previews and drops onto a container inside a dashboard cell, though the dashboard takes drags over it', async () => {
         const model = new BlueprintModel({
                 blueprint: {
                     schema: {blueprint: 1},
                     root: 'page',
                     elements: {
                         page: {
-                            component: 'dashCanvas',
+                            component: 'dashboard',
                             children: [{id: 'inner', x: 0, y: 0, w: 6, h: 4}]
                         },
                         inner: {component: 'box', children: [{id: 'note'}]},
@@ -735,7 +735,7 @@ describe('design mode selection', () => {
                 access: 'write'
             }),
             design = new BlueprintDesignModel({blueprintModel: model}),
-            // jsdom has no layout: the canvas waits for a measured width before it draws the grid.
+            // jsdom has no layout: the dashboard waits for a measured width before it draws the grid.
             width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
         onTestFinished(() => {
             width.mockRestore();
@@ -867,7 +867,7 @@ describe('design mode selection', () => {
         const model = new BlueprintModel({
                 blueprint: {
                     root: 'canvas',
-                    elements: {canvas: {component: 'dashCanvas', children: []}}
+                    elements: {canvas: {component: 'dashboard', children: []}}
                 },
                 catalog: portfolioCatalog,
                 registry: scenarioRegistry(),
@@ -894,7 +894,7 @@ describe('design mode selection', () => {
     });
 
     it('shows an empty container one quiet empty state, in the overlay over it, with a way to add', async () => {
-        // jsdom has no layout: the canvas waits for a measured width before it draws cells.
+        // jsdom has no layout: the dashboard waits for a measured width before it draws cells.
         const spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200),
             // And the overlay clips a mark to each scroller's client area.
             tall = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(800);
@@ -904,7 +904,7 @@ describe('design mode selection', () => {
         });
         stubRects();
         const {model, design} = open('p2-linked-dashboard.json'),
-            dc = design.addWidget('dashContainer').id,
+            dc = design.addWidget('panes').id,
             onAddWidget = vi.fn(),
             {container} = render(
                 blueprintView({model, designModel: design, onAddWidget}) as ReactElement
@@ -1123,7 +1123,7 @@ describe('design mode selection', () => {
         expect(joined.blueprint.sources).toHaveProperty('funds');
     });
 
-    it('marks a widget in a canvas cell at its cell, header included, and draws nothing in run mode', () => {
+    it('marks a widget in a dashboard cell at its cell, header included, and draws nothing in run mode', () => {
         const {design, model} = open('p3-morning-report.json'),
             overlay = new OverlayModel(),
             host = document.createElement('div');

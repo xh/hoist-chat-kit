@@ -79,15 +79,15 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return !!this.designModel.selectedViewId;
     }
 
-    /** The canvas the element sits in a cell of, or null. */
+    /** The dashboard the element sits in a cell of, or null. */
     get canvasId(): string {
         const of = this.designModel.viewOf(this.elementId)?.of;
-        return this.designModel.blueprintModel.blueprint?.elements?.[of]?.component === 'dashCanvas'
+        return this.designModel.blueprintModel.blueprint?.elements?.[of]?.component === 'dashboard'
             ? of
             : null;
     }
 
-    /** The inputs in the element's canvas cell header. */
+    /** The inputs in the element's dashboard cell header. */
     get headerItemIds(): string[] {
         const ref = this.designModel.blueprintModel.blueprint?.elements?.[
             this.canvasId
@@ -305,7 +305,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return (this.element?.children ?? []).map(it => it.id);
     }
 
-    /** The views among {@link childIds}: a canvas's cells, a dash container's views. */
+    /** The views among {@link childIds}: a dashboard's cells, a panes widget's views. */
     get childViews(): ChildNode[] {
         const {elementId, element, widgetSpec} = this;
         return childGroups(elementId, element, {children: widgetSpec?.children})
@@ -315,7 +315,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     /** True if the container orders its children by place in the list, not by a layout. */
     get ordersChildren(): boolean {
-        return !['dashCanvas', 'dashContainer'].includes(this.element?.component);
+        return !['dashboard', 'panes'].includes(this.element?.component);
     }
 
     /** Move a child within the container, from one place in the list to another, as one edit. */
@@ -350,9 +350,9 @@ export class ElementInspectorModel extends ConfigEditorModel {
         this.designModel.moveElement(id, this.elementId, {index});
     }
 
-    /** Add a tab holding a canvas, and keep the container selected. */
+    /** Add a tab holding a dashboard, and keep the container selected. */
     addTab() {
-        this.designModel.addWidget('dashCanvas', this.elementId);
+        this.designModel.addWidget('dashboard', this.elementId);
     }
 
     protected pathOf(key: string): string {
@@ -477,7 +477,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                         });
                     }),
                 !impl.isView && impl.childIds ? childrenCard(impl) : null,
-                // A widget in a canvas cell shows its view's settings folded, with a way there.
+                // A widget in a dashboard cell shows its view's settings folded, with a way there.
                 !impl.isView && impl.canvasId
                     ? sectionCard({
                           key: 'canvas-view',
@@ -541,12 +541,12 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
 const LIST_KINDS = ['fieldList', 'list', 'stringList'],
     CANVAS_VIEW = 'View';
 
-// A selected view's settings: a canvas cell's header, the inputs in it and its place, or a dash
+// A selected view's settings: a dashboard cell's header, the inputs in it and its place, or a dash
 // container view's title.
 function viewCards(impl: ElementInspectorModel) {
     const {designModel} = impl,
         {registry, blueprint} = designModel.blueprintModel;
-    // A dash container's view has its title alone.
+    // A panes widget's view has its title alone.
     if (!impl.canvasId) {
         return [
             sectionCard({
@@ -629,7 +629,7 @@ function viewCards(impl: ElementInspectorModel) {
     ];
 }
 
-// Whether a canvas view shows its header, and its title there.
+// Whether a dashboard view shows its header, and its title there.
 function viewHeaderRows(impl: ElementInspectorModel) {
     const hidden = !!impl.placementValues.hideHeader;
     return [
@@ -657,7 +657,7 @@ function viewHeaderRows(impl: ElementInspectorModel) {
     ];
 }
 
-// A canvas cell's grid numbers share one row, and its other settings take rows of their own.
+// A dashboard cell's grid numbers share one row, and its other settings take rows of their own.
 const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>
     node.kind === 'number' || !impl.placementNodes.some(it => it.kind === 'number');
 

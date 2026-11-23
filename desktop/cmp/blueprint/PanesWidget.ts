@@ -2,7 +2,7 @@ import {box} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEqual, pick} from 'lodash';
-import {BlueprintWidgetModel, type DashContainerWidgetConfig} from '../../../blueprint';
+import {BlueprintWidgetModel, type PanesWidgetConfig} from '../../../blueprint';
 import {
     type DockChange,
     type DockItem,
@@ -18,11 +18,11 @@ import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 
 /**
- * The `dashContainer` widget: a dock layout of splits and tab stacks, with a view per child, laid
+ * The `panes` widget: a dock layout of splits and tab stacks, with a view per child, laid
  * out as its `layout` says. A user's rearrangement writes the layout back, so it stays transient in
  * run mode. It keeps no persisted state of its own.
  */
-export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainerWidgetConfig> {
+export class PanesWidgetModel extends BlueprintWidgetModel<PanesWidgetConfig> {
     /** The views asked to show, such as to reveal a selection. */
     @observableRef accessor shown: string[] = [];
 
@@ -102,7 +102,7 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
     /**
      * Move a view to a target as a drop does, as one edit, or transient in run mode. Returns why it
      * was refused, or null. For tests and tools that drive docking without a pointer, such as
-     * `XH.getModels('DashContainerWidgetModel')` from DevTools.
+     * `XH.getModels('PanesWidgetModel')` from DevTools.
      */
     moveView(id: string, target: DockTarget): string {
         const refusal = this.canMove(id, target);
@@ -164,10 +164,10 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
     }
 }
 
-export const [DashContainerWidget, dashContainerWidget] = hoistCmp.withFactory({
-    displayName: 'DashContainerWidget',
-    className: 'xh-blueprint-dash-container',
-    model: uses(DashContainerWidgetModel),
+export const [PanesWidget, panesWidget] = hoistCmp.withFactory({
+    displayName: 'PanesWidget',
+    className: 'xh-blueprint-panes',
+    model: uses(PanesWidgetModel),
     render({model, className}) {
         return (
             emptyContent(model) ??

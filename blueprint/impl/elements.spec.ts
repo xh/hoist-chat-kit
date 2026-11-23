@@ -8,13 +8,12 @@ import {
     parentOf,
     removeRef,
     slotLists,
-    upgradeSlots,
     viewTitle
 } from './elements';
 
 /**
  * An element holds its children in slot lists: `children`, and others a widget names, such as a
- * panel's `tbar`, on the element itself or on a child reference, such as a canvas cell's
+ * panel's `tbar`, on the element itself or on a child reference, such as a dashboard cell's
  * `headerItems`. Every element but the root sits in exactly one slot list of one parent.
  */
 describe('element slots', () => {
@@ -26,7 +25,7 @@ describe('element slots', () => {
             personalizable: ['/config/title']
         } as BlueprintElement,
         canvas: {
-            component: 'dashCanvas',
+            component: 'dashboard',
             children: [{id: 'grid', x: 0, y: 0, w: 6, h: 4, headerItems: [{id: 'views'}]}]
         },
         bar: {component: 'toolbar', children: []},
@@ -62,7 +61,7 @@ describe('element slots', () => {
         expect(groups(elements.grid, {})).toEqual([]);
     });
 
-    it("lists a canvas's cells and a dash container's views as view nodes, each over its element and its own slots", () => {
+    it("lists a dashboard's cells and a panes widget's views as view nodes, each over its element and its own slots", () => {
         const canvasSpec = {children: {slots: {headerItems: {}}}};
         expect(childGroups('canvas', elements.canvas, canvasSpec)[0].nodes).toEqual([
             {
@@ -76,7 +75,7 @@ describe('element slots', () => {
             }
         ]);
         const dock: BlueprintElement = {
-            component: 'dashContainer',
+            component: 'panes',
             children: [{id: 'a', title: 'Risk'}, {id: 'b'}]
         };
         expect(childGroups('dock', dock, {children: {}})[0].nodes).toEqual([
@@ -97,9 +96,9 @@ describe('element slots', () => {
         expect(viewTitle({id: 'a'}, null)).toBe('a');
     });
 
-    it("lists a canvas's cells in reading order, top to bottom, then left to right", () => {
+    it("lists a dashboard's cells in reading order, top to bottom, then left to right", () => {
         const canvas: BlueprintElement = {
-            component: 'dashCanvas',
+            component: 'dashboard',
             children: [
                 {id: 'c', x: 6, y: 4},
                 {id: 'b', x: 6, y: 0},
@@ -141,29 +140,5 @@ describe('element slots', () => {
         const page = structuredClone(elements.page);
         insertRef(page, {id: 'foot'}, {slot: 'bbar'});
         expect(page.bbar).toEqual([{id: 'foot'}]);
-    });
-
-    it("moves a child reference's old slot marker into the slot list it names", () => {
-        const old = {
-                root: 'page',
-                elements: {
-                    page: {
-                        component: 'panel',
-                        children: [
-                            {id: 'body'},
-                            {id: 'top', slot: 'tbar'},
-                            {id: 'foot', slot: 'bbar'}
-                        ]
-                    }
-                }
-            },
-            upgraded = upgradeSlots(old as any);
-        expect(upgraded.elements.page).toEqual({
-            component: 'panel',
-            children: [{id: 'body'}],
-            tbar: [{id: 'top'}],
-            bbar: [{id: 'foot'}]
-        });
-        expect(upgradeSlots(upgraded)).toBe(upgraded);
     });
 });

@@ -84,8 +84,8 @@ export const [PropertyTableWidget, propertyTableWidget] = hoistCmp.withFactory({
     render({model, className}) {
         const {columns, labelSide, title} = model.resolvedConfig,
             table = propertyTable({entries: model.entries, columns, labelSide});
-        // A canvas heads its cell with the title itself.
-        return title && model.parentElement?.component !== 'dashCanvas'
+        // A dashboard heads its cell with the title itself.
+        return title && model.parentElement?.component !== 'dashboard'
             ? vbox({
                   className,
                   children: [

@@ -262,7 +262,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         if (el.children && !spec.children) {
             err('element.notContainer', `${p}/children`, `${el.component} takes no children`);
         }
-        if (el.component === 'dashCanvas') {
+        if (el.component === 'dashboard') {
             checkCanvasLayout(el, p, err, warn, it => registry.widgets[elements[it]?.component]);
         }
         if (el.component === 'dateRangePicker' && registry.dateRangePresets) {
@@ -1391,7 +1391,7 @@ function describeAccepts(rule: SlotAccepts): string {
 }
 
 /**
- * A canvas places children freely, so they must not overlap or pass the last column. A cell
+ * A dashboard places children freely, so they must not overlap or pass the last column. A cell
  * narrower than its widget takes clips it, and a hidden header hides its items, which are worth a
  * warning.
  */

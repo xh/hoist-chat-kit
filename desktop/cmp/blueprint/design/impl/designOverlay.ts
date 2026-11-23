@@ -12,7 +12,7 @@ const CLS = 'xh-blueprint-overlay',
 /**
  * Design mode's marks over a blueprint, outlines only: the hovered element's dashed outline, the
  * selected one's solid outline, and a selected view's outline over a tint. Structure, the
- * breadcrumb and the Inspector name the element. An element in a canvas cell is marked at its cell,
+ * breadcrumb and the Inspector name the element. An element in a dashboard cell is marked at its cell,
  * header included. None draw in run mode, or while a cell or view is being moved or resized.
  */
 export function designMarks(
@@ -37,8 +37,8 @@ export function designMarks(
         ret.push({
             key: 'hover',
             target: targetOf(hovered, overlay),
-            // A canvas is hovered at a gap between its cells, so its outline is faint.
-            render: () => outline(elements[hovered].component === 'dashCanvas' ? 'faint' : 'hover')
+            // A dashboard is hovered at a gap between its cells, so its outline is faint.
+            render: () => outline(elements[hovered].component === 'dashboard' ? 'faint' : 'hover')
         });
     }
     const view = designModel.selectedViewId;
@@ -62,7 +62,7 @@ export function designMarks(
 /**
  * Design mode's marks of each element's state, under the hover and selection: an empty container's
  * way to fill it, the readers of the selected source tinted, the elements the Architect's latest
- * edit touched haloed, where a click in the palette adds, and a canvas cell too narrow for its
+ * edit touched haloed, where a click in the palette adds, and a dashboard cell too narrow for its
  * widget. None draw in run mode, or while a cell or view is being moved or resized.
  */
 export function elementMarks(
@@ -106,7 +106,7 @@ export function elementMarks(
 //------------------
 // Implementation
 //------------------
-// An element's canvas cell where it has one, so its marks frame the header too, else its wrapper.
+// An element's dashboard cell where it has one, so its marks frame the header too, else its wrapper.
 function targetOf(id: string, overlay: OverlayModel): string {
     const cell = `${CELL}="${CSS.escape(id)}"]`;
     return overlay.hostEl?.querySelector(cell) ? cell : elementTarget(id);

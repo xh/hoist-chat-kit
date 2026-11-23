@@ -6,7 +6,7 @@ import {type ReactNode, useLayoutEffect, useRef} from 'react';
 import type {TemplateWidgetModel} from './TemplateWidgetModel';
 
 /**
- * Text that measures how far it runs past its frame. In design mode, clipped text in a canvas cell
+ * Text that measures how far it runs past its frame. In design mode, clipped text in a dashboard cell
  * shows a fade and a chip that grows the cell to show it all.
  */
 export const clipFrame = hoistCmp.factory<

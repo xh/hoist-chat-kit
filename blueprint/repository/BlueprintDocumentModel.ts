@@ -10,7 +10,6 @@ import {diffOps} from '../diffOps';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import type {DataCatalog} from '../DataCatalog';
-import {upgradeBlueprint} from '../impl/upgrade';
 import {listOf} from '../impl/labels';
 import {isIncomplete, validateBlueprint} from '../validateBlueprint';
 import {
@@ -146,9 +145,7 @@ export class BlueprintDocumentModel extends HoistModel {
         }
 
         const {blueprintModel} = this,
-            blueprint = upgradeBlueprint(
-                this.migrate ? this.migrate(record.blueprint) : record.blueprint
-            ),
+            blueprint = this.upgraded(record.blueprint),
             checked = blueprintModel.validate(blueprint);
         // Checked before the model changes, so a refused blueprint leaves the open one as it was.
         if (hasErrors(checked)) return checked;
@@ -399,9 +396,7 @@ export class BlueprintDocumentModel extends HoistModel {
             const source = await this.openRecordAsync(document.id, from ?? {as: 'publish'});
             if (!source) return null;
             const {registry, catalog} = into,
-                blueprint = upgradeBlueprint(
-                    this.migrate ? this.migrate(source.blueprint) : source.blueprint
-                ),
+                blueprint = this.upgraded(source.blueprint),
                 errors = validateBlueprint(blueprint, {catalog, registry}).filter(
                     it => it.severity === 'error'
                 );
@@ -656,7 +651,7 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     private upgraded(blueprint: Blueprint): Blueprint {
-        return upgradeBlueprint(this.migrate ? this.migrate(blueprint) : blueprint);
+        return this.migrate ? this.migrate(blueprint) : blueprint;
     }
 
     // The library's own check, for a repository that cannot check on its server.

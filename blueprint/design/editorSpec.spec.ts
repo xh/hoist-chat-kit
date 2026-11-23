@@ -27,8 +27,8 @@ describe('toEditorSpec', () => {
         });
     });
 
-    it("edits a canvas's gap as a pair of numbers, and its packing as picture cards", () => {
-        const nodes = byKey(toEditorSpec(configOf('dashCanvas')));
+    it("edits a dashboard's gap as a pair of numbers, and its packing as picture cards", () => {
+        const nodes = byKey(toEditorSpec(configOf('dashboard')));
         expect(nodes.margin).toMatchObject({kind: 'pair', default: [10, 10]});
         expect((nodes.margin as any).item).toMatchObject({kind: 'number', min: 0, max: 40});
         expect(nodes.compact).toMatchObject({

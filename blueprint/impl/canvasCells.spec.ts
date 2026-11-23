@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {rescaleCells} from './canvasCells';
 
-/** A canvas's cells follow a new column count, staying on its grid and apart. */
+/** A dashboard's cells follow a new column count, staying on its grid and apart. */
 describe('rescaleCells', () => {
     it('scales x and w in proportion, keeping y and h', () => {
         expect(

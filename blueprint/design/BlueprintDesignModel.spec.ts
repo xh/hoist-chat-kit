@@ -51,10 +51,10 @@ describe('BlueprintDesignModel', () => {
         expect(design.selection).toEqual({kind: 'preset', id: 'posViews'});
     });
 
-    it('selects a canvas view: the cell that holds an element, which exists while the cell does', () => {
+    it('selects a dashboard view: the cell that holds an element, which exists while the cell does', () => {
         const {design, model} = open(loadBlueprint('p3-morning-report.json'));
         expect(design.viewOf('posGrid')).toEqual({id: 'posGrid', of: 'positions'});
-        // A tab's child and the root sit in no canvas cell.
+        // A tab's child and the root sit in no dashboard cell.
         expect(design.viewOf('positions')).toBeNull();
         expect(design.viewOf('tabs')).toBeNull();
 
@@ -81,7 +81,7 @@ describe('BlueprintDesignModel', () => {
         expect(model.blueprint.elements.positions.children[0].id).toBe('groupChooser');
     });
 
-    describe('editing calls for the canvas', () => {
+    describe('editing calls for the dashboard', () => {
         const p3 = () => open(loadBlueprint('p3-morning-report.json'));
         const cellOf = (model: BlueprintModel, id: string) =>
             Object.values(model.blueprint.elements)
@@ -290,7 +290,7 @@ describe('BlueprintDesignModel', () => {
             expect(model.blueprint.elements[ret.id]).toBeUndefined();
         });
 
-        it('nudges a canvas cell by whole units, folding repeats within a second into one edit', () => {
+        it('nudges a dashboard cell by whole units, folding repeats within a second into one edit', () => {
             const {model, design} = p3(),
                 w = cellOf(model, 'posGrid').w;
             design.nudgeChild('posGrid', {dw: -1});
@@ -334,7 +334,7 @@ describe('BlueprintDesignModel', () => {
         'groupingChooser',
         'buttonGroup',
         'buttonGroupInput',
-        'dashCanvas',
+        'dashboard',
         'tabContainer',
         'tileFrame',
         'toolbar',
@@ -348,7 +348,7 @@ describe('BlueprintDesignModel', () => {
         'treemap',
         'propertyTable',
         'heatmap',
-        'dashContainer'
+        'panes'
     ])('adds a %s that starts valid, on the first free place of the root canvas', component => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             result = design.addWidget(component);
@@ -526,7 +526,7 @@ describe('BlueprintDesignModel', () => {
             );
         });
 
-        it("adds a group's selector to the header of the widget it controls, on a canvas or in a panel", () => {
+        it("adds a group's selector to the header of the widget it controls, on a dashboard or in a panel", () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json'));
             design.removeElement('posViewsSelector');
             const {id} = design.addPresetSelector('posViews');
@@ -552,20 +552,20 @@ describe('BlueprintDesignModel', () => {
         );
     });
 
-    it('gives a container placed on a canvas room for widgets of its own', () => {
+    it('gives a container placed on a dashboard room for widgets of its own', () => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             place = (component: string) => {
                 const {id} = design.addWidget(component, 'dashboard');
                 return model.blueprint.elements.dashboard.children.find(it => it.id === id);
             };
-        expect(place('dashCanvas')).toMatchObject({w: 12, h: 8});
+        expect(place('dashboard')).toMatchObject({w: 12, h: 8});
         expect(place('tabContainer')).toMatchObject({w: 12, h: 8});
     });
 
     it('adds into the selected container, a tab with a title', () => {
         const {model, design} = open(loadBlueprint('p3-morning-report.json'));
         design.select({kind: 'element', id: 'tabs'});
-        const {id} = design.addWidget('dashCanvas');
+        const {id} = design.addWidget('dashboard');
         expect(model.blueprint.elements.tabs.children.at(-1)).toEqual({id, title: 'Dashboard'});
     });
 
@@ -598,7 +598,7 @@ describe('BlueprintDesignModel', () => {
 
     it('makes the first widget of an empty blueprint its root', () => {
         const {model, design} = open(undefined),
-            result = design.addWidget('dashCanvas');
+            result = design.addWidget('dashboard');
         expect(errors(result)).toEqual([]);
         expect(model.blueprint.root).toBe(result.id);
         expect(errors(design.addWidget('cubeGrid'))).toMatchObject([
@@ -913,7 +913,7 @@ describe('BlueprintDesignModel', () => {
         expect(design.selection).toBeNull();
     });
 
-    it("rescales a canvas's cells with its columns, in one edit that one undo restores", () => {
+    it("rescales a dashboard's cells with its columns, in one edit that one undo restores", () => {
         const {model, design} = open(loadBlueprint('p3-morning-report.json')),
             cells = () =>
                 model.blueprint.elements.overview.children.map(({id, x, y, w, h}) => [
@@ -939,10 +939,10 @@ describe('BlueprintDesignModel', () => {
         expect(model.blueprint.elements.overview.config?.columns).toBeUndefined();
     });
 
-    describe('dash container views', () => {
+    describe('panes widget views', () => {
         const setup = () => {
             const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
-                dc = design.addWidget('dashContainer').id,
+                dc = design.addWidget('panes').id,
                 a = design.addWidget('markdown', dc).id,
                 b = design.addWidget('markdown', dc).id;
             design.setConfig(dc, '/layout', [
@@ -1036,7 +1036,7 @@ describe('BlueprintDesignModel', () => {
             expect(model.version).toBe(before);
         });
 
-        it('places a canvas drop at its footprint', () => {
+        it('places a dashboard drop at its footprint', () => {
             const {model, design} = setup();
             expect(
                 design.dropAt(
@@ -1055,9 +1055,9 @@ describe('BlueprintDesignModel', () => {
             });
         });
 
-        it("adds a dash container's view to its layout in the same edit", () => {
+        it("adds a panes widget's view to its layout in the same edit", () => {
             const {model, design} = setup(),
-                dc = design.addWidget('dashContainer').id;
+                dc = design.addWidget('panes').id;
             expect(
                 design.dropAt(
                     {widget: 'markdown'},
@@ -1152,14 +1152,14 @@ describe('BlueprintDesignModel', () => {
                 const {model, design} = open(boxPage()),
                     edits = model.history.length;
                 design.select({kind: 'element', id: 'page'});
-                const toCanvas = changeTo(design, 'page', 'dashCanvas');
-                // A box's direction and gap, and a child's flex, have no place on a canvas.
+                const toCanvas = changeTo(design, 'page', 'dashboard');
+                // A box's direction and gap, and a child's flex, have no place on a dashboard.
                 expect(toCanvas.confirm).toMatch(/direction/);
                 expect(toCanvas.confirm).toMatch(/gap/);
                 expect(toCanvas.confirm).toMatch(/flex/);
                 expect(toCanvas.run()).toBeNull();
                 const page = model.blueprint.elements.page;
-                expect(page.component).toBe('dashCanvas');
+                expect(page.component).toBe('dashboard');
                 expect(page.config).not.toHaveProperty('direction');
                 // Packed: each child at the first free place, at its widget's default size.
                 expect(page.children.map(it => it.id)).toEqual(['a', 'b']);
@@ -1176,7 +1176,7 @@ describe('BlueprintDesignModel', () => {
                 expect(design.selection).toEqual({kind: 'element', id: 'page'});
                 expect(errors({issues: model.issues})).toEqual([]);
 
-                // Back to a box, the canvas places are dropped.
+                // Back to a box, the dashboard places are dropped.
                 const toBox = changeTo(design, 'page', 'box');
                 expect(toBox.confirm).toMatch(/x, y, w and h/);
                 expect(toBox.run()).toBeNull();

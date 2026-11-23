@@ -124,7 +124,7 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
                 {id: _id, ...placement} = old,
                 slot = op.slot ?? 'children',
                 sameSlot = from?.parent === op.parent && from.slot === slot && from.of === op.of;
-            // A view leaving its dash container leaves its layout too.
+            // A view leaving its panes widget leaves its layout too.
             if (from && from.parent !== op.parent) dropDockView(bp.elements[from.parent], op.id);
             placeChild(
                 bp,

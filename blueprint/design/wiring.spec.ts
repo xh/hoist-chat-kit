@@ -91,7 +91,7 @@ describe('wiring', () => {
             variables: {v0: {type: 'number', setBy: 'prompt'}},
             elements: {}
         };
-        bp.elements.canvas = {component: 'dashCanvas', children: []};
+        bp.elements.canvas = {component: 'dashboard', children: []};
         for (let i = 0; i < 1000; i++) {
             bp.variables[`v${i + 1}`] = {type: 'number', setBy: {element: `w${i}`}};
             bp.elements[`w${i}`] = {component: 'markdown', config: {text: `{v${i}}`}};

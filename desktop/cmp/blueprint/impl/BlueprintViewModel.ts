@@ -20,8 +20,8 @@ import {buttonGroupWidget, ButtonGroupWidgetModel} from '../ButtonGroupWidget';
 import {calloutWidget, CalloutWidgetModel} from '../CalloutWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
 import {cubeGridWidget, CubeGridWidgetModel} from '../CubeGridWidget';
-import {dashCanvasWidget, DashCanvasWidgetModel} from '../DashCanvasWidget';
-import {dashContainerWidget, DashContainerWidgetModel} from '../DashContainerWidget';
+import {dashboardWidget, DashboardWidgetModel} from '../DashboardWidget';
+import {panesWidget, PanesWidgetModel} from '../PanesWidget';
 import {gaugeWidget, GaugeWidgetModel} from '../GaugeWidget';
 import {heatmapWidget, HeatmapWidgetModel} from '../HeatmapWidget';
 import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
@@ -71,8 +71,8 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     callout: {model: CalloutWidgetModel, component: calloutWidget},
     chart: {model: ChartWidgetModel, component: chartWidget},
     cubeGrid: {model: CubeGridWidgetModel, component: cubeGridWidget},
-    dashCanvas: {model: DashCanvasWidgetModel, component: dashCanvasWidget},
-    dashContainer: {model: DashContainerWidgetModel, component: dashContainerWidget},
+    dashboard: {model: DashboardWidgetModel, component: dashboardWidget},
+    panes: {model: PanesWidgetModel, component: panesWidget},
     groupingChooser: {model: GroupingChooserWidgetModel, component: groupingChooserWidget},
     gauge: {model: GaugeWidgetModel, component: gaugeWidget},
     heatmap: {model: HeatmapWidgetModel, component: heatmapWidget},
@@ -180,7 +180,7 @@ export class BlueprintViewModel extends HoistModel {
                     run: () => wait().then(() => overlay.layoutChanged())
                 },
                 {
-                    // Also on mounting, so a canvas shown after another view, such as the Map,
+                    // Also on mounting, so a dashboard shown after another view, such as the Map,
                     // shows the selection.
                     // A selected view shows through its widget, on whatever tab holds it.
                     track: () => designModel.selectedElementId ?? designModel.selectedViewId,
@@ -188,7 +188,7 @@ export class BlueprintViewModel extends HoistModel {
                     fireImmediately: true
                 },
                 {
-                    // What each tab and dash container shows, for Structure to dim the rest.
+                    // What each tab and panes widget shows, for Structure to dim the rest.
                     track: () => {
                         blueprintModel.blueprint?.elements;
                         const activeTabs: Record<string, string> = {},
@@ -196,7 +196,7 @@ export class BlueprintViewModel extends HoistModel {
                         this.widgets.forEach(({model}, id) => {
                             if (model instanceof TabContainerWidgetModel) {
                                 activeTabs[id] = model.tabContainerModel.activeTabId;
-                            } else if (model instanceof DashContainerWidgetModel) {
+                            } else if (model instanceof PanesWidgetModel) {
                                 hiddenViews[id] = model.hiddenViews;
                             }
                         });
@@ -235,7 +235,7 @@ export class BlueprintViewModel extends HoistModel {
             const model = this.getWidgetModel(parent);
             if (model instanceof TabContainerWidgetModel)
                 model.tabContainerModel.activateTab(child);
-            if (model instanceof DashContainerWidgetModel) model.activateView(child);
+            if (model instanceof PanesWidgetModel) model.activateView(child);
             child = parent;
             parent = parentOf(elements, parent);
         }
@@ -314,7 +314,7 @@ export class BlueprintViewModel extends HoistModel {
     }
 
     // Follow drags over the page: preview where one would drop on the blueprint, and drop it there.
-    // A canvas or a dash container takes its own, so only its outline shows here.
+    // A dashboard or a panes widget takes its own, so only its outline shows here.
     private followDrops(): () => void {
         const host = () => this.overlay.hostEl,
             over = (e: DragEvent) => {
@@ -350,7 +350,7 @@ export class BlueprintViewModel extends HoistModel {
                 elementDrag.end();
             };
         const listeners = {dragover: over, drop, dragleave: leave, dragend: end};
-        // Capturing, as a canvas stops the drags it handles from bubbling, even over a container in
+        // Capturing, as a dashboard stops the drags it handles from bubbling, even over a container in
         // one of its cells.
         forEach(listeners, (fn, type) => window.addEventListener(type, fn, true));
         return () => forEach(listeners, (fn, type) => window.removeEventListener(type, fn, true));

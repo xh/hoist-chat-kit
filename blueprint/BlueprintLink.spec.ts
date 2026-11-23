@@ -322,16 +322,6 @@ describe('BlueprintLink', () => {
             );
         });
 
-        it('opens a draft stored in an older form, upgraded', async () => {
-            const {doc, model, id, repository} = await openDocument('write'),
-                old = structuredClone(BLUEPRINT) as any;
-            old.elements.posGrid.config.summaryRow = true;
-            expect((await repository.saveDraftAsync(id, draft(old))).issues).toEqual([]);
-            expect(await doc.openAsync(id, {as: 'draft'})).toEqual([]);
-            expect(model.blueprint.elements.posGrid.config).toMatchObject({showSummary: 'top'});
-            expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('summaryRow');
-        });
-
         it('says why a draft link opened the publish when the draft fails to validate', async () => {
             const toast = vi.spyOn(XH, 'warningToast').mockReturnValue(null),
                 warn = vi.spyOn(console, 'warn').mockReturnValue(null),

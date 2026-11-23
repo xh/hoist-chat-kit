@@ -1,5 +1,5 @@
 {
-    "schema": {"blueprint": 1, "widgets": {"dashCanvas": 1, "statCard": 1, "gauge": 1}},
+    "schema": {"blueprint": 1, "widgets": {"dashboard": 1, "statCard": 1, "gauge": 1}},
     "variables": {
         "city": {"type": "string", "label": "City", "default": {"value": "London"}},
         "units": {"type": "string", "label": "Units", "default": {"value": "metric"}}
@@ -10,7 +10,7 @@
     "root": "dashboard",
     "elements": {
         "dashboard": {
-            "component": "dashCanvas",
+            "component": "dashboard",
             "children": [
                 {"id": "nowTemp", "x": 0, "y": 0, "w": 4, "h": 4},
                 {"id": "nowHumidity", "x": 4, "y": 0, "w": 4, "h": 4},

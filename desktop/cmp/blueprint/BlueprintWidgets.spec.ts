@@ -23,7 +23,7 @@ import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroupInputWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {CubeGridWidgetModel} from './CubeGridWidget';
-import {DashCanvasWidgetModel} from './DashCanvasWidget';
+import {DashboardWidgetModel} from './DashboardWidget';
 import {elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
 import {GroupingChooserWidgetModel} from './GroupingChooserWidget';
@@ -986,12 +986,12 @@ describe('blueprint desktop widgets', () => {
         });
     });
 
-    describe('dashCanvas', () => {
+    describe('dashboard', () => {
         const place = ({id, x, y, w, h}: PlainObject) => ({id, x, y, w, h});
 
         it('places each child as its reference says, and opens without an edit', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
+                canvas = widget(DashboardWidgetModel, model, 'dashboard');
 
             expect(canvas.cells.map(place)).toEqual(
                 model.blueprint.elements.dashboard.children.map(place)
@@ -1011,7 +1011,7 @@ describe('blueprint desktop widgets', () => {
                 {id: 'regionPick'}
             ];
             const model = open(bp),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
+                canvas = widget(DashboardWidgetModel, model, 'dashboard');
             expect(canvas.cellHasHeader('posGrid')).toBe(true);
             expect(canvas.cellHeaderRefs.posGrid).toEqual([{id: 'regionPick'}]);
 
@@ -1025,7 +1025,7 @@ describe('blueprint desktop widgets', () => {
 
         it('takes a widget dragged from the palette only in design mode, sized as it starts', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                canvas = widget(DashboardWidgetModel, model, 'dashboard'),
                 drops: unknown[] = [];
             expect(canvas.onDropOver()).toBe(false);
 
@@ -1060,7 +1060,7 @@ describe('blueprint desktop widgets', () => {
                     root: 'page',
                     elements: {
                         page: {
-                            component: 'dashCanvas',
+                            component: 'dashboard',
                             children: [{id: 'inner', x: 0, y: 0, w: 6, h: 4}]
                         },
                         inner: {component: 'box', children: [{id: 'note'}]},
@@ -1068,7 +1068,7 @@ describe('blueprint desktop widgets', () => {
                     }
                 } as Blueprint),
                 design = new BlueprintDesignModel({blueprintModel: model}),
-                canvas = widget(DashCanvasWidgetModel, model, 'page'),
+                canvas = widget(DashboardWidgetModel, model, 'page'),
                 wrapper = (id: string, parent?: HTMLElement) => {
                     const el = document.createElement('div');
                     el.dataset.blueprintElement = id;
@@ -1104,7 +1104,7 @@ describe('blueprint desktop widgets', () => {
 
         it('turns a move into one edit of its children, in reading order', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                canvas = widget(DashboardWidgetModel, model, 'dashboard'),
                 headline = canvas.cells.find(it => it.id === 'headline');
             canvas.onCellsChange([{...headline, y: 14}]);
 
@@ -1119,7 +1119,7 @@ describe('blueprint desktop widgets', () => {
 
         it('leaves the document as it was when the edit for a move is refused', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                canvas = widget(DashboardWidgetModel, model, 'dashboard'),
                 headline = canvas.cells.find(it => it.id === 'headline');
             const toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
             onTestFinished(() => toast.mockRestore());
@@ -1134,7 +1134,7 @@ describe('blueprint desktop widgets', () => {
 
         it("heads every cell, titled by its child's title, else its widget's label, following edits", () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
+                canvas = widget(DashboardWidgetModel, model, 'dashboard');
 
             expect(canvas.cellHasHeader('sectorChart')).toBe(true);
             expect(canvas.titles.sectorChart).toBe('Day P&L by Sector');
@@ -1160,7 +1160,7 @@ describe('blueprint desktop widgets', () => {
             ref('sectorChart').title = 'Sectors';
             ref('ordersGrid').title = 'Orders';
             ref('ordersGrid').hideHeader = true;
-            const canvas = widget(DashCanvasWidgetModel, open(bp), 'dashboard');
+            const canvas = widget(DashboardWidgetModel, open(bp), 'dashboard');
 
             expect(canvas.titles.sectorChart).toBe('Sectors');
             expect(canvas.cellHasHeader('ordersGrid')).toBe(false);
@@ -1170,14 +1170,14 @@ describe('blueprint desktop widgets', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json'));
             model.setAccess('write');
             model.setMode('design');
-            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+            const canvas = widget(DashboardWidgetModel, model, 'dashboard'),
                 version = model.version;
             expect(canvas.moveCell('headline', {x: 6})).toMatch(/columns/);
             expect(canvas.moveCell('headline', {w: 0})).toMatch(/at least|columns/);
             expect(canvas.moveCell('nothing', {x: 0})).toMatch(/no cell/);
             expect(model.version).toBe(version);
 
-            // The canvas packs cells up, by default: the others rise into the place it leaves,
+            // The dashboard packs cells up, by default: the others rise into the place it leaves,
             // and it floats up to rest below them.
             expect(canvas.moveCell('headline', {y: 300, w: 6})).toBeNull();
             expect(model.version).toBe(version + 1);
@@ -1191,7 +1191,7 @@ describe('blueprint desktop widgets', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json'));
             model.setAccess('write');
             model.setMode('design');
-            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+            const canvas = widget(DashboardWidgetModel, model, 'dashboard'),
                 version = model.version,
                 at = (id: string) => canvas.cells.find(it => it.id === id);
             expect(canvas.moveCell('headline', {y: 3})).toMatch(/stays where it is/);
@@ -1224,7 +1224,7 @@ describe('blueprint desktop widgets', () => {
                 const model = open(bp);
                 model.setAccess('write');
                 model.setMode(mode);
-                return {model, canvas: widget(DashCanvasWidgetModel, model, 'dashboard')};
+                return {model, canvas: widget(DashboardWidgetModel, model, 'dashboard')};
             };
             const noOverlaps = (cells: GridCellLike[]) =>
                 cells.filter(a =>
@@ -1250,11 +1250,11 @@ describe('blueprint desktop widgets', () => {
             it('shows stored cells packed up, unless it does not compact', () => {
                 const bp = loadBlueprint('p2-linked-dashboard.json');
                 (bp.elements.dashboard.children[3] as PlainObject).y = 20;
-                const packed = widget(DashCanvasWidgetModel, open(bp), 'dashboard');
+                const packed = widget(DashboardWidgetModel, open(bp), 'dashboard');
                 expect(packed.cells.find(it => it.id === 'ordersGrid').y).toBe(9);
 
                 bp.elements.dashboard.config = {compact: false};
-                const free = widget(DashCanvasWidgetModel, open(bp), 'dashboard');
+                const free = widget(DashboardWidgetModel, open(bp), 'dashboard');
                 expect(free.cells.find(it => it.id === 'ordersGrid').y).toBe(20);
             });
 
@@ -1272,7 +1272,7 @@ describe('blueprint desktop widgets', () => {
             it('keeps cells within its most rows', () => {
                 const {canvas} = canvasWith({compact: false, maxRows: 14});
                 expect(canvas.moveCell('ordersGrid', {y: 12})).toBe(
-                    "'ordersGrid' must lie within the canvas's 14 rows."
+                    "'ordersGrid' must lie within the dashboard's 14 rows."
                 );
             });
 
@@ -1316,7 +1316,7 @@ describe('blueprint desktop widgets', () => {
         it("resets a reader's moves, and offers to only once there are some", () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json'));
             model.setMode('run');
-            const canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+            const canvas = widget(DashboardWidgetModel, model, 'dashboard'),
                 headline = canvas.cells.find(it => it.id === 'headline');
             expect(canvas.isRearranged).toBe(false);
             canvas.onCellsChange([{...headline, y: 14}]);
@@ -1330,7 +1330,7 @@ describe('blueprint desktop widgets', () => {
 
         it('follows an edit that adds a child', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
-                canvas = widget(DashCanvasWidgetModel, model, 'dashboard');
+                canvas = widget(DashboardWidgetModel, model, 'dashboard');
             model.applyEdit({
                 ops: [
                     {
@@ -1389,7 +1389,7 @@ describe('blueprint desktop widgets', () => {
         expect(panel.style.height).toBe('calc(300px + var(--xh-title-compact-height))');
     });
 
-    it('renders a dashCanvas child through the view model, as the canvas does', () => {
+    it('renders a dashboard child through the view model, as the dashboard does', () => {
         const viewModel = new BlueprintViewModel(open(loadBlueprint('p2-linked-dashboard.json')));
         onTestFinished(() => viewModel.destroy());
 

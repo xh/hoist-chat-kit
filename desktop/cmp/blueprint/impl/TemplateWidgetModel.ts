@@ -48,16 +48,16 @@ export class TemplateWidgetModel<
         this.overflow = Math.max(0, Math.round(px));
     }
 
-    /** True in design mode for clipped text in a canvas cell, which can grow to show it all. */
+    /** True in design mode for clipped text in a dashboard cell, which can grow to show it all. */
     get canGrow(): boolean {
         return (
             this.overflow > 0 &&
             this.blueprintModel.mode === 'design' &&
-            this.parentElement?.component === 'dashCanvas'
+            this.parentElement?.component === 'dashboard'
         );
     }
 
-    /** Grow the text's canvas cell by enough rows to show it all, and move the cells below down, in one edit. */
+    /** Grow the text's dashboard cell by enough rows to show it all, and move the cells below down, in one edit. */
     makeTaller() {
         const parent = this.parentElement,
             canvasId = parentOf(this.blueprintModel.blueprint.elements, this.id),
