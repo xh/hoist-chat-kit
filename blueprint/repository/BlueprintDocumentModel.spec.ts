@@ -616,4 +616,123 @@ describe('BlueprintDocumentModel', () => {
         await doc.openAsync(id, {as: 'draft'});
         expect(migrate).toHaveBeenCalledOnce();
     });
+
+    describe('restoring a publish', () => {
+        // A draft published as v1 with the title given, then edited to another and published v2.
+        async function twoPublishes() {
+            const {repository, grant, id} = await created(),
+                {blueprintModel, doc} = session(repository);
+            await doc.openAsync(id, {as: 'draft'});
+            title(blueprintModel, 'First');
+            expect(await doc.publishAsync()).toEqual([]);
+            title(blueprintModel, 'Second');
+            expect(await doc.publishAsync()).toEqual([]);
+            return {repository, grant, id, blueprintModel, doc};
+        }
+
+        const titleOf = (m: BlueprintModel) => m.blueprint.elements.posGrid.config.title;
+
+        it('brings back a publish as one edit of the draft, which undo takes back', async () => {
+            const {blueprintModel, doc, id} = await twoPublishes(),
+                before = doc.document;
+            title(blueprintModel, 'Third');
+            expect(await doc.restoreAsync(1)).toEqual([]);
+            expect(titleOf(blueprintModel)).toBe('First');
+            expect(blueprintModel.undoDescription).toBe('Restore v1');
+            expect(doc.isDirty).toBe(true);
+            // The document stays the same one.
+            expect(doc.document).toMatchObject({id, name: before.name, access: 'write'});
+            blueprintModel.undo();
+            expect(titleOf(blueprintModel)).toBe('Third');
+        });
+
+        it('renames back the ids renamed since the publish, so the next publish records it', async () => {
+            const {blueprintModel, doc, repository, id} = await twoPublishes(),
+                rename = (kind: string, from: string, to: string) =>
+                    blueprintModel.applyEdit({ops: [{op: 'renameId', kind, from, to} as any]});
+            rename('element', 'posGrid', 'positionsGrid');
+            expect(await doc.publishAsync()).toEqual([]);
+            rename('element', 'priceChart', 'prices');
+
+            expect(await doc.restoreAsync(2)).toEqual([]);
+            const {elements} = blueprintModel.blueprint;
+            expect(Object.keys(elements)).toEqual(
+                expect.arrayContaining(['posGrid', 'priceChart'])
+            );
+            expect(elements.positionsGrid).toBeUndefined();
+            expect(doc.pendingRenames).toEqual([
+                {kind: 'element', from: 'priceChart', to: 'prices'},
+                {kind: 'element', from: 'positionsGrid', to: 'posGrid'},
+                {kind: 'element', from: 'prices', to: 'priceChart'}
+            ]);
+            expect(await doc.publishAsync()).toEqual([]);
+            const latest = (await repository.listPublishesAsync(id)).at(-1);
+            expect(latest.renames).toContainEqual({
+                kind: 'element',
+                from: 'positionsGrid',
+                to: 'posGrid'
+            });
+        });
+
+        it('refuses a restore for a reader, from a publish, or of one not there', async () => {
+            const {doc, grant, id} = await twoPublishes();
+            expect(errors(await doc.restoreAsync(9))).toEqual(['edit.notAllowed']);
+            await doc.openAsync(id, {as: 'publish', version: 1});
+            expect(errors(await doc.restoreAsync(1))).toEqual(['edit.notAllowed']);
+            grant.access = 'read';
+            await doc.openAsync(id);
+            expect(errors(await doc.restoreAsync(1))).toEqual(['edit.notAllowed']);
+        });
+
+        it('rolls back: restores a publish and publishes it again, noted, as one action', async () => {
+            const {blueprintModel, doc, repository, id} = await twoPublishes();
+            expect(await doc.rollbackAsync(1)).toEqual([]);
+            const latest = (await repository.listPublishesAsync(id)).at(-1);
+            expect(latest).toMatchObject({version: 3, note: 'Rolled back to v1'});
+            expect(titleOf(blueprintModel)).toBe('First');
+            expect(doc.isDirty).toBe(false);
+            expect((await repository.openAsync(id, {as: 'publish'})).blueprint).toMatchObject({
+                elements: {posGrid: {config: {title: 'First'}}}
+            });
+        });
+
+        it('refuses a rollback for a user who may not publish, or from a stale draft', async () => {
+            const {doc, grant, repository, id, blueprintModel} = await twoPublishes();
+            grant.canPublish = false;
+            await doc.openAsync(id, {as: 'draft'});
+            expect(errors(await doc.rollbackAsync(1))).toEqual(['edit.notAllowed']);
+            expect(titleOf(blueprintModel)).toBe('Second');
+
+            grant.canPublish = true;
+            await doc.openAsync(id, {as: 'draft'});
+            await repository.saveDraftAsync(id, {
+                blueprint: blueprintModel.blueprint,
+                base: doc.document.version,
+                renames: []
+            });
+            title(blueprintModel, 'Mine');
+            await doc.saveDraftAsync();
+            expect(doc.isStale).toBe(true);
+            expect(errors(await doc.rollbackAsync(1))).toEqual(['edit.staleBase']);
+            expect(titleOf(blueprintModel)).toBe('Mine');
+        });
+    });
+
+    it("changes a publish's note, label or pin for a writer, where its repository can", async () => {
+        const {repository, grant, id} = await created(),
+            {blueprintModel, doc} = session(repository);
+        await doc.openAsync(id, {as: 'draft'});
+        title(blueprintModel, 'One');
+        await doc.publishAsync('Note');
+        expect(doc.canUpdatePublishes).toBe(true);
+        expect(await doc.updatePublishAsync(1, {label: 'Board'})).toMatchObject({
+            version: 1,
+            note: 'Note',
+            label: 'Board'
+        });
+        grant.access = 'read';
+        await doc.openAsync(id);
+        expect(doc.canUpdatePublishes).toBe(false);
+        await expect(doc.updatePublishAsync(1, {pinned: true})).rejects.toThrow(/write access/);
+    });
 });

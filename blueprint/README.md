@@ -63,6 +63,7 @@ BlueprintDocumentModel                # A stored blueprint, open in the Blueprin
 └── Methods:
     ├── openAsync() / createAsync() / reloadAsync()
     ├── saveDraftAsync() / publishAsync()
+    ├── restoreAsync() / rollbackAsync() / updatePublishAsync()
     └── copyAsync() / renameAsync() / deleteAsync() / updateAccessAsync()
 ```
 
@@ -416,6 +417,13 @@ await doc.publishAsync('Adds the risk view');
   and records no source.
 - **Renames for personalizations.** The draft keeps the renames of elements, variables and sources
   since the last publish, and each publish records them.
+- **Publish history.** `restoreAsync(3)` brings publish 3's content back into the draft as one
+  edit, "Restore v3", which undo takes back. It renames back the ids renamed since, so the next
+  publish records those renames and personalizations follow them. `rollbackAsync(3)` restores,
+  then publishes with the note "Rolled back to v3". `updatePublishAsync(3, {note, label, pinned})`
+  changes a publish's note, label or pin, never its content, where `canUpdatePublishes`.
+  `diffBlueprints(a, b, renames)` says what each part of a blueprint added, removed, renamed and
+  changed between two versions.
 
 ### Choose a repository
 
@@ -451,6 +459,9 @@ Implement `BlueprintRepository`. Its doc comment states the contract in full. Th
 - Implement `renameAsync` only if the store can rename a blueprint. The library offers renaming
   only then, to writers. Refuse a name the blueprint's owner already has, with an `httpStatus` of
   400, and leave the description as it is when the call omits it.
+- Implement `updatePublishAsync` only if the store can change a publish's note, label and pin.
+  Change only the keys given, clear a note or label on null or a blank, trim a label to 50
+  characters, and leave the content as it was.
 - Implement `updateAccessAsync` only if the store can share. The library offers sharing only
   then. A grantee is a username, `role:<ROLE>`, or `*` for everyone. Name the forms the store
   takes in `sharingModes`, and set `canShareGlobally` on a record whose user may share it with
