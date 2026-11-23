@@ -15,6 +15,8 @@ interface DesignKey {
     run: (designModel: BlueprintDesignModel, id: string) => void;
     /** True to run with nothing selected. */
     always?: boolean;
+    /** True to run with focus in a widget's own control too, as the mode keys do. */
+    anywhere?: boolean;
 }
 
 /**
@@ -36,13 +38,15 @@ export function designHotkeys(
 ): HotkeyConfig[] {
     const {arrows = true, fromWidgets = false} = opts;
     return DESIGN_KEYS.filter(it => arrows || !ARROW_RE.test(it.combo)).map(
-        ({combo, label, run, always}) => ({
+        ({combo, label, run, always, anywhere}) => ({
             combo,
             label,
             group: 'Design',
             onKeyDown: (e: KeyboardEvent) => {
                 if (designModel.blueprintModel.mode !== 'design') return;
-                if (fromWidgets && (e.target as Element)?.closest?.(INTERACTIVE)) return;
+                if (fromWidgets && !anywhere && (e.target as Element)?.closest?.(INTERACTIVE)) {
+                    return;
+                }
                 // A selected view's keys act on the element in it, but for Esc and Enter.
                 const id = designModel.selectedElementId ?? designModel.selectedViewId;
                 if (!id && !always) return;
@@ -52,6 +56,17 @@ export function designHotkeys(
         })
     );
 }
+
+/**
+ * The keys that switch between Edit and Interact alone, for a part of the designer that binds no
+ * other design keys, such as the Inspector. Never bind them inside a part that does, or a toggle
+ * runs twice.
+ */
+export function modeHotkeys(designModel: BlueprintDesignModel): HotkeyConfig[] {
+    return designHotkeys(designModel, {arrows: false}).filter(it => MODE_COMBOS.includes(it.combo));
+}
+
+const MODE_COMBOS = ['e', 'i', '`'];
 
 /** Show the design keys in a dialog. */
 export function showDesignKeys() {
@@ -127,6 +142,7 @@ const DESIGN_KEYS: DesignKey[] = [
         keys: 'E',
         label: 'Edit: clicks select',
         always: true,
+        anywhere: true,
         run: dm => dm.setInteraction('edit')
     },
     {
@@ -134,7 +150,16 @@ const DESIGN_KEYS: DesignKey[] = [
         keys: 'I',
         label: 'Interact: clicks reach the widgets',
         always: true,
+        anywhere: true,
         run: dm => dm.setInteraction('interact')
+    },
+    {
+        combo: '`',
+        keys: '`',
+        label: 'Switch between Edit and Interact',
+        always: true,
+        anywhere: true,
+        run: dm => dm.setInteraction(dm.interaction === 'edit' ? 'interact' : 'edit')
     },
     {
         combo: 'esc',

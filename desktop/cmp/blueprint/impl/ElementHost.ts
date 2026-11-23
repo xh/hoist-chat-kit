@@ -9,6 +9,7 @@ import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
 import {
+    type BlueprintDesignModel,
     type BlueprintSelection,
     type BlueprintWidgetModel,
     isIncomplete,
@@ -74,6 +75,18 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             ),
             // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
             ...({'data-blueprint-element': id} as object),
+            // In Edit, a left press into a widget selects it, and the widget never sees it: no
+            // sort, no action, no focus. Design chrome, Alt held and Interact let it through.
+            onPointerDownCapture: e => stopIfCaptured(e, designModel),
+            onMouseDownCapture: e => stopIfCaptured(e, designModel),
+            onDoubleClickCapture: e => stopIfCaptured(e, designModel),
+            onClickCapture: e => {
+                if (!stopIfCaptured(e, designModel)) return;
+                const el = (e.target as HTMLElement).closest<HTMLElement>(
+                    '[data-blueprint-element]'
+                );
+                designModel.select({kind: 'element', id: el?.dataset.blueprintElement ?? id});
+            },
             onClick: e => {
                 if (designModel.interaction === 'interact') return;
                 // Alt held passes one click through to the widget, and past the elements around it.
@@ -156,6 +169,56 @@ export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of:
 }
 
 const CELL_CHROME = `[data-blueprint-view-header], [data-blueprint-view-grip], ${GRID_RESIZE_HANDLE}`;
+
+// What takes its own press in Edit: a cell's chrome, a tab strip, a dash container's splitter, an
+// empty container's way to add, and the designer's own buttons drawn in a widget.
+const DESIGN_CHROME = [
+    CELL_CHROME,
+    '[role=tab]',
+    '.xh-layout-dock__separator',
+    '.xh-blueprint-view__design-empty',
+    '.xh-blueprint-view__notice .xh-button',
+    '.xh-blueprint-clip-frame__grow'
+].join(', ');
+
+/**
+ * Stop a left press into a widget in Edit before the widget sees it, once for the outermost
+ * element it reaches. Returns true if it was stopped.
+ */
+function stopIfCaptured(e: React.MouseEvent, designModel: BlueprintDesignModel): boolean {
+    const native = e.nativeEvent as Event & {xhCaptured?: boolean};
+    native.xhCaptured ??=
+        designModel.interaction === 'edit' &&
+        !altHold.active &&
+        !e.altKey &&
+        e.button === 0 &&
+        !passesThrough(e.target as HTMLElement, e.clientX, e.clientY);
+    if (!native.xhCaptured) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
+}
+
+// Design chrome takes its own press, but for a header item inside it, which is a widget. So does
+// a scrollbar, whose drag starts with the press.
+function passesThrough(target: HTMLElement, x: number, y: number): boolean {
+    const chrome = target.closest(DESIGN_CHROME);
+    if (chrome) {
+        const item = target.closest('[data-blueprint-element]');
+        return !(item && chrome.contains(item));
+    }
+    return inScrollbar(target, x, y);
+}
+
+function inScrollbar(el: HTMLElement, x: number, y: number): boolean {
+    const r = el.getBoundingClientRect(),
+        right = r.left + el.clientLeft + el.clientWidth,
+        bottom = r.top + el.clientTop + el.clientHeight;
+    return (
+        (el.scrollHeight > el.clientHeight && x >= right && x < r.right) ||
+        (el.scrollWidth > el.clientWidth && y >= bottom && y < r.bottom)
+    );
+}
 
 // The field a widget needs set before it can draw: the variable an input sets, or a source.
 function needsField(

@@ -13,6 +13,7 @@ import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {menuItem, popover} from '@xh/hoist/kit/blueprint';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
+import {useHotkeys} from '@xh/hoist/desktop/hooks';
 import {useOnResize} from '@xh/hoist/utils/react';
 import {isString, partition, sum} from 'lodash';
 import type React from 'react';
@@ -40,6 +41,7 @@ import {
     runDesignActionAsync,
     selectionMenu
 } from './impl/designActions';
+import {modeHotkeys} from './impl/designHotkeys';
 import {type CrumbGroup, crumbMenu} from './impl/crumbMenu';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
@@ -69,21 +71,27 @@ export const [BlueprintInspector, blueprintInspector] =
         render({designModel, onShowPresetGroup, documentModel, className}) {
             const impl = useLocalModel(() => new BlueprintInspectorModel(designModel)),
                 {selection} = impl;
-            if (!selection) return summary({className, impl, document: documentModel?.document});
-            return vframe({
-                className,
-                children: [
-                    breadcrumb({impl}),
-                    header({impl}),
-                    actionBar({impl}),
-                    ...impl.issues.map((it, idx) => issueRow({key: idx, impl, issue: it})),
-                    wiringCard({impl}),
-                    div({
-                        className: `${CLS}__body`,
-                        children: editorFor(selection, designModel, onShowPresetGroup)
-                    })
-                ]
-            });
+            return useHotkeys(
+                selection
+                    ? vframe({
+                          className,
+                          children: [
+                              breadcrumb({impl}),
+                              header({impl}),
+                              actionBar({impl}),
+                              ...impl.issues.map((it, idx) =>
+                                  issueRow({key: idx, impl, issue: it})
+                              ),
+                              wiringCard({impl}),
+                              div({
+                                  className: `${CLS}__body`,
+                                  children: editorFor(selection, designModel, onShowPresetGroup)
+                              })
+                          ]
+                      })
+                    : summary({className, impl, document: documentModel?.document}),
+                modeHotkeys(designModel)
+            );
         }
     });
 
@@ -673,16 +681,24 @@ const addWidgetButton = hoistCmp.factory<
 // The blueprint as a whole, with nothing selected: its name and description, what it holds, and
 // its root.
 const summary = hoistCmp.factory<
-    HoistProps & {impl: BlueprintInspectorModel; document: {name?: string; description?: string}}
+    HoistProps & {
+        impl: BlueprintInspectorModel;
+        document: {name?: string; description?: string};
+        onKeyDown?: React.KeyboardEventHandler;
+        onKeyUp?: React.KeyboardEventHandler;
+    }
 >({
     displayName: 'BlueprintInspectorSummary',
     model: false,
-    render({impl, document, className}) {
+    // Takes the Inspector's hotkey handlers onto its frame.
+    render({impl, document, className, onKeyDown, onKeyUp}) {
         const {blueprint, registry} = impl.designModel.blueprintModel,
             {elements = {}, sources = {}, variables = {}, presets = {}, root} = blueprint ?? {},
             count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
         return vframe({
             className: `${className} ${CLS}--summary`,
+            onKeyDown,
+            onKeyUp,
             children: [
                 div({className: `${CLS}__summary-name`, children: document?.name ?? 'Blueprint'}),
                 document?.description

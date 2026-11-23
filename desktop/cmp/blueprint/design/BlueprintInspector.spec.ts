@@ -216,6 +216,21 @@ describe('BlueprintInspector', () => {
         ).toBeGreaterThanOrEqual(5);
     });
 
+    it('switches between Edit and Interact from its keys, with nothing selected too', async () => {
+        const {design} = open(),
+            {container} = render(blueprintInspector({designModel: design}) as ReactElement),
+            frame = container.querySelector<HTMLElement>('.xh-blueprint-inspector');
+        expect(design.interaction).toBe('edit');
+        fireEvent.keyDown(frame, {key: '`', code: 'Backquote'});
+        expect(design.interaction).toBe('interact');
+        act(() => design.select({kind: 'element', id: 'posGrid'}));
+        fireEvent.keyDown(container.querySelector('.xh-blueprint-inspector'), {
+            key: 'e',
+            code: 'KeyE'
+        });
+        expect(design.interaction).toBe('edit');
+    });
+
     describe('breadcrumb child menus', () => {
         const chevrons = (container: HTMLElement) => [
                 ...container.querySelectorAll<HTMLElement>(

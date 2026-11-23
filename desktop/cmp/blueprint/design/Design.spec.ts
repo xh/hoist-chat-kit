@@ -450,6 +450,93 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBeNull();
     });
 
+    describe('Edit captures presses into a widget', () => {
+        async function positions() {
+            stubRects();
+            // jsdom has no layout: a canvas waits for a measured width before it draws.
+            const width = vi
+                .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+                .mockReturnValue(1200);
+            onTestFinished(() => width.mockRestore());
+            const {design, model} = open('p3-morning-report.json'),
+                {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+                stop = altHold.follow();
+            onTestFinished(stop);
+            const tab = [...container.querySelectorAll<HTMLElement>('[role=tab]')].find(
+                it => it.textContent === 'Positions'
+            );
+            // A tab strip still switches tabs in Edit.
+            fireEvent.click(tab);
+            const winners = await vi.waitFor(() => {
+                const it = [...container.querySelectorAll('button')].find(
+                    b => b.textContent === 'Winners'
+                );
+                expect(it).toBeTruthy();
+                return it;
+            });
+            return {design, model, container, winners};
+        }
+
+        const press = (el: Element, init: object = {}) => {
+            fireEvent.pointerDown(el, {button: 0, ...init});
+            fireEvent.mouseDown(el, {button: 0, ...init});
+            fireEvent.mouseUp(el, {button: 0, ...init});
+            fireEvent.click(el, {button: 0, ...init});
+        };
+
+        it('selects the widget a press lands in, which never sees the press', async () => {
+            const {design, model, winners} = await positions(),
+                seen = vi.fn();
+            ['pointerdown', 'mousedown', 'click'].forEach(type =>
+                winners.addEventListener(type, seen)
+            );
+            press(winners);
+            expect(seen).not.toHaveBeenCalled();
+            expect(design.selectedElementId).toBe('pnlButtons');
+            expect(model.getVariable('pnlFilter').value).toBeFalsy();
+        });
+
+        it('lets a press through with Alt held, and in Interact', async () => {
+            const {design, model, winners} = await positions();
+            act(() => {
+                window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Alt'}));
+            });
+            press(winners, {altKey: true});
+            act(() => {
+                window.dispatchEvent(new KeyboardEvent('keyup', {key: 'Alt'}));
+            });
+            await vi.waitFor(() => expect(model.getVariable('pnlFilter').value).toBeTruthy());
+            model.setVariable('pnlFilter', null);
+            act(() => design.setInteraction('interact'));
+            press(winners);
+            await vi.waitFor(() => expect(model.getVariable('pnlFilter').value).toBeTruthy());
+        });
+
+        it("leaves a canvas cell's header its press, to move the cell", async () => {
+            const {container} = await positions(),
+                header = container.querySelector<HTMLElement>('[data-blueprint-view-header]'),
+                seen = vi.fn();
+            header.addEventListener('mousedown', seen);
+            fireEvent.mouseDown(header, {button: 0});
+            expect(seen).toHaveBeenCalled();
+            expect(seen.mock.calls[0][0].defaultPrevented).toBe(false);
+        });
+
+        it('flips between Edit and Interact with the backtick key, even from inside a widget', async () => {
+            const {design, winners} = await positions(),
+                toggle = designHotkeys(design, {fromWidgets: true}).find(it => it.combo === '`'),
+                // Focus may be on a widget's own control, such as a button.
+                keyDown = () =>
+                    act(() =>
+                        toggle.onKeyDown({target: winners, preventDefault: () => null} as any)
+                    );
+            keyDown();
+            expect(design.interaction).toBe('interact');
+            keyDown();
+            expect(design.interaction).toBe('edit');
+        });
+    });
+
     it('previews a drop at a point, and drops a dragged widget there with a line marking the place', async () => {
         const model = new BlueprintModel({
                 blueprint: {
