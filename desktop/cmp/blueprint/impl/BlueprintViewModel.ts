@@ -1,7 +1,7 @@
 import {HoistModel, managed, XH, type ElementFactory} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {forEach, last} from 'lodash';
+import {forEach, isEqual, last} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     type AddPlace,
@@ -264,18 +264,29 @@ export class BlueprintViewModel extends HoistModel {
     private stopAltHold: () => void = null;
     private stopDropFollow: () => void = null;
 
+    // Each place's verdict for a source, while the blueprint stays the same, as a drag asks for
+    // it on every dragover.
+    private verdicts = {blueprint: null as object, source: null as DropSource, byTarget: new Map()};
+
     private dropPlace(source: DropSource, x: number, y: number): DropPlace {
-        const {designModel, overlay, blueprintModel} = this,
+        const {designModel, overlay, blueprintModel, verdicts} = this,
             host = overlay.hostEl;
         if (!host || !designModel || blueprintModel.mode !== 'design') return null;
-        return dropPlaceAt(host, blueprintModel, source, x, y, (s, t) =>
-            designModel.canDropAt(s, t)
-        );
+        if (verdicts.blueprint !== blueprintModel.blueprint || !isEqual(verdicts.source, source)) {
+            Object.assign(verdicts, {blueprint: blueprintModel.blueprint, source});
+            verdicts.byTarget.clear();
+        }
+        return dropPlaceAt(host, blueprintModel, source, x, y, (s, t) => {
+            const key = JSON.stringify(t);
+            if (!verdicts.byTarget.has(key))
+                verdicts.byTarget.set(key, designModel.canDropAt(s, t));
+            return verdicts.byTarget.get(key);
+        });
     }
 
     @action
     private setDropPreview(place: DropPlace) {
-        this.dropPreview = place;
+        if (!samePreview(place, this.dropPreview)) this.dropPreview = place;
     }
 
     // Follow drags over the page: preview where one would drop on the blueprint, and drop it there.
@@ -370,6 +381,20 @@ export class BlueprintViewModel extends HoistModel {
             this.widgets.set(id, {component: el.component, model});
         });
     }
+}
+
+// Whether two drop places draw the same, so a dragover that changes neither leaves the preview be.
+// The pointer counts only under a refusal, whose reason shows at it.
+function samePreview(a: DropPlace, b: DropPlace): boolean {
+    if (!a || !b) return a === b;
+    return (
+        a.containerEl === b.containerEl &&
+        a.ownDrop === b.ownDrop &&
+        a.refusal === b.refusal &&
+        isEqual(a.target, b.target) &&
+        isEqual(a.line, b.line) &&
+        (!a.refusal || isEqual(a.pointer, b.pointer))
+    );
 }
 
 function pickDefined(spec: WidgetSpec): Pick<WidgetSpec, 'model' | 'component'> {
