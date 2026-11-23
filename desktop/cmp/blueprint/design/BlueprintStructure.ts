@@ -18,7 +18,13 @@ import classNames from 'classnames';
 import type React from 'react';
 import type {ReactElement} from 'react';
 import type {AddPlace, BlueprintDesignModel, BlueprintSelection} from '../../../../blueprint';
-import {locate, parentMap, slotLabel, slotLists} from '../../../../blueprint/impl/elements';
+import {
+    childGroups,
+    locate,
+    parentMap,
+    slotLabel,
+    slotLists
+} from '../../../../blueprint/impl/elements';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintStructure.scss';
 import './BlueprintTree.scss';
@@ -327,16 +333,14 @@ export class BlueprintStructureModel extends HoistModel {
                 placed.add(id);
                 const el = elements[id],
                     spec = registry.widgets[el.component],
-                    own = slotLists(el).filter(it => !it.of),
-                    ownSlots = [
-                        ...(spec?.children ? ['children'] : []),
-                        ...Object.keys(spec?.slots ?? {})
-                    ],
+                    groups = childGroups(el, spec),
+                    live = (refs: {id: string}[]) =>
+                        refs.filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id)),
                     cellSlots = Object.keys(spec?.children?.slots ?? {}),
                     refsOf = (slot: string, of?: string) =>
-                        (
+                        live(
                             slotLists(el).find(it => it.slot === slot && it.of === of)?.refs ?? []
-                        ).filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id)),
+                        ),
                     childRow = (childId: string): PlainObject => {
                         const row = elementRow(childId),
                             // A cell's slots, such as its header, sit under its element, or under
@@ -374,14 +378,9 @@ export class BlueprintStructureModel extends HoistModel {
                         children: refs.map(it => childRow(it.id))
                     }),
                     children =
-                        ownSlots.length > 1
-                            ? ownSlots.map(slot => slotRow({parent: id, slot}, refsOf(slot)))
-                            : own
-                                  .flatMap(it => it.refs)
-                                  .filter(
-                                      ref => Object.hasOwn(elements, ref.id) && !placed.has(ref.id)
-                                  )
-                                  .map(ref => childRow(ref.id));
+                        groups.length > 1
+                            ? groups.map(it => slotRow({parent: id, slot: it.slot}, live(it.refs)))
+                            : live(groups[0]?.refs ?? []).map(ref => childRow(ref.id));
                 return {
                     id: `element:${id}`,
                     name: id,

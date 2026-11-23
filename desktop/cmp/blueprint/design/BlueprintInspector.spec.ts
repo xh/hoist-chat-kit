@@ -216,6 +216,155 @@ describe('BlueprintInspector', () => {
         ).toBeGreaterThanOrEqual(5);
     });
 
+    describe('breadcrumb child menus', () => {
+        const chevrons = (container: HTMLElement) => [
+                ...container.querySelectorAll<HTMLElement>(
+                    '.xh-blueprint-inspector__breadcrumb .xh-blueprint-inspector__crumb-sep--menu'
+                )
+            ],
+            // The menu opened last, as one closing may linger in the page.
+            lastMenu = () =>
+                [...document.querySelectorAll('.xh-blueprint-inspector__crumb-menu')].at(-1),
+            menuItems = (): HTMLElement[] => [
+                ...(lastMenu()?.querySelectorAll<HTMLElement>('[data-crumb-child]') ?? [])
+            ],
+            itemIds = () => menuItems().map(it => it.dataset.crumbChild),
+            item = (id: string) => menuItems().find(it => it.dataset.crumbChild === id);
+
+        async function show(id: string) {
+            const {design, model} = open(),
+                {container} = render(blueprintInspector({designModel: design}) as ReactElement);
+            act(() => design.select({kind: 'element', id}));
+            await vi.waitFor(() =>
+                expect(
+                    container.querySelector('.xh-blueprint-inspector__crumb--current')?.textContent
+                ).toContain(id)
+            );
+            return {design, model, container};
+        }
+
+        const openMenu = (chevron: HTMLElement) =>
+            act(() => {
+                fireEvent.click(chevron);
+            });
+
+        it("lists the children of the step before each chevron, the containers' and the selection's own", async () => {
+            const {container} = await show('overview');
+            const [afterTabs, trailing] = chevrons(container);
+            openMenu(afterTabs);
+            await vi.waitFor(() => expect(itemIds()).toEqual(['overview', 'positions', 'orders']));
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'Escape'});
+            });
+            openMenu(trailing);
+            // A canvas's cells in reading order.
+            await vi.waitFor(() =>
+                expect(itemIds()).toEqual([
+                    'reportActions',
+                    'headline',
+                    'sectorChart',
+                    'regionChart'
+                ])
+            );
+            expect(item('headline').textContent).toContain('Tiles');
+        });
+
+        it('gives a leaf no trailing chevron', async () => {
+            const {container} = await show('sectorChart');
+            const current = container.querySelector('.xh-blueprint-inspector__crumb--current');
+            expect(current.nextElementSibling).toBeNull();
+            // Its containers' chevrons still open their children.
+            expect(chevrons(container)).toHaveLength(2);
+        });
+
+        it('selects a child on a click, and marks it on the canvas while hovered', async () => {
+            const {container, design} = await show('overview');
+            openMenu(chevrons(container).at(-1));
+            await vi.waitFor(() => expect(item('sectorChart')).toBeTruthy());
+            fireEvent.mouseEnter(item('sectorChart'));
+            expect(design.hoveredId).toBe('sectorChart');
+            fireEvent.mouseLeave(item('sectorChart'));
+            expect(design.hoveredId).toBeNull();
+            act(() => {
+                fireEvent.click(item('sectorChart'));
+            });
+            expect(design.selectedElementId).toBe('sectorChart');
+        });
+
+        it("drills into a container's children through its submenu", async () => {
+            const {container} = await show('overview');
+            openMenu(chevrons(container).at(-1));
+            await vi.waitFor(() => expect(item('headline')).toBeTruthy());
+            act(() => {
+                fireEvent.mouseEnter(item('headline'));
+            });
+            await vi.waitFor(() => expect(item('headlineMktVal')).toBeTruthy(), {timeout: 2000});
+            expect(itemIds()).toContain('headlinePnlYtd');
+        });
+
+        it('groups children by slot, where a widget has several, leaving out empty ones', async () => {
+            const {design, container} = await show('overview');
+            const panel = design.addWidget('panel', 'overview').id;
+            design.addWidget('markdown', panel);
+            design.addWidget('buttonGroup', panel, {slot: 'tbar'});
+            act(() => design.select({kind: 'element', id: panel}));
+            await vi.waitFor(() => expect(chevrons(container).length).toBe(3));
+            openMenu(chevrons(container).at(-1));
+            await vi.waitFor(() => expect(menuItems()).toHaveLength(2));
+            const headings = [
+                ...document.querySelectorAll('.xh-blueprint-inspector__crumb-menu .bp6-menu-header')
+            ].map(it => it.textContent);
+            expect(headings).toEqual(['Content', 'Top toolbar']);
+        });
+
+        it('offers to add to an empty container, from its trailing chevron', async () => {
+            const {design, container} = await show('overview');
+            const box = design.addWidget('box', 'overview').id;
+            act(() => design.select({kind: 'element', id: box}));
+            await vi.waitFor(() => expect(chevrons(container).length).toBe(3));
+            openMenu(chevrons(container).at(-1));
+            const add = await vi.waitFor(() => {
+                const it = [
+                    ...document.querySelectorAll<HTMLElement>(
+                        '.xh-blueprint-inspector__crumb-menu .bp6-menu-item'
+                    )
+                ];
+                expect(it.map(el => el.textContent)).toEqual(['No children', 'Add…']);
+                return it[1];
+            });
+            const before = design.addRequestedAt;
+            act(() => {
+                fireEvent.click(add);
+            });
+            expect(design.addTarget).toEqual({parent: box});
+            expect(design.addRequestedAt).toBeGreaterThan(before);
+        });
+
+        it('opens from the keyboard, and moves through its items with the arrows', async () => {
+            const {container, design} = await show('overview');
+            const trailing = chevrons(container).at(-1);
+            expect(trailing.getAttribute('tabindex')).toBe('0');
+            act(() => {
+                fireEvent.keyDown(trailing, {key: 'ArrowDown'});
+            });
+            await vi.waitFor(() => expect(document.activeElement).toBe(item('reportActions')));
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'ArrowDown'});
+            });
+            expect(document.activeElement).toBe(item('headline'));
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'Enter'});
+            });
+            expect(design.selectedElementId).toBe('headline');
+        });
+
+        it('leaves room for the trailing chevron when it folds the path', () => {
+            // 304px of steps fit 310px, but not with a 19px trailing chevron.
+            expect(foldCrumbs([60, 95, 111], 310)).toEqual({shown: [0, 1, 2], hidden: []});
+            expect(foldCrumbs([60, 95, 111], 310, true)).toEqual({shown: [0, 2], hidden: [1]});
+        });
+    });
+
     it('folds the middle of a path that does not fit, keeping its first and last steps', () => {
         // Widths of three steps, with 19px separators and a 28px fold.
         expect(foldCrumbs([60, 95, 111], 260)).toEqual({shown: [0, 2], hidden: [1]});

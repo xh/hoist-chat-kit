@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {BlueprintElement} from '../Blueprint';
 import {
+    childGroups,
     childIds,
     insertRef,
     locate,
@@ -42,6 +43,40 @@ describe('element slots', () => {
             ['headerItems', 'grid']
         ]);
         expect(childIds(elements.canvas)).toEqual(['grid', 'views']);
+    });
+
+    it("groups an element's own children as a designer reads them: by slot where its widget has several", () => {
+        const panelSpec = {children: {}, slots: {tbar: {}, bbar: {}}},
+            groups = (el: BlueprintElement, spec: object) =>
+                childGroups(el, spec).map(it => [it.slot, it.refs.map(ref => ref.id)]);
+        expect(groups(elements.page, panelSpec)).toEqual([
+            ['children', ['canvas']],
+            ['tbar', ['bar']],
+            ['bbar', []]
+        ]);
+        // One group where the widget has one slot, without the slots of its cells.
+        expect(groups(elements.canvas, {children: {slots: {headerItems: {}}}})).toEqual([
+            ['children', ['grid']]
+        ]);
+        expect(groups(elements.grid, {})).toEqual([]);
+    });
+
+    it("lists a canvas's cells in reading order, top to bottom, then left to right", () => {
+        const canvas: BlueprintElement = {
+            component: 'dashCanvas',
+            children: [
+                {id: 'c', x: 6, y: 4},
+                {id: 'b', x: 6, y: 0},
+                {id: 'a', x: 0, y: 0},
+                {id: 'd', x: 0, y: 4}
+            ]
+        };
+        expect(childGroups(canvas, {children: {}})[0].refs.map(it => it.id)).toEqual([
+            'a',
+            'b',
+            'd',
+            'c'
+        ]);
     });
 
     it('finds the parent and the slot that hold an element', () => {

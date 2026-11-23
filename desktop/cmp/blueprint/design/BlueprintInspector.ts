@@ -10,11 +10,11 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
-import {popover} from '@xh/hoist/kit/blueprint';
+import {menuItem, popover} from '@xh/hoist/kit/blueprint';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
 import {useOnResize} from '@xh/hoist/utils/react';
-import {partition, sum} from 'lodash';
+import {isString, partition, sum} from 'lodash';
 import type React from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {
@@ -27,6 +27,8 @@ import {
     wiringFor,
     type WiringRef
 } from '../../../../blueprint';
+import {childGroups, slotLabel} from '../../../../blueprint/impl/elements';
+import {getOwn} from '../../../../blueprint/impl/pointer';
 import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
@@ -38,6 +40,7 @@ import {
     runDesignActionAsync,
     selectionMenu
 } from './impl/designActions';
+import {type CrumbGroup, crumbMenu} from './impl/crumbMenu';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
 import {sourcesEditor} from './SourcesEditor';
@@ -323,11 +326,47 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
             kindOf = (step: BlueprintSelection) =>
                 step.kind === 'view' ? 'view' : specOf(step.id)?.label,
             last = path.length - 1;
-        if (path.length < 2) return null;
+        const elements = blueprint.elements,
+            groupsOf = (id: string) => childGroups(getOwn(elements, id), specOf(id)),
+            hasMenu = (step: BlueprintSelection) =>
+                step.kind === 'element' && groupsOf(step.id).length > 0,
+            trailing = path.length > 0 && hasMenu(path[last]);
+        if (path.length < 2 && !trailing) return null;
         const {shown, hidden} = foldCrumbs(
                 path.map((step, idx) => crumbWidth(step.id, idx === last ? kindOf(step) : null)),
-                width - BREADCRUMB_PADDING
+                width - BREADCRUMB_PADDING,
+                trailing
             ),
+            childrenOf = (id: string): CrumbGroup[] => {
+                const groups = groupsOf(id);
+                return groups.map(group => ({
+                    heading: groups.length > 1 ? slotLabel(group.slot) : null,
+                    children: group.refs
+                        .filter(ref => getOwn(elements, ref.id))
+                        .map(ref => ({
+                            id: ref.id,
+                            icon: partIcon('element', specOf(ref.id)),
+                            text: isString(ref.title) ? ref.title : ref.id,
+                            label: specOf(ref.id)?.label,
+                            hasChildren: groupsOf(ref.id).length > 0
+                        }))
+                }));
+            },
+            // A chevron after a container opens its children. Any other is a plain separator.
+            separatorAfter = (step: BlueprintSelection, key: string) =>
+                step && hasMenu(step)
+                    ? crumbMenu({
+                          key,
+                          id: step.id,
+                          className: `${CLS}__crumb-sep ${CLS}__crumb-sep--menu`,
+                          menuClassName: `${CLS}__crumb-menu`,
+                          title: `Children of ${step.id}`,
+                          childrenOf,
+                          onSelect: id => designModel.select({kind: 'element', id}),
+                          onHover: id => designModel.setHovered(id),
+                          emptyItems: (id, close) => addItems(designModel, id, close)
+                      })
+                    : separator(key),
             keyOf = (step: BlueprintSelection) => `${step.kind}:${step.id}`,
             icon = (step: BlueprintSelection) =>
                 step.kind === 'view'
@@ -396,31 +435,57 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                   separator('_more-sep')
                               ]
                             : [];
-                return [...(at ? [separator(`${keyOf(step)}-sep`)] : []), ...fold, crumb];
+                return [
+                    ...(at ? [separatorAfter(path[shown[at - 1]], `${keyOf(step)}-sep`)] : []),
+                    ...fold,
+                    crumb
+                ];
             });
-        return hbox({ref, className: `${CLS}__breadcrumb`, children: steps});
+        return hbox({
+            ref,
+            className: `${CLS}__breadcrumb`,
+            children: [...steps, ...(trailing ? [separatorAfter(path[last], '_children')] : [])]
+        });
     }
 });
 
 const separator = (key: string) =>
     span({key, className: `${CLS}__crumb-sep`, children: Icon.chevronRight()});
 
+// An empty container's way to add a child: Add, targeted at it, as its own design action opens.
+function addItems(designModel: BlueprintDesignModel, id: string, close: () => void) {
+    const add = designModel.designActions({kind: 'element', id}).find(it => it.id === 'addWidget');
+    if (!add) return [];
+    return [
+        menuItem({
+            key: '_add',
+            icon: Icon.add(),
+            text: 'Add…',
+            onClick: () => {
+                close();
+                runDesignActionAsync(designModel, id, add);
+            }
+        })
+    ];
+}
+
 /**
  * Which steps of a path show, by index, with the widths given, in the width available: all of
  * them if they fit or the width is unknown, else the first and last with as many before the last
- * as fit, and a fold for the rest.
+ * as fit, and a fold for the rest. `trailing` keeps room for a chevron after the last step.
  * @internal
  */
 export function foldCrumbs(
     widths: number[],
-    available: number
+    available: number,
+    trailing = false
 ): {shown: number[]; hidden: number[]} {
     const all = widths.map((_, idx) => idx),
-        total = sum(widths) + (widths.length - 1) * CRUMB_SEP;
+        total = sum(widths) + (widths.length - (trailing ? 0 : 1)) * CRUMB_SEP;
     if (available <= 0 || widths.length < 3 || total <= available) return {shown: all, hidden: []};
     const last = widths.length - 1,
         shown = [0, last];
-    let used = widths[0] + widths[last] + 2 * CRUMB_SEP + CRUMB_MORE;
+    let used = widths[0] + widths[last] + (trailing ? 3 : 2) * CRUMB_SEP + CRUMB_MORE;
     for (let idx = last - 1; idx > 0 && used + widths[idx] + CRUMB_SEP <= available; idx--) {
         used += widths[idx] + CRUMB_SEP;
         shown.splice(1, 0, idx);

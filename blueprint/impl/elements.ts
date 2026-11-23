@@ -1,4 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
+import {sortBy} from 'lodash';
 import type {BlueprintElement, ChildRef} from '../Blueprint';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
@@ -35,6 +36,29 @@ export function slotLists(el: BlueprintElement): SlotList[] {
                 .map(([slot, refs]) => ({slot, of: ref.id, refs: refs as ChildRef[]}))
         );
     return [...own, ...nested];
+}
+
+/**
+ * An element's own children as a designer reads them, such as in Structure: a group per slot where
+ * its widget has more than one, else one group of every child. A canvas lists its cells in reading
+ * order. The slots of a child reference, such as a canvas cell's header, are left out. Empty for
+ * an element whose widget holds no children.
+ */
+export function childGroups(
+    el: BlueprintElement,
+    spec: {children?: unknown; slots?: object}
+): {slot: string; refs: ChildRef[]}[] {
+    const slots = [...(spec?.children ? ['children'] : []), ...Object.keys(spec?.slots ?? {})];
+    if (!el || !slots.length) return [];
+    const own = slotLists(el).filter(it => !it.of),
+        ordered = (refs: ChildRef[]) =>
+            el.component === 'dashCanvas' ? sortBy(refs, ['y', 'x']) : refs;
+    return slots.length > 1
+        ? slots.map(slot => ({
+              slot,
+              refs: ordered(own.find(it => it.slot === slot)?.refs ?? [])
+          }))
+        : [{slot: slots[0], refs: ordered(own.flatMap(it => it.refs))}];
 }
 
 /** A slot as a designer reads it, such as `Top toolbar`, or `Cell header` for a cell's slot. */
