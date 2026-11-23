@@ -110,6 +110,8 @@ describe('BlueprintDocumentModel', () => {
             (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.sectorChart.config.y
         ).toEqual([]);
 
+        // A host disables publishing while any is listed.
+        expect(doc.unfinishedElements).toEqual(['sectorChart']);
         const refused = await doc.publishAsync();
         expect(refused[0].message).toBe('Finish sectorChart before you publish.');
         expect(errors(refused)).toContain('config.incomplete');

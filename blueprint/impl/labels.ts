@@ -7,7 +7,7 @@ import {getOwn} from './pointer';
  * @internal
  */
 export function configEditLabel(id: string, config: PlainObject, path: string): string {
-    const key = path.split('/')[1],
+    const key = path.replace(/^\//, '').split('/')[0],
         prop = getOwn<PlainObject>(config?.properties, key);
     return `${id}: ${(prop?.title ?? labelOf(key)).toLowerCase()}`;
 }

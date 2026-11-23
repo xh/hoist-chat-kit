@@ -1154,7 +1154,7 @@ describe('BlueprintDesignModel', () => {
                 severity: 'warning',
                 path: '/elements/sectorChart/config/y'
             });
-            expect(unfinished.message).toMatch(/sectorChart is unfinished/);
+            expect(unfinished.message).toBe('sectorChart is unfinished: Y needs at least 1 item');
 
             // A widget the person left unfinished does not block the Architect's other edits.
             const other = model.applyEdit({

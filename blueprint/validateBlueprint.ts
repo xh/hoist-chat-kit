@@ -25,6 +25,7 @@ import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
 import {CANVAS_COLUMNS} from './impl/canvasCells';
 import {slotLists} from './impl/elements';
+import {labelOf} from './impl/labels';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
 import {
@@ -62,6 +63,19 @@ export interface ValidateBlueprintContext {
 // A config problem that adding to the config fixes: a required key, or a list or text short of
 // its minimum. Any other is wrong as it stands.
 const UNFINISHED = /is required$|^expected at least \d+ (item|character)s?\b/;
+
+// An unfinished property as a person reads it, by its label: "chart is unfinished: Y needs at
+// least 1 item".
+function unfinishedText(
+    id: string,
+    spec: WidgetSpec,
+    {path, message}: {path: string; message: string}
+) {
+    const key = path.slice(1),
+        label = (spec.config?.properties as PlainObject)?.[key]?.title ?? labelOf(key),
+        short = message.match(/^expected (at least \d+ \w+)/)?.[1];
+    return `${id} is unfinished: ${label} ${short ? `needs ${short}` : 'is not set'}`;
+}
 
 /** True for an issue that marks a widget's config unfinished rather than wrong. */
 export function isIncomplete(issue: BlueprintIssue): boolean {
@@ -229,8 +243,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         for (const e of checkConfig(el.config ?? {}, spec.config, {isPartial})) {
             // A key that presets control leaves the config, and each preset gives its value.
             if (e.message.endsWith(' is required') && presetKeys.has(`${id}${e.path}`)) continue;
-            if (UNFINISHED.test(e.message)) {
-                incomplete(`${p}/config${e.path}`, `${id} is unfinished: ${e.message}`);
+            // Only a top-level property is unfinished. A nested key a structure needs is wrong.
+            if (UNFINISHED.test(e.message) && /^\/[^/]+$/.test(e.path)) {
+                incomplete(`${p}/config${e.path}`, unfinishedText(id, spec, e));
             } else {
                 err('schema.invalid', `${p}/config${e.path}`, e.message);
             }

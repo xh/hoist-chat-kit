@@ -86,6 +86,16 @@ export class BlueprintDocumentModel extends HoistModel {
         if (blueprintModel) blueprintModel.drillInRepository = repository;
     }
 
+    /**
+     * The widgets left unfinished in the blueprint open, which keep it from publishing, by id.
+     * Empty when it may publish. A host disables its publish control while any are listed.
+     */
+    get unfinishedElements(): string[] {
+        return uniq(
+            this.blueprintModel.issues.filter(isIncomplete).map(it => it.path.split('/')[2])
+        );
+    }
+
     /** True if the user may publish the blueprint open, as its repository says. */
     get canPublish(): boolean {
         return this.document?.canPublish === true;
@@ -244,13 +254,13 @@ export class BlueprintDocumentModel extends HoistModel {
                 return [refusal('You may not publish this blueprint.')];
             }
             if (this.isStale) return [staleRefusal()];
-            const unfinished = this.blueprintModel.issues.filter(isIncomplete);
-            if (unfinished.length) {
+            const {unfinishedElements} = this;
+            if (unfinishedElements.length) {
                 return [
-                    refusal(
-                        `Finish ${listOf(uniq(unfinished.map(it => it.path.split('/')[2])))} before you publish.`
-                    ),
-                    ...unfinished.map(it => ({...it, severity: 'error' as const}))
+                    refusal(`Finish ${listOf(unfinishedElements)} before you publish.`),
+                    ...this.blueprintModel.issues
+                        .filter(isIncomplete)
+                        .map(it => ({...it, severity: 'error' as const}))
                 ];
             }
             if (this.isDirty) {

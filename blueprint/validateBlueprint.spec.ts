@@ -1114,6 +1114,27 @@ describe('validateBlueprint', () => {
         });
     });
 
+    it("counts only a widget's own missing property as unfinished, never a nested key a structure needs", () => {
+        const bp = p2();
+        bp.elements.page = {
+            component: 'dashContainer',
+            config: {layout: [{content: [{type: 'view', id: 'pageGrid'}]}]},
+            children: [{id: 'pageGrid'}]
+        };
+        bp.elements.pageGrid = {component: 'markdown', config: {text: 'Hi'}};
+        (bp.elements.dashboard.children as PlainObject[]).push({
+            id: 'page',
+            x: 0,
+            y: 14,
+            w: 6,
+            h: 4
+        });
+        const issues = validate(bp).filter(it =>
+            it.path.startsWith('/elements/page/config/layout/0')
+        );
+        expect(issues.map(it => [it.code, it.severity])).toEqual([['schema.invalid', 'error']]);
+    });
+
     it("lets a preset group control a treemap's groupBy, and refuses a treemap with neither", () => {
         const bp = p2();
         bp.elements.map = {

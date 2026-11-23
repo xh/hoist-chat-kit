@@ -48,39 +48,48 @@ describe('unfinished widgets', () => {
         );
     });
 
-    it.each(cases)('draws a %s with no %s as unfinished, naming it', async (name, key) => {
-        const {blueprint} = exampleBlueprintOf(registry.widgets[name], portfolioCatalog),
-            config = blueprint.elements[name].config,
-            schema = (registry.widgets[name].config.properties as Record<string, any>)[key];
-        if (schema?.minItems > 0) {
-            config[key] = [];
-        } else {
-            delete config[key];
+    // An author previewing the draft as a reader sees the same notes, with no way to set them.
+    const modes = cases.flatMap(([name, key]) => [
+        [name, key, 'design'],
+        [name, key, 'run']
+    ]);
+
+    it.each(modes)(
+        'draws a %s with no %s as unfinished in %s mode, naming it',
+        async (name, key, mode) => {
+            const {blueprint} = exampleBlueprintOf(registry.widgets[name], portfolioCatalog),
+                config = blueprint.elements[name].config,
+                schema = (registry.widgets[name].config.properties as Record<string, any>)[key];
+            if (schema?.minItems > 0) {
+                config[key] = [];
+            } else {
+                delete config[key];
+            }
+            const model = new BlueprintModel({
+                    blueprint,
+                    catalog: portfolioCatalog,
+                    registry,
+                    dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                    mode: mode as 'design' | 'run',
+                    access: 'write'
+                }),
+                design = new BlueprintDesignModel({blueprintModel: model}),
+                // jsdom has no layout: a canvas waits for a measured width before it draws cells.
+                spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+            onTestFinished(() => {
+                spy.mockRestore();
+                design.destroy();
+                model.destroy();
+            });
+            expect(model.issues.filter(isIncomplete).map(it => it.path)).toContain(
+                `/elements/${name}/config/${key}`
+            );
+            const {container} = render(blueprintView({model, designModel: design}) as ReactElement);
+            await wait(20);
+            const note = container.querySelector(
+                `[data-blueprint-element="${name}"] .xh-blueprint-view__notice`
+            );
+            expect(note?.textContent).toMatch(/ has no .* yet\./);
         }
-        const model = new BlueprintModel({
-                blueprint,
-                catalog: portfolioCatalog,
-                registry,
-                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
-                mode: 'design',
-                access: 'write'
-            }),
-            design = new BlueprintDesignModel({blueprintModel: model}),
-            // jsdom has no layout: a canvas waits for a measured width before it draws cells.
-            spy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
-        onTestFinished(() => {
-            spy.mockRestore();
-            design.destroy();
-            model.destroy();
-        });
-        expect(model.issues.filter(isIncomplete).map(it => it.path)).toContain(
-            `/elements/${name}/config/${key}`
-        );
-        const {container} = render(blueprintView({model, designModel: design}) as ReactElement);
-        await wait(20);
-        const note = container.querySelector(
-            `[data-blueprint-element="${name}"] .xh-blueprint-view__notice`
-        );
-        expect(note?.textContent).toMatch(/ has no .* yet\./);
-    });
+    );
 });
