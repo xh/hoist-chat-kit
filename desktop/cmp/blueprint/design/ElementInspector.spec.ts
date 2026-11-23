@@ -787,6 +787,15 @@ describe('ElementInspector', () => {
         expect(container.querySelector('[data-config-key="format"]').textContent).toContain(
             `${formatName} (from the field)`
         );
+        // Its header shows the field's label, and its width that the grid sizes it.
+        const drawerInput = (key: string) =>
+            container.querySelector<HTMLInputElement>(
+                `.xh-blueprint-element-inspector__settings [data-config-key="${key}"] input`
+            );
+        expect(drawerInput('headerName').placeholder).toBe(
+            `${inspector.fieldLabel('mktVal')} (from the field)`
+        );
+        expect(drawerInput('width').placeholder).toBe('Auto');
         expect(labels().slice(0, 6)).toEqual([
             'Header',
             'Format',

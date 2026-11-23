@@ -253,16 +253,19 @@ export abstract class ConfigEditorModel extends HoistModel {
             .map(it => ({value: it.name, label: source.fieldLabel(it.name)}));
     }
 
-    /** A field's format and renderer from its catalog field and kind, before a widget's own. */
-    inheritedDisplay(name: string): {format: unknown; renderer: unknown} {
+    /**
+     * A field's format, renderer and header from its catalog field and kind, before a widget's own.
+     */
+    inheritedDisplay(name: string): {format: unknown; renderer: unknown; headerName: string} {
         const field = this.source?.fields[name];
-        if (!field) return {format: null, renderer: null};
+        if (!field) return {format: null, renderer: null, headerName: null};
         const kind = this.designModel.blueprintModel.catalogs
             .map(it => getOwn(it.kinds, field.kind))
             .find(Boolean);
         return {
             format: field.format ?? kind?.format ?? null,
-            renderer: field.renderer ?? kind?.renderer ?? null
+            renderer: field.renderer ?? kind?.renderer ?? null,
+            headerName: this.fieldLabel(name)
         };
     }
 

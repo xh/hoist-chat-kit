@@ -125,7 +125,7 @@ export interface EditorContext {
     // The top-level property, which a refusal names.
     key: string;
     // What the value falls back to while unset, which a format or renderer picker names.
-    inherited?: {format?: unknown; renderer?: unknown};
+    inherited?: {format?: unknown; renderer?: unknown; headerName?: string};
     // Where in the config the editor sits, for the open state and keys of its lists. Default key.
     scope?: string;
     // The type of the field a setting belongs to, such as a column's, which a format's options fit.
@@ -228,8 +228,15 @@ function editorFor(
     const disabled = ctx.impl.readOnly || !!ctx.locked,
         optional = (v: unknown) => (v == null || v === '' ? undefined : v),
         unset = node.schema['x-unset'] as string,
-        // While unset, a value shows its default, else what unset means.
-        placeholder = node.default !== undefined ? String(node.default) : unset,
+        // While unset, a value shows its default, else what it takes from its field, else what
+        // unset means.
+        fromField = getOwn<unknown>(ctx.inherited as PlainObject, node.key),
+        placeholder =
+            node.default !== undefined
+                ? String(node.default)
+                : typeof fromField === 'string'
+                  ? `${fromField} (from the field)`
+                  : unset,
         // An optional choice with neither takes one the widget decides as it draws.
         isDecided = node.default === undefined && !unset && !node.required,
         choicePlaceholder =

@@ -501,7 +501,8 @@ const CUBE_GRID_SCHEMA = {
                             width: {
                                 type: 'integer',
                                 minimum: 30,
-                                maximum: 800
+                                maximum: 800,
+                                'x-unset': 'Auto'
                             },
                             hidden: {
                                 type: 'boolean',
