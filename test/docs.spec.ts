@@ -40,7 +40,7 @@ describe('docs', () => {
 //------------------
 // Implementation
 //------------------
-const SKIP_DIRS = new Set(['node_modules', 'docs', 'planning', 'scripts', 'test']);
+const SKIP_DIRS = new Set(['node_modules', 'changelog.d', 'docs', 'planning', 'scripts', 'test']);
 
 function getTables(markdown: string): {header: string; rows: string[]}[] {
     const ret: {header: string; rows: string[]}[] = [],
