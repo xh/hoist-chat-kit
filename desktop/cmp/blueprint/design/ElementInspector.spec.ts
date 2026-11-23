@@ -588,6 +588,14 @@ describe('ElementInspector', () => {
         expect(row().querySelector('.bp6-switch')).toBeNull();
     });
 
+    it('puts a choice of pictures under its label, as it wraps over several lines', () => {
+        const {design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector('[data-config-key="showSummary"]');
+        expect(row.firstElementChild.textContent).toBe('Summary row');
+        expect(row.className).not.toContain('__row--inline');
+    });
+
     it('counts in each card header only the settings set there, a binding or preset included', () => {
         const {design} = open(),
             id = design.addWidget('markdown', 'overview').id;

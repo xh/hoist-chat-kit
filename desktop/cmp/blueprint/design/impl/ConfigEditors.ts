@@ -217,7 +217,11 @@ const INLINE_KINDS = [
 ];
 
 function isMultiline(node: EditorNode): boolean {
-    return (node.kind === 'text' && node.multiline) || (node.kind === 'field' && node.multiple);
+    return (
+        (node.kind === 'text' && node.multiline) ||
+        (node.kind === 'field' && node.multiple) ||
+        (node.kind === 'choice' && !!node.thumbnails)
+    );
 }
 
 function editorFor(
