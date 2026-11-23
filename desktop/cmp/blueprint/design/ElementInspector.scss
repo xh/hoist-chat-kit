@@ -101,8 +101,8 @@
   // A quiet Hoist badge, set through its variables so it holds whatever loads first.
   &__card-count {
     --xh-badge-bg: var(--xh-bg);
-    --xh-badge-text-color: var(--xh-text-color-muted);
-    --xh-badge-font-size: inherit;
+    --xh-badge-text-color: var(--xh-text-color);
+    --xh-badge-font-size: 10px;
     --xh-badge-font-weight: 500;
     --xh-badge-padding: 0 6px;
     --xh-badge-height: 16px;
