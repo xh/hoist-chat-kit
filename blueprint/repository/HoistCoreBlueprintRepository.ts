@@ -6,6 +6,7 @@ import type {
     BlueprintOpenOptions,
     BlueprintPersonalization,
     BlueprintPublish,
+    BlueprintPublishChanges,
     BlueprintPublishResult,
     BlueprintRecord,
     BlueprintRename,
@@ -114,6 +115,14 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
         await XH.postJson({url: this.url('savePersonalization'), body: p});
     }
 
+    updatePublishAsync(
+        id: string,
+        version: number,
+        changes: BlueprintPublishChanges
+    ): Promise<BlueprintPublish> {
+        return XH.postJson({url: this.url('updatePublish', id), body: {version, ...changes}});
+    }
+
     async updateAccessAsync(id: string, spec: BlueprintAccessSpec): Promise<void> {
         await XH.postJson({url: this.url('updateAccess', id), body: spec});
     }
@@ -152,7 +161,8 @@ const POSTS = [
     'delete',
     'rename',
     'savePersonalization',
-    'updateAccess'
+    'updateAccess',
+    'updatePublish'
 ];
 
 function refused(code: string, e: {message?: string}): BlueprintIssue {

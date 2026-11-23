@@ -127,6 +127,26 @@ export interface BlueprintRepository {
      * Optional: the library offers sharing only when a repository implements it.
      */
     updateAccessAsync?(id: string, spec: BlueprintAccessSpec): Promise<void>;
+
+    /**
+     * Change a publish's note, label or pin, for a writer: only the keys given change, and null or
+     * a blank string clears a note or label. Its content, number, publisher and renames never
+     * change. Optional: the library offers it only when a repository implements it.
+     *
+     * @returns the publish as it now is, as `listPublishesAsync` gives it.
+     */
+    updatePublishAsync?(
+        id: string,
+        version: number,
+        changes: BlueprintPublishChanges
+    ): Promise<BlueprintPublish>;
+}
+
+/** What may change on a publish: its note, its label, at most 50 characters, and its pin. */
+export interface BlueprintPublishChanges {
+    note?: string | null;
+    label?: string | null;
+    pinned?: boolean;
 }
 
 /**
@@ -202,13 +222,17 @@ export interface BlueprintRename {
     to: string;
 }
 
-/** One publish of a blueprint. It never changes. */
+/** One publish of a blueprint. Its content never changes, and its note, label and pin may. */
 export interface BlueprintPublish {
     version: number;
     /** Epoch millis. */
     published: number;
     publishedBy?: string;
     note?: string;
+    /** A short name for the publish, such as `Board pack`, at most 50 characters. */
+    label?: string;
+    /** True if a writer pinned the publish, to keep it in view. */
+    pinned?: boolean;
     /** The renames since the publish before, in order. */
     renames: BlueprintRename[];
 }

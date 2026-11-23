@@ -176,4 +176,20 @@ describe('HoistCoreBlueprintRepository', () => {
             httpStatus: 400
         });
     });
+
+    it("changes a publish's note, label or pin, sending only the keys given", async () => {
+        hoistCore.route('POST', 'xhBlueprint/updatePublish', req => ({
+            version: req.json.version,
+            published: 1,
+            renames: [],
+            pinned: req.json.pinned ?? false,
+            ...(req.json.label ? {label: req.json.label} : {})
+        }));
+        expect(
+            await repository.updatePublishAsync('bp1', 3, {label: 'Board', pinned: true})
+        ).toEqual({version: 3, published: 1, renames: [], pinned: true, label: 'Board'});
+        const [request] = hoistCore.requestsTo('xhBlueprint/updatePublish');
+        expect(request.query).toEqual({id: 'bp1', type: 'acme.dashboard'});
+        expect(request.json).toEqual({version: 3, label: 'Board', pinned: true});
+    });
 });

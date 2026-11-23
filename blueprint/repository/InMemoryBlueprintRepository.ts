@@ -5,6 +5,7 @@ import {
     type BlueprintOpenOptions,
     type BlueprintPersonalization,
     type BlueprintPublish,
+    type BlueprintPublishChanges,
     type BlueprintPublishResult,
     type BlueprintRecord,
     type BlueprintRename,
@@ -211,6 +212,28 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         item.name = spec.name;
         if (spec.description !== undefined) item.description = spec.description;
         return clone(this.summaryOf(item));
+    }
+
+    async updatePublishAsync(
+        id: string,
+        version: number,
+        changes: BlueprintPublishChanges
+    ): Promise<BlueprintPublish> {
+        const item = this.items.get(id);
+        if (!item || !this.isWriter(id)) throw new Error('Only a writer can update a publish.');
+        const publish = item.publishes.find(it => it.info.version === version);
+        if (!publish) throw httpError(404, `There is no version ${version}.`);
+        const info = {...publish.info},
+            text = (key: 'note' | 'label', value: string, max?: number) => {
+                const trimmed = value?.trim().slice(0, max);
+                if (trimmed) info[key] = trimmed;
+                else delete info[key];
+            };
+        if (changes.note !== undefined) text('note', changes.note);
+        if (changes.label !== undefined) text('label', changes.label, 50);
+        if (changes.pinned !== undefined) info.pinned = changes.pinned;
+        publish.info = info;
+        return clone(info);
     }
 
     async updateAccessAsync(id: string, spec: BlueprintAccessSpec): Promise<void> {

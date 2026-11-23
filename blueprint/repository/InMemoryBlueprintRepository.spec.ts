@@ -207,4 +207,35 @@ describe('InMemoryBlueprintRepository', () => {
             ['view:risk', 2]
         ]);
     });
+
+    it("changes a publish's note, label and pin for a writer, leaving its content as it was", async () => {
+        let access: 'write' | 'read' = 'write';
+        const repository = new InMemoryBlueprintRepository({
+                ...OWNER,
+                accessOf: () => ({access, canPublish: true})
+            }),
+            {id, version: base} = await create(repository);
+        await repository.publishAsync(id, {base, note: 'First'});
+        const content = (await repository.openAsync(id, {as: 'publish', version: 1})).blueprint;
+
+        expect(
+            await repository.updatePublishAsync(id, 1, {
+                label: `  ${'x'.repeat(60)}  `,
+                pinned: true
+            })
+        ).toMatchObject({version: 1, note: 'First', label: 'x'.repeat(50), pinned: true});
+        // Only the keys given change, and null or a blank clears one.
+        const cleared = await repository.updatePublishAsync(id, 1, {note: null, label: ' '});
+        expect(cleared).toMatchObject({version: 1, pinned: true});
+        expect(cleared.note).toBeUndefined();
+        expect(cleared.label).toBeUndefined();
+        expect((await repository.listPublishesAsync(id))[0]).toEqual(cleared);
+        expect((await repository.openAsync(id, {as: 'publish', version: 1})).blueprint).toEqual(
+            content
+        );
+
+        await expect(repository.updatePublishAsync(id, 9, {pinned: false})).rejects.toThrow();
+        access = 'read';
+        await expect(repository.updatePublishAsync(id, 1, {pinned: false})).rejects.toThrow();
+    });
 });
