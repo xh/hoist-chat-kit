@@ -45,6 +45,7 @@ export const dockLayout = hoistCmp.factory<HoistProps & DockLayoutProps>({
         useShowActive(impl, active);
         useReportHidden(impl, onHiddenChange);
         usePreviewMarks(impl);
+        useEffect(() => impl.followDrags(), [impl]);
         useRestoreFocus(impl);
 
         const body = div({

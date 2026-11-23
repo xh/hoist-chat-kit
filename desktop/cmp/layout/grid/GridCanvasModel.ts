@@ -161,6 +161,42 @@ export class GridCanvasModel extends HoistModel {
         this.props = props;
     }
 
+    /** The grid's layout element, where react-grid-layout takes drags from outside. */
+    layoutEl: HTMLElement = null;
+
+    /** Where a drag from outside would drop, as the host says, noting whether it shows a preview. */
+    dropOver(e: DragEvent): {w: number; h: number} | false {
+        if (this.clearingDrop) return false;
+        const ret = this.props.onDropOver ? this.props.onDropOver(e) : undefined;
+        this.dropShown = ret !== false;
+        return ret;
+    }
+
+    /** Note that a drop landed, which react-grid-layout clears itself. */
+    dropped() {
+        this.dropShown = false;
+    }
+
+    /**
+     * Clear the preview of a drag that has left the canvas or ended, as soon as it does. Returns
+     * its remover.
+     */
+    followDrags(): () => void {
+        const outside = (e: Event) => {
+                if (!this.layoutEl?.contains(e.target as Node)) this.clearDrop();
+            },
+            ended = () => this.clearDrop();
+        // Capturing, as react-grid-layout stops the drags it handles from bubbling.
+        window.addEventListener('dragover', outside, true);
+        window.addEventListener('drop', outside, true);
+        window.addEventListener('dragend', ended, true);
+        return () => {
+            window.removeEventListener('dragover', outside, true);
+            window.removeEventListener('drop', outside, true);
+            window.removeEventListener('dragend', ended, true);
+        };
+    }
+
     /** react-grid-layout's compactor, for the canvas's compaction, placing as {@link placeCell}. */
     get compactor(): Compactor {
         const {compact = 'vertical', preventCollision = false} = this.props,
@@ -225,6 +261,21 @@ export class GridCanvasModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    private dropShown = false;
+    private clearingDrop = false;
+
+    // react-grid-layout clears its preview only when a count of dragenters and dragleaves returns
+    // to 0, which a cell redrawn under the pointer can upset. A dragover it is refused clears it.
+    private clearDrop() {
+        if (!this.dropShown || !this.layoutEl) return;
+        this.clearingDrop = true;
+        try {
+            this.layoutEl.dispatchEvent(new Event('dragover', {bubbles: true, cancelable: true}));
+        } finally {
+            this.clearingDrop = false;
+            this.dropShown = false;
+        }
+    }
     private cancelled = false;
     private listening = false;
     private activeId: string = null;
@@ -290,7 +341,7 @@ function hitOf<T extends Box>(placed: T[], b: Box): T {
 
 type CanvasModelProps = Pick<
     GridCanvasProps,
-    'cells' | 'onChange' | 'compact' | 'preventCollision'
+    'cells' | 'onChange' | 'compact' | 'preventCollision' | 'onDropOver'
 >;
 
 function toLayout(cells: GridCell[]): LayoutItem[] {

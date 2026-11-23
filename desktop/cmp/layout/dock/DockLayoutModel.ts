@@ -199,6 +199,20 @@ export class DockLayoutModel extends HoistModel {
         return !drop.refusal;
     }
 
+    /**
+     * Clear a drag's preview as soon as it moves over, drops on or ends anywhere outside the layout.
+     * Returns its remover.
+     */
+    followDrags(): () => void {
+        const outside = (e: Event) => {
+                if (this.drop && !this.rootEl?.contains(e.target as Node)) this.clearDrop();
+            },
+            types = ['dragover', 'drop', 'dragend'];
+        // Capturing, as a canvas stops the drags it handles from bubbling.
+        types.forEach(it => window.addEventListener(it, outside, true));
+        return () => types.forEach(it => window.removeEventListener(it, outside, true));
+    }
+
     /** Make the drop the drag is over, as one change. */
     dropHere() {
         const {dragging, external, drop} = this;
@@ -219,6 +233,11 @@ export class DockLayoutModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    @action
+    private clearDrop() {
+        this.drop = null;
+    }
+
     private verdicts = new Map<string, string>();
 }
 

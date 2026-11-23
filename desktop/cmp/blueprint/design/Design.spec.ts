@@ -489,6 +489,70 @@ describe('design mode selection', () => {
         expect(design.selectedElementId).toBe(children[2]);
     });
 
+    it('previews and drops onto a container inside a canvas cell, though the canvas takes drags over it', async () => {
+        const model = new BlueprintModel({
+                blueprint: {
+                    schema: {blueprint: 1},
+                    root: 'page',
+                    elements: {
+                        page: {
+                            component: 'dashCanvas',
+                            children: [{id: 'inner', x: 0, y: 0, w: 6, h: 4}]
+                        },
+                        inner: {component: 'box', children: [{id: 'note'}]},
+                        note: {component: 'markdown', config: {text: 'Note'}}
+                    }
+                },
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            // jsdom has no layout: the canvas waits for a measured width before it draws the grid.
+            width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200);
+        onTestFinished(() => {
+            width.mockRestore();
+            design.destroy();
+            model.destroy();
+            paletteDrag.end();
+        });
+        stubRects();
+        const {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            el = (id: string) =>
+                container.querySelector<HTMLElement>(`[data-blueprint-element="${id}"]`),
+            was = document.elementFromPoint;
+        await vi.waitFor(() => expect(el('note')).toBeTruthy());
+        document.elementFromPoint = () => el('note');
+        onTestFinished(() => {
+            document.elementFromPoint = was;
+        });
+        // Hoist lists a model once it has settled.
+        const view = await vi.waitFor(() => {
+            const it = XH.getModels<BlueprintViewModel>('BlueprintViewModel').find(
+                m => m.blueprintModel === model
+            );
+            expect(it).toBeTruthy();
+            return it;
+        });
+
+        paletteDrag.start({component: 'markdown', size: {w: 6, h: 1}, add: () => null});
+        const fire = (type: string) => {
+            const e = new Event(type, {bubbles: true, cancelable: true});
+            Object.assign(e, {clientX: 150, clientY: 80, dataTransfer: {dropEffect: 'none'}});
+            act(() => {
+                el('note').dispatchEvent(e);
+            });
+        };
+        fire('dragover');
+        expect(view.dropPreview?.target.container).toBe('inner');
+        fire('drop');
+        expect(view.dropPreview).toBeNull();
+        expect(model.blueprint.elements.inner.children).toHaveLength(2);
+        expect(model.blueprint.elements.page.children.map(it => it.id)).toEqual(['inner']);
+    });
+
     it("haloes what the Architect's latest edit touched", () => {
         const {design, model} = open('p3-morning-report.json'),
             view = new BlueprintViewModel(model, {designModel: design});

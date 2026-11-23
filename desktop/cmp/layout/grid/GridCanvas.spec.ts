@@ -1,4 +1,4 @@
-import {act, render} from '@testing-library/react';
+import {act, fireEvent, render} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
@@ -300,6 +300,61 @@ describe('gridCanvas', () => {
             {id: 'posGrid', x: 0, y: 4, w: 6, h: 4},
             {id: 'chart', x: 0, y: 0, w: 6, h: 4}
         ]);
+    });
+
+    describe('a drag from outside', () => {
+        const dropProps = (onChange = vi.fn(), onDrop = vi.fn()) => ({
+            editable: true,
+            onChange,
+            onDrop,
+            onDropOver: () => ({w: 4, h: 2})
+        });
+        const layoutEl = (container: HTMLElement) =>
+            container.querySelector<HTMLElement>('.react-grid-layout');
+        const ghosts = (container: HTMLElement) =>
+            container.querySelectorAll('.react-grid-item:not([data-grid-item])').length;
+        function dragIn(container: HTMLElement) {
+            const el = layoutEl(container);
+            act(() => {
+                fireEvent.dragEnter(el);
+                fireEvent.dragOver(el, {clientX: 100, clientY: 300});
+            });
+            expect(ghosts(container)).toBe(1);
+        }
+
+        it('shows where it would drop while over the canvas, its own cells included', () => {
+            const {container} = renderCanvas(dropProps());
+            dragIn(container);
+            const frame = container.querySelector('[data-grid-item="posGrid"]');
+            act(() => {
+                fireEvent.dragEnter(frame);
+                fireEvent.dragLeave(layoutEl(container));
+                fireEvent.dragOver(frame, {clientX: 120, clientY: 300});
+            });
+            expect(ghosts(container)).toBe(1);
+        });
+
+        it.each([
+            ['moves over anything outside the canvas', 'dragover'],
+            ['drops anywhere outside the canvas', 'drop'],
+            ['ends, as on Esc or a release outside the window', 'dragend']
+        ])('clears its preview as soon as it %s, changing nothing', (_, type) => {
+            const onChange = vi.fn(),
+                onDrop = vi.fn(),
+                {container} = renderCanvas(dropProps(onChange, onDrop)),
+                before = frameStyle(container, 'posGrid'),
+                outside = document.createElement('div');
+            document.body.appendChild(outside);
+            onTestFinished(() => outside.remove());
+            dragIn(container);
+            act(() => {
+                outside.dispatchEvent(new Event(type, {bubbles: true, cancelable: true}));
+            });
+            expect(ghosts(container)).toBe(0);
+            expect(onDrop).not.toHaveBeenCalled();
+            expect(onChange).not.toHaveBeenCalled();
+            expect(frameStyle(container, 'posGrid')).toBe(before);
+        });
     });
 
     //------------------

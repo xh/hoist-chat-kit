@@ -229,6 +229,40 @@ describe('dockLayout', () => {
             expect(none.drop).toBeNull();
         });
 
+        it.each([
+            ['moves over anything outside the layout', 'dragover'],
+            ['drops outside the layout', 'drop'],
+            ['ends, as on Esc or a release outside the window', 'dragend']
+        ])('clears the preview of an external drag as soon as it %s', (_, type) => {
+            const onDropExternal = vi.fn(),
+                model = dragModel({
+                    editable: true,
+                    externalDrag: () => 'chart-widget',
+                    onDropExternal
+                }),
+                root = document.createElement('div'),
+                inside = root.appendChild(document.createElement('div')),
+                outside = document.createElement('div');
+            document.body.append(root, outside);
+            model.rootEl = root;
+            const stop = model.followDrags();
+            onTestFinished(() => {
+                stop();
+                root.remove();
+                outside.remove();
+            });
+            const fire = (el: Element, t: string) =>
+                el.dispatchEvent(new Event(t, {bubbles: true, cancelable: true}));
+
+            model.dragOver({view: 'chart', zone: 'right'});
+            fire(inside, 'dragover');
+            expect(model.drop).not.toBeNull();
+            fire(outside, type);
+            expect(model.drop).toBeNull();
+            model.dropHere();
+            expect(onDropExternal).not.toHaveBeenCalled();
+        });
+
         it('makes no drop once the drag ends, as a cancel does', () => {
             const onChange = vi.fn(),
                 model = dragModel({onChange, editable: true});

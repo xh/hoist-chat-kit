@@ -1,7 +1,7 @@
 import {HoistModel, managed, XH, type ElementFactory} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {last} from 'lodash';
+import {forEach, last} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     type AddPlace,
@@ -314,16 +314,11 @@ export class BlueprintViewModel extends HoistModel {
                 this.setDropPreview(null);
                 elementDrag.end();
             };
-        document.addEventListener('dragover', over);
-        document.addEventListener('drop', drop);
-        document.addEventListener('dragleave', leave);
-        document.addEventListener('dragend', end);
-        return () => {
-            document.removeEventListener('dragover', over);
-            document.removeEventListener('drop', drop);
-            document.removeEventListener('dragleave', leave);
-            document.removeEventListener('dragend', end);
-        };
+        const listeners = {dragover: over, drop, dragleave: leave, dragend: end};
+        // Capturing, as a canvas stops the drags it handles from bubbling, even over a container in
+        // one of its cells.
+        forEach(listeners, (fn, type) => window.addEventListener(type, fn, true));
+        return () => forEach(listeners, (fn, type) => window.removeEventListener(type, fn, true));
     }
 
     /**

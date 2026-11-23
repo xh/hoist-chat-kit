@@ -9,7 +9,7 @@ import {
 } from '@xh/hoist/kit/react-grid-layout';
 import {useOnResize} from '@xh/hoist/utils/react';
 import classNames from 'classnames';
-import {useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import './GridCanvas.scss';
 import {GridCanvasModel, type GridCanvasProps} from './GridCanvasModel';
 
@@ -57,7 +57,15 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
             [width, widthRef] = useContentWidth(),
             [height, setHeight] = useState<number>(null),
             heightRef = useOnResize(rect => setHeight(rect.height), {debounce: 100});
-        impl.setProps({cells, onChange, compact, preventCollision});
+        impl.setProps({cells, onChange, compact, preventCollision, onDropOver});
+        useEffect(() => impl.followDrags(), [impl]);
+        const layoutRef = useCallback(
+            (el: HTMLElement) => {
+                heightRef(el);
+                impl.layoutEl = el;
+            },
+            [heightRef, impl]
+        );
 
         const gridConfig = {cols: columns, rowHeight, margin, containerPadding, maxRows},
             rglProps: GridLayoutProps = {
@@ -76,13 +84,14 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 dropConfig: {
                     enabled: editable && !!onDrop,
                     defaultItem: {w: Math.floor(columns / 3), h: Math.floor(columns / 3)},
-                    onDragOver: onDropOver
+                    onDragOver: e => impl.dropOver(e)
                 },
                 onDragStart: (_layout, _old, item) => impl.startGesture(item?.i),
                 onDragStop: (layout, _old, item) => impl.endGesture('move', item?.i, layout),
                 onResizeStart: (_layout, _old, item) => impl.startGesture(item?.i),
                 onResizeStop: (layout, _old, item) => impl.endGesture('resize', item?.i, layout),
                 onDrop: (layout, item: LayoutItem, e) => {
+                    impl.dropped();
                     if (item) {
                         const others = layout
                             .filter(it => it.i !== item.i)
@@ -95,7 +104,7 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                     }
                     impl.endGesture('move', null, []);
                 },
-                innerRef: heightRef,
+                innerRef: layoutRef,
                 children: cells.map(({id}) => {
                     const header = renderHeader?.(id),
                         grip = header == null ? renderGrip?.(id) : null;
