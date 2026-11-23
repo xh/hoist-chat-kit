@@ -55,10 +55,14 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
             className,
             hotkeys: designHotkeys(designModel, {arrows: false}),
             tbar: legend(),
-            contentBoxProps: {tabIndex: 0, overflow: 'auto'} as object,
+            contentBoxProps: {tabIndex: 0} as object,
             children: box({
                 ref: resizeRef,
                 className: `${CLS}__scroll`,
+                // Box writes an inline overflow, which the stylesheet cannot override.
+                overflow: 'auto',
+                minHeight: 0,
+                minWidth: 0,
                 children: div({
                     ref: contentRef,
                     className: `${CLS}__content`,

@@ -212,6 +212,16 @@ describe('BlueprintMap', () => {
         expect(asOf.getAttribute('aria-label')).toMatch(/^asOf, .*feeds the selection/);
     });
 
+    it('scrolls the map itself on both axes, with nothing around it scrolling too', () => {
+        const {design} = open(),
+            {container} = render(blueprintMap({designModel: design}) as ReactElement),
+            scroll = container.querySelector<HTMLElement>('.xh-blueprint-map__scroll');
+        expect(scroll.style.overflow).toBe('auto');
+        for (let el = scroll.parentElement; el && el !== container; el = el.parentElement) {
+            expect(el.style.overflow).not.toBe('auto');
+        }
+    });
+
     it('keeps a node the same size in every state, so a hover moves nothing', () => {
         const scss = readFileSync(path.join(import.meta.dirname, 'BlueprintMap.scss'), 'utf8'),
             node = blockAfter(scss, '&__node {'),
