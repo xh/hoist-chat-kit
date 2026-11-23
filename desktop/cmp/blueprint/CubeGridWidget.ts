@@ -7,6 +7,7 @@ import {
     GridModel
 } from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
+import type {GridOptions} from '@xh/hoist/kit/ag-grid';
 import {Icon} from '@xh/hoist/icon';
 import {
     type FilterSpec,
@@ -30,6 +31,7 @@ import {
     omitBy,
     pick,
     sortBy,
+    uniq,
     without
 } from 'lodash';
 import {
@@ -96,6 +98,8 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
     // The grid's column state just after it applied the config's, to tell a user's change apart.
     private appliedColumnState: ColumnState[] = [];
     private isApplyingColumns = false;
+    // The grid and inputs the columns were last built for.
+    private builtColumns: {model: CubeGridModel; inputs: unknown[]} = null;
 
     constructor(config: BlueprintWidgetConfig) {
         super(config);
@@ -118,18 +122,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 equals: 'structural'
             },
             {
-                track: () => [
-                    this.resolvedConfig.columnState,
-                    // A column's rules apply as it draws, so only gaining or losing them rebuilds.
-                    mapValues(this.resolvedConfig.columns ?? {}, it => ({
-                        ...omit(it, 'styles'),
-                        hasStyles: !isEmpty(it?.styles)
-                    })),
-                    this.isFlat,
-                    this.blueprintModel.blueprint?.formats,
-                    this.source?.decl.fields,
-                    this.columnLabels
-                ],
+                track: () => [this.resolvedConfig.columnState, this.columnInputs],
                 run: () => this.applyColumnStateAsync(),
                 equals: 'structural'
             },
@@ -454,10 +447,29 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         return getOwn(this.resolvedConfig.columns, field) ?? {};
     }
 
+    // What the columns are built from: which fields show, not their order, size or pin.
+    private get columnInputs(): unknown[] {
+        return [
+            sortBy(uniq(columnEntries(this.resolvedConfig.columnState).map(it => it.field))),
+            // A column's rules apply as it draws, so only gaining or losing them rebuilds.
+            mapValues(this.resolvedConfig.columns ?? {}, it => ({
+                ...omit(it, 'styles'),
+                hasStyles: !isEmpty(it?.styles)
+            })),
+            this.isFlat,
+            this.blueprintModel.blueprint?.formats,
+            this.source?.decl.fields,
+            this.columnLabels
+        ];
+    }
+
     /** The label of each column's field, which can follow variables. */
-    private get columnLabels(): string[] {
-        return columnEntries(this.resolvedConfig.columnState).map(it =>
-            this.source?.fieldLabel(it.field)
+    private get columnLabels(): Record<string, string> {
+        return Object.fromEntries(
+            columnEntries(this.resolvedConfig.columnState).map(it => [
+                it.field,
+                this.source?.fieldLabel(it.field)
+            ])
         );
     }
 
@@ -502,16 +514,25 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         };
     }
 
-    /** Doc to model: rebuild the columns, then apply their state once the grid has them. */
+    /**
+     * Doc to model: rebuild the columns where what they are built from changed, then apply their
+     * state once the grid has them. A move, resize, pin or hide only applies the state.
+     */
     private async applyColumnStateAsync() {
-        const {cubeGridModel} = this;
+        const {cubeGridModel, columnInputs} = this;
         if (!cubeGridModel) return;
         this.isApplyingColumns = true;
         try {
-            cubeGridModel.columns = this.buildColumns();
-            cubeGridModel.labelColumn = this.buildLabelColumn();
-            await wait();
-            if (cubeGridModel !== this.cubeGridModel) return;
+            if (
+                cubeGridModel !== this.builtColumns?.model ||
+                !isEqual(columnInputs, this.builtColumns.inputs)
+            ) {
+                cubeGridModel.columns = this.buildColumns();
+                cubeGridModel.labelColumn = this.buildLabelColumn();
+                this.builtColumns = {model: cubeGridModel, inputs: columnInputs};
+                await wait();
+                if (cubeGridModel !== this.cubeGridModel) return;
+            }
             const state: ColumnState[] = columnEntries(this.resolvedConfig.columnState)
                 .filter(it => it.field === TREE_COLUMN || this.source.fields[it.field])
                 .map(it => ({
@@ -628,13 +649,26 @@ export const [CubeGridWidget, cubeGridWidget] = hoistCmp.withFactory({
             measure();
             return () => observer.disconnect();
         }, [model, cubeGridModel, isReady]);
-        return cubeGridModel ? cubeGrid({model: cubeGridModel, className, ref}) : null;
+        return cubeGridModel
+            ? cubeGrid({model: cubeGridModel, className, ref, agOptions: COLUMN_ANIMATION})
+            : null;
     }
 });
 
 //------------------
 // Implementation
 //------------------
+/**
+ * Columns move without animation, as a change applied from the config, an undo or a preset would
+ * otherwise slide every column into place. A user's own drag in the grid animates.
+ * @internal
+ */
+export const COLUMN_ANIMATION: GridOptions = {
+    suppressColumnMoveAnimation: true,
+    onDragStarted: e => e.api.setGridOption('suppressColumnMoveAnimation', false),
+    onDragStopped: e => e.api.setGridOption('suppressColumnMoveAnimation', true)
+};
+
 const TREE_COLUMN = 'group',
     LABEL_COL = 'cubeLabel';
 

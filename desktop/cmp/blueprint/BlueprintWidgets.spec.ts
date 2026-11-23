@@ -22,7 +22,7 @@ import {blueprintView} from './BlueprintView';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroupInputWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
-import {CubeGridWidgetModel} from './CubeGridWidget';
+import {COLUMN_ANIMATION, CubeGridWidgetModel} from './CubeGridWidget';
 import {DashboardWidgetModel} from './DashboardWidget';
 import {elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
@@ -83,6 +83,18 @@ describe('blueprint desktop widgets', () => {
     }
 
     describe('cubeGrid', () => {
+        it('moves columns without animation, but while a user drags in the grid', () => {
+            const api = {setGridOption: vi.fn()} as any;
+            expect(COLUMN_ANIMATION.suppressColumnMoveAnimation).toBe(true);
+            COLUMN_ANIMATION.onDragStarted({api} as any);
+            expect(api.setGridOption).toHaveBeenLastCalledWith(
+                'suppressColumnMoveAnimation',
+                false
+            );
+            COLUMN_ANIMATION.onDragStopped({api} as any);
+            expect(api.setGridOption).toHaveBeenLastCalledWith('suppressColumnMoveAnimation', true);
+        });
+
         it('groups its source by groupBy, with a column per columnState entry', async () => {
             const model = open(loadBlueprint('p1-one-grid.json')),
                 grid = widget(CubeGridWidgetModel, model, 'posGrid'),
@@ -96,6 +108,31 @@ describe('blueprint desktop widgets', () => {
             expect(gridModel.getColumn('mktVal')).toBeTruthy();
             expect(gridModel.getColumn('pnlDay')).toBeTruthy();
             expect(model.version).toBe(1);
+        });
+
+        it('applies a move or resize of a column as its state alone, rebuilding no columns', async () => {
+            const model = open(loadBlueprint('p1-one-grid.json')),
+                grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                {cubeGridModel} = grid,
+                gridModel = cubeGridModel.innerGridModel,
+                order = () =>
+                    gridModel.columnState.map(it => it.colId).filter(it => it !== 'cubeLabel'),
+                set = (value: unknown) =>
+                    model.applyEdit({
+                        ops: [{op: 'set', path: '/elements/posGrid/config/columnState', value}]
+                    });
+            await vi.waitFor(() => expect(order()).toEqual(['mktVal', 'pnlDay']));
+            const rebuilt = vi.spyOn(cubeGridModel, 'columns', 'set');
+
+            set(['pnlDay', {field: 'mktVal', width: 140}]);
+            await vi.waitFor(() => expect(order()).toEqual(['pnlDay', 'mktVal']));
+            expect(gridModel.columnState.find(it => it.colId === 'mktVal').width).toBe(140);
+            expect(rebuilt).not.toHaveBeenCalled();
+
+            // A field gained is a new column.
+            set(['pnlDay', 'mktVal', 'pnlMtd']);
+            await vi.waitFor(() => expect(order()).toEqual(['pnlDay', 'mktVal', 'pnlMtd']));
+            expect(rebuilt).toHaveBeenCalledTimes(1);
         });
 
         it('follows an edit to groupBy without a new grid model', async () => {
