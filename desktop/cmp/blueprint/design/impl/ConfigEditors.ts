@@ -634,40 +634,33 @@ function listEditor(
                       disabled,
                       compact: true,
                       onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
-                      renderItem: (row: PlainObject) => {
-                          const open = impl.isItemOpen(scope, row.key);
-                          return hbox({
+                      ...openItemOf(impl, scope),
+                      renderItem: (row: PlainObject) =>
+                          hbox({
                               className: classNames(
                                   `${CLS}__item-header`,
-                                  open && `${CLS}__column--open`
+                                  impl.isItemOpen(scope, row.key) && `${CLS}__column--open`
                               ),
                               children: [
                                   span({
                                       className: `${CLS}__column-label`,
                                       children: itemLabel(row.value, row.index)
                                   }),
-                                  drawerButton(open, () => impl.toggleItem(scope, row.key)),
                                   removeItemButton('Remove', disabled, () =>
                                       commitList(items.filter((_, j) => j !== row.index))
                                   )
                               ]
-                          });
-                      },
+                          }),
                       renderDetail: (row: PlainObject) =>
-                          impl.isItemOpen(scope, row.key)
-                              ? div({
-                                    className: `${CLS}__settings`,
-                                    children: editorFor(
-                                        node.item,
-                                        row.value,
-                                        v =>
-                                            commitList(
-                                                items.map((it, j) => (j === row.index ? v : it))
-                                            ),
-                                        {...ctx, scope: `${scope}/${row.key}`}
-                                    )
-                                })
-                              : null
+                          div({
+                              className: `${CLS}__settings`,
+                              children: editorFor(
+                                  node.item,
+                                  row.value,
+                                  v => commitList(items.map((it, j) => (j === row.index ? v : it))),
+                                  {...ctx, scope: `${scope}/${row.key}`}
+                              )
+                          })
                   })
                 : null,
             button({
@@ -681,7 +674,7 @@ function listEditor(
                     const item = impl.newValue(node.item.schema),
                         key = impl.addKey(scope, item);
                     commitList([...items, item]);
-                    if (!impl.isItemOpen(scope, key)) impl.toggleItem(scope, key);
+                    impl.setOpenItem(scope, key);
                 }
             })
         ]
@@ -716,12 +709,21 @@ export function booleanEditor({
     });
 }
 
-// A list item's one disclosure chevron, which turns while its drawer is open.
-function drawerButton(open: boolean, onClick: () => void, text: ReactNode = null) {
+// A list's one open item, kept by the Inspector, so it stays open while the list remounts.
+function openItemOf(impl: ConfigEditorModel, scope: string) {
+    const open = impl.openItems[scope];
+    return {
+        expandedKeys: open != null ? [open] : [],
+        onExpandedChange: (keys: Array<string | number>) =>
+            impl.setOpenItem(scope, keys.length ? String(keys[0]) : null)
+    };
+}
+
+// A field's drawer chevron, which turns while its drawer is open.
+function drawerButton(open: boolean, onClick: () => void) {
     return button({
         className: `${CLS}__chevron`,
         icon: Icon.chevronDown(),
-        text,
         title: 'Settings',
         minimal: true,
         intent: open ? 'primary' : null,
@@ -849,13 +851,12 @@ function fieldListEditor(
                     }),
                     span({
                         className: `${CLS}__column-meta`,
-                        children: columnMeta(mapped, impl.inheritedDisplay(entry.field))
+                        children: columnMeta(
+                            mapped,
+                            impl.inheritedDisplay(entry.field),
+                            settingsCount(entry, mapped)
+                        )
                     }),
-                    drawerButton(
-                        open,
-                        () => impl.toggleItem(scope, key),
-                        settingsCount(entry, mapped) || null
-                    ),
                     removeItemButton('Remove', disabled, () =>
                         commitList(entries.filter((_, j) => j !== i))
                     )
@@ -863,7 +864,6 @@ function fieldListEditor(
             });
         },
         drawer = ({key, index: i, entry}: {key: string; index: number; entry: PlainObject}) => {
-            if (!impl.isItemOpen(scope, key)) return null;
             const more = impl.isItemOpen(`${scope}/more`, key),
                 itemScope = `${scope}/${key}`,
                 mapped = mappedOf(entry),
@@ -932,6 +932,7 @@ function fieldListEditor(
                       disabled,
                       compact: true,
                       onReorder: e => commitList(e.items.map((it: PlainObject) => it.entry)),
+                      ...openItemOf(impl, scope),
                       renderItem: (row: any) => header(row),
                       renderDetail: (row: any) => drawer(row)
                   })
@@ -954,16 +955,23 @@ function settingsCount(entry: PlainObject, mapped: PlainObject): number {
     return Object.keys(entry).filter(it => it !== 'field').length + Object.keys(mapped).length;
 }
 
-// How a column shows in brief, its own settings over what it inherits, as `mv · 2dp · bar`.
+// How a column shows in brief, its own settings over what it inherits, and how many it sets, as
+// `mv · 2dp · bar · 3 set`.
 function columnMeta(
     mapped: PlainObject,
-    inherited: {format?: unknown; renderer?: unknown}
+    inherited: {format?: unknown; renderer?: unknown},
+    count: number
 ): string {
     const own = splitNamed(mapped.format),
         base = splitNamed(inherited.format),
         precision = own.options.precision ?? base.options.precision,
         renderer = splitNamed(mapped.renderer ?? inherited.renderer).name;
-    return [own.name ?? base.name, precision != null ? `${precision}dp` : null, renderer]
+    return [
+        own.name ?? base.name,
+        precision != null ? `${precision}dp` : null,
+        renderer,
+        count ? `${count} set` : null
+    ]
         .filter(Boolean)
         .join(' · ');
 }
@@ -1384,6 +1392,8 @@ function actionEditor(
                           compact: true,
                           onReorder: e => commitSteps(e.items.map((it: PlainObject) => it.step)),
                           renderItem: (row: PlainObject) => stepHeader(row.step, row.index),
+                          // Every step's body shows, with no chevron to fold it.
+                          isItemExpandable: () => false,
                           renderDetail: (row: PlainObject) => stepBody(row.step, row.index)
                       })
                   ]

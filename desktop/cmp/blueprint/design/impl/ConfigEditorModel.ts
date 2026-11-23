@@ -49,6 +49,12 @@ export abstract class ConfigEditorModel extends HoistModel {
         return this.openItems[scope] === itemKey;
     }
 
+    /** Open one item of a list, by the list's scope, or none with null. */
+    @action
+    setOpenItem(scope: string, itemKey: string) {
+        this.openItems = {...this.openItems, [scope]: itemKey};
+    }
+
     @action
     toggleItem(scope: string, itemKey: string) {
         this.openItems = {
