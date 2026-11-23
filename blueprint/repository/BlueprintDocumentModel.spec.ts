@@ -702,7 +702,8 @@ describe('BlueprintDocumentModel', () => {
             blueprintModel.applyEdit({
                 ops: [{op: 'renameId', kind: 'element', from: 'priceChart', to: 'prices'}]
             });
-            const before = blueprintModel.blueprint;
+            const before = blueprintModel.blueprint,
+                undoBefore = blueprintModel.undoDescription;
 
             expect(await doc.rollbackAsync(1)).toEqual([]);
             // The new publish is v1's content, with v1's ids, and records the way back to them.
@@ -720,7 +721,6 @@ describe('BlueprintDocumentModel', () => {
             const {elements} = blueprintModel.blueprint;
             expect(elements.posGrid.config.title).toBe('In progress');
             expect(Object.keys(elements).sort()).toEqual(Object.keys(before.elements).sort());
-            expect(blueprintModel.undoDescription).toBe('Reapply unpublished changes');
             expect(doc.pendingRenames).toEqual([
                 {kind: 'element', from: 'priceChart', to: 'prices'}
             ]);
@@ -729,19 +729,30 @@ describe('BlueprintDocumentModel', () => {
                 (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config
                     .title
             ).toBe('In progress');
+            // A rollback leaves the draft as it was, so undo is as it was: it takes back the
+            // writer's own last edit, the rename.
+            expect(blueprintModel.undoDescription).toBe(undoBefore);
+            blueprintModel.undo();
+            expect(blueprintModel.blueprint.elements.priceChart).toBeTruthy();
+            expect(blueprintModel.blueprint.elements.prices).toBeUndefined();
         });
 
         it('leaves the draft exactly as it was when the rollback publish is refused', async () => {
             const {blueprintModel, doc, repository} = await twoPublishes();
             title(blueprintModel, 'In progress');
+            blueprintModel.undo();
             const before = blueprintModel.blueprint,
+                undoBefore = blueprintModel.undoDescription,
+                redoBefore = blueprintModel.redoDescription,
                 publish = vi.spyOn(repository, 'publishAsync').mockResolvedValue({
                     issues: [{code: 'edit.notAllowed', severity: 'error', path: '', message: 'No.'}]
                 });
             onTestFinished(() => publish.mockRestore());
             expect(errors(await doc.rollbackAsync(1))).toEqual(['edit.notAllowed']);
             expect(blueprintModel.blueprint).toEqual(before);
-            expect(blueprintModel.undoDescription).not.toBe('Restore v1');
+            expect(blueprintModel.undoDescription).toBe(undoBefore);
+            expect(blueprintModel.redoDescription).toBe(redoBefore);
+            expect(doc.pendingRenames).toEqual([]);
         });
 
         it('refuses a rollback for a user who may not publish, or from a stale draft', async () => {

@@ -350,10 +350,15 @@ export class BlueprintModel extends HoistModel {
      * Apply an edit as one unit, in design mode only. With errors, nothing applies. An edit that changes nothing leaves
      * the version and history alone. An edit written against an older
      * version is refused for now: the slice does not yet merge edits that do not overlap.
+     *
+     * @param opts.undoable - false to record the edit in history but leave undo and redo as they
+     *      are, for edits whose net effect a caller takes back itself, as a rollback does.
      */
     @action
-    applyEdit(edit: BlueprintEdit): BlueprintEditResult {
+    applyEdit(edit: BlueprintEdit, opts: {undoable?: boolean} = {}): BlueprintEditResult {
+        const {undoable = true} = opts;
         return this.commitEdit(edit, entry => {
+            if (!undoable) return;
             this.undoStack = takeRight([...this.undoStack, entry], MAX_UNDO);
             this.redoStack = [];
         });

@@ -312,18 +312,29 @@ export class BlueprintDocumentModel extends HoistModel {
             return [refusal('You may not publish this blueprint.')];
         }
         if (this.isStale) return [staleRefusal()];
+        // Neither the restore nor the reapply goes on the undo stack: the draft ends as it began,
+        // so undo still takes back the writer's own last edit.
         const {blueprintModel} = this,
             draft = blueprintModel.blueprint,
             unpublished = await this.hasUnpublishedAsync(draft),
-            restore = await this.restoreEditAsync(version);
+            restore = await this.restoreEditAsync(version, false);
         if (hasErrors(restore.issues)) return restore.issues;
         const published = await this.publishAsync(`Rolled back to v${version}`);
         if (hasErrors(published)) {
-            if (blueprintModel.undoDescription === restore.description) blueprintModel.undo();
+            if (restore.version != null) {
+                blueprintModel.applyEdit(
+                    {
+                        description: `Undo: ${restore.description}`,
+                        undoes: restore.version,
+                        ops: diffOps(blueprintModel.blueprint, draft)
+                    },
+                    {undoable: false}
+                );
+            }
             return [...restore.issues, ...published];
         }
         if (!unpublished) return [...restore.issues, ...published];
-        const reapplied = this.replaceContent(draft, restore.renames, REAPPLY);
+        const reapplied = this.replaceContent(draft, restore.renames, REAPPLY, false);
         if (hasErrors(reapplied.issues)) return [...published, ...reapplied.issues];
         return [...published, ...reapplied.issues, ...(await this.saveDraftAsync())];
     }
@@ -563,7 +574,7 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     // Restore a publish's content into the draft, as one edit, with the renames back it made.
-    private async restoreEditAsync(version: number): Promise<ContentEdit> {
+    private async restoreEditAsync(version: number, undoable = true): Promise<ContentEdit> {
         const {document, repository} = this,
             description = `Restore v${version}`;
         if (document?.kind !== 'draft' || document.access !== 'write') {
@@ -585,7 +596,8 @@ export class BlueprintDocumentModel extends HoistModel {
                 ...publishes.filter(it => it.version > version).flatMap(it => it.renames),
                 ...this.pendingRenames
             ],
-            description
+            description,
+            undoable
         );
     }
 
@@ -597,7 +609,8 @@ export class BlueprintDocumentModel extends HoistModel {
     private replaceContent(
         content: Blueprint,
         since: BlueprintRename[],
-        description: string
+        description: string,
+        undoable = true
     ): ContentEdit {
         const {blueprintModel} = this,
             {ops: renameOps, result: renamed} = renamesBack(
@@ -610,7 +623,8 @@ export class BlueprintDocumentModel extends HoistModel {
         const ops = [...renameOps, ...diffOps(renamed, target)],
             renames = renameOps.map(({kind, from, to}: any) => ({kind, from, to}));
         if (!ops.length) return {description, issues: [], renames};
-        return {description, issues: blueprintModel.applyEdit({description, ops}).issues, renames};
+        const {version, issues} = blueprintModel.applyEdit({description, ops}, {undoable});
+        return {description, issues, renames, version};
     }
 
     // True if the draft differs from the latest publish, in content or by a rename.
@@ -705,6 +719,8 @@ interface ContentEdit {
     description: string;
     issues: BlueprintIssue[];
     renames: BlueprintRename[];
+    /** The version the edit made, if it applied. */
+    version?: number;
 }
 
 function failed(description: string, message: string): ContentEdit {
