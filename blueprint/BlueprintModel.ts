@@ -132,6 +132,12 @@ export class BlueprintModel extends HoistModel {
     @observableRef accessor history: (BlueprintEdit & {version: number})[] = [];
 
     // The edits that undo and redo act on, latest last, each with the blueprint around it.
+    /**
+     * Why no edit may apply now, such as a draft gone stale, or null. While it is set, every edit
+     * is refused with it as `edit.blocked`: those of a person, the Architect, undo and redo alike.
+     */
+    @observable accessor editBlocker: string = null;
+
     @observableRef private accessor undoStack: UndoEntry[] = [];
     @observableRef private accessor redoStack: UndoEntry[] = [];
 
@@ -748,10 +754,22 @@ export class BlueprintModel extends HoistModel {
     }
 
     // Apply an edit, and on success, hand `onDone` what an undo of it needs.
+    @action
+    setEditBlocker(reason: string) {
+        this.editBlocker = reason;
+    }
+
     private commitEdit(
         edit: BlueprintEdit,
         onDone: (entry: UndoEntry) => void
     ): BlueprintEditResult {
+        if (this.editBlocker) {
+            return {
+                issues: [
+                    {code: 'edit.blocked', severity: 'error', path: '', message: this.editBlocker}
+                ]
+            };
+        }
         if (edit.base != null && edit.base !== this.version) {
             return {
                 issues: [

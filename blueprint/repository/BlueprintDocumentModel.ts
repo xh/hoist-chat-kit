@@ -87,7 +87,14 @@ export class BlueprintDocumentModel extends HoistModel {
         this.repository = repository;
         this.migrate = migrate;
         // An openBlueprint action opens its targets through this repository, as the user.
-        if (blueprintModel) blueprintModel.drillInRepository = repository;
+        if (blueprintModel) {
+            blueprintModel.drillInRepository = repository;
+            // A stale draft takes no edits, from anywhere, as none of them could be saved.
+            this.addReaction({
+                track: () => this.isStale,
+                run: stale => blueprintModel.setEditBlocker(stale ? STALE_MESSAGE : null)
+            });
+        }
     }
 
     /**
@@ -694,13 +701,15 @@ function needsWrite(opts: BlueprintOpenOptions): boolean {
     return opts.as === 'draft' || (opts.as === 'publish' && opts.version != null);
 }
 
+const STALE_MESSAGE =
+    'Another save landed after you opened this draft. Reload it, or save your edits as a new blueprint.';
+
 function staleRefusal(): BlueprintIssue {
     return {
         code: 'edit.staleBase',
         severity: 'error',
         path: '',
-        message:
-            'Another save landed after you opened this draft. Reload it, or save your edits as a new blueprint.'
+        message: STALE_MESSAGE
     };
 }
 

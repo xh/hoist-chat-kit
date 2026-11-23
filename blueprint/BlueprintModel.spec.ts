@@ -1216,4 +1216,24 @@ describe('BlueprintModel', () => {
             expect(provider.last.req.groupBy).toEqual([[], ['sector'], ['symbol']]);
         });
     });
+
+    it('refuses every edit while something blocks edits, with its reason, then edits again', () => {
+        const model = open(loadBlueprint('p3-morning-report.json')),
+            set = (title: string) =>
+                model.applyEdit({
+                    ops: [{op: 'set', path: '/elements/posGrid/config/title', value: title}]
+                }),
+            blocked = (result: {issues: {code: string; message: string}[]}) =>
+                result.issues.map(it => [it.code, it.message]);
+        set('One');
+        model.setEditBlocker('Reload the draft first.');
+        expect(model.editBlocker).toBe('Reload the draft first.');
+        expect(blocked(set('Two'))).toEqual([['edit.blocked', 'Reload the draft first.']]);
+        expect(blocked(model.undo())).toEqual([['edit.blocked', 'Reload the draft first.']]);
+        expect(model.blueprint.elements.posGrid.config.title).toBe('One');
+
+        model.setEditBlocker(null);
+        expect(set('Two').issues.filter(it => it.severity === 'error')).toEqual([]);
+        expect(model.blueprint.elements.posGrid.config.title).toBe('Two');
+    });
 });

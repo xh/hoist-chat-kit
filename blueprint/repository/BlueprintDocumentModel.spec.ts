@@ -250,6 +250,9 @@ describe('BlueprintDocumentModel', () => {
         expect(errors(await b.doc.saveDraftAsync())).toEqual(['edit.staleBase']);
         expect(b.doc.isStale).toBe(true);
         expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('B');
+        // A stale draft takes no further edits, from anywhere, as they could not be saved.
+        expect(errors(title(b.blueprintModel, 'More').issues)).toEqual(['edit.blocked']);
+        expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('B');
 
         const save = vi.spyOn(repository, 'saveDraftAsync'),
             publish = vi.spyOn(repository, 'publishAsync');
@@ -278,6 +281,7 @@ describe('BlueprintDocumentModel', () => {
         expect(b.doc.isStale).toBe(false);
         expect(b.doc.isDirty).toBe(false);
         expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('A');
+        expect(b.blueprintModel.editBlocker).toBeNull();
     });
 
     it('saves as new without the copy record when the source is no longer open to the user', async () => {

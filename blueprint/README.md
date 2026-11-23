@@ -408,7 +408,8 @@ await doc.publishAsync('Adds the risk view');
 - **One write at a time.** Saves, publishes and copies run in order. A save asked for while
   another runs joins one follow-up save of the latest blueprint.
 - **Stale drafts.** If another save landed first, the document turns `isStale`. It keeps the
-  user's edits and refuses further saves. Offer `reloadAsync()`, which discards the edits, or
+  user's edits and refuses further saves, and the model refuses every further edit as
+  `edit.blocked`, as none could be saved. Offer `reloadAsync()`, which discards the edits, or
   `createAsync(name)`, which saves them as a new blueprint that records the draft it copies. If
   the user has lost access to that draft, the new blueprint is created without the record, so the
   edits are not lost.
