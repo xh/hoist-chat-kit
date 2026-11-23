@@ -87,6 +87,7 @@
     &--selected,
     &--focus {
       background-color: var(--xh-bg-highlight);
+      border-style: solid;
       border-color: var(--xh-blueprint-map-up);
       box-shadow: inset 0 0 0 1px var(--xh-blueprint-map-up);
     }
