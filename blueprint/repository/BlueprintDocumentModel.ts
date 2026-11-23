@@ -317,13 +317,14 @@ export class BlueprintDocumentModel extends HoistModel {
         const {blueprintModel} = this,
             draft = blueprintModel.blueprint,
             unpublished = await this.hasUnpublishedAsync(draft),
-            restore = await this.restoreEditAsync(version, false);
+            restore = await this.restoreEditAsync(version, ROLLBACK);
         if (hasErrors(restore.issues)) return restore.issues;
         const published = await this.publishAsync(`Rolled back to v${version}`);
         if (hasErrors(published)) {
             if (restore.version != null) {
                 blueprintModel.applyEdit(
                     {
+                        author: ROLLBACK,
                         description: `Undo: ${restore.description}`,
                         undoes: restore.version,
                         ops: diffOps(blueprintModel.blueprint, draft)
@@ -334,7 +335,7 @@ export class BlueprintDocumentModel extends HoistModel {
             return [...restore.issues, ...published];
         }
         if (!unpublished) return [...restore.issues, ...published];
-        const reapplied = this.replaceContent(draft, restore.renames, REAPPLY, false);
+        const reapplied = this.replaceContent(draft, restore.renames, REAPPLY, ROLLBACK);
         if (hasErrors(reapplied.issues)) return [...published, ...reapplied.issues];
         return [...published, ...reapplied.issues, ...(await this.saveDraftAsync())];
     }
@@ -574,7 +575,8 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     // Restore a publish's content into the draft, as one edit, with the renames back it made.
-    private async restoreEditAsync(version: number, undoable = true): Promise<ContentEdit> {
+    // A rollback's own edits go in history under its author, and never on the undo stack.
+    private async restoreEditAsync(version: number, author?: string): Promise<ContentEdit> {
         const {document, repository} = this,
             description = `Restore v${version}`;
         if (document?.kind !== 'draft' || document.access !== 'write') {
@@ -597,7 +599,7 @@ export class BlueprintDocumentModel extends HoistModel {
                 ...this.pendingRenames
             ],
             description,
-            undoable
+            author
         );
     }
 
@@ -610,7 +612,7 @@ export class BlueprintDocumentModel extends HoistModel {
         content: Blueprint,
         since: BlueprintRename[],
         description: string,
-        undoable = true
+        author?: string
     ): ContentEdit {
         const {blueprintModel} = this,
             {ops: renameOps, result: renamed} = renamesBack(
@@ -623,7 +625,10 @@ export class BlueprintDocumentModel extends HoistModel {
         const ops = [...renameOps, ...diffOps(renamed, target)],
             renames = renameOps.map(({kind, from, to}: any) => ({kind, from, to}));
         if (!ops.length) return {description, issues: [], renames};
-        const {version, issues} = blueprintModel.applyEdit({description, ops}, {undoable});
+        const {version, issues} = blueprintModel.applyEdit(
+            {description, ops, ...(author ? {author} : {})},
+            {undoable: author !== ROLLBACK}
+        );
         return {description, issues, renames, version};
     }
 
@@ -728,6 +733,10 @@ function failed(description: string, message: string): ContentEdit {
 }
 
 const REAPPLY = 'Reapply unpublished changes';
+
+/** The author of a rollback's own edits in a blueprint's history, for a view to leave them out. */
+export const ROLLBACK_AUTHOR = 'rollback';
+const ROLLBACK = ROLLBACK_AUTHOR;
 
 // Renames that take each of a publish's ids, followed through the renames since, back to its own,
 // where the draft still has it and the publish's id is free, with the draft as they leave it.

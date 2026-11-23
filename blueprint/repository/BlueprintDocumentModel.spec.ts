@@ -724,6 +724,12 @@ describe('BlueprintDocumentModel', () => {
             expect(doc.pendingRenames).toEqual([
                 {kind: 'element', from: 'priceChart', to: 'prices'}
             ]);
+            // Its own edits are marked, for a history to leave out.
+            expect(
+                blueprintModel.history
+                    .filter(it => it.author === 'rollback')
+                    .map(it => it.description)
+            ).toEqual(['Restore v1', 'Reapply unpublished changes']);
             expect(doc.isDirty).toBe(false);
             expect(
                 (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config
