@@ -6,6 +6,11 @@
 
   &__scroll {
     flex: 1 1 auto;
+
+    &--panning {
+      cursor: grabbing;
+      user-select: none;
+    }
   }
 
   &__content {

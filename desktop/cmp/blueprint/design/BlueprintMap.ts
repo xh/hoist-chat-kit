@@ -28,6 +28,7 @@ import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintMap.scss';
 import {issueSummary} from './impl/designActions';
 import {designHotkeys} from './impl/designHotkeys';
+import {usePan} from './impl/usePan';
 
 export interface BlueprintMapProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -48,6 +49,10 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
     render({designModel, onOpenElement, className}) {
         const impl = useLocalModel(() => new BlueprintMapModel(designModel)),
             contentRef = useRef<HTMLDivElement>(null),
+            pan = usePan(
+                `${CLS}__scroll`,
+                (target, scroll) => target !== scroll && !target.closest(`.${CLS}__node`)
+            ),
             measure = () => impl.measure(contentRef.current),
             resizeRef = useOnResize(measure);
         useLayoutEffect(measure);
@@ -63,6 +68,7 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
                 overflow: 'auto',
                 minHeight: 0,
                 minWidth: 0,
+                ...pan,
                 children: div({
                     ref: contentRef,
                     className: `${CLS}__content`,

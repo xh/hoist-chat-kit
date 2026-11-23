@@ -222,6 +222,87 @@ describe('BlueprintMap', () => {
         }
     });
 
+    describe('panning', () => {
+        function setup() {
+            const {design} = open(),
+                {container} = render(blueprintMap({designModel: design}) as ReactElement),
+                scroll = container.querySelector<HTMLElement>('.xh-blueprint-map__scroll'),
+                background = container.querySelector<HTMLElement>('.xh-blueprint-map__content'),
+                node = container.querySelector<HTMLElement>('.xh-blueprint-map__node'),
+                at = {left: 100, top: 100};
+            // jsdom keeps no scroll position.
+            Object.defineProperties(scroll, {
+                scrollLeft: {
+                    get: () => at.left,
+                    set: (v: number) => {
+                        at.left = v;
+                    },
+                    configurable: true
+                },
+                scrollTop: {
+                    get: () => at.top,
+                    set: (v: number) => {
+                        at.top = v;
+                    },
+                    configurable: true
+                }
+            });
+            return {design, scroll, background, node, at};
+        }
+
+        function drag(target: Element, button: number, dx: number, dy: number) {
+            const down = {button, buttons: 1 << [0, 2, 1][button], pointerId: 1},
+                scroll = target.closest('.xh-blueprint-map__scroll');
+            fireEvent.pointerDown(target, {...down, clientX: 200, clientY: 200});
+            fireEvent.pointerMove(scroll, {...down, clientX: 200 + dx / 2, clientY: 200 + dy / 2});
+            fireEvent.pointerMove(scroll, {...down, clientX: 200 + dx, clientY: 200 + dy});
+            fireEvent.pointerUp(scroll, {...down, clientX: 200 + dx, clientY: 200 + dy});
+        }
+
+        it('pans by the drag on a right or middle drag anywhere, over a node too', () => {
+            const {node, at} = setup();
+            drag(node, 2, -50, -30);
+            expect(at).toEqual({left: 150, top: 130});
+            drag(node, 1, 20, 10);
+            expect(at).toEqual({left: 130, top: 120});
+        });
+
+        it('pans on a left drag over the background, and never on a node', () => {
+            const {background, node, at} = setup();
+            drag(node, 0, -50, -30);
+            expect(at).toEqual({left: 100, top: 100});
+            drag(background, 0, -50, -30);
+            expect(at).toEqual({left: 150, top: 130});
+        });
+
+        it('leaves a press that hardly moves to be a click', () => {
+            const {design, node, scroll, at} = setup();
+            drag(node, 2, 2, 1);
+            drag(scroll.querySelector('.xh-blueprint-map__content'), 0, 2, 1);
+            expect(at).toEqual({left: 100, top: 100});
+            fireEvent.click(node);
+            expect(design.selection).not.toBeNull();
+        });
+
+        it('swallows the click that ends a pan, and the context menu after a moved right drag', () => {
+            const {background, scroll} = setup(),
+                fire = (type: string) => {
+                    const e = new MouseEvent(type, {bubbles: true, cancelable: true});
+                    background.dispatchEvent(e);
+                    return e.defaultPrevented;
+                };
+            drag(background, 0, 40, 0);
+            expect(fire('click')).toBe(true);
+            expect(fire('click')).toBe(false);
+            drag(background, 2, 40, 0);
+            expect(fire('contextmenu')).toBe(true);
+            // A right-click that does not move keeps the browser's menu, where it comes on release.
+            drag(background, 2, 0, 0);
+            expect(fire('contextmenu')).toBe(false);
+            expect(scroll.classList).not.toContain('xh-blueprint-map__scroll--panning');
+        });
+    });
+
     it('keeps a node the same size in every state, so a hover moves nothing', () => {
         const scss = readFileSync(path.join(import.meta.dirname, 'BlueprintMap.scss'), 'utf8'),
             node = blockAfter(scss, '&__node {'),
