@@ -23,6 +23,7 @@ import {
 import {checkHighchartsConfig} from '../../../blueprint/impl/builtInWidgets';
 import {formatValue, resolveFormat} from '../../../blueprint/impl/formats';
 import {fmtChatUiNumber} from '../genui/ChatUiFormat';
+import {setChartConfig} from './impl/chartConfig';
 import {
     type ChatUiChartLayoutProps,
     toHighchartsConfig,
@@ -137,7 +138,11 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             {plotOptions: {series: {point: {events: {click: this.onPointClick}}}}},
             this.checkedHighchartsConfig
         );
-        if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
+        setChartConfig(chartModel, config, {
+            yAxis: props.yAxis,
+            type: props.type,
+            formats: compact([this.primary[0], this.y2[0]]).map(it => this.formatInputs(it))
+        });
         // The series of y2 follow those of y, on the second axis.
         const firstY2 = this.primary.length;
         const primaryTooltip = this.hasOwnFormat(this.primary[0])
@@ -213,6 +218,19 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     // True where a field's format gives it a unit or a scale, which its axis and tooltips keep.
     private hasOwnFormat(field: string): boolean {
         return !!(this.unitOf(field) || this.scaledFormatOf(field));
+    }
+
+    // What a field's axis labels and tooltips read, for the chart to rebuild only when they change.
+    private formatInputs(field: string): PlainObject {
+        const def = this.source?.fields[field],
+            {catalog, blueprint} = this.blueprintModel;
+        return {
+            field,
+            fraction: this.isFraction(field),
+            format: def
+                ? resolveFormat(def, this.source.displayOf(field).formats, {catalog, blueprint})
+                : null
+        };
     }
 
     // A field's label from its format, such as a unit its source's params choose, escaped.

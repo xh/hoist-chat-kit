@@ -9,6 +9,7 @@ import {
     type GaugeWidgetConfig
 } from '../../../blueprint';
 import {formatValue, resolveFormat} from '../../../blueprint/impl/formats';
+import {setChartConfig} from './impl/chartConfig';
 
 /**
  * The `gauge` widget: a Highcharts solid gauge of one measure's total over its source, on an arc
@@ -75,35 +76,39 @@ export class GaugeWidgetModel extends BlueprintWidgetModel<GaugeWidgetConfig> {
                 catalog,
                 blueprint
             });
-        chartModel.setHighchartsConfig({
-            chart: {type: 'solidgauge'},
-            // A canvas cell draws its title in its header. Highcharts reads a title as markup.
-            title: {text: title && !this.inCanvas ? escape(title) : null},
-            pane: {
-                startAngle: -90,
-                endAngle: 90,
-                center: ['50%', '85%'],
-                size: '140%',
-                background: {innerRadius: '60%', outerRadius: '100%', shape: 'arc'}
-            },
-            yAxis: {
-                min,
-                max,
-                stops: stops?.length ? sortBy(stops, 'at').map(it => [it.at, it.color]) : null,
-                tickPositions: [min, max],
-                labels: {
-                    y: 16,
-                    formatter: function (this: any) {
-                        return escape(
-                            String(formatValue(this.value, def, opts, catalog, true) ?? '')
-                        );
-                    }
+        setChartConfig(
+            chartModel,
+            {
+                chart: {type: 'solidgauge'},
+                // A canvas cell draws its title in its header. Highcharts reads a title as markup.
+                title: {text: title && !this.inCanvas ? escape(title) : null},
+                pane: {
+                    startAngle: -90,
+                    endAngle: 90,
+                    center: ['50%', '85%'],
+                    size: '140%',
+                    background: {innerRadius: '60%', outerRadius: '100%', shape: 'arc'}
                 },
-                title: {text: null}
+                yAxis: {
+                    min,
+                    max,
+                    stops: stops?.length ? sortBy(stops, 'at').map(it => [it.at, it.color]) : null,
+                    tickPositions: [min, max],
+                    labels: {
+                        y: 16,
+                        formatter: function (this: any) {
+                            return escape(
+                                String(formatValue(this.value, def, opts, catalog, true) ?? '')
+                            );
+                        }
+                    },
+                    title: {text: null}
+                },
+                tooltip: {enabled: false},
+                credits: {enabled: false}
             },
-            tooltip: {enabled: false},
-            credits: {enabled: false}
-        });
+            {def, opts}
+        );
         chartModel.setSeries([
             {
                 type: 'solidgauge',

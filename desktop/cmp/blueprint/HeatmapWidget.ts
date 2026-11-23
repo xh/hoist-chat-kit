@@ -9,6 +9,7 @@ import {
     type HeatmapWidgetConfig
 } from '../../../blueprint';
 import {formatValue, resolveFormat} from '../../../blueprint/impl/formats';
+import {setChartConfig} from './impl/chartConfig';
 
 /**
  * The `heatmap` widget: a Highcharts heatmap over its source grouped by `x` and `y`, each cell
@@ -116,36 +117,43 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
             x: xRows.map(it => it.cubeLabelValue),
             y: yRows.map(it => it.cubeLabelValue)
         };
-        chartModel.setHighchartsConfig({
-            chart: {type: 'heatmap'},
-            title: {text: null},
-            legend: {enabled: true},
-            // Highcharts reads labels as markup.
-            xAxis: {categories: xRows.map(it => escape(String(it.cubeLabel)))},
-            yAxis: {categories: yRows.map(it => escape(String(it.cubeLabel))), title: {text: null}},
-            colorAxis:
-                colorMode === 'diverging'
-                    ? {
-                          min: -maxAbs,
-                          max: maxAbs,
-                          stops: [
-                              [0, NEG],
-                              [0.5, MID],
-                              [1, POS]
-                          ]
-                      }
-                    : {minColor: MID, maxColor: POS},
-            tooltip: {
-                // The categories are escaped already.
-                pointFormatter: function (this: any) {
-                    const xLabel = this.series.xAxis.categories[this.x],
-                        yLabel = this.series.yAxis.categories[this.y],
-                        formatted = formatValue(this.value, def, opts, catalog, true) ?? '';
-                    return `${xLabel}, ${yLabel}: ${formatted}`;
-                }
+        setChartConfig(
+            chartModel,
+            {
+                chart: {type: 'heatmap'},
+                title: {text: null},
+                legend: {enabled: true},
+                // Highcharts reads labels as markup.
+                xAxis: {categories: xRows.map(it => escape(String(it.cubeLabel)))},
+                yAxis: {
+                    categories: yRows.map(it => escape(String(it.cubeLabel))),
+                    title: {text: null}
+                },
+                colorAxis:
+                    colorMode === 'diverging'
+                        ? {
+                              min: -maxAbs,
+                              max: maxAbs,
+                              stops: [
+                                  [0, NEG],
+                                  [0.5, MID],
+                                  [1, POS]
+                              ]
+                          }
+                        : {minColor: MID, maxColor: POS},
+                tooltip: {
+                    // The categories are escaped already.
+                    pointFormatter: function (this: any) {
+                        const xLabel = this.series.xAxis.categories[this.x],
+                            yLabel = this.series.yAxis.categories[this.y],
+                            formatted = formatValue(this.value, def, opts, catalog, true) ?? '';
+                        return `${xLabel}, ${yLabel}: ${formatted}`;
+                    }
+                },
+                plotOptions: {series: {point: {events: {click: this.onCellClick}}}}
             },
-            plotOptions: {series: {point: {events: {click: this.onCellClick}}}}
-        });
+            {def, opts}
+        );
         chartModel.setSeries([
             {type: 'heatmap', name: escape(source.fieldLabel(value)), data} as any
         ]);

@@ -1,9 +1,16 @@
 import {act, render} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
+import type {ChartModel} from '@xh/hoist/cmp/chart';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {BlueprintDesignModel, BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
+import {
+    type Blueprint,
+    BlueprintDesignModel,
+    BlueprintModel,
+    FakeBlueprintDataProvider
+} from '../../../blueprint';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {blueprintView} from './BlueprintView';
 import type {DashCanvasWidgetModel} from './DashCanvasWidget';
@@ -24,6 +31,43 @@ describe('blueprint gestures', () => {
         for (let i = 0; i < 8; i++) await round();
         fire(window, 'dragend');
         expect(census()).toEqual(after1);
+    });
+
+    it("keeps each chart's config through cell moves and undos, so no chart is rebuilt", async () => {
+        // Hoist rebuilds a chart for each new config, and Highcharts leaks a resize observer each time.
+        const {model, view} = await setup(bp => {
+                bp.elements.gauge = {
+                    component: 'gauge',
+                    config: {source: 'positions', value: 'mktVal', max: 1000}
+                };
+                bp.elements.heat = {
+                    component: 'heatmap',
+                    config: {source: 'positions', x: 'sector', y: 'strategy', value: 'pnlDay'}
+                };
+                bp.elements.dashboard.children.push(
+                    {id: 'gauge', x: 0, y: 14, w: 3, h: 4},
+                    {id: 'heat', x: 3, y: 14, w: 6, h: 4}
+                );
+            }),
+            canvas = view.getWidgetModel('dashboard') as DashCanvasWidgetModel,
+            charts = ['sectorChart', 'gauge', 'heat'].map(
+                id => view.getWidgetModel(id) as unknown as {chartModel: ChartModel}
+            ),
+            configs = () => charts.map(it => it.chartModel.highchartsConfig);
+        await vi.waitFor(() =>
+            charts.forEach(it => expect(it.chartModel.series.length).toBeGreaterThan(0))
+        );
+        await act(() => wait(50));
+        const before = configs();
+        for (const id of ['sectorChart', 'gauge', 'heat']) {
+            act(() => {
+                canvas.moveCell(id, {y: 30});
+            });
+            await act(() => wait(50));
+            act(() => model.undo());
+            await act(() => wait(50));
+        }
+        configs().forEach((it, i) => expect(it).toBe(before[i]));
     });
 
     it('checks each place once a drag, and leaves the preview alone while the place holds', async () => {
@@ -51,7 +95,7 @@ describe('blueprint gestures', () => {
 //------------------
 // Test support
 //------------------
-async function setup() {
+async function setup(adjust: (bp: Blueprint) => void = null) {
     const live = new Map<string, number>(),
         bump = (key: string, by: number) => live.set(key, (live.get(key) ?? 0) + by),
         targets = new Map<EventTarget, string>([
@@ -116,7 +160,7 @@ async function setup() {
     window.ResizeObserver = CountedObserver;
 
     const model = new BlueprintModel({
-            blueprint: loadBlueprint('p2-linked-dashboard.json'),
+            blueprint: withAdjusted(loadBlueprint('p2-linked-dashboard.json'), adjust),
             catalog: portfolioCatalog,
             registry: scenarioRegistry(),
             dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
@@ -194,4 +238,9 @@ async function setup() {
     });
 
     return {fire, round, census, model, view, design, layoutEl};
+}
+
+function withAdjusted(bp: Blueprint, adjust: (bp: Blueprint) => void): Blueprint {
+    adjust?.(bp);
+    return bp;
 }
