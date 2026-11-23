@@ -51,7 +51,7 @@ const overlayLayer = hoistCmp.factory<HoistProps & {model: OverlayModel}>({
     render({model, className}) {
         // Read to measure again on each layout change.
         model.layoutVersion;
-        const host = model.hostEl?.getBoundingClientRect();
+        const host = model.hostShown ? model.hostEl.getBoundingClientRect() : null;
         if (!host) return null;
         return div({
             className,

@@ -84,6 +84,16 @@ export class OverlayModel extends HoistModel {
             .sort((a, b) => a.layer - b.layer);
     }
 
+    /**
+     * True while the host shows: connected and visible, not on a tab that is hidden. The layer
+     * draws nothing otherwise. A host that hides resizes to nothing, which redraws the layer.
+     */
+    get hostShown(): boolean {
+        const el = this.hostEl;
+        if (!el?.isConnected) return false;
+        return el.checkVisibility ? el.checkVisibility() : true;
+    }
+
     /** A target's box within the layer, or null if it is not found or scrolled out of view. */
     boxOf(target: OverlayTarget): OverlayBox {
         const {hostEl} = this;

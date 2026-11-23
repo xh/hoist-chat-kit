@@ -153,6 +153,25 @@ describe('overlay layer', () => {
         expect(markEl(container, 'hidden')).toBeNull();
     });
 
+    it('draws nothing while its area is hidden, such as on a tab not showing, and draws again once shown', () => {
+        const {model, container} = setup(),
+            host = container.querySelector<HTMLElement>('.test-host');
+        rect(host, {x: 0, y: 0, width: 800, height: 600});
+        rect(target(container, 'posGrid'), {x: 0, y: 0, width: 300, height: 200});
+        mark(model, {key: 'sel', target: selector('posGrid')});
+        expect(markEl(container, 'sel')).toBeTruthy();
+
+        let shown = false;
+        host.checkVisibility = () => shown;
+        act(() => model.layoutChanged());
+        expect(markEl(container, 'sel')).toBeNull();
+        expect(document.body.querySelector('.xh-layout-overlay')).toBeNull();
+
+        shown = true;
+        act(() => model.layoutChanged());
+        expect(markEl(container, 'sel')).toBeTruthy();
+    });
+
     it('omits a mark whose target is gone or not shown', () => {
         const {model, container} = setup();
         mark(model, {key: 'gone', target: selector('nothing')});
