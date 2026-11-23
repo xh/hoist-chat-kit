@@ -123,6 +123,40 @@ describe('layout and container widgets', () => {
             expect(check('stretch')).toEqual([]);
         });
 
+        it('names each child align would leave no room, agreeing with how many it names', () => {
+            const message = (ids: string[]) =>
+                validateBlueprint(
+                    {
+                        schema: {blueprint: 1},
+                        root: 'row',
+                        sources: {positions: {dataset: 'positions'}},
+                        elements: {
+                            row: {
+                                component: 'box',
+                                config: {align: 'center'},
+                                children: ids.map(id => ({id}))
+                            },
+                            ...Object.fromEntries(
+                                ids.map(id => [
+                                    id,
+                                    {
+                                        component: 'cubeGrid',
+                                        config: {source: 'positions', columnState: ['mktVal']}
+                                    }
+                                ])
+                            )
+                        }
+                    },
+                    {catalog: portfolioCatalog, registry: scenarioRegistry()}
+                ).find(it => it.code === 'box.alignCollapses')?.message;
+            expect(message(['posGrid'])).toBe(
+                'posGrid has no size of its own, so align center leaves it no room across the box. Keep stretch.'
+            );
+            expect(message(['posGrid', 'sectorGrid'])).toBe(
+                'posGrid and sectorGrid have no size of their own, so align center leaves them no room across the box. Keep stretch.'
+            );
+        });
+
         it('gives inputs, buttons and toolbars their own size along it, and a share to the rest', () => {
             const {container} = show('col', {
                     col: {

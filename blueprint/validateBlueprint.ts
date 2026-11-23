@@ -25,7 +25,7 @@ import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
 import {CANVAS_COLUMNS} from './impl/canvasCells';
 import {slotLists} from './impl/elements';
-import {labelOf} from './impl/labels';
+import {labelOf, listOf} from './impl/labels';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
 import {
@@ -1386,12 +1386,8 @@ function accepts(rule: SlotAccepts, child: WidgetSpec): boolean {
 // Such as "input widgets, separator and spacer".
 function describeAccepts(rule: SlotAccepts): string {
     const {categories = [], widgets = []} = rule ?? {},
-        items = [...(categories.length ? [`${joinAnd(categories)} widgets`] : []), ...widgets];
-    return joinAnd(items);
-}
-
-function joinAnd(items: string[]): string {
-    return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0];
+        items = [...(categories.length ? [`${listOf(categories)} widgets`] : []), ...widgets];
+    return listOf(items);
 }
 
 /**
@@ -1426,7 +1422,7 @@ function checkCanvasLayout(
             err(
                 'layout.outOfBounds',
                 at,
-                `'${c.id}' reaches column ${c.x + c.w}, past the last of ${cols}. Rescale the x and w of ${outside.join(', ')} to fit ${cols} columns, in proportion, so each x + w is at most ${cols}`
+                `'${c.id}' reaches column ${c.x + c.w}, past the last of ${cols}. Rescale the x and w of ${listOf(outside)} to fit ${cols} columns, in proportion, so each x + w is at most ${cols}`
             );
         }
         const minW = specOf(c.id)?.size?.min?.w;

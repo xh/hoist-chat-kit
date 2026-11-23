@@ -16,7 +16,9 @@ export function removalMessage(id: string, removal: BlueprintRemoval): string {
         );
     if (unbound.length) {
         sentences.push(
-            `${listOf(unbound)} ${unbound.length > 1 ? 'lose a writer' : 'loses a writer'}, and keep${unbound.length > 1 ? '' : 's'} its other writers or its default.`
+            unbound.length > 1
+                ? `${listOf(unbound)} lose a writer, and keep their other writers or their default.`
+                : `${unbound[0]} loses a writer, and keeps its other writers or its default.`
         );
     }
     if (presetPaths.length) {

@@ -12,6 +12,7 @@ import type {
     WidgetSpec
 } from '../BlueprintRegistry';
 import {parentOf} from './elements';
+import {listOf} from './labels';
 import {templateDemand} from './template';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
@@ -2671,12 +2672,13 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
                 SIZELESS_WIDGETS.includes(elements[it.id]?.component)
             );
         if (!cfg.align || cfg.align === 'stretch' || !sizeless.length) return [];
+        const many = sizeless.length > 1;
         return [
             {
                 code: 'box.alignCollapses',
                 severity: 'warning',
                 path: '/align',
-                message: `${sizeless.map(it => it.id).join(', ')} has no size of its own, so align ${cfg.align} leaves it no room across the box. Keep stretch.`
+                message: `${listOf(sizeless.map(it => it.id))} ${many ? 'have' : 'has'} no size of ${many ? 'their' : 'its'} own, so align ${cfg.align} leaves ${many ? 'them' : 'it'} no room across the box. Keep stretch.`
             }
         ];
     },

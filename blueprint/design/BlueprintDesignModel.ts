@@ -30,7 +30,7 @@ import {childIds, locate, parentOf, slotLabel, slotLists} from '../impl/elements
 import type {SlotAccepts} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
-import {configEditLabel, labelOf} from '../impl/labels';
+import {configEditLabel, labelOf, listOf} from '../impl/labels';
 import {removalMessage} from './removalMessage';
 import {starterConfig} from './starterConfig';
 import {wiringFor, wiringGraph, type WiringGraph, type WiringRef} from './wiring';
@@ -1346,12 +1346,8 @@ export class BlueprintDesignModel extends HoistModel {
     removeVariable(name: string): BlueprintEditResult {
         const readers = this.readersOf(name);
         if (readers.length) {
-            const list =
-                readers.length > 1
-                    ? `${readers.slice(0, -1).join(', ')} and ${readers.at(-1)}`
-                    : readers[0];
             return refused(
-                `${list} ${readers.length > 1 ? 'use' : 'uses'} ${name}. Change ${readers.length > 1 ? 'them' : 'it'} first.`
+                `${listOf(readers)} ${readers.length > 1 ? 'use' : 'uses'} ${name}. Change ${readers.length > 1 ? 'them' : 'it'} first.`
             );
         }
         return this.removeEntry('variables', 'variable', name, [

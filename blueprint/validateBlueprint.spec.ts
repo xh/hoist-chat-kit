@@ -648,7 +648,7 @@ describe('validateBlueprint', () => {
             // Each names every cell outside, and how to fix them in one retry.
             const [first] = validate(bp);
             expect(first.message).toMatch(
-                /Rescale the x and w of '.+', '.+', '.+' to fit 10 columns/
+                /Rescale the x and w of '.+', '.+' and '.+' to fit 10 columns/
             );
         });
 
