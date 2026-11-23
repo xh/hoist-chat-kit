@@ -1,4 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {cloneDeep} from 'lodash';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import type {Blueprint} from '../Blueprint';
@@ -1080,7 +1081,13 @@ describe('BlueprintDesignModel', () => {
                 action = (id: string, actionId: string) =>
                     design.designActions({kind: 'element', id}).find(it => it.id === actionId);
             expect(ids('posGrid')).toEqual(['duplicate', 'wrap', 'delete']);
-            expect(ids('dashboard')).toEqual(['addWidget', 'duplicate', 'wrap', 'delete']);
+            expect(ids('dashboard')).toEqual([
+                'addWidget',
+                'duplicate',
+                'wrap',
+                'changeType',
+                'delete'
+            ]);
             expect(action('dashboard', 'duplicate').disabledReason).toMatch(/root/);
             const toolbar = action('posGrid', 'wrap').items.find(it => it.id === 'wrap:toolbar');
             expect(toolbar.disabledReason).toEqual(expect.any(String));
@@ -1107,6 +1114,157 @@ describe('BlueprintDesignModel', () => {
             expect(model.history.length).toBe(edits + 1);
             model.undo();
             expect(model.blueprint.elements[box]).toBeUndefined();
+        });
+
+        describe('change type and unwrap', () => {
+            const boxPage = (): Blueprint => ({
+                schema: {blueprint: 1},
+                root: 'page',
+                elements: {
+                    page: {
+                        component: 'box',
+                        config: {direction: 'row', gap: 8},
+                        children: [{id: 'a', flex: 2}, {id: 'b'}]
+                    },
+                    a: {component: 'markdown', config: {text: 'A'}},
+                    b: {component: 'markdown', config: {text: 'B'}}
+                }
+            });
+            const changeTo = (design: BlueprintDesignModel, id: string, widget: string) =>
+                design
+                    .designActions({kind: 'element', id})
+                    .find(it => it.id === 'changeType')
+                    .items.find(it => it.id === `changeType:${widget}`);
+
+            it('changes a box to a dashboard and back, each one undoable edit that keeps its id', () => {
+                const {model, design} = open(boxPage()),
+                    edits = model.history.length;
+                design.select({kind: 'element', id: 'page'});
+                const toCanvas = changeTo(design, 'page', 'dashCanvas');
+                // A box's direction and gap, and a child's flex, have no place on a canvas.
+                expect(toCanvas.confirm).toMatch(/direction/);
+                expect(toCanvas.confirm).toMatch(/gap/);
+                expect(toCanvas.confirm).toMatch(/flex/);
+                expect(toCanvas.run()).toBeNull();
+                const page = model.blueprint.elements.page;
+                expect(page.component).toBe('dashCanvas');
+                expect(page.config).not.toHaveProperty('direction');
+                // Packed: each child at the first free place, at its widget's default size.
+                expect(page.children.map(it => it.id)).toEqual(['a', 'b']);
+                page.children.forEach(it =>
+                    expect(it).toEqual({
+                        id: it.id,
+                        x: expect.any(Number),
+                        y: expect.any(Number),
+                        w: expect.any(Number),
+                        h: expect.any(Number)
+                    })
+                );
+                expect(model.history.length).toBe(edits + 1);
+                expect(design.selection).toEqual({kind: 'element', id: 'page'});
+                expect(errors({issues: model.issues})).toEqual([]);
+
+                // Back to a box, the canvas places are dropped.
+                const toBox = changeTo(design, 'page', 'box');
+                expect(toBox.confirm).toMatch(/x, y, w and h/);
+                expect(toBox.run()).toBeNull();
+                expect(model.blueprint.elements.page).toMatchObject({
+                    component: 'box',
+                    children: [{id: 'a'}, {id: 'b'}]
+                });
+
+                model.undo();
+                model.undo();
+                expect(model.blueprint).toEqual(boxPage());
+            });
+
+            it('changes a panel to tabs, confirming the settings and the toolbar it drops', () => {
+                const {model, design} = open({
+                    schema: {blueprint: 1},
+                    root: 'panel',
+                    elements: {
+                        panel: {
+                            component: 'panel',
+                            config: {title: 'Risk', compactHeader: true},
+                            tbar: [{id: 'bar'}],
+                            children: [{id: 'a'}, {id: 'b'}]
+                        },
+                        bar: {component: 'toolbar', children: []},
+                        a: {component: 'markdown', config: {text: 'A'}},
+                        b: {component: 'markdown', config: {text: 'B'}}
+                    }
+                });
+                const before = cloneDeep(model.blueprint),
+                    action = changeTo(design, 'panel', 'tabContainer');
+                expect(action.confirm).toMatch(/bar/);
+                expect(action.confirm).toMatch(/compactHeader/);
+                expect(action.run()).toBeNull();
+                const tabs = model.blueprint.elements.panel;
+                expect(tabs.component).toBe('tabContainer');
+                expect(tabs).not.toHaveProperty('tbar');
+                // A tab needs a title: each child takes its widget's label.
+                expect(tabs.children).toEqual([
+                    {id: 'a', title: expect.any(String)},
+                    {id: 'b', title: expect.any(String)}
+                ]);
+                expect(model.blueprint.elements).not.toHaveProperty('bar');
+                model.undo();
+                expect(model.blueprint).toEqual(before);
+            });
+
+            it('asks nothing for a change that drops nothing, and offers no change to the same type', () => {
+                const {design} = open({
+                    schema: {blueprint: 1},
+                    root: 'page',
+                    elements: {
+                        page: {component: 'box', children: [{id: 'a'}]},
+                        a: {component: 'markdown', config: {text: 'A'}}
+                    }
+                });
+                expect(changeTo(design, 'page', 'panel').confirm).toBeFalsy();
+                expect(changeTo(design, 'page', 'box')).toBeUndefined();
+            });
+
+            it('unwraps a root container with one child, the child becoming the root, undoably', () => {
+                const {model, design} = open({
+                        schema: {blueprint: 1},
+                        root: 'page',
+                        elements: {
+                            page: {
+                                component: 'panel',
+                                config: {title: 'Risk'},
+                                children: [{id: 'a'}]
+                            },
+                            a: {component: 'markdown', config: {text: 'A'}}
+                        }
+                    }),
+                    before = cloneDeep(model.blueprint),
+                    unwrap = () =>
+                        design
+                            .designActions({kind: 'element', id: 'page'})
+                            .find(it => it.id === 'unwrap');
+                expect(unwrap().run()).toBeNull();
+                expect(model.blueprint.root).toBe('a');
+                expect(model.blueprint.elements).not.toHaveProperty('page');
+                expect(design.selection).toEqual({kind: 'element', id: 'a'});
+                model.undo();
+                expect(model.blueprint).toEqual(before);
+
+                // Offered only for a container with exactly one child.
+                design.addWidget('markdown', 'page');
+                expect(unwrap()).toBeUndefined();
+            });
+
+            it('unwraps a container in place, its child taking its place in the parent', () => {
+                const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
+                expect(design.wrapIn('posGrid', 'box')).toBeNull();
+                const box = design.selectedElementId,
+                    cell = () => model.blueprint.elements.dashboard.children;
+                const place = cell().find(it => it.id === box);
+                expect(design.unwrap(box)).toBeNull();
+                expect(cell().find(it => it.id === 'posGrid')).toEqual({...place, id: 'posGrid'});
+                expect(model.blueprint.elements).not.toHaveProperty(box);
+            });
         });
 
         it('deletes through its action, asking first only when more goes with it, then selects a neighbour', () => {

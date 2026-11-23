@@ -550,12 +550,25 @@ export class BlueprintDesignModel extends HoistModel {
             ];
         }
         const wraps = this.wrapOptions(id).map(({widget, label, refusal}): DesignAction => ({
-            id: `wrap:${widget}`,
-            label,
-            icon: this.widgetSpec(widget)?.icon,
-            disabledReason: refusal,
-            run: () => this.wrapIn(id, widget)
-        }));
+                id: `wrap:${widget}`,
+                label,
+                icon: this.widgetSpec(widget)?.icon,
+                disabledReason: refusal,
+                run: () => this.wrapIn(id, widget)
+            })),
+            changes = this.changeTypeOptions(id).map(({widget, label, refusal}): DesignAction => {
+                const losses = refusal ? [] : this.changeTypeLosses(id, widget);
+                return {
+                    id: `changeType:${widget}`,
+                    label,
+                    icon: this.widgetSpec(widget)?.icon,
+                    disabledReason: refusal,
+                    confirm: losses.length
+                        ? `Change ${id} to a ${label.toLowerCase()}? It drops ${listOf(losses)}.`
+                        : null,
+                    run: () => this.changeType(id, widget)
+                };
+            });
         return [
             ...(spec?.children
                 ? [
@@ -595,6 +608,26 @@ export class BlueprintDesignModel extends HoistModel {
                 disabledReason: isRoot ? 'The root has no container to wrap it in.' : null,
                 items: wraps
             },
+            ...(changes.length
+                ? [
+                      {
+                          id: 'changeType',
+                          label: 'Change type to',
+                          icon: 'arrowsLeftRight',
+                          items: changes
+                      }
+                  ]
+                : []),
+            ...(spec?.children && childIds(elements[id]).length === 1
+                ? [
+                      {
+                          id: 'unwrap',
+                          label: 'Unwrap',
+                          icon: 'arrowUp',
+                          run: () => this.unwrap(id)
+                      }
+                  ]
+                : []),
             remove
         ];
     }
@@ -1303,6 +1336,187 @@ export class BlueprintDesignModel extends HoistModel {
         };
     }
 
+    /**
+     * Change a container to another container widget, as one edit that keeps its id, so whatever
+     * names it still does. Its children move to the new widget's children, in order, and its other
+     * slots to the same slots where the new widget has them. Config and child placement the new
+     * widget has no place for are dropped, as are the elements in slots it lacks. A canvas packs
+     * its new children. See {@link changeTypeLosses} for what a change drops.
+     *
+     * @returns why it cannot, or null.
+     */
+    changeType(id: string, widget: string): string {
+        const plan = this.planChangeType(id, widget);
+        if ('issues' in plan) return plan.issues.find(isError)?.message ?? null;
+        return this.edit(plan.description, plan.ops).issues.find(isError)?.message ?? null;
+    }
+
+    /** What {@link changeType} would drop, as phrases for a person to confirm, or none. */
+    changeTypeLosses(id: string, widget: string): string[] {
+        const plan = this.planChangeType(id, widget);
+        return 'issues' in plan ? [] : plan.losses;
+    }
+
+    /** The container widgets an element can change to, with why each refuses, if it does. */
+    changeTypeOptions(id: string): {widget: string; label: string; refusal: string}[] {
+        const component = getOwn(this.blueprintModel.blueprint?.elements, id)?.component;
+        if (!this.widgetSpec(component)?.children) return [];
+        return Object.values(this.blueprintModel.registry.widgets)
+            .filter(it => it.children && !it.reserved && it.name !== component)
+            .map(it => ({
+                widget: it.name,
+                label: it.label,
+                refusal: this.dryRun(this.planChangeType(id, it.name))[0]?.message ?? null
+            }));
+    }
+
+    /**
+     * Replace a container with its only child, which takes its place, as one edit, and select the
+     * child. The root's child becomes the root. A panel's title goes to a child that has none.
+     *
+     * @returns why it cannot, or null.
+     */
+    unwrap(id: string): string {
+        const plan = this.planUnwrap(id);
+        if ('issues' in plan) return plan.issues.find(isError)?.message ?? null;
+        const ret = this.edit(plan.description, plan.ops).issues.find(isError)?.message ?? null;
+        if (!ret) this.select({kind: 'element', id: plan.id});
+        return ret;
+    }
+
+    // The ops that change a container's widget, with what they drop, or why not.
+    private planChangeType(
+        id: string,
+        widget: string
+    ): {description: string; ops: BlueprintOp[]; losses: string[]} | BlueprintEditResult {
+        const {blueprint, catalog} = this.blueprintModel,
+            el = getOwn(blueprint?.elements, id),
+            from = this.elementSpec(id),
+            to = this.widgetSpec(widget);
+        if (!from?.children) return refused(`${id} holds no widgets.`);
+        if (!to?.children) return refused(`A ${to?.label ?? widget} holds no widgets.`);
+        if (widget === el.component) return refused(`${id} is already a ${to.label}.`);
+        const starter = starterConfig(to, {blueprint, catalog});
+        if (!starter || typeof starter === 'string') {
+            return refused(
+                typeof starter === 'string' ? starter : `A ${to.label} cannot start empty.`
+            );
+        }
+        const configKeys = Object.keys(to.config?.properties ?? {}),
+            oldConfig: PlainObject = el.config ?? {},
+            config = {...starter, ...pick(oldConfig, configKeys)},
+            droppedConfig = Object.keys(oldConfig).filter(it => !configKeys.includes(it)),
+            refKeys = Object.keys(to.children.schema?.properties ?? {}),
+            cellSlots = Object.keys(to.children.slots ?? {}),
+            onCanvas = refKeys.includes('x'),
+            needsTitle = !!to.children.schema?.required?.includes('title'),
+            droppedPlacement = new Set<string>(),
+            removed: {slot: string; of?: string; id: string}[] = [],
+            ret: PlainObject = {component: widget, config},
+            placed: ChildRef[] = [];
+        // Each child moves to the new widget's children, in order.
+        slotLists(el)
+            .filter(it => !it.of)
+            .forEach(({slot, refs}) => {
+                if (slot !== 'children' && to.slots?.[slot]) {
+                    ret[slot] = refs.map(it => ({id: it.id}));
+                    return;
+                }
+                if (slot !== 'children') {
+                    refs.forEach(it => removed.push({slot, id: it.id}));
+                    return;
+                }
+                refs.forEach(ref => {
+                    const child: ChildRef = {id: ref.id},
+                        spec = this.elementSpec(ref.id);
+                    Object.entries(ref).forEach(([key, value]) => {
+                        if (key === 'id' || (onCanvas && CELL_KEYS.includes(key))) return;
+                        if (isRefList(value) && !cellSlots.includes(key)) {
+                            value.forEach(it => removed.push({slot: key, of: ref.id, id: it.id}));
+                        } else if (refKeys.includes(key) || cellSlots.includes(key)) {
+                            child[key] = value;
+                        } else {
+                            droppedPlacement.add(key);
+                        }
+                    });
+                    if (needsTitle && child.title == null) child.title = spec?.label ?? ref.id;
+                    if (onCanvas) {
+                        const columns = config.columns ?? CANVAS_COLUMNS,
+                            {w = 4, h = 2} = spec?.size?.default ?? {},
+                            width = Math.min(w, columns);
+                        Object.assign(child, {
+                            ...firstFreePlace(placed, columns, width, h),
+                            w: width,
+                            h
+                        });
+                    }
+                    placed.push(child);
+                });
+                ret.children = placed;
+            });
+        ret.children ??= [];
+        const personal = (el.personalizable ?? []).filter(path =>
+            configKeys.includes(path.split('/')[2])
+        );
+        if (personal.length) ret.personalizable = personal;
+        const removedIds = uniq(removed.flatMap(it => this.describeRemoval(it.id).elements)),
+            losses = [
+                ...(droppedConfig.length ? [`its ${listOf(droppedConfig)}`] : []),
+                ...(droppedPlacement.size
+                    ? [`its children's ${listOf([...droppedPlacement])}`]
+                    : []),
+                ...removed.map(
+                    it =>
+                        `${it.id}, from ${it.of ? `${it.of}'s ` : 'its '}${slotLabel(it.slot, !!it.of).toLowerCase()}`
+                ),
+                ...removedIds
+                    .filter(it => !removed.some(r => r.id === it))
+                    .map(it => `${it}, inside those`)
+            ];
+        return {
+            description: `Change ${id} to a ${to.label.toLowerCase()}`,
+            ops: [
+                ...removed.map(it => ({op: 'removeElement', id: it.id}) as BlueprintOp),
+                {op: 'set', path: `/elements/${id}`, value: ret}
+            ],
+            losses
+        };
+    }
+
+    // The ops that replace a container with its only child, with the child's id, or why not.
+    private planUnwrap(
+        id: string
+    ): {description: string; ops: BlueprintOp[]; id: string} | BlueprintEditResult {
+        const {blueprint} = this.blueprintModel,
+            el = getOwn(blueprint?.elements, id),
+            kids = el ? childIds(el) : [];
+        if (!this.elementSpec(id)?.children || kids.length !== 1) {
+            return refused(`Only a container with one child can be unwrapped.`);
+        }
+        const [childId] = kids,
+            child = blueprint.elements[childId],
+            title = el.component === 'panel' ? el.config?.title : null,
+            takesTitle =
+                title != null &&
+                child.config?.title == null &&
+                !!this.elementSpec(childId)?.config?.properties?.title,
+            ops: BlueprintOp[] = [];
+        if (blueprint.root === id) {
+            ops.push({op: 'set', path: '/root', value: childId});
+        } else {
+            const at = locate(blueprint.elements, id),
+                parent = cloneDeep(blueprint.elements[at.parent]);
+            slotLists(parent)
+                .find(it => it.slot === at.slot && it.of === at.of)
+                .refs.find(it => it.id === id).id = childId;
+            ops.push({op: 'set', path: `/elements/${at.parent}`, value: parent});
+        }
+        if (takesTitle)
+            ops.push({op: 'set', path: `/elements/${childId}/config/title`, value: title});
+        ops.push({op: 'remove', path: `/elements/${id}`});
+        return {description: `Unwrap ${id}`, ops, id: childId};
+    }
+
     /** Move an element to another slot of its container, at its end, as one edit. */
     moveToSlot(id: string, slot: string, of?: string): BlueprintEditResult {
         const parent = parentOf(this.blueprintModel.blueprint?.elements, id);
@@ -1936,6 +2150,12 @@ function accepts(rule: SlotAccepts, spec: WidgetSpec): boolean {
         !!rule.widgets?.includes(spec.name)
     );
 }
+
+// A canvas cell's place, which a change to a canvas packs anew.
+const CELL_KEYS = ['x', 'y', 'w', 'h'];
+
+const isRefList = (value: unknown): value is ChildRef[] =>
+    Array.isArray(value) && value.length > 0 && value.every(it => isPlainObject(it) && 'id' in it);
 
 // A refusal the design model makes itself, at the path of what it names, if any.
 // A child's reference in a new container of a widget: titled where it takes titles, and at the
