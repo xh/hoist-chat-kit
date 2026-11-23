@@ -6,7 +6,7 @@
   min-height: 0;
 }
 
-// Fixed over the area in a portal, unclipped, so a mark can sit outside its target and the area.
+// Fixed over the area in a portal, outside anything that would clip it. Each mark clips itself.
 // Below Hoist's popovers, menus and dialogs.
 .xh-layout-overlay {
   position: fixed;
@@ -16,5 +16,10 @@
 
   &__mark {
     position: absolute;
+  }
+
+  &__clip {
+    position: absolute;
+    overflow: hidden;
   }
 }

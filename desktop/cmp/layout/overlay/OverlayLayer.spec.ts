@@ -51,7 +51,8 @@ describe('overlay layer', () => {
             width: 300,
             height: 200,
             area: {width: 800, height: 600},
-            roomAbove: 0
+            roomAbove: 0,
+            clip: {x: 0, y: 0, width: 800, height: 600}
         });
     });
 
@@ -86,6 +87,70 @@ describe('overlay layer', () => {
         rect(target(container, 'posGrid'), {x: 0, y: 700, width: 300, height: 200});
         mark(model, {key: 'sel', target: selector('posGrid')});
         expect(markEl(container, 'sel')).toBeNull();
+    });
+
+    it('clips a mark to the part of its target a scrolling container shows', () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 0, width: 800, height: 600});
+        scroller(container.querySelector('.test-scroll'), {x: 0, y: 0, width: 800, height: 400});
+        rect(target(container, 'posGrid'), {x: 0, y: 300, width: 300, height: 200});
+        mark(model, {key: 'sel', target: selector('posGrid')});
+
+        // The mark keeps its target's box, drawn inside a clip at the container's view.
+        expect(box(container, 'sel')).toEqual({left: 0, top: 300, width: 300, height: 200});
+        expect(clipOf('sel')).toEqual({left: 0, top: 0, width: 800, height: 400});
+    });
+
+    it('clips to every scrolling container between the target and the area, nested ones too', async () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 0, width: 800, height: 600});
+        scroller(container.querySelector('.test-scroll'), {x: 0, y: 0, width: 800, height: 400});
+        scroller(container.querySelector('.test-inner'), {x: 100, y: 200, width: 900, height: 150});
+        rect(target(container, 'deep'), {x: 100, y: 300, width: 300, height: 200});
+        mark(model, {key: 'sel', target: selector('deep')});
+        expect(clipOf('sel')).toEqual({left: 100, top: 200, width: 700, height: 150});
+
+        // Scrolling the inner container moves the mark and keeps the clip.
+        rect(target(container, 'deep'), {x: 100, y: 250, width: 300, height: 200});
+        await act(async () => {
+            container.querySelector('.test-inner').dispatchEvent(new Event('scroll'));
+            await nextFrame();
+        });
+        expect(box(container, 'sel').top).toBe(250);
+        expect(clipOf('sel')).toEqual({left: 100, top: 200, width: 700, height: 150});
+    });
+
+    it('omits a mark whose target a scrolling container hides entirely', () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 0, width: 800, height: 600});
+        scroller(container.querySelector('.test-scroll'), {x: 0, y: 0, width: 800, height: 400});
+        rect(target(container, 'posGrid'), {x: 0, y: 450, width: 300, height: 100});
+        mark(model, {key: 'sel', target: selector('posGrid')});
+        expect(markEl(container, 'sel')).toBeNull();
+    });
+
+    it('takes an ancestor with no client box, such as an inline one, to clip nothing', () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 0, width: 800, height: 600});
+        const inline = container.querySelector<HTMLElement>('.test-scroll');
+        rect(inline, {x: 0, y: 0, width: 800, height: 400});
+        inline.style.overflow = 'hidden';
+        rect(target(container, 'posGrid'), {x: 0, y: 450, width: 300, height: 100});
+        mark(model, {key: 'sel', target: selector('posGrid')});
+        expect(clipOf('sel')).toEqual({left: 0, top: 0, width: 800, height: 600});
+    });
+
+    it('draws a mark unclipped when it asks, while its target shows at all', () => {
+        const {model, container} = setup();
+        rect(container.querySelector('.test-host'), {x: 0, y: 0, width: 800, height: 600});
+        scroller(container.querySelector('.test-scroll'), {x: 0, y: 0, width: 800, height: 400});
+        rect(target(container, 'posGrid'), {x: 0, y: 300, width: 300, height: 200});
+        rect(target(container, 'chart'), {x: 0, y: 450, width: 300, height: 100});
+        mark(model, {key: 'chip', target: selector('posGrid'), clip: false});
+        mark(model, {key: 'hidden', target: selector('chart'), clip: false});
+        expect(clipOf('chip')).toBeNull();
+        expect(box(container, 'chip')).toEqual({left: 0, top: 300, width: 300, height: 200});
+        expect(markEl(container, 'hidden')).toBeNull();
     });
 
     it('omits a mark whose target is gone or not shown', () => {
@@ -167,7 +232,12 @@ function setup() {
                 className: 'test-scroll',
                 children: [
                     div({key: 'a', 'data-blueprint-element': 'posGrid'} as any),
-                    div({key: 'b', 'data-blueprint-element': 'chart'} as any)
+                    div({key: 'b', 'data-blueprint-element': 'chart'} as any),
+                    div({
+                        key: 'c',
+                        className: 'test-inner',
+                        children: div({'data-blueprint-element': 'deep'} as any)
+                    })
                 ]
             })
         }) as ReactElement
@@ -198,14 +268,37 @@ function markEl(_container: HTMLElement, key: string): HTMLElement {
     return document.body.querySelector(`[data-overlay-mark="${key}"]`);
 }
 
+// A mark's box within the layer, through any clip it draws in.
 function box(container: HTMLElement, key: string) {
-    const {left, top, width, height} = markEl(container, key).style;
+    const el = markEl(container, key),
+        clip = clipOf(key) ?? {left: 0, top: 0},
+        {left, top, width, height} = styleBox(el);
+    return {left: left + clip.left, top: top + clip.top, width, height};
+}
+
+// The clip a mark draws in, within the layer, or null if it draws unclipped.
+function clipOf(key: string) {
+    const parent = markEl(null, key).parentElement;
+    if (!parent.classList.contains('xh-layout-overlay__clip')) return null;
+    return styleBox(parent);
+}
+
+function styleBox(el: HTMLElement) {
+    const {left, top, width, height} = el.style;
     return {
         left: parseFloat(left),
         top: parseFloat(top),
         width: parseFloat(width),
         height: parseFloat(height)
     };
+}
+
+// A scrolling container: its rect, a client area of the same size, and overflow that clips.
+function scroller(el: HTMLElement, r: {x: number; y: number; width: number; height: number}) {
+    rect(el, r);
+    el.style.overflow = 'auto';
+    Object.defineProperty(el, 'clientWidth', {configurable: true, value: r.width});
+    Object.defineProperty(el, 'clientHeight', {configurable: true, value: r.height});
 }
 
 function rect(

@@ -14,7 +14,7 @@ const CLS = 'xh-blueprint-drop';
 export function dropMarks(place: DropPlace): OverlayMark[] {
     if (!place) return [];
     const {containerEl, refusal, line, pointer, ownDrop} = place;
-    return [
+    const ret: OverlayMark[] = [
         {
             key: 'drop',
             target: containerEl,
@@ -23,18 +23,25 @@ export function dropMarks(place: DropPlace): OverlayMark[] {
                     key: 'outline',
                     className: classNames(`${CLS}__outline`, refusal && `${CLS}__outline--refused`)
                 }),
-                !refusal && line && !ownDrop ? insertLine(line) : null,
-                refusal
-                    ? div({
-                          key: 'refusal',
-                          className: `${CLS}__refusal`,
-                          style: {left: pointer.x + 12, top: pointer.y + 12},
-                          children: `Can't drop here: ${refusal}`
-                      })
-                    : null
+                !refusal && line && !ownDrop ? insertLine(line) : null
             ]
         }
     ];
+    if (refusal) {
+        // The reason reads in full, even past the edge of a scrolled container.
+        ret.push({
+            key: 'drop-refusal',
+            target: containerEl,
+            clip: false,
+            render: () =>
+                div({
+                    className: `${CLS}__refusal`,
+                    style: {left: pointer.x + 12, top: pointer.y + 12},
+                    children: `Can't drop here: ${refusal}`
+                })
+        });
+    }
+    return ret;
 }
 
 //------------------

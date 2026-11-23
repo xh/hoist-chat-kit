@@ -15,8 +15,8 @@ describe('dropMarks', () => {
         pointer: {x: 90, y: 40},
         ...over
     });
-    const draw = (it: DropPlace) => {
-        const [mark] = dropMarks(it);
+    const draw = (it: DropPlace, index = 0) => {
+        const mark = dropMarks(it)[index];
         return render(mark.render(null) as ReactElement).container;
     };
 
@@ -28,11 +28,13 @@ describe('dropMarks', () => {
         expect(line.style.height).toBe('80px');
     });
 
-    it('shows a refusal at the pointer, with no line', () => {
-        const el = draw(place({refusal: 'A toolbar holds inputs and buttons only.'}));
+    it('shows a refusal at the pointer, unclipped, with no line', () => {
+        const refused = place({refusal: 'A toolbar holds inputs and buttons only.'}),
+            el = draw(refused);
         expect(el.querySelector('.xh-blueprint-drop__outline--refused')).toBeTruthy();
         expect(el.querySelector('.xh-blueprint-drop__line')).toBeNull();
-        const chip = el.querySelector<HTMLElement>('.xh-blueprint-drop__refusal');
+        expect(dropMarks(refused)[1].clip).toBe(false);
+        const chip = draw(refused, 1).querySelector<HTMLElement>('.xh-blueprint-drop__refusal');
         expect(chip.textContent).toBe("Can't drop here: A toolbar holds inputs and buttons only.");
         expect([chip.style.left, chip.style.top]).toEqual(['102px', '52px']);
     });

@@ -14,14 +14,24 @@ export interface OverlayBox {
     area: {width: number; height: number};
     /** Pixels between the target's top and the top of the window, for a mark drawn above it. */
     roomAbove: number;
+    /**
+     * Where the target can show within the layer: the area, cut by each scrolling container between
+     * it and the target. Null when nothing bounds it.
+     */
+    clip: {x: number; y: number; width: number; height: number};
 }
 
 /** Something drawn over a target, such as an outline, a tag, a toolbar or a drop preview. */
 export interface OverlayMark {
     key: string;
     target: OverlayTarget;
-    /** The mark's content. It sits in the target's box and may draw outside it. */
+    /** The mark's content. It sits in the target's box and may draw outside it, within its clip. */
     render: (box: OverlayBox) => ReactNode;
+    /**
+     * False to draw past the box's clip, such as a label at the pointer. Default true, so a target
+     * partly scrolled out of view shows only its visible part.
+     */
+    clip?: boolean;
     /** True for a mark that takes pointer events, such as a toolbar. Default false. */
     interactive?: boolean;
     /** Its stacking layer, from {@link OVERLAY_LAYERS}. Default `design`. */
@@ -74,7 +84,7 @@ export class OverlayModel extends HoistModel {
             .sort((a, b) => a.layer - b.layer);
     }
 
-    /** A target's box within the layer, or null if it is not found or not shown. */
+    /** A target's box within the layer, or null if it is not found or scrolled out of view. */
     boxOf(target: OverlayTarget): OverlayBox {
         const {hostEl} = this;
         if (!hostEl) return null;
@@ -83,20 +93,23 @@ export class OverlayModel extends HoistModel {
         const r = el.getBoundingClientRect();
         if (!r.width && !r.height) return null;
         const host = hostEl.getBoundingClientRect(),
-            outside =
-                r.bottom <= host.top ||
-                r.top >= host.bottom ||
-                r.right <= host.left ||
-                r.left >= host.right;
-        // The layer does not clip, so a target scrolled out of the area must draw nothing.
-        if (host.width && host.height && outside) return null;
+            view = viewOf(el, hostEl, host);
+        if (view && !overlaps(r, view)) return null;
         return {
             x: r.left - host.left,
             y: r.top - host.top,
             width: r.width,
             height: r.height,
             area: {width: host.width, height: host.height},
-            roomAbove: r.top
+            roomAbove: r.top,
+            clip: view
+                ? {
+                      x: view.left - host.left,
+                      y: view.top - host.top,
+                      width: view.right - view.left,
+                      height: view.bottom - view.top
+                  }
+                : null
         };
     }
 
@@ -109,4 +122,40 @@ export class OverlayModel extends HoistModel {
         const {[id]: _gone, ...rest} = this.sources;
         this.sources = rest;
     }
+}
+
+interface Bounds {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
+
+// Where a target can show: the host, cut by the client area of each clipping ancestor up to it.
+function viewOf(el: Element, hostEl: HTMLElement, host: DOMRect): Bounds {
+    // An unmeasured host bounds nothing.
+    let ret: Bounds = host.width && host.height ? host : null;
+    for (let it = el.parentElement; it && it !== hostEl; it = it.parentElement) {
+        const {overflowX, overflowY} = window.getComputedStyle(it);
+        if (overflowX === 'visible' && overflowY === 'visible') continue;
+        // An element with no client box, such as an inline one, clips nothing.
+        if (!it.clientWidth && !it.clientHeight) continue;
+        const r = it.getBoundingClientRect(),
+            left = r.left + it.clientLeft,
+            top = r.top + it.clientTop,
+            client = {left, top, right: left + it.clientWidth, bottom: top + it.clientHeight};
+        ret = ret
+            ? {
+                  left: Math.max(ret.left, client.left),
+                  top: Math.max(ret.top, client.top),
+                  right: Math.min(ret.right, client.right),
+                  bottom: Math.min(ret.bottom, client.bottom)
+              }
+            : client;
+    }
+    return ret;
+}
+
+function overlaps(r: Bounds, view: Bounds): boolean {
+    return r.left < view.right && r.right > view.left && r.top < view.bottom && r.bottom > view.top;
 }

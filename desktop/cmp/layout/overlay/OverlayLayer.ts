@@ -14,8 +14,9 @@ export interface OverlayHostProps extends HoistProps {
 
 /**
  * An area with an overlay layer above it. The layer draws the model's marks over their targets, in
- * a portal on the page, so a mark can sit outside the area, such as a toolbar above its top element.
- * Marks move as anything scrolls or the area resizes. A target out of the area's view draws none.
+ * a portal on the page. Each mark is clipped to where its target can show: the area, cut by every
+ * scrolling container that holds the target. Marks move as anything scrolls or the area resizes.
+ * A target scrolled out of view draws none.
  * @internal
  */
 export const overlayHost = hoistCmp.factory<OverlayHostProps>({
@@ -58,19 +59,34 @@ const overlayLayer = hoistCmp.factory<HoistProps & {model: OverlayModel}>({
             children: model.marks.map(mark => {
                 const box = model.boxOf(mark.target);
                 if (!box) return null;
+                const clip = mark.clip !== false ? box.clip : null,
+                    at = clip ?? {x: 0, y: 0},
+                    ret = div({
+                        key: mark.key,
+                        className: 'xh-layout-overlay__mark',
+                        style: {
+                            left: box.x - at.x,
+                            top: box.y - at.y,
+                            width: box.width,
+                            height: box.height,
+                            zIndex: clip ? null : mark.layer,
+                            pointerEvents: mark.interactive ? 'auto' : 'none'
+                        },
+                        ...({'data-overlay-mark': mark.key} as object),
+                        children: mark.render(box)
+                    });
+                if (!clip) return ret;
                 return div({
                     key: mark.key,
-                    className: 'xh-layout-overlay__mark',
+                    className: 'xh-layout-overlay__clip',
                     style: {
-                        left: box.x,
-                        top: box.y,
-                        width: box.width,
-                        height: box.height,
-                        zIndex: mark.layer,
-                        pointerEvents: mark.interactive ? 'auto' : 'none'
+                        left: clip.x,
+                        top: clip.y,
+                        width: clip.width,
+                        height: clip.height,
+                        zIndex: mark.layer
                     },
-                    ...({'data-overlay-mark': mark.key} as object),
-                    children: mark.render(box)
+                    children: ret
                 });
             })
         });

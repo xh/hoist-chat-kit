@@ -210,7 +210,8 @@ describe('design mode selection', () => {
                     width: 100,
                     height: 50,
                     area: {width: 500, height: 500},
-                    roomAbove: 100
+                    roomAbove: 100,
+                    clip: null
                 }) as any
             );
         expect(container.querySelector('.xh-blueprint-overlay__outline--faint')).not.toBeNull();
@@ -244,7 +245,8 @@ describe('design mode selection', () => {
                     width: 100,
                     height: 50,
                     area: {width: 500, height: 500},
-                    roomAbove: 100
+                    roomAbove: 100,
+                    clip: null
                 }) as any
             );
         expect(mark.target).toBe('[data-blueprint-view="posGrid"]');
