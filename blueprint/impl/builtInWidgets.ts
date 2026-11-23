@@ -1066,7 +1066,14 @@ const TILE_FRAME_SCHEMA = {
             default: 1,
             description: 'Tile width over height.'
         },
-        spacing: {type: 'integer', minimum: 0, maximum: 64, default: 0, 'x-unit': 'px'},
+        spacing: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 64,
+            default: 10,
+            'x-unit': 'px',
+            description: "The space between tiles, as a dashboard's cell gap by default."
+        },
         emptyText: EMPTY_TEXT
     }
 } as const satisfies BlueprintSchema;

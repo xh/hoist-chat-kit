@@ -17,6 +17,7 @@ export const [TileFrameWidget, tileFrameWidget] = hoistCmp.withFactory({
             tileFrame({
                 className,
                 ...layout,
+                spacing: layout.spacing ?? model.configDefault('spacing'),
                 children: model.children.map(it => model.renderElement(it.id))
             })
         );

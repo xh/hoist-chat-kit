@@ -343,6 +343,13 @@ describe('layout and container widgets', () => {
             expect(container.querySelector('.xh-tile-frame')).toBeTruthy();
         });
 
+        it("spaces its tiles by a dashboard's cell gap unless it says otherwise", () => {
+            const spacing = scenarioRegistry().widgets.tileFrame.config.properties.spacing;
+            expect(spacing.default).toBe(10);
+            const canvasGap = scenarioRegistry().widgets.dashCanvas.config.properties.margin;
+            expect(canvasGap.default).toEqual([spacing.default, spacing.default]);
+        });
+
         it('refuses a layout widget or a container as a tile', () => {
             expect(() =>
                 show('tiles', {
