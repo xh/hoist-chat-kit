@@ -28,7 +28,8 @@ describe('joins', () => {
                         dim('fund'),
                         dim('symbol'),
                         dim('sector'),
-                        {name: 'mktVal', type: 'number', aggregator: 'SUM'}
+                        {name: 'mktVal', type: 'number', aggregator: 'SUM'},
+                        {name: 'risk', type: 'number', aggregator: 'server'}
                     ]
                 },
                 pnl: {
@@ -484,6 +485,42 @@ describe('joins', () => {
                 add: [{id: 'b2', fund: 'B', symbol: 'Y', sector: 'Energy', mktVal: 5}]
             });
             await vi.waitFor(() => expect(leaf('b2')?.fundNav).toBe(200));
+        });
+
+        it("rejoins in one reload when a joined source's change moves many rows, keeping supplied totals", async () => {
+            const {dataProvider, leaf, positions} = open([fundJoin], ['fundNav'], ['fund']),
+                many = Array.from({length: 200}, (_, i) => ({
+                    id: `p${i}`,
+                    fund: i % 2 ? 'A' : 'B',
+                    symbol: `S${i}`,
+                    sector: 'Tech',
+                    mktVal: 1
+                }));
+            await dataProvider.send('positions', {
+                replace: many,
+                aggregates: [{dims: {}, values: {risk: 42}}]
+            });
+            await dataProvider.send('funds');
+            await vi.waitFor(() => expect(leaf('p1').fundNav).toBe(100));
+
+            // A view connected, as a grid's is, re-aggregates on each update it takes.
+            const view = positions.cube.createView({
+                query: {dimensions: ['fund'], includeRoot: true}
+            });
+            onTestFinished(() => view.destroy());
+            const load = vi.spyOn(positions.cube, 'loadDataAsync'),
+                update = vi.spyOn(positions.cube, 'updateDataAsync');
+            await dataProvider.send('funds', {
+                update: [
+                    {id: 'A', fund: 'A', nav: 150, manager: 'Ann'},
+                    {id: 'B', fund: 'B', nav: 250, manager: 'Bob'}
+                ]
+            });
+            await vi.waitFor(() => expect(leaf('p1').fundNav).toBe(150));
+            expect(leaf('p0').fundNav).toBe(250);
+            expect(load).toHaveBeenCalledTimes(1);
+            expect(update).not.toHaveBeenCalled();
+            expect(positions.cube._getSuppliedValue({}, 'risk')).toBe(42);
         });
 
         describe('a source filter on a joined field', () => {
