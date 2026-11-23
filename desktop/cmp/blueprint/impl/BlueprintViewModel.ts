@@ -159,6 +159,7 @@ export class BlueprintViewModel extends HoistModel {
             blueprintModel.revealIssue = issue => designModel.revealIssue(issue);
             overlay.addMarks('design', () => designMarks(designModel, overlay));
             this.stopAltHold = altHold.follow();
+            this.stopSelectGuard = this.guardTextSelection();
             overlay.addMarks('drop', () => dropMarks(this.dropPreview));
             this.stopDropFollow = this.followDrops();
             this.addReaction(
@@ -262,6 +263,23 @@ export class BlueprintViewModel extends HoistModel {
     }
 
     private stopAltHold: () => void = null;
+    private stopSelectGuard: () => void = null;
+
+    // In Edit a press selects, so a stray drag starts no text selection, unless Alt is held. One
+    // made under Alt outlives the hold, so it can be copied once Alt is up.
+    private guardTextSelection(): () => void {
+        const guard = (e: Event) => {
+            const {designModel, overlay} = this,
+                target = e.target as Node;
+            if (designModel?.interaction !== 'edit' || altHold.active) return;
+            if (!overlay.hostEl?.contains(target)) return;
+            const el = target instanceof Element ? target : target.parentElement;
+            if (el?.closest('input, textarea, [contenteditable]')) return;
+            e.preventDefault();
+        };
+        document.addEventListener('selectstart', guard, true);
+        return () => document.removeEventListener('selectstart', guard, true);
+    }
     private stopDropFollow: () => void = null;
 
     // Each place's verdict for a source, while the blueprint stays the same, as a drag asks for
@@ -349,6 +367,7 @@ export class BlueprintViewModel extends HoistModel {
     override destroy() {
         this.stopDropFollow?.();
         this.stopAltHold?.();
+        this.stopSelectGuard?.();
         this.widgets.forEach(it => it.model.destroy());
         this.widgets.clear();
         super.destroy();

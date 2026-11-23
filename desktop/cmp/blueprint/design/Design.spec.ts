@@ -357,12 +357,25 @@ describe('design mode selection', () => {
         const {design, model} = open('p3-morning-report.json'),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement),
             host = (id: string) => container.querySelector(`[data-blueprint-element="${id}"]`),
-            editClass = 'xh-blueprint-view__design-element--edit';
+            stop = altHold.follow(),
+            startsSelection = () =>
+                host('overview').dispatchEvent(
+                    new Event('selectstart', {bubbles: true, cancelable: true})
+                );
+        onTestFinished(stop);
         act(() => design.select({kind: 'element', id: 'overview'}));
         expect(host('overview').getAttribute('draggable')).toBeNull();
-        expect(host('overview').classList).toContain(editClass);
+        expect(startsSelection()).toBe(false);
+        // Alt held lets a selection start, and one made then outlives the hold.
+        act(() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Alt'}));
+        });
+        expect(startsSelection()).toBe(true);
+        act(() => {
+            window.dispatchEvent(new KeyboardEvent('keyup', {key: 'Alt'}));
+        });
         act(() => design.setInteraction('interact'));
-        expect(host('overview').classList).not.toContain(editClass);
+        expect(startsSelection()).toBe(true);
     });
 
     it('hovers the innermost element under the pointer, with a dashed outline and no tag, as view state', async () => {

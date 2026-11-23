@@ -65,7 +65,6 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         return div({
             className: classNames(
                 DESIGN_ELEMENT,
-                designModel.interaction === 'edit' && `${DESIGN_ELEMENT}--edit`,
                 designModel.readerIds.includes(id) && `${DESIGN_ELEMENT}--reader`,
                 viewModel.haloIds.includes(id) && `${DESIGN_ELEMENT}--halo`,
                 designModel.showAddTarget &&
