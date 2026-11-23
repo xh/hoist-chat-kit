@@ -94,16 +94,10 @@ const overlayLayer = hoistCmp.factory<HoistProps & {model: OverlayModel}>({
 });
 
 // Scroll events do not bubble, so a capturing listener on the window hears a scroll anywhere.
+// Browsers send at most one scroll per frame per scroller, so each one measures.
 function useFollowWindow(model: OverlayModel) {
     useEffect(() => {
-        let frame: number = null;
-        const follow = () => {
-            if (frame != null) return;
-            frame = window.requestAnimationFrame(() => {
-                frame = null;
-                model.layoutChanged();
-            });
-        };
+        const follow = () => model.layoutChanged();
         window.addEventListener('scroll', follow, true);
         window.addEventListener('resize', follow);
         // A layout may animate into place, such as a grid's cells after a move.
@@ -112,7 +106,6 @@ function useFollowWindow(model: OverlayModel) {
             window.removeEventListener('scroll', follow, true);
             window.removeEventListener('resize', follow);
             window.removeEventListener('transitionend', follow, true);
-            if (frame != null) window.cancelAnimationFrame(frame);
         };
     }, [model]);
 }

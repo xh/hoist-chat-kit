@@ -173,18 +173,21 @@ describe('overlay layer', () => {
         expect(box(container, 'sel').left).toBe(40);
     });
 
-    it('moves its marks when anything inside the area scrolls', async () => {
+    it('moves its marks on each scroll inside the area, without waiting for a frame', () => {
         const {model, container} = setup();
         rect(target(container, 'posGrid'), {x: 0, y: 100, width: 300, height: 200});
         mark(model, {key: 'sel', target: selector('posGrid')});
+        const scrollTo = (y: number) => {
+            rect(target(container, 'posGrid'), {x: 0, y, width: 300, height: 200});
+            act(() => {
+                container.querySelector('.test-scroll').dispatchEvent(new Event('scroll'));
+            });
+        };
 
-        rect(target(container, 'posGrid'), {x: 0, y: 60, width: 300, height: 200});
-        await act(async () => {
-            container.querySelector('.test-scroll').dispatchEvent(new Event('scroll'));
-            await nextFrame();
-        });
-
+        scrollTo(60);
         expect(box(container, 'sel').top).toBe(60);
+        scrollTo(20);
+        expect(box(container, 'sel').top).toBe(20);
     });
 
     it('lets pointer events through a mark unless it is interactive', () => {
