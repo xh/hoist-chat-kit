@@ -48,6 +48,12 @@ const askedFirst = (o: Outcome) => {
     const ask = o.calls.indexOf('request_design_mode'), edit = o.calls.indexOf('edit_blueprint');
     return ask >= 0 && edit > ask;
 };
+/** No edit, and a last reply of one short question that names both ways to add Chicago: switching a city, or adding one. */
+const askedWhichChicago = (o: Outcome) => {
+    const last = o.replies.at(-1) ?? '';
+    return !o.calls.includes('edit_blueprint') && last.length < 600 && (last.match(/\?/g) ?? []).length === 1 &&
+        /\b(switch|select|change|set)\b|city [ab]\b/i.test(last) && /\b(third|add|another|new)\b/i.test(last);
+};
 /** Every format the blueprint gives mktVal: in a grid's columns, on a source, or in a column's state as older runs wrote it. */
 const mktValFormats = (bp: Blueprint): any[] => [
     ...cfg(bp, 'cubeGrid').map(c => c.columns?.mktVal?.format),
@@ -264,16 +270,19 @@ export const SCENARIOS: Scenario[] = [
         mode: 'run',
         context: 'Mode: run. The user has write access. A chat is open beside the host blueprint below. Today is 2026-11-19.',
         steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow? When is rain most likely?'}, {prompt: 'Add Chicago to my dashboard.'}],
+        // The dashboard's city selects already offer Chicago, so asking whether to switch one or add a
+        // third is as good an answer as the third column.
         checks: [
-            ['Chicago is a city variable', o => vars(o.blueprint, v => v.default?.value === 'Chicago').length],
-            ['current and forecast sources for Chicago, in the chosen units', o => {
+            ['Chicago is a city variable, or it asks which', o => askedWhichChicago(o) || vars(o.blueprint, v => v.default?.value === 'Chicago').length],
+            ['current and forecast sources for Chicago, in the chosen units, or it asks which', o => {
+                if (askedWhichChicago(o)) return true;
                 const s = Object.values<any>(o.blueprint.sources ?? {}),
                     chicago = (x: any) => x.params?.city?.$var && o.blueprint.variables?.[x.params.city.$var]?.default?.value === 'Chicago' && bound(x.params?.units, 'units');
                 return s.some(x => x.dataset === 'currentWeather' && chicago(x)) && s.some(x => x.dataset === 'weather' && chicago(x));
             }],
             ['every stat card reads a dataset source', o => cfg(o.blueprint, 'statCard').every(c => dataset(o.blueprint, c))],
             ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
-            ['asks for design mode before it edits', askedFirst]
+            ['asks for design mode before it edits, or asks which', o => askedWhichChicago(o) || askedFirst(o)]
         ]
     },
     {
@@ -511,6 +520,22 @@ export const SCENARIOS: Scenario[] = [
             ["quotes the user's own words", o => o.featureRequests?.every(r => 'Show my positions on a world map, each country shaded by its day P&L.'.includes(r.userWords))],
             ['asks for a widget', o => o.featureRequests?.[0]?.category === 'widget'],
             ['builds the closest supported view over positions', o => [...cfg(o.blueprint, 'chart'), ...cfg(o.blueprint, 'heatmap'), ...cfg(o.blueprint, 'treemap')].some(c => c.source === 'positions' && [c.x, c.groupBy].flat().some(f => ['region', 'country'].includes(f)))]
+        ]
+    },
+    {
+        id: 'P17',
+        title: "A fund's P&L over time by sector",
+        context: BUILD,
+        steps: [{prompt: 'Show me historical P&L for Oak Mount by sector over the last month.'}],
+        checks: [
+            ['charts pnlBySector, not the per-symbol pnlHistory', o => cfg(o.blueprint, 'chart').some(c => dataset(o.blueprint, c) === 'pnlBySector') && !cfg(o.blueprint, 'chart').some(c => dataset(o.blueprint, c) === 'pnlHistory')],
+            ['for Oak Mount, over a window it sets', o => cfg(o.blueprint, 'chart', c => dataset(o.blueprint, c) === 'pnlBySector').some(c => {
+                // A start may be a variable a resolver computes, such as a month back from asOf.
+                const params = src(o.blueprint, c.source).params ?? {};
+                return resolveVars(o.blueprint, params).fund === 'Oak Mount' && params.start != null;
+            })],
+            ['by day, a series per sector, of cumPnl or pnlDay', o => cfg(o.blueprint, 'chart', c => dataset(o.blueprint, c) === 'pnlBySector').some(c =>
+                c.x === 'day' && c.groupBy === 'sector' && [c.y].flat().some((y: any) => ['cumPnl', 'pnlDay'].includes(typeof y === 'string' ? y : y?.field)))]
         ]
     },
     {

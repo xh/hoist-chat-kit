@@ -84,6 +84,12 @@ function makeRow(ds: DatasetDef, r: () => number, i: number, params: any): Recor
         const idx = POOLS.fund.indexOf(params?.fund) >= 0 ? POOLS.fund.indexOf(params.fund) : i;
         Object.assign(row, {fund: POOLS.fund[idx], manager: POOLS.manager[idx], style: POOLS.style[idx], nav: 5e8 + idx * 7.5e8});
     }
+    // A day per few rows, back from asOf through the window.
+    if (ds.name === 'pnlBySector' || ds.name === 'pnlHistory') {
+        const end = Date.parse(`${params?.asOf ?? '2026-11-18'}T00:00:00Z`),
+            start = params?.start ? Date.parse(`${params.start}T00:00:00Z`) : end - 30 * 86400000;
+        row.day = new Date(Math.min(start + Math.floor(i / 5) * 86400000, end)).toISOString().slice(0, 10);
+    }
     if (ds.name === 'weather' || ds.name === 'prices') {
         const start = Date.parse(`${params?.start ?? '2026-11-19'}T00:00:00Z`);
         row.time = start + i * 3 * 3600000;

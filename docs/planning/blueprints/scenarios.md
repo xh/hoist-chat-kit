@@ -23,6 +23,8 @@ finance.
 | `hypotheticalPortfolio` | `portfolio`, `asOf` | The position fields, for a hypothetical portfolio |
 | `fundSummary` | `asOf`, `fund` | One row per fund: `manager`, `style`, `nav`, `pnlDay`, `pnlMtd`, `pnlYtd`, and the series `pnlHistory`, `cumPnlHistory` and `drawdownHistory`. Keyed by `fund`, so positions can join it |
 | `prices` | `symbol`, `start`, `end` | One row per day: `open`, `high`, `low`, `close` and `volume`. Keyed by `symbol` and `day` |
+| `pnlBySector` | `asOf`, `start`, `fund` | One row per day, fund, strategy and sector: `pnlDay`, and `cumPnl` since the window's first day. For P&L over time |
+| `pnlHistory` | `asOf`, `start`, `fund` | `pnlBySector` with the symbol added. Far larger: for P&L over time by symbol only |
 
 The `positions` dataset extends Toolbox's current data:
 
@@ -335,6 +337,23 @@ Clearing it shows every position.
 - The callout's text reads `{source.field}`, never a number the model computed.
 - Design mode is asked for before any edit.
 
+### P17. A fund's P&L over time by sector
+
+**Who.** A designer, building a new blueprint.
+
+**Prompt.** "Show me historical P&L for Oak Mount by sector over the last month."
+
+**Sees.** A line of `cumPnl`, or columns of `pnlDay`, by day, a series per sector, for Oak Mount
+from a month back.
+
+**Tests.**
+
+- The chart reads `pnlBySector`, never the per-symbol `pnlHistory`, which is about 40 times the
+  rows for this request.
+- Its source names Oak Mount, and sets `start`, as a date or a variable computed from `asOf`. The
+  dataset's default window, 30 trading days, is not "the last month".
+- `x` is `day`, `groupBy` is `sector`, and `y` is `cumPnl` or `pnlDay`.
+
 ### P12. A button in a bottom toolbar and a view switch in a header
 
 **Who.** A designer, on a copy of P3 whose positions grid sits in a "Positions" panel. Its column
@@ -438,6 +457,9 @@ it.
 - The new column's widgets read new sources over the same datasets, and the units toggle
   reloads all three columns.
 - Tomorrow is a resolver, not a fixed date.
+- The city selects already offer Chicago, so "add Chicago" is ambiguous. One short question that
+  names both ways, switching a city or adding a third, passes in place of the edit. A question on
+  an unambiguous request still fails.
 
 ### W4. One city's day on two axes
 

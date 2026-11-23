@@ -95,6 +95,18 @@ const expected_: Record<string, any> = {
         featureRequests: [{summary: 'A world map widget that shades countries by a measure', category: 'widget', userWords: 'Show my positions on a world map', workaround: 'Added day P&L by region as a column chart.'}]
     },
     F2: {blueprint: applied['f2-edit.json applied to p2'].result, segments: [], replies: [''], calls: ['edit_blueprint']},
+    P17: {
+        blueprint: {
+            schema: {blueprint: 1},
+            root: 'pnlChart',
+            sources: {pnl: {dataset: 'pnlBySector', params: {asOf: {$var: 'asOf'}, fund: 'Oak Mount', start: '2026-10-19'}}},
+            variables: {asOf: {type: 'localDate', default: {value: '2026-11-19'}}},
+            elements: {pnlChart: {component: 'chart', config: {source: 'pnl', type: 'line', x: 'day', y: ['cumPnl'], groupBy: 'sector'}}}
+        } as any,
+        segments: [],
+        replies: [''],
+        calls: ['edit_blueprint']
+    },
     U1: {
         blueprint: applyOps(p2, [{op: 'set', path: '/elements/dashboard/children', value: p2.elements.dashboard.children.map((it: any) => (it.id === 'posGrid' ? {...it, h: 10} : it))}]).result,
         segments: [],
