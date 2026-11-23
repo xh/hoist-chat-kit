@@ -72,6 +72,8 @@ const MODE_COMBOS = ['e', 'i', '`'];
 export function showDesignKeys() {
     XH.alert({
         title: 'Keyboard shortcuts',
+        // An alert has no cancel, so Hoist ignores Esc on it unless told otherwise.
+        dismissable: true,
         message: table({
             className: 'xh-blueprint-design-keys',
             children: tbody(
