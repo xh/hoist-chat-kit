@@ -312,16 +312,10 @@
 
   // One row per field, which drags to reorder, and the open row's settings in a drawer below it.
   &__columns {
-    --xh-sortable-list-gap: 0;
+    --xh-sortable-list-row-gap: var(--xh-spacing-half);
 
     border: var(--xh-border-solid);
     border-radius: 4px;
-
-    // Every row, sortable or not, takes the same insets.
-    .xh-sortable-list__row {
-      gap: var(--xh-spacing-half);
-      padding: 0 var(--xh-spacing-half);
-    }
 
     .xh-blueprint-element-inspector__item-header {
       flex: 1 1 auto;
