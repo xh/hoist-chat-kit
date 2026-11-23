@@ -31,6 +31,17 @@ describe('dockLayout', () => {
         }
     ];
 
+    it('offers no split handle to focus or drag unless editable', () => {
+        const handle = (props: Partial<DockLayoutProps>) =>
+            renderLayout(props).container.querySelector('.xh-layout-dock__separator');
+        const locked = handle({editable: false});
+        expect(locked.getAttribute('aria-disabled')).toBe('true');
+        expect(locked.getAttribute('tabindex')).toBeNull();
+        const open = handle({editable: true});
+        expect(open.getAttribute('aria-disabled')).toBeNull();
+        expect(open.getAttribute('tabindex')).toBe('0');
+    });
+
     it('draws each stack as a tab list, showing its first view', () => {
         const {container} = renderLayout({});
         const tabs = [...container.querySelectorAll('[role=tab]')].map(it => it.textContent);

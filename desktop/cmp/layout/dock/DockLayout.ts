@@ -125,7 +125,13 @@ const dockSplit = hoistCmp.factory<
                 impl.overlay.layoutChanged();
             },
             children: children.flatMap((it, idx) => [
-                idx ? separator({key: `sep-${ids[idx]}`, className: `${CLS}__separator`}) : null,
+                idx
+                    ? separator({
+                          key: `sep-${ids[idx]}`,
+                          className: `${CLS}__separator`,
+                          disabled: !impl.props.editable
+                      })
+                    : null,
                 splitPanel({
                     key: ids[idx],
                     id: ids[idx],

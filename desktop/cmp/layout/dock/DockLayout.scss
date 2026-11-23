@@ -30,8 +30,13 @@
     }
 
     &:focus-visible,
-    &:hover {
+    &:hover:not([aria-disabled='true']) {
       background-color: var(--xh-intent-primary);
+    }
+
+    // A locked layout's split is a plain rule.
+    &[aria-disabled='true'] {
+      cursor: default;
     }
   }
 
