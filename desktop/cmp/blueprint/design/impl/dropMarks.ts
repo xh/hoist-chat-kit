@@ -1,6 +1,9 @@
 import {div} from '@xh/hoist/cmp/layout';
+import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import classNames from 'classnames';
-import type {OverlayMark} from '../../../layout/overlay';
+import {isEqual} from 'lodash';
+import {useLayoutEffect, useRef, useState} from 'react';
+import type {OverlayBox, OverlayMark} from '../../../layout/overlay';
 import type {DropPlace} from './dropTargets';
 import './dropMarks.scss';
 
@@ -28,25 +31,67 @@ export function dropMarks(place: DropPlace): OverlayMark[] {
         }
     ];
     if (refusal) {
-        // The reason reads in full, even past the edge of a scrolled container.
+        // Placed whole within the blueprint area, so no scrolled container inside it cuts it.
         ret.push({
             key: 'drop-refusal',
             target: containerEl,
             clip: false,
-            render: () =>
-                div({
-                    className: `${CLS}__refusal`,
-                    style: {left: pointer.x + 12, top: pointer.y + 12},
-                    children: `Can't drop here: ${refusal}`
-                })
+            render: box => refusalChip({box, pointer, text: `Can't drop here: ${refusal}`})
         });
     }
     return ret;
 }
 
+/**
+ * Where a chip of a size goes by the pointer, within an area, as a tooltip does: below and right
+ * of it, or on its other side on an axis where that passes the area's edge, then shifted along the
+ * edge if it still does not fit.
+ */
+export function chipPlace(
+    pointer: {x: number; y: number},
+    size: {width: number; height: number},
+    area: {width: number; height: number}
+): {left: number; top: number} {
+    const along = (at: number, length: number, room: number) => {
+        const after = at + GAP;
+        if (after + length <= room) return after;
+        return Math.max(0, Math.min(at - GAP - length, room - length));
+    };
+    return {
+        left: along(pointer.x, size.width, area.width),
+        top: along(pointer.y, size.height, area.height)
+    };
+}
+
 //------------------
 // Implementation
 //------------------
+const GAP = 12;
+
+// The pointer is relative to the target's box, and the chip is placed within the whole area.
+const refusalChip = hoistCmp.factory<
+    HoistProps & {box: OverlayBox; pointer: {x: number; y: number}; text: string}
+>({
+    displayName: 'BlueprintDropRefusal',
+    model: false,
+    render({box, pointer, text}) {
+        const ref = useRef<HTMLDivElement>(null),
+            [size, setSize] = useState({width: 0, height: 0});
+        useLayoutEffect(() => {
+            const el = ref.current;
+            if (!el) return;
+            const next = {width: el.offsetWidth, height: el.offsetHeight};
+            setSize(prev => (isEqual(prev, next) ? prev : next));
+        }, [text]);
+        const at = chipPlace({x: box.x + pointer.x, y: box.y + pointer.y}, size, box.area);
+        return div({
+            ref,
+            className: `${CLS}__refusal`,
+            style: {left: at.left - box.x, top: at.top - box.y},
+            children: text
+        });
+    }
+});
 function insertLine({axis, at, from, to}: DropPlace['line']) {
     const style =
         axis === 'row'
