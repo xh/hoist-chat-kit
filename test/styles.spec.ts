@@ -1,5 +1,6 @@
 import {readdirSync, readFileSync, statSync} from 'node:fs';
 import path from 'node:path';
+import {uniq} from 'lodash';
 import {describe, expect, it} from 'vitest';
 
 // Checks the theme variables, not product code: an app that overrides a `--xh-chat-*` variable
@@ -19,6 +20,28 @@ describe('styles', () => {
                     !sources.some(it => isRead(it, name))
             );
         expect(unread).toEqual([]);
+    });
+
+    it('reads only --xh-* variables that Hoist or the kit declares', () => {
+        const declared = new Set(
+                [...findStyles(hoistRoot), ...findSources(root)].flatMap(file =>
+                    [...readFileSync(file, 'utf8').matchAll(/(--xh-[a-z0-9-]+)['"]?\s*:/g)].map(
+                        it => it[1]
+                    )
+                )
+            ),
+            undeclared = findSources(root)
+                .filter(file => file.endsWith('.scss'))
+                .flatMap(file =>
+                    // A name Sass builds, such as `--xh-intent-#{$intent}`, is left out.
+                    [
+                        ...readFileSync(file, 'utf8').matchAll(
+                            /var\(\s*(--xh-[a-z0-9-]+)(?![a-z0-9-]|#)/g
+                        )
+                    ].map(it => `${path.relative(root, file)}: ${it[1]}`)
+                )
+                .filter(it => !declared.has(it.split(': ')[1]));
+        expect(uniq(undeclared)).toEqual([]);
     });
 
     it('draws no accent rail down one side of a card or row, as Hoist marks a selection by a tint', () => {
@@ -51,6 +74,15 @@ const APP_HOOKS = ['--xh-chat-viewer-page-bg', '--xh-chat-viewer-page-text-color
 const PENDING: string[] = [];
 
 const SKIP_DIRS = new Set(['node_modules', 'docs', 'scripts', 'test']);
+
+const hoistRoot = path.join(root, 'node_modules/@xh/hoist');
+
+// Every stylesheet of Hoist's, where it declares its variables.
+function findStyles(dir: string): string[] {
+    return readdirSync(dir, {recursive: true, encoding: 'utf8'})
+        .filter(it => it.endsWith('.scss') && !it.includes('node_modules'))
+        .map(it => path.join(dir, it));
+}
 
 function isRead(source: string, name: string): boolean {
     return new RegExp(`var\\(\\s*${name}[\\s,)]|'${name}'`).test(source);

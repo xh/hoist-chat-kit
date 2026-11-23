@@ -63,7 +63,7 @@
     cursor: pointer;
     background-color: var(--xh-bg);
     border: 1px solid var(--xh-border-color);
-    border-radius: var(--xh-border-radius-px);
+    border-radius: var(--xh-border-radius);
     transition: opacity 0.15s;
 
     &--source .xh-blueprint-map__node-id {
@@ -238,7 +238,7 @@
     color: var(--xh-text-color-muted);
     background-color: var(--xh-bg);
     border: var(--xh-border-solid);
-    border-radius: var(--xh-border-radius-px);
+    border-radius: var(--xh-border-radius);
     pointer-events: none;
   }
 

@@ -27,7 +27,7 @@
     flex-direction: column;
     cursor: pointer;
     border: var(--xh-border-solid);
-    border-radius: var(--xh-border-radius-px);
+    border-radius: var(--xh-border-radius);
 
     &:hover:not(&--disabled),
     &:focus-visible {
