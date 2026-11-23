@@ -33,8 +33,25 @@
       }
     }
 
+    // The selection gives way before the trailing chevron: its kind first, then its id.
     &--current {
+      flex: 0 1 auto;
+      min-width: 0;
       background-color: var(--xh-intent-primary-trans1);
+
+      .xh-blueprint-inspector__crumb-id {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .xh-blueprint-inspector__crumb-kind {
+        flex: 0 100 auto;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+      }
 
       .xh-blueprint-inspector__crumb-icon {
         color: var(--xh-intent-primary-text-color);
@@ -84,9 +101,15 @@
   }
 
   // A container's children, named as the path names its steps, with each one's kind.
-  &__crumb-menu .bp6-menu-item > .bp6-fill {
-    font-family: var(--xh-font-family-mono);
-    font-size: 11px;
+  &__crumb-menu .bp6-menu-item {
+    > .bp6-fill {
+      font-family: var(--xh-font-family-mono);
+      font-size: 11px;
+    }
+
+    .bp6-menu-item-label {
+      font-size: 11px;
+    }
   }
 
   // The selection's identity: its id, and one line of what it is and what it reads.

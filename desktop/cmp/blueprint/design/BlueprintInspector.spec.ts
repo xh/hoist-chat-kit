@@ -298,8 +298,12 @@ describe('BlueprintInspector', () => {
             act(() => {
                 fireEvent.mouseEnter(item('headline'));
             });
-            await vi.waitFor(() => expect(item('headlineMktVal')).toBeTruthy(), {timeout: 2000});
-            expect(itemIds()).toContain('headlinePnlYtd');
+            const sub = (id: string) =>
+                document.querySelector<HTMLElement>(`[data-crumb-child="${id}"]`);
+            await vi.waitFor(() => expect(sub('headlineMktVal')).toBeTruthy(), {timeout: 2000});
+            expect(sub('headlinePnlYtd')).toBeTruthy();
+            // In a portal of its own, so the menu's scrolling never clips it.
+            expect(lastMenu().contains(sub('headlineMktVal'))).toBe(false);
         });
 
         it('groups children by slot, where a widget has several, leaving out empty ones', async () => {
@@ -358,21 +362,42 @@ describe('BlueprintInspector', () => {
             expect(design.selectedElementId).toBe('headline');
         });
 
+        it("moves between a menu's own rows, never into a container's submenu", async () => {
+            const {container} = await show('overview');
+            const afterTabs = chevrons(container)[0];
+            act(() => {
+                afterTabs.focus();
+                fireEvent.keyDown(afterTabs, {key: 'Enter'});
+            });
+            // Overview is a container, and its focus opens no submenu to walk into.
+            await vi.waitFor(() => expect(document.activeElement).toBe(item('overview')));
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'ArrowDown'});
+            });
+            expect(document.activeElement).toBe(item('positions'));
+            expect(document.querySelector('[data-crumb-child="reportActions"]')).toBeNull();
+            // Esc closes the menu and gives focus back to its chevron.
+            act(() => {
+                fireEvent.keyDown(document.activeElement, {key: 'Escape'});
+            });
+            await vi.waitFor(() => expect(document.activeElement).toBe(afterTabs));
+        });
+
         it('leaves room for the trailing chevron when it folds the path', () => {
-            // 304px of steps fit 310px, but not with a 19px trailing chevron.
-            expect(foldCrumbs([60, 95, 111], 310)).toEqual({shown: [0, 1, 2], hidden: []});
-            expect(foldCrumbs([60, 95, 111], 310, true)).toEqual({shown: [0, 2], hidden: [1]});
+            // 310px of steps fit 320px, but not with a 22px trailing chevron.
+            expect(foldCrumbs([60, 95, 111], 320)).toEqual({shown: [0, 1, 2], hidden: []});
+            expect(foldCrumbs([60, 95, 111], 320, true)).toEqual({shown: [0, 2], hidden: [1]});
         });
     });
 
     it('folds the middle of a path that does not fit, keeping its first and last steps', () => {
-        // Widths of three steps, with 19px separators and a 28px fold.
+        // Widths of three steps, with 22px separators and a 30px fold.
         expect(foldCrumbs([60, 95, 111], 260)).toEqual({shown: [0, 2], hidden: [1]});
         expect(foldCrumbs([60, 95, 111], 400)).toEqual({shown: [0, 1, 2], hidden: []});
         // Unmeasured, it shows the whole path.
         expect(foldCrumbs([60, 95, 111], 0)).toEqual({shown: [0, 1, 2], hidden: []});
         // The steps nearest the selection come back first.
-        expect(foldCrumbs([60, 80, 80, 80, 100], 330)).toEqual({
+        expect(foldCrumbs([60, 80, 80, 80, 100], 340)).toEqual({
             shown: [0, 3, 4],
             hidden: [1, 2]
         });

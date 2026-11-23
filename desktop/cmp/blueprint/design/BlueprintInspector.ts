@@ -381,9 +381,10 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                             ? span({
                                   key: keyOf(step),
                                   className: `${CLS}__crumb ${CLS}__crumb--current`,
+                                  title: step.id,
                                   children: [
                                       icon(step),
-                                      step.id,
+                                      span({className: `${CLS}__crumb-id`, children: step.id}),
                                       kind
                                           ? span({className: `${CLS}__crumb-kind`, children: kind})
                                           : null
@@ -432,7 +433,7 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                           actionFn: () => select(path[i])
                                       }))
                                   }),
-                                  separator('_more-sep')
+                                  separatorAfter(path[hidden.at(-1)], '_more-sep')
                               ]
                             : [];
                 return [
@@ -498,8 +499,8 @@ const crumbWidth = (id: string, kind: string) =>
     CRUMB_CHROME + id.length * 7 + (kind ? 6 + kind.length * 6 : 0);
 
 const CRUMB_CHROME = 32,
-    CRUMB_SEP = 19,
-    CRUMB_MORE = 28,
+    CRUMB_SEP = 22,
+    CRUMB_MORE = 30,
     BREADCRUMB_PADDING = 20;
 
 const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({

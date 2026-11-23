@@ -3,7 +3,7 @@ import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {Classes, menu, menuDivider, menuItem, popover} from '@xh/hoist/kit/blueprint';
 import type React from 'react';
-import {type ReactElement, type ReactNode, useState} from 'react';
+import {type ReactElement, type ReactNode, useRef, useState} from 'react';
 
 /** A step's child, as its row in a crumb menu shows it. */
 export interface CrumbChild {
@@ -40,7 +40,8 @@ export interface CrumbMenuProps extends HoistProps {
 /**
  * A breadcrumb separator that opens a menu of the children of the step before it. A child with
  * children of its own opens them in a submenu. The chevron takes focus, and Enter, Space or Down
- * opens the menu at its first row; Up and Down move between rows, and Enter picks one.
+ * opens the menu at its first row; Up and Down move between rows, Enter picks one, and Esc closes
+ * it, each giving focus back to the chevron.
  * @internal
  */
 export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
@@ -48,7 +49,13 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
     model: false,
     render({id, childrenOf, onSelect, onHover, emptyItems, menuClassName, title, className}) {
         const [isOpen, setOpen] = useState(false),
+            chevronRef = useRef<HTMLElement>(null),
             close = () => setOpen(false),
+            // Closed from the keyboard, focus goes back to the chevron, while it is still shown.
+            closeToChevron = () => {
+                close();
+                chevronRef.current?.focus();
+            },
             rows = (of: string): ReactElement[] => {
                 const groups = childrenOf(of).filter(it => it.children.length);
                 if (!groups.length) {
@@ -75,6 +82,9 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
                             onMouseEnter: () => onHover?.(child.id),
                             onMouseLeave: () => onHover?.(null),
                             children: child.hasChildren ? rows(child.id) : undefined,
+                            // Portaled, as the menu's scrolling would clip a submenu nested in
+                            // it. Focus opens none, so the arrows stay in the menu.
+                            popoverProps: {usePortal: true, openOnTargetFocus: false},
                             ...({'data-crumb-child': child.id} as object)
                         })
                     )
@@ -88,9 +98,15 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
             onOpened: (el: HTMLElement) => firstRow(el)?.focus(),
             onClosed: () => onHover?.(null),
             content: isOpen
-                ? menu({className: menuClassName, onKeyDown, children: rows(id)})
+                ? menu({
+                      className: menuClassName,
+                      onKeyDown: (e: React.KeyboardEvent<HTMLElement>) =>
+                          onMenuKey(e, closeToChevron),
+                      children: rows(id)
+                  })
                 : null,
             children: span({
+                ref: chevronRef,
                 className,
                 role: 'button',
                 tabIndex: 0,
@@ -114,8 +130,11 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
 //------------------
 const ROW = `.${Classes.MENU_ITEM}:not(.${Classes.DISABLED})`;
 
+// A menu's own rows, never those of a submenu inside it.
 function rowsOf(menuEl: Element): HTMLElement[] {
-    return [...menuEl.querySelectorAll<HTMLElement>(`:scope > li ${ROW}`)];
+    return [...menuEl.querySelectorAll<HTMLElement>(ROW)].filter(
+        it => it.closest(`.${Classes.MENU}`) === menuEl
+    );
 }
 
 function firstRow(el: HTMLElement): HTMLElement {
@@ -123,7 +142,7 @@ function firstRow(el: HTMLElement): HTMLElement {
     return menuEl ? rowsOf(menuEl)[0] : null;
 }
 
-function onKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+function onMenuKey(e: React.KeyboardEvent<HTMLElement>, closeToChevron: () => void) {
     const rows = rowsOf(e.currentTarget),
         at = rows.indexOf(document.activeElement as HTMLElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -133,5 +152,10 @@ function onKeyDown(e: React.KeyboardEvent<HTMLElement>) {
     } else if (e.key === 'Enter' && at >= 0) {
         e.preventDefault();
         rows[at].click();
+        closeToChevron();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeToChevron();
     }
 }
