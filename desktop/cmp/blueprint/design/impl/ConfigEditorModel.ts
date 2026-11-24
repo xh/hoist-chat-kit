@@ -264,6 +264,10 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The variables an action may set, for an `x-variable` param. */
     get settableVariables(): Option[] {
+        return this.memo('settableVariables', () => this.buildSettableVariables());
+    }
+
+    private buildSettableVariables(): Option[] {
         return Object.entries(this.variables)
             .filter(([, decl]) => isSettableFromOutside(decl))
             .map(([name]) => ({value: name, label: name}));
@@ -271,7 +275,9 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The blueprint's sources, for an `x-source` property. */
     get sourceOptions(): Option[] {
-        return Object.keys(this.sources).map(it => ({value: it, label: it}));
+        return this.memo('sourceOptions', () =>
+            Object.keys(this.sources).map(it => ({value: it, label: it}))
+        );
     }
 
     /** The fields of the source that can fill a role, with their labels. */
@@ -313,7 +319,7 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** A field's type, through the source, or null. */
     fieldType(name: string): string {
-        return this.source?.fields[name]?.type ?? null;
+        return this.memo(`type:${name}`, () => this.source?.fields[name]?.type ?? null);
     }
 
     /** A field's label, through the source. */
@@ -360,6 +366,10 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** A named format's options, from the blueprint's own formats or else a catalog's, or null. */
     formatDefinition(name: string): PlainObject {
+        return this.memo(`format:${name}`, () => this.buildFormatDefinition(name));
+    }
+
+    private buildFormatDefinition(name: string): PlainObject {
         if (!name) return null;
         const {blueprint, catalogs} = this.designModel.blueprintModel;
         return (
@@ -374,6 +384,10 @@ export abstract class ConfigEditorModel extends HoistModel {
      * blueprint redefines, or adds, says so.
      */
     get formatOptions(): Option[] {
+        return this.memo('formatOptions', () => this.buildFormatOptions());
+    }
+
+    private buildFormatOptions(): Option[] {
         const {blueprint, catalogs} = this.designModel.blueprintModel,
             own = blueprint?.formats ?? {},
             shared = new Set(catalogs.flatMap(it => Object.keys(it.formats ?? {})));
@@ -389,7 +403,9 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The registry's renderers. */
     get rendererOptions(): Option[] {
-        return visibleOptions(this.designModel.blueprintModel.registry.renderers);
+        return this.memo('rendererOptions', () =>
+            visibleOptions(this.designModel.blueprintModel.registry.renderers)
+        );
     }
 
     /** A renderer's options schema, or null. */
@@ -399,6 +415,10 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The registry's action types that a dashboard may use. */
     get actionOptions(): Option[] {
+        return this.memo('actionOptions', () => this.buildActionOptions());
+    }
+
+    private buildActionOptions(): Option[] {
         const {actions} = this.designModel.blueprintModel.registry;
         return visibleOptions(
             pickBy(actions, it => !it.allowedIn || it.allowedIn.includes('dashboards'))

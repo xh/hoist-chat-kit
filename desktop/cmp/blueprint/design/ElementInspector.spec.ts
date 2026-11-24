@@ -90,6 +90,12 @@ describe('ElementInspector', () => {
             inspector.fieldOptions('dimension');
             inspector.inheritedDisplay('mktVal');
             inspector.propValue('columnState');
+            inspector.fieldType('mktVal');
+            inspector.formatOptions;
+            inspector.formatDefinition('pnl');
+            inspector.rendererOptions;
+            inspector.sourceOptions;
+            inspector.settableVariables;
         });
         onTestFinished(dispose);
         inspector.commit('title', 'Positions');

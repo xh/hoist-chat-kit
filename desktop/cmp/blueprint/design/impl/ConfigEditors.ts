@@ -330,10 +330,7 @@ function editorFor(
             }
             return select({
                 value: value ?? null,
-                options: (node.options as unknown[]).map(it => ({
-                    value: it as any,
-                    label: choiceLabel(node, it)
-                })),
+                options: choiceOptions(node),
                 enableClear: !node.required,
                 placeholder: choicePlaceholder,
                 ...(isDecided ? {title: 'The widget decides as it draws, when unset.'} : {}),
@@ -1164,6 +1161,21 @@ function formatOptionsCard(
 }
 
 // A choice's label: its `x-labels` entry, else Off for false, else its value in words.
+// A choice's options, built once per node, so its select keeps the same props as it draws again.
+const choiceOptionsCache = new WeakMap<EditorNode, Option[]>();
+
+function choiceOptions(node: Extract<EditorNode, {kind: 'choice'}>): Option[] {
+    let ret = choiceOptionsCache.get(node);
+    if (!ret) {
+        ret = (node.options as unknown[]).map(it => ({
+            value: it as any,
+            label: choiceLabel(node, it)
+        }));
+        choiceOptionsCache.set(node, ret);
+    }
+    return ret;
+}
+
 function choiceLabel(node: EditorNode, value: unknown): string {
     return (
         node.schema['x-labels']?.[String(value)] ??
