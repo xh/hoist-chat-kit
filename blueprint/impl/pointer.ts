@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {cloneDeep} from 'lodash';
+import {cloneDeep, isArray} from 'lodash';
 
 /** Names that reach an object's prototype, refused in every path and every ID. */
 export const FORBIDDEN_KEYS = ['__proto__', 'prototype', 'constructor'];
@@ -59,6 +59,35 @@ export function getAt(o: unknown, path: string): unknown {
         if (ret == null || typeof ret !== 'object' || !Object.hasOwn(ret, seg)) return undefined;
         ret = ret[seg];
     }
+    return ret;
+}
+
+/**
+ * A copy of an object with a copy of a value at a JSON Pointer. Each object on the way is copied
+ * and everything else is shared, so the original never changes. `copied` holds the copies earlier
+ * calls made, which later ones change in place rather than copy again.
+ */
+export function withValueAt<T extends PlainObject>(
+    o: T,
+    path: string,
+    value: unknown,
+    copied: WeakSet<object> = new WeakSet()
+): T {
+    const segs = parsePointer(path),
+        last = segs.pop(),
+        copy = (v: PlainObject) => {
+            const ret = isArray(v) ? [...v] : {...v};
+            copied.add(ret);
+            return ret as PlainObject;
+        },
+        ret = (copied.has(o) ? o : copy(o)) as T;
+    let target: PlainObject = ret;
+    for (const seg of segs) {
+        const v = Object.hasOwn(target, seg) ? target[seg] : null;
+        target = target[seg] =
+            v != null && typeof v === 'object' ? (copied.has(v) ? v : copy(v)) : copy({});
+    }
+    target[last] = cloneDeep(value);
     return ret;
 }
 

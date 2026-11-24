@@ -2,7 +2,7 @@ import {HoistModel, type LoadSpec, type PlainObject, XH} from '@xh/hoist/core';
 import type {FilterSpec} from '@xh/hoist/data';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {cloneDeep, dropRight, isEmpty, isEqual, last, omitBy, pickBy, takeRight} from 'lodash';
+import {dropRight, isEmpty, isEqual, last, omitBy, pickBy, takeRight} from 'lodash';
 import type {
     Blueprint,
     BlueprintEdit,
@@ -30,7 +30,7 @@ import {resolveBindings, resolveFilter} from './impl/bindings';
 import {fillTemplate} from './impl/template';
 import {formatValue, resolveFormat} from './impl/formats';
 import {variableText} from './impl/variableText';
-import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
+import {getOwn, getAt as valueAt, withValueAt} from './impl/pointer';
 import {isIncomplete, validateBlueprint} from './validateBlueprint';
 import type {BlueprintAccess, BlueprintMode} from './Blueprint';
 import {checkEditAllowed} from './impl/access';
@@ -481,15 +481,19 @@ export class BlueprintModel extends HoistModel {
             groups = Object.entries(blueprint?.presets ?? {});
         if (!blueprint || (!groups.length && isEmpty(transientValues))) return blueprint;
 
-        const ret = cloneDeep(blueprint);
+        // Copies only along the paths set, so an element no preset touches keeps its identity.
+        const copied = new WeakSet<object>();
+        let ret = blueprint;
         groups.forEach(([name, group]) => {
             const item = getOwn(group.items, this.getActivePreset(name));
             group.controls?.forEach(({path}) => {
                 const value = valueAt(item?.set, path);
-                if (value !== undefined) setAt(ret, path, value);
+                if (value !== undefined) ret = withValueAt(ret, path, value, copied);
             });
         });
-        Object.entries(transientValues).forEach(([path, value]) => setAt(ret, path, value));
+        Object.entries(transientValues).forEach(
+            ([path, value]) => (ret = withValueAt(ret, path, value, copied))
+        );
         return ret;
     }
 

@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
-import type {Blueprint, BlueprintIssue, BlueprintOp, ChildRef} from './Blueprint';
+import type {Blueprint, BlueprintElement, BlueprintIssue, BlueprintOp, ChildRef} from './Blueprint';
 import {dropDockView} from './impl/dockLayout';
 import {childIds, insertRef, locate, parentOf, removeRef} from './impl/elements';
 import {renameTemplateRefs} from './impl/template';
@@ -11,7 +11,8 @@ export const ID_RE = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Apply an edit's operations to a copy of a blueprint, in order. Structural checks only: the
- * caller validates the result as a whole.
+ * caller validates the result as a whole. The copy shares every part the edit leaves alone, so an
+ * unchanged element keeps its identity, and the original is never changed.
  *
  * @returns the new blueprint, or the issue that stopped the edit, with nothing applied.
  */
@@ -29,10 +30,11 @@ export function applyOps(
             }
         };
     }
-    let next = cloneDeep(bp);
+    const draft = new Draft();
+    let next = draft.copyOf(bp ?? {});
     for (let i = 0; i < ops.length; i++) {
         try {
-            next = applyOp(next, ops[i]);
+            next = applyOp(next, ops[i], draft);
         } catch (e) {
             if (!(e instanceof OpError) && !(e instanceof PointerError)) throw e;
             return {
@@ -52,6 +54,38 @@ export function applyOps(
 //------------------
 // Implementation
 //------------------
+// Copy on write: each object an edit changes is copied once, before its first change.
+class Draft {
+    private readonly owned = new WeakSet<object>();
+    private readonly deep = new WeakSet<object>();
+
+    /** A shallow copy of an object, which this edit may change. */
+    copyOf<T extends object>(o: T): T {
+        const ret = (isArray(o) ? [...o] : {...o}) as T;
+        this.owned.add(ret);
+        return ret;
+    }
+
+    /** A child object of an owned parent, copied first unless this edit already copied it. */
+    writable(parent: PlainObject, key: string): PlainObject {
+        const v = parent[key];
+        if (v == null || typeof v !== 'object' || this.owned.has(v)) return v;
+        return (parent[key] = this.copyOf(v));
+    }
+
+    /** An element whose children an op rearranges, copied whole, or null if there is none. */
+    element(bp: Blueprint, id: string): BlueprintElement {
+        const elements = this.writable(bp, 'elements');
+        if (!elements || !Object.hasOwn(elements, id)) return null;
+        if (!this.deep.has(elements[id])) {
+            elements[id] = cloneDeep(elements[id]);
+            this.owned.add(elements[id]);
+            this.deep.add(elements[id]);
+        }
+        return elements[id];
+    }
+}
+
 class OpError extends Error {
     readonly code: string;
 
@@ -61,7 +95,7 @@ class OpError extends Error {
     }
 }
 
-function applyOp(bp: Blueprint, op: any): Blueprint {
+function applyOp(bp: Blueprint, op: any, draft: Draft): Blueprint {
     // Every ID an op names keys an object, so none may reach a prototype.
     for (const id of [op?.id, op?.parent, op?.from, op?.to]) {
         if (isString(id) && isForbiddenKey(id))
@@ -77,10 +111,10 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
     }
     switch (op?.op) {
         case 'set':
-            setPath(bp, op.path, op.value);
+            setPath(bp, op.path, op.value, draft);
             return bp;
         case 'remove':
-            removePath(bp, op.path);
+            removePath(bp, op.path, draft);
             return bp;
         case 'addElement': {
             checkId(op.id);
@@ -88,9 +122,9 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             if (Object.hasOwn(bp.elements, op.id)) {
                 throw new OpError(`element '${op.id}' already exists`);
             }
-            bp.elements[op.id] = cloneDeep(op.element);
+            draft.writable(bp, 'elements')[op.id] = cloneDeep(op.element);
             if (op.parent) {
-                placeChild(bp, op.parent, op.id, op.child, op.index, op.slot, op.of);
+                placeChild(bp, op.parent, op.id, op.child, op.index, op.slot, op.of, draft);
             } else if (!bp.root) {
                 bp.root = op.id;
             } else {
@@ -110,22 +144,24 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             }
             const p = parentOf(bp.elements, op.id);
             if (p) {
-                removeRef(bp.elements[p], op.id);
-                dropDockView(bp.elements[p], op.id);
+                const parent = draft.element(bp, p);
+                removeRef(parent, op.id);
+                dropDockView(parent, op.id);
             }
             if (bp.root === op.id) delete bp.root;
-            delete bp.elements[op.id];
+            delete draft.writable(bp, 'elements')[op.id];
             return bp;
         }
         case 'moveElement': {
             if (!ownElement(bp, op.id)) throw new OpError(`element '${op.id}' does not exist`);
             const from = locate(bp.elements, op.id),
-                old: PlainObject = from ? removeRef(bp.elements[from.parent], op.id) : {},
+                old: PlainObject = from ? removeRef(draft.element(bp, from.parent), op.id) : {},
                 {id: _id, ...placement} = old,
                 slot = op.slot ?? 'children',
                 sameSlot = from?.parent === op.parent && from.slot === slot && from.of === op.of;
             // A view leaving its panes widget leaves its layout too.
-            if (from && from.parent !== op.parent) dropDockView(bp.elements[from.parent], op.id);
+            if (from && from.parent !== op.parent)
+                dropDockView(draft.element(bp, from.parent), op.id);
             placeChild(
                 bp,
                 op.parent,
@@ -133,7 +169,8 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
                 op.child ?? (sameSlot ? placement : {}),
                 op.index,
                 slot,
-                op.of
+                op.of,
+                draft
             );
             return bp;
         }
@@ -146,7 +183,8 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             }
             if (Object.hasOwn(bp[coll], op.to))
                 throw new OpError(`${op.kind} '${op.to}' already exists`);
-            const next = renameRefs(bp, op.kind, op.from, op.to);
+            // A rename can reach anywhere, so it builds the blueprint anew.
+            const next = draft.copyOf(renameRefs(bp, op.kind, op.from, op.to));
             next[coll] = Object.fromEntries(
                 Object.entries(next[coll]).map(([k, v]) => [k === op.from ? op.to : k, v])
             );
@@ -182,7 +220,8 @@ function segments(path: string): string[] {
     return parsePointer(path);
 }
 
-function walkTo(doc: PlainObject, segs: string[], create: boolean): PlainObject {
+// The object at a path, each one on the way copied before it changes.
+function walkTo(doc: PlainObject, segs: string[], create: boolean, draft: Draft): PlainObject {
     let o = doc;
     for (const s of segs) {
         if (isArray(o)) {
@@ -192,9 +231,9 @@ function walkTo(doc: PlainObject, segs: string[], create: boolean): PlainObject 
         }
         if (!Object.hasOwn(o, s) || o[s] == null || typeof o[s] !== 'object') {
             if (!create) throw new OpError(`no value at '${s}'`);
-            o[s] = {};
+            o[s] = draft.copyOf({});
         }
-        o = o[s];
+        o = draft.writable(o, s);
     }
     if (isArray(o)) {
         throw new OpError('a path cannot end inside an array. Replace the whole array.');
@@ -202,17 +241,17 @@ function walkTo(doc: PlainObject, segs: string[], create: boolean): PlainObject 
     return o;
 }
 
-function setPath(doc: PlainObject, path: string, value: unknown) {
+function setPath(doc: PlainObject, path: string, value: unknown, draft: Draft) {
     const segs = segments(path),
         last = segs.pop();
     if (!last) throw new OpError('cannot replace the whole blueprint');
-    walkTo(doc, segs, true)[last] = cloneDeep(value);
+    walkTo(doc, segs, true, draft)[last] = cloneDeep(value);
 }
 
-function removePath(doc: PlainObject, path: string) {
+function removePath(doc: PlainObject, path: string, draft: Draft) {
     const segs = segments(path),
         last = segs.pop(),
-        parent = walkTo(doc, segs, false);
+        parent = walkTo(doc, segs, false, draft);
     if (!Object.hasOwn(parent, last)) throw new OpError(`no value at '${path}'`);
     delete parent[last];
 }
@@ -224,10 +263,11 @@ function placeChild(
     child: PlainObject,
     index: number,
     slot = 'children',
-    of: string = null
+    of: string = null,
+    draft: Draft
 ) {
-    const p = ownElement(bp, parent);
-    if (!p) throw new OpError(`parent '${parent}' does not exist`);
+    if (!ownElement(bp, parent)) throw new OpError(`parent '${parent}' does not exist`);
+    const p = draft.element(bp, parent);
     if (of && !p.children?.some(it => it.id === of)) {
         throw new OpError(`'${of}' is not a child of '${parent}'`);
     }

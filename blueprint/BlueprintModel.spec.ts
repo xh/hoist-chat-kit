@@ -355,6 +355,16 @@ describe('BlueprintModel', () => {
             return bp;
         };
 
+        it('shares every part of the blueprint a preset leaves alone, as widgets show it', () => {
+            const model = open(p3()),
+                {blueprint, effective} = model;
+            expect(effective.elements.posGrid.config.columnState).toBeDefined();
+            expect(effective.elements.posGrid).not.toBe(blueprint.elements.posGrid);
+            expect(effective.elements.priceChart).toBe(blueprint.elements.priceChart);
+            expect(effective.sources).toBe(blueprint.sources);
+            expect(blueprint.elements.posGrid.config.columnState).toBeUndefined();
+        });
+
         it("gives a variable the default its group's active preset sets", () => {
             const model = open(withSymbolPresets());
             expect(model.getVariable('symbol').value).toBe('AAPL');

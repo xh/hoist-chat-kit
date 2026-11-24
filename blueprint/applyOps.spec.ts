@@ -28,6 +28,36 @@ describe('applyOps', () => {
         expect(result.elements.sectorChart.config).not.toHaveProperty('title');
     });
 
+    it('copies only what an edit changes, so the rest keeps its identity, never touching the original', () => {
+        const bp = p2(),
+            before = JSON.stringify(bp),
+            {result} = applyOps(bp, [
+                {op: 'set', path: '/elements/posGrid/config/groupBy', value: ['sector']},
+                {
+                    op: 'addElement',
+                    id: 'note',
+                    element: {component: 'markdown', config: {text: 'x'}},
+                    parent: 'dashboard',
+                    child: {x: 0, y: 30, w: 4, h: 2}
+                },
+                {op: 'moveElement', id: 'sectorChart', parent: 'dashboard', index: 0}
+            ]);
+        expect(JSON.stringify(bp)).toBe(before);
+        // Untouched elements, collections and keys are shared.
+        expect(result.elements.ordersGrid).toBe(bp.elements.ordersGrid);
+        expect(result.sources).toBe(bp.sources);
+        expect(result.variables).toBe(bp.variables);
+        expect(result.elements.posGrid.config.columnState).toBe(
+            bp.elements.posGrid.config.columnState
+        );
+        // What it changed is new.
+        expect(result.elements).not.toBe(bp.elements);
+        expect(result.elements.posGrid).not.toBe(bp.elements.posGrid);
+        expect(result.elements.dashboard).not.toBe(bp.elements.dashboard);
+        expect(result.elements.dashboard.children.map(it => it.id)).toContain('note');
+        expect(bp.elements.dashboard.children.map(it => it.id)).not.toContain('note');
+    });
+
     it('leaves the original untouched, and applies nothing when an op fails', () => {
         const bp = p2(),
             before = JSON.stringify(bp),
