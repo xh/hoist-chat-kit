@@ -566,37 +566,24 @@ describe('ElementInspector', () => {
             expect(inspector.describeStep({type: 'nope'})).toEqual(expect.any(String));
         });
 
-        it("folds a format's options in a card under its row until one is set, and sums up those set", () => {
+        it("shows a column's format options on its page, a number's alone", () => {
             const {design} = open('p2-linked-dashboard.json', 'posGrid');
-            design.setConfig('posGrid', '/columns', {mktVal: {format: 'mv'}});
-            const {container} = render(elementInspector({designModel: design}) as ReactElement),
-                card = () =>
-                    container.querySelector(
-                        '[data-config-key="format"] > .xh-blueprint-element-inspector__format-options'
-                    );
-            fireEvent.click(chevronOf(container.querySelector('[data-field="mktVal"]')));
-            expect(card().classList).toContain('xh-card--collapsed');
-            expect(card().textContent).toBe('Format options');
-
-            // An override opens it, with the options set named in its title.
             design.setConfig('posGrid', '/columns', {mktVal: {format: {name: 'mv', precision: 1}}});
-            const {container: set} = render(
-                elementInspector({designModel: design}) as ReactElement
+            const {container} = render(elementInspector({designModel: design}) as ReactElement);
+            fireEvent.click(container.querySelector('[data-field="mktVal"]'));
+            const keys = () =>
+                [
+                    ...container.querySelectorAll(
+                        '.xh-blueprint-element-inspector__page [data-config-key]'
+                    )
+                ].map(it => it.getAttribute('data-config-key'));
+            expect(keys()).toEqual(
+                expect.arrayContaining(['format', 'precision', 'ledger', 'colorSpec'])
             );
-            fireEvent.click(chevronOf(set.querySelector('[data-field="mktVal"]')));
-            const opened = set.querySelector(
-                '[data-config-key="format"] > .xh-blueprint-element-inspector__format-options'
-            );
-            expect(opened.classList).toContain('xh-card--expanded');
+            expect(keys()).not.toContain('date');
             expect(
-                opened.querySelector('.xh-blueprint-element-inspector__format-summary').textContent
-            ).toBe('precision 1');
-            // A number format offers a number's options, and no date's.
-            expect(
-                [...opened.querySelectorAll('[data-config-key]')].map(it =>
-                    it.getAttribute('data-config-key')
-                )
-            ).toEqual(['precision', 'scale', 'ledger', 'colorSpec', 'label', 'nullDisplay']);
+                container.querySelector('[data-config-key="precision"] input').getAttribute('value')
+            ).toBe('1');
         });
 
         it("offers a date column's format only a date's options, before any is set", () => {
@@ -606,16 +593,14 @@ describe('ElementInspector', () => {
             design.setConfig(grid.id, '/columnState', ['time']);
             design.select({kind: 'element', id: grid.id});
             const {container} = render(elementInspector({designModel: design}) as ReactElement);
-            fireEvent.click(chevronOf(container.querySelector('[data-field="time"]')));
-            const card = container.querySelector(
-                '[data-config-key="format"] > .xh-blueprint-element-inspector__format-options'
-            );
-            fireEvent.click(card.querySelector('.xh-card__collapsible-header'));
-            expect(
-                [...card.querySelectorAll('[data-config-key]')].map(it =>
-                    it.getAttribute('data-config-key')
+            fireEvent.click(container.querySelector('[data-field="time"]'));
+            const keys = [
+                ...container.querySelectorAll(
+                    '.xh-blueprint-element-inspector__page [data-config-key]'
                 )
-            ).toEqual(['date', 'pattern', 'nullDisplay']);
+            ].map(it => it.getAttribute('data-config-key'));
+            expect(keys).toContain('date');
+            expect(keys).not.toContain('precision');
         });
 
         it("reads a date field's typed filter value as that day, west of UTC too", () => {
@@ -893,7 +878,7 @@ describe('ElementInspector', () => {
         fireEvent.keyDown(document.activeElement, {key: 'ArrowDown', altKey: true});
     };
 
-    it('moves a column two places with Alt+Down twice, as focus follows it, with its drawer', async () => {
+    it('moves a column two places with Alt+Down twice, as focus follows it', async () => {
         const {design, model} = open('p2-linked-dashboard.json', 'posGrid'),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             fields = () =>
@@ -901,66 +886,28 @@ describe('ElementInspector', () => {
                     typeof it === 'string' ? it : (it as any).field
                 ),
             [a, b, c, ...rest] = fields();
-        fireEvent.click(chevronOf(container.querySelector(`[data-field="${a}"]`)));
         await altDown(
             container.querySelector(
                 '.xh-blueprint-element-inspector__columns .xh-sortable-list__handle'
             )
         );
         expect(fields()).toEqual([b, c, a, ...rest]);
-        // The open drawer stays under the column it opened for.
-        const openRow = container.querySelector('.xh-blueprint-element-inspector__column--open');
-        expect(openRow.getAttribute('data-field')).toBe(a);
     });
 
-    it("opens a column's settings from a click on its row or its one chevron, one at a time", () => {
+    it("opens a column's page from a click on its row, its one way in", () => {
         const {design} = open('p2-linked-dashboard.json', 'posGrid'),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             header = (field: string) => container.querySelector(`[data-field="${field}"]`),
-            isOpen = (field: string) =>
-                chevronOf(header(field)).getAttribute('aria-expanded') === 'true',
-            [a, b] = [
-                ...container.querySelectorAll(
-                    '.xh-blueprint-element-inspector__columns [data-field]'
-                )
-            ].map(it => it.getAttribute('data-field'));
+            a = container
+                .querySelector('.xh-blueprint-element-inspector__columns [data-field]')
+                .getAttribute('data-field');
         expect(
             header(a)
                 .closest('.xh-sortable-list__item')
-                .querySelectorAll('.xh-sortable-list__expander')
-        ).toHaveLength(1);
-        expect(isOpen(a)).toBe(false);
-
+                .querySelector('.xh-sortable-list__expander')
+        ).toBeNull();
         fireEvent.click(header(a).querySelector('.xh-blueprint-element-inspector__column-label'));
-        expect(isOpen(a)).toBe(true);
-        expect(header(a).classList).toContain('xh-blueprint-element-inspector__column--open');
-
-        fireEvent.click(chevronOf(header(b)));
-        expect([isOpen(a), isOpen(b)]).toEqual([false, true]);
-        fireEvent.click(chevronOf(header(b)));
-        expect(isOpen(b)).toBe(false);
-    });
-
-    it("keeps a column's settings open while its section folds and unfolds", () => {
-        const {design} = open('p2-linked-dashboard.json', 'posGrid'),
-            {container} = render(elementInspector({designModel: design}) as ReactElement),
-            band = () =>
-                [
-                    ...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')
-                ].find(it => it.textContent.startsWith('Columns')),
-            fold = () =>
-                fireEvent.click(
-                    band().querySelector('.xh-blueprint-element-inspector__card-chevron')
-                ),
-            first = () =>
-                container.querySelector('.xh-blueprint-element-inspector__columns [data-field]');
-        const field = first().getAttribute('data-field');
-        fireEvent.click(chevronOf(first()));
-        fold();
-        expect(first()).toBeNull();
-        fold();
-        expect(first().getAttribute('data-field')).toBe(field);
-        expect(chevronOf(first()).getAttribute('aria-expanded')).toBe('true');
+        expect(design.itemPage).toMatchObject({list: 'columnState', key: `${a}#1`});
     });
 
     it('sums a column up in chips, its field in mono, and strikes a hidden one through', () => {
@@ -1171,7 +1118,7 @@ describe('ElementInspector', () => {
             page = () =>
                 container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page'),
             title = () =>
-                page().querySelector('.xh-blueprint-element-inspector__page-title').textContent;
+                page().querySelector('.xh-blueprint-element-inspector__page-name').textContent;
         fireEvent.click(
             container.querySelector('[data-field="mktVal"] [aria-label^="All settings of"]')
         );
@@ -1196,14 +1143,16 @@ describe('ElementInspector', () => {
         expect(page()).toBeNull();
     });
 
-    it('shows every step of an action open, with no chevron to fold one', async () => {
+    it('shows every step of a row action open on its page, with no chevron to fold one', async () => {
         const {design} = open('p2-linked-dashboard.json');
         design.setConfig('posGrid', '/rowActions', [
             {label: 'A', action: [{type: 'refresh', sources: ['positions']}, {type: 'refresh'}]}
         ]);
         const {container} = render(elementInspector({designModel: design}) as ReactElement);
         fireEvent.click(
-            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__expander')
+            container.querySelector(
+                '[data-config-key="rowActions"] [aria-label^="All settings of"]'
+            )
         );
         const steps = container.querySelector('.xh-blueprint-element-inspector__steps');
         expect(steps.querySelectorAll('.xh-blueprint-element-inspector__step')).toHaveLength(2);
@@ -1236,7 +1185,9 @@ describe('ElementInspector', () => {
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
             actions = () => model.blueprint.elements.posGrid.config.rowActions as any[];
         fireEvent.click(
-            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__expander')
+            container.querySelector(
+                '[data-config-key="rowActions"] [aria-label^="All settings of"]'
+            )
         );
         await altDown(
             container.querySelector(
@@ -1248,40 +1199,14 @@ describe('ElementInspector', () => {
             {type: 'refresh', sources: ['orders']},
             {type: 'refresh', sources: ['positions']}
         ]);
+        // Back to the list of row actions, to move one.
+        act(() => design.closeItemPage());
         await altDown(
             container.querySelector(
                 '[data-config-key="rowActions"] .xh-blueprint-element-inspector__columns .xh-sortable-list__handle'
             )
         );
         expect(actions().map(it => it.label)).toEqual(['B', 'C', 'A']);
-    });
-
-    it('keeps an open drawer on its item through a reorder and its undo', async () => {
-        const {design, model} = open('p2-linked-dashboard.json');
-        design.setConfig('posGrid', '/rowActions', [
-            {label: 'A', action: {type: 'refresh'}},
-            {label: 'B', action: {type: 'refresh'}},
-            {label: 'C', action: {type: 'refresh'}}
-        ]);
-        const {container} = render(elementInspector({designModel: design}) as ReactElement),
-            openLabel = () =>
-                container.querySelector(
-                    '.xh-blueprint-element-inspector__column--open .xh-blueprint-element-inspector__column-label'
-                )?.textContent;
-        fireEvent.click(
-            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__expander')
-        );
-        expect(openLabel()).toBe('A');
-        fireEvent.keyDown(
-            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__handle'),
-            {key: 'ArrowDown', altKey: true}
-        );
-        await wait();
-        expect(openLabel()).toBe('A');
-        model.undo();
-        await wait();
-        expect((model.blueprint.elements.posGrid.config.rowActions as any[])[0].label).toBe('A');
-        expect(openLabel()).toBe('A');
     });
 
     it('draws a column listed twice, as a preset may hold one, for the user to remove', () => {
@@ -1328,7 +1253,7 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(edits + 1);
     });
 
-    it("opens a column's settings below its row: how it shows, from columns, then its state", () => {
+    it("opens a column's page with its common settings first, each showing what it takes from the field", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             columnRow = (field: string) =>
@@ -1337,34 +1262,35 @@ describe('ElementInspector', () => {
                         '.xh-blueprint-element-inspector__columns [data-field]'
                     )
                 ].find(it => it.getAttribute('data-field') === field),
-            labels = () =>
+            firstSection = () =>
                 [
-                    ...container.querySelectorAll(
-                        '.xh-blueprint-element-inspector__settings > .xh-blueprint-element-inspector__row > .xh-blueprint-element-inspector__label'
-                    )
-                ].map(it => it.textContent);
+                    ...container
+                        .querySelector(
+                            '.xh-blueprint-element-inspector__page .xh-blueprint-element-inspector__card'
+                        )
+                        .querySelectorAll('[data-config-key]')
+                ].map(it => it.getAttribute('data-config-key'));
 
         expect(container.querySelector('[data-config-key="columns"]')).toBeNull();
         // A column it leaves unset shows what it takes from the catalog.
         const {format} = inspector.inheritedDisplay('mktVal'),
             formatName = typeof format === 'string' ? format : (format as any)?.name;
         expect(formatName).toBeTruthy();
-        fireEvent.click(chevronOf(columnRow('mktVal')));
+        fireEvent.click(columnRow('mktVal'));
         expect(container.querySelector('[data-config-key="format"]').textContent).toContain(
             `${formatName} (from the field)`
         );
         // Its header shows the field's label, and its width that the grid sizes it.
         const drawerInput = (key: string) =>
             container.querySelector<HTMLInputElement>(
-                `.xh-blueprint-element-inspector__settings [data-config-key="${key}"] input`
+                `.xh-blueprint-element-inspector__page [data-config-key="${key}"] input`
             );
         expect(drawerInput('headerName').placeholder).toBe(
             `${inspector.fieldLabel('mktVal')} (from the field)`
         );
         expect(drawerInput('width').placeholder).toBe('Auto');
-        // Its row opens its common settings, with a way to all of them.
-        expect(labels()).toEqual(['Header', 'Format', 'Width', 'Visible']);
-        expect(container.textContent).toMatch(/All \d+ settings/);
+        // Its page leads with its common settings.
+        expect(firstSection()).toEqual(['headerName', 'format', 'width', 'hidden']);
 
         const before = model.history.length;
         inspector.commitItemSetting('columns', 'mktVal', 'headerName', 'MV');
@@ -1386,7 +1312,9 @@ describe('ElementInspector', () => {
         ]);
         const {container} = render(elementInspector({designModel: design}) as ReactElement);
         fireEvent.click(
-            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__expander')
+            container.querySelector(
+                '[data-config-key="rowActions"] [aria-label^="All settings of"]'
+            )
         );
         const edits = model.history.length;
         fireEvent.keyDown(
@@ -1424,7 +1352,9 @@ describe('ElementInspector', () => {
                     ]
                 );
         fireEvent.click(
-            container.querySelector('[data-config-key="rowActions"] .xh-sortable-list__expander')
+            container.querySelector(
+                '[data-config-key="rowActions"] [aria-label^="All settings of"]'
+            )
         );
         expect(rows()).toEqual([
             ['symbol', 'row · symbol'],
@@ -1762,7 +1692,8 @@ describe('ElementInspector', () => {
         // Delete is in the header's ⋯, not at the end.
         expect(container.querySelector('.xh-blueprint-element-inspector__remove')).toBeNull();
         expect(row('Title').className).toContain('__row--inline');
-        expect(row('Columns').className).not.toContain('__row--inline');
+        // The Columns section's list is named by its header alone.
+        expect(row('Columns')).toBeUndefined();
     });
 
     it('folds a section from anywhere on its band, by click, Enter or Space, and says if it is open', () => {
@@ -1893,8 +1824,4 @@ function showMore(container: Element, label: string) {
             it.textContent.includes(label)
         )
     );
-}
-
-function chevronOf(el: Element): HTMLElement {
-    return el.closest('.xh-sortable-list__item').querySelector('.xh-sortable-list__expander');
 }

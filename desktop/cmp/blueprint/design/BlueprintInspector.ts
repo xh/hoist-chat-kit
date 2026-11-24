@@ -76,11 +76,12 @@ export const [BlueprintInspector, blueprintInspector] =
                           className,
                           children: [
                               breadcrumb({impl}),
-                              header({impl}),
+                              // A list item's page brings its own head, in place of the element's.
+                              impl.onItemPage ? null : header({impl}),
                               ...impl.issues.map((it, idx) =>
                                   issueRow({key: idx, impl, issue: it})
                               ),
-                              wiringCard({impl}),
+                              impl.onItemPage ? null : wiringCard({impl}),
                               div({
                                   className: `${CLS}__body`,
                                   children: editorFor(selection, designModel, onShowPresetGroup)
@@ -130,6 +131,12 @@ export class BlueprintInspectorModel extends HoistModel {
      * A view's path ends with the view. Empty for other kinds.
      */
     @computed
+    /** True while a list item's page of the selected element shows in the body. */
+    get onItemPage(): boolean {
+        const {itemPage, selection} = this.designModel;
+        return !!itemPage && selection?.kind === 'element' && itemPage.element === selection.id;
+    }
+
     get breadcrumb(): BlueprintSelection[] {
         const {selection, designModel} = this;
         if (selection?.kind !== 'element' && selection?.kind !== 'view') return [];

@@ -1,5 +1,5 @@
 import {card} from '@xh/hoist/cmp/card';
-import {div, hbox, span} from '@xh/hoist/cmp/layout';
+import {div, filler, hbox, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
@@ -168,6 +168,8 @@ export interface RowProps {
     ctx: EditorContext;
     issues?: BlueprintIssue[];
     key?: string;
+    /** True to draw no label, where the row's section names it, as for a section's one list. */
+    bare?: boolean;
 }
 
 /**
@@ -175,7 +177,7 @@ export interface RowProps {
  * hover turns to ↺ to reset it, as Delete on a focused control does. The label's tooltip and the
  * focused row's help line come from its schema.
  */
-export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
+export function propertyRow({node, value, commit, ctx, issues = [], key, badge, bare}: RowProps) {
     const isSet = value !== undefined,
         canReset = isSet && !badge && !ctx.impl.readOnly && !ctx.locked,
         reset = () => commit(undefined);
@@ -203,6 +205,7 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
         },
         children: [
             div({
+                omit: bare,
                 className: `${CLS}__label`,
                 children: [
                     isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
@@ -874,6 +877,10 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                             impl.isItemOpen(scope, row.key) && `${CLS}__column--open`
                         ),
                         ...({'data-row-key': row.key} as object),
+                        // An item with a page has one way in: a click on its row, or its ›.
+                        onClick: canPage
+                            ? (e: React.MouseEvent) => clickOpens(e, () => open(row.key, label))
+                            : undefined,
                         children: [
                             span({className: `${CLS}__column-label`, children: label}),
                             ...chips.map((it, idx) =>
@@ -896,11 +903,12 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                         ]
                     });
                 },
-                // An opened row shows its common settings where it has a page, else them all.
+                // An item without a page opens its settings in place.
                 renderDetail: (row: PlainObject) => {
                     const itemScope = `${scope}/${row.key}`,
                         value = row.value as PlainObject;
-                    if (!canPage || !common) {
+                    if (canPage) return null;
+                    if (!common) {
                         return div({
                             className: `${CLS}__settings`,
                             children: editorFor(
@@ -961,7 +969,9 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                           compact: true,
                           onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
                           ...openItemOf(impl, scope),
-                          ...renderers
+                          ...renderers,
+                          variant: 'divided',
+                          ...(canPage ? {isItemExpandable: () => false} : {})
                       })
                     : null,
                 button({
@@ -1009,6 +1019,12 @@ export function booleanEditor({
         disabled,
         onCommit
     });
+}
+
+// A click on a list row opens its page, unless it lands on a control in the row.
+function clickOpens(e: React.MouseEvent, open: () => void) {
+    if ((e.target as HTMLElement).closest('button, input, a')) return;
+    open();
 }
 
 /** Delete on a list item, its handle or its row, removes that item, not the list's row. */
@@ -1439,6 +1455,11 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                             entry.hidden && `${CLS}__column--hidden`
                         ),
                         ...({'data-field': entry.field, 'data-row-key': key} as object),
+                        // An item with a page has one way in: a click on its row, or its ›.
+                        onClick: canPage
+                            ? (e: React.MouseEvent) =>
+                                  clickOpens(e, () => impl.openPage(ctx.key, key))
+                            : undefined,
                         children: [
                             span({
                                 className: `${CLS}__column-label`,
@@ -1465,8 +1486,9 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                         ]
                     });
                 },
-                // An opened row shows its common settings, with the way to all of them.
+                // An item without a page opens its settings in place.
                 renderDetail: (row: PlainObject) => {
+                    if (canPage) return null;
                     const mapped = mappedOf(row.entry),
                         shown = canPage ? common : all;
                     return div({
@@ -1507,7 +1529,9 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                           onReorder: e =>
                               ops.current.commitList(e.items.map((it: PlainObject) => it.entry)),
                           ...openItemOf(impl, scope),
-                          ...renderers
+                          ...renderers,
+                          variant: 'divided',
+                          ...(canPage ? {isItemExpandable: () => false} : {})
                       })
                     : null,
                 select({
@@ -1542,15 +1566,34 @@ function pageView(opts: {
     listLabel: string;
     title: string;
     meta?: string;
+    /** What the item is, under its name, such as `Column of mktVal · number`. */
+    subtitle?: string;
     index: number;
     count: number;
     groups: {id: string; label: string; collapsed?: boolean}[];
+    /** The settings shown first, in a section of their own, ahead of the item's sections. */
+    common?: string[];
     settings: PageSetting[];
     onStep: (by: number) => void;
     onBack: () => void;
 }): ReactNode {
-    const {impl, scope, listLabel, title, meta, index, count, settings, onStep, onBack} = opts,
-        groups = opts.groups ?? [{id: null, label: null}];
+    const {impl, scope, listLabel, title, meta, subtitle, index, count, onStep, onBack} = opts,
+        common = opts.common ?? [],
+        first = sortBy(
+            opts.settings.filter(it => common.includes(it.node.key)),
+            it => common.indexOf(it.node.key)
+        ),
+        settings =
+            first.length < opts.settings.length
+                ? opts.settings.filter(it => !common.includes(it.node.key))
+                : opts.settings,
+        // A Common section leads only where it holds fewer than all the item's settings.
+        groups = [
+            ...(first.length && first.length < opts.settings.length
+                ? [{id: COMMON_GROUP, label: 'Common'}]
+                : []),
+            ...(opts.groups ?? [{id: null, label: null}])
+        ];
     return div({
         ref: opts.ref,
         className: `${CLS}__page`,
@@ -1564,11 +1607,28 @@ function pageView(opts: {
             }
         },
         children: [
-            pageBar({listLabel, title, meta, index, count, onStep, onBack}),
+            div({
+                key: 'head',
+                className: `${CLS}__page-head`,
+                children: [
+                    pageBar({listLabel, index, count, onStep, onBack}),
+                    div({
+                        className: `${CLS}__page-name`,
+                        children: [
+                            span({children: title}),
+                            meta ? span({className: `${CLS}__column-field`, children: meta}) : null
+                        ]
+                    }),
+                    subtitle ? div({className: `${CLS}__page-subtitle`, children: subtitle}) : null
+                ]
+            }),
             ...groups.map(group => {
-                const inGroup = settings.filter(
-                        it => group.id == null || it.node.schema['x-group'] === group.id
-                    ),
+                const inGroup =
+                        group.id === COMMON_GROUP
+                            ? first
+                            : settings.filter(
+                                  it => group.id == null || it.node.schema['x-group'] === group.id
+                              ),
                     moreScope = `${scope}/page-more`,
                     moreOpen = impl.isItemOpen(moreScope, group.id),
                     folded =
@@ -1611,14 +1671,12 @@ function pageView(opts: {
  */
 export function pageBar(opts: {
     listLabel: string;
-    title: string;
-    meta?: string;
     index: number;
     count: number;
     onStep: (by: number) => void;
     onBack: () => void;
 }): ReactNode {
-    const {listLabel, title, meta, index, count, onStep, onBack} = opts;
+    const {listLabel, index, count, onStep, onBack} = opts;
     return hbox({
         className: `${CLS}__page-bar`,
         children: [
@@ -1630,13 +1688,7 @@ export function pageBar(opts: {
                 title: `Back to ${listLabel}`,
                 onClick: onBack
             }),
-            div({
-                className: `${CLS}__page-title`,
-                children: [
-                    span({children: title}),
-                    meta ? span({className: `${CLS}__column-field`, children: meta}) : null
-                ]
-            }),
+            filler(),
             span({className: `${CLS}__page-count`, children: `${index + 1} of ${count}`}),
             button({
                 icon: Icon.chevronUp(),
@@ -1659,6 +1711,11 @@ export function pageBar(opts: {
         ]
     });
 }
+
+const COMMON_GROUP = '$common';
+
+// What one item of a list is called, from the list's label: Columns, a column.
+const singular = (label: string) => label?.replace(/s$/, '') ?? '';
 
 /** A field list item's page, as {@link pageView} draws it, such as a grid column's. */
 export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {itemKey: string}>({
@@ -1711,6 +1768,13 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             listLabel: node.label,
             title: entryLabel(impl, row.entry, mapped),
             meta: row.entry.field,
+            subtitle: [
+                `${singular(node.label)} of ${row.entry.field}`,
+                impl.fieldType(row.entry.field)
+            ]
+                .filter(Boolean)
+                .join(' · '),
+            common: node.settingsIn?.common,
             index,
             count: rows.length,
             groups: node.settingsIn?.groups,
@@ -1774,6 +1838,8 @@ export const listItemPage = hoistCmp.factory<
             ref,
             listLabel: node.label,
             title: itemLabel(value, index),
+            subtitle: singular(node.label),
+            common: node.item.schema['x-common'],
             index,
             count: items.length,
             groups: node.item.schema['x-groups'],

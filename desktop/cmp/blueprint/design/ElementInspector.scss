@@ -718,27 +718,47 @@
     gap: var(--xh-spacing);
   }
 
-  &__page-bar {
+  // The page's head, set apart from section bands by a primary tint and a primary rule: a bar to
+  // go back and step, then the item's name and what it is.
+  &__page-head {
     position: sticky;
     top: 0;
     z-index: 2;
-    gap: var(--xh-spacing-half);
-    align-items: center;
-    margin: 0 calc(-1 * var(--xh-spacing));
-    padding: var(--xh-spacing-half) var(--xh-spacing);
-    background-color: var(--xh-bg);
-    border-bottom: var(--xh-border-solid);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 var(--xh-spacing) var(--xh-spacing);
+    background-color: var(--xh-intent-primary-trans1);
+    border-bottom: 2px solid var(--xh-intent-primary);
   }
 
-  &__page-title {
+  &__page-bar {
+    gap: var(--xh-spacing-half);
+    align-items: center;
+    height: 32px;
+
+    > .xh-button:first-child {
+      font-family: var(--xh-font-family-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--xh-intent-primary-text-color);
+    }
+  }
+
+  &__page-name {
     display: flex;
-    flex: 1 1 auto;
     gap: var(--xh-spacing-half);
     align-items: baseline;
     min-width: 0;
     overflow: hidden;
+    font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  &__page-subtitle {
+    font-size: 11px;
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__page-count {
@@ -752,10 +772,6 @@
     flex-direction: column;
     gap: var(--xh-spacing-half);
     padding: var(--xh-spacing-half) var(--xh-spacing-half) var(--xh-spacing) var(--xh-spacing);
-  }
-
-  &__more.xh-button {
-    align-self: flex-start;
   }
 
   &__filter {

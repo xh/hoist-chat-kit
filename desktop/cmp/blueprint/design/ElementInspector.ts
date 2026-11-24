@@ -750,7 +750,10 @@ function configCard(impl: ElementInspectorModel, section: InspectorSection): Rea
         onToggle: () => impl.toggleSection(section.group),
         children: [
             isValue ? setsEditor(impl) : null,
-            ...section.nodes.map(node => configRow(impl, node)),
+            // A section's one list, such as Columns, is named by the section's header alone.
+            ...section.nodes.map(node =>
+                configRow(impl, node, section.group === 'list' && section.nodes.length === 1)
+            ),
             moreRow(impl, section)
         ]
     });
@@ -977,8 +980,8 @@ function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) =
 }
 
 // One config property's row, with its issues and preset badge.
-function configRow(impl: ElementInspectorModel, node: EditorNode) {
-    return inspectorRow({impl, node, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
+function configRow(impl: ElementInspectorModel, node: EditorNode, bare = false) {
+    return inspectorRow({impl, node, bare, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
 }
 
 /**
@@ -986,11 +989,17 @@ function configRow(impl: ElementInspectorModel, node: EditorNode) {
  * to one property leaves the others as they are.
  */
 const inspectorRow = hoistCmp.factory<
-    HoistProps & {impl: ElementInspectorModel; node: EditorNode; placement?: boolean}
+    HoistProps & {
+        impl: ElementInspectorModel;
+        node: EditorNode;
+        placement?: boolean;
+        /** True for a row its section's header names, such as a section's one list. */
+        bare?: boolean;
+    }
 >({
     displayName: 'ElementInspectorRow',
     model: false,
-    render({impl, node, placement}) {
+    render({impl, node, placement, bare}) {
         const key = placement ? placementKey(node.key) : node.key,
             state = useMemo(
                 () =>
@@ -1012,7 +1021,8 @@ const inspectorRow = hoistCmp.factory<
             commit: v => (placement ? impl.commitPlacement(node.key, v) : impl.commit(node.key, v)),
             ctx: {impl, key},
             issues: state.issues,
-            badge: state.badge
+            badge: state.badge,
+            bare
         });
     }
 });

@@ -622,13 +622,24 @@ function sourcePage(
                 }
             },
             children: [
-                pageBar({
-                    listLabel: isJoin ? 'Joins' : 'Field instances',
-                    title: key,
-                    index,
-                    count: keys.length,
-                    onStep: by => keys[index + by] && impl.setPage({list, key: keys[index + by]}),
-                    onBack: back
+                div({
+                    key: 'head',
+                    className: `${CLS}__page-head`,
+                    children: [
+                        pageBar({
+                            listLabel: isJoin ? 'Joins' : 'Field instances',
+                            index,
+                            count: keys.length,
+                            onStep: by =>
+                                keys[index + by] && impl.setPage({list, key: keys[index + by]}),
+                            onBack: back
+                        }),
+                        div({className: `${CLS}__page-name`, children: key}),
+                        div({
+                            className: `${CLS}__page-subtitle`,
+                            children: isJoin ? `Join of ${impl.name}` : 'Field instance'
+                        })
+                    ]
                 }),
                 ...(isJoin
                     ? joinBody(impl, impl.values.joins[index], index)
