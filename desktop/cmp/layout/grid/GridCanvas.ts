@@ -1,6 +1,6 @@
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, useLocalModel} from '@xh/hoist/core';
-import {expectedGridHeight, useContentWidth} from '@xh/hoist/desktop/cmp/dash/canvas/DashCanvas';
+import {expectedGridHeight, useContentWidth} from './impl/gridMeasure';
 import {
     gridBackground,
     type GridLayoutProps,
