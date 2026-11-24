@@ -4,10 +4,10 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
-import {action, computed, observableRef} from '@xh/hoist/mobx';
+import {action, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isEqual, isString, without} from 'lodash';
-import {useEffect, useRef} from 'react';
+import {useEffect, useMemo, useRef} from 'react';
 import {
     type BlueprintDesignModel,
     type EditorNode,
@@ -671,12 +671,10 @@ const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>
 
 function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) => boolean) {
     return impl.placementNodes.filter(filter).map(node =>
-        propertyRow({
+        inspectorRow({
+            impl,
             node,
-            value: impl.placementValues[node.key],
-            commit: v => impl.commitPlacement(node.key, v),
-            ctx: {impl, key: placementKey(node.key)},
-            issues: impl.issuesFor(placementKey(node.key)),
+            placement: true,
             key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
         })
     );
@@ -684,16 +682,44 @@ function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) =
 
 // One config property's row, with its issues and preset badge.
 function configRow(impl: ElementInspectorModel, node: EditorNode) {
-    return propertyRow({
-        node,
-        value: impl.values[node.key],
-        commit: v => impl.commit(node.key, v),
-        ctx: {impl, key: node.key},
-        issues: impl.issuesFor(node.key),
-        badge: impl.badgeFor(node.key),
-        key: `${node.key}:${impl.resets[node.key] ?? 0}`
-    });
+    return inspectorRow({impl, node, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
 }
+
+/**
+ * A property's row, which draws again only as its own value, issues or badge change, so an edit
+ * to one property leaves the others as they are.
+ */
+const inspectorRow = hoistCmp.factory<
+    HoistProps & {impl: ElementInspectorModel; node: EditorNode; placement?: boolean}
+>({
+    displayName: 'ElementInspectorRow',
+    model: false,
+    render({impl, node, placement}) {
+        const key = placement ? placementKey(node.key) : node.key,
+            state = useMemo(
+                () =>
+                    computed(
+                        () => ({
+                            value: placement
+                                ? impl.placementValues[node.key]
+                                : impl.values[node.key],
+                            issues: impl.issuesFor(key),
+                            badge: placement ? null : impl.badgeFor(node.key)
+                        }),
+                        {equals: compareStructural}
+                    ),
+                [impl, node, placement, key]
+            ).get();
+        return propertyRow({
+            node,
+            value: state.value,
+            commit: v => (placement ? impl.commitPlacement(node.key, v) : impl.commit(node.key, v)),
+            ctx: {impl, key},
+            issues: state.issues,
+            badge: state.badge
+        });
+    }
+});
 
 // The slot of its container that holds the element.
 function slotEditor(impl: ElementInspectorModel) {
