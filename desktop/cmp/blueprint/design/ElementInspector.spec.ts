@@ -966,6 +966,18 @@ describe('ElementInspector', () => {
         expect(columns()).toEqual(['mktVal', 'pnlMtd']);
     });
 
+    it('names a style rule by its test and style', () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/rowStyles', [
+            {
+                when: {field: 'pnlDay', op: '<', value: 0},
+                style: {color: 'danger', fontWeight: 'bold'}
+            }
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(container.textContent).toContain('pnlDay < 0 · danger, bold');
+    });
+
     it("opens a row action's page, as its action holds steps, named in the path by its label", () => {
         const {design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/rowActions', [
@@ -975,6 +987,9 @@ describe('ElementInspector', () => {
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
             page = () =>
                 container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page');
+        // Its chip names its action's type, never the object.
+        expect(container.textContent).toContain('Set variable');
+        expect(container.textContent).not.toContain('[object Object]');
         fireEvent.click(container.querySelector('[aria-label="All settings of Open"]'));
         expect(design.itemPage).toMatchObject({list: 'rowActions', label: 'Open'});
         expect(page().textContent).toContain('1 of 2');

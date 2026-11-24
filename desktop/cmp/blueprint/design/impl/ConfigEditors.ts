@@ -951,11 +951,29 @@ export function booleanEditor({
 function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => void) {
     const target = e.target as HTMLElement;
     if (e.key !== 'Delete' || isTextEntry(target)) return;
-    const key = itemOf(target, e.currentTarget as HTMLElement)?.row.getAttribute('data-row-key');
+    const list = e.currentTarget as HTMLElement,
+        key = itemOf(target, list)?.row.getAttribute('data-row-key');
     if (!key) return;
     e.preventDefault();
     e.stopPropagation();
+    // Focus stays in the list: on the next item, else the one before, else its add control.
+    const keys = [...list.querySelectorAll('[data-row-key]')].map(it =>
+            it.getAttribute('data-row-key')
+        ),
+        at = keys.indexOf(key),
+        next = keys[at + 1] ?? keys[at - 1];
     remove(key);
+    if (next) {
+        focusItem(next);
+    } else {
+        wait().then(() =>
+            list
+                .querySelector<HTMLElement>(
+                    ':scope > :last-child input, :scope > button:last-child'
+                )
+                ?.focus()
+        );
+    }
 }
 
 // The list item an element sits in, within a list: its wrapper, which holds its handle beside the
@@ -1020,10 +1038,34 @@ export function removeItemButton(title: string, disabled: boolean, onClick: () =
     });
 }
 
-// What a list item shows as: its label, title or name, else its place.
+// What a list item shows as: its label, title or name, a style rule's test and style, else its
+// place.
 function itemLabel(value: unknown, index: number): string {
     const v = value as PlainObject;
-    return (isPlainObject(v) && [v.label, v.title, v.name].find(isString)) || `${index + 1}`;
+    if (!isPlainObject(v)) return `${index + 1}`;
+    const named = [v.label, v.title, v.name].find(isString);
+    if (named) return named;
+    if (v.when) {
+        const style = isPlainObject(v.style) ? Object.values(v.style).filter(isString) : [];
+        return (
+            [filterText(v.when), style.join(', ')].filter(Boolean).join(' · ') ||
+            `Rule ${index + 1}`
+        );
+    }
+    return `${index + 1}`;
+}
+
+// A filter in brief, as `mktVal < 0`, or how many clauses a compound one has.
+function filterText(filter: unknown): string {
+    const f = filter as PlainObject;
+    if (!isPlainObject(f)) return null;
+    if (isArray(f.filters)) return countLabel(f.filters.length, 'clause');
+    if (!isString(f.field)) return null;
+    const value =
+        isPlainObject(f.value) && f.value.$var
+            ? `{${f.value.$var}}`
+            : castArray(f.value).join(', ');
+    return `${f.field} ${f.op ?? '='} ${value}`;
 }
 
 function mapEditor(
@@ -1195,8 +1237,15 @@ function chipText(setting: EditorNode, value: unknown): string {
             return setting.label.toLowerCase();
         case 'choice':
             return `${setting.label.toLowerCase()} ${choiceLabel(setting, value).toLowerCase()}`;
+        case 'action': {
+            const [first, ...rest] = castArray(value) as PlainObject[];
+            if (!isString(first?.type)) return null;
+            return labelOf(first.type) + (rest.length ? ` + ${rest.length}` : '');
+        }
+        case 'filter':
+            return filterText(value);
         default:
-            return String(value);
+            return isObject(value) ? null : String(value);
     }
 }
 
