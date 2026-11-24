@@ -197,3 +197,41 @@ describe('BlueprintRegistry bindings', () => {
         expect(panel.config.properties.title['x-binding']).toBe(true);
     });
 });
+
+/** An app adds tools beside its widgets, under dotted names, each run in the browser or by a server. */
+describe('BlueprintRegistry tools', () => {
+    const lookup = {
+        name: 'acme.lookupSymbol',
+        summary: 'Find the symbol for a company name.',
+        guidance: 'Use before you filter by a company the user names.',
+        parameters: {type: 'object', required: ['name'], properties: {name: {type: 'string'}}},
+        runsOn: 'client' as const,
+        execute: ({name}) => ({symbol: String(name).slice(0, 4).toUpperCase()})
+    };
+
+    it('takes a client tool with execute, and a server tool as a contract without one', () => {
+        const registry = new BlueprintRegistry({
+            tools: [
+                lookup,
+                {
+                    name: 'acme.risk.explain',
+                    summary: 'Explain a VaR move.',
+                    parameters: {type: 'object', properties: {}},
+                    runsOn: 'server',
+                    needsApproval: true
+                }
+            ]
+        });
+        expect(Object.keys(registry.tools)).toEqual(['acme.lookupSymbol', 'acme.risk.explain']);
+    });
+
+    it('refuses a tool without a dotted name, an object schema, or the execute where it runs', () => {
+        const add = (it: object) => () => new BlueprintRegistry({tools: [{...lookup, ...it}]});
+        expect(add({name: 'lookupSymbol'})).toThrow(/needs a dotted name/);
+        expect(add({name: 'acme.look__up'})).toThrow(/cannot hold '__'/);
+        expect(add({parameters: {type: 'string'}})).toThrow(/needs an object schema/);
+        expect(add({runsOn: 'edge'})).toThrow(/runsOn 'client' or 'server'/);
+        expect(add({execute: undefined})).toThrow(/client tool needs execute/);
+        expect(add({runsOn: 'server'})).toThrow(/server tool takes no execute/);
+    });
+});

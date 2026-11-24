@@ -230,7 +230,12 @@ takes open values, such as `params` or an op, as JSON text. Read that input back
 `architectChatTools()` adds `read_answer` only with the chat's `catalog`, `request_design_mode`
 only for a target that can change its mode, `request_feature` only with a `featureRequests` sink,
 and `list_blueprints` only for a model that a `BlueprintDocumentModel` holds, whose repository it
-lists.
+lists. It also adds the registry's client tools - see
+[Add a Tool](../docs/blueprint-extensions.md#add-a-tool).
+
+Each built-in tool has a `kind`. A `document` tool reads only the blueprint, catalogs and registry,
+and imports nothing but lodash, so a Node server or an MCP server can run it. A `live` tool needs
+the open model, and `query_dataset` a data provider with the user's session.
 
 ### Take feature requests from the Architect
 

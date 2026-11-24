@@ -31,7 +31,8 @@ export interface ArchitectTarget {
     readonly blueprint: Blueprint;
     readonly version: number;
     readonly catalogs: DataCatalog[];
-    readonly registry: Pick<BlueprintRegistry, RegistryCollection>;
+    readonly registry: Pick<BlueprintRegistry, RegistryCollection> &
+        Partial<Pick<BlueprintRegistry, 'tools'>>;
     /** The dataset behind each artifact that `query_dataset` returned, keyed by artifact ID. */
     readonly artifacts: Record<string, string>;
     /** The user's mode and access, which the edit tools enforce. */
@@ -71,6 +72,12 @@ export interface ArchitectArtifact {
 /** One of the Architect's tools: its spec for the model, and how it runs against a target. */
 export interface ArchitectToolSpec {
     name: string;
+    /**
+     * What the tool needs. A `document` tool reads only the blueprint, catalogs and registry, so
+     * it runs in a browser, a Node server or an MCP server. A `live` tool needs the open model,
+     * and a `data` tool a data provider with the user's session.
+     */
+    kind: 'document' | 'live' | 'data';
     description: string;
     parameters: PlainObject;
     /** True if a target can run the tool. Default true. */
@@ -103,6 +110,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
     [
         {
             name: 'read_blueprint',
+            kind: 'document',
             description:
                 'Read the blueprint being edited, or only the subtrees at the given JSON Pointer paths. Returns its version, which edit_blueprint takes as base.',
             parameters: {
@@ -119,6 +127,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'describe_catalog',
+            kind: 'document',
             description:
                 'Describe the Data Catalog. With no dataset, lists every dataset with its parameters and field categories. With a dataset, lists its fields, optionally narrowed by category or a search term matched against names, labels and guidance.',
             parameters: {
@@ -199,6 +208,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'describe_registry',
+            kind: 'document',
             description:
                 "Describe what the app provides in code. kind is widget, variableType, resolver, action or renderer. With names, or a widget category, returns each full spec, including a widget's guidance, config schema, outputs, value, preset paths, sizes and example. With neither, lists every entry in one line. Where chat answers have entries of their own, each entry says where it is allowed: dashboards, answers or both.",
             parameters: {
@@ -264,6 +274,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'edit_blueprint',
+            kind: 'live',
             description:
                 'Apply one atomic edit to the blueprint: a list of operations, applied in order, then checked as a whole. If any check fails with an error, nothing applies and the issues come back. Operations: {op:"set",path,value}, {op:"remove",path}, {op:"addElement",id,element,parent?,child?,index?,slot?,of?} (only the first element, added to an empty blueprint, may omit parent: it becomes the root. Every later element needs a parent and a child placement), {op:"removeElement",id}, {op:"moveElement",id,parent,child?,index?,slot?,of?} (slot names a slot list of the parent, default children, and of names the child whose reference holds it, as for the headerItems of a dashboard cell), {op:"renameId",kind:"element"|"variable"|"source",from,to}. Paths are JSON Pointers from the root, such as /elements/grid/config/groupBy. A path never indexes into an array: replace the whole array.',
             parameters: {
@@ -304,6 +315,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'validate_blueprint',
+            kind: 'document',
             description:
                 'Check the blueprint, or check the given ops as a dry run without applying them. Returns issues.',
             parameters: {
@@ -334,6 +346,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'set_variable',
+            kind: 'live',
             description:
                 "Set a variable's current value, to change what the blueprint shows now without changing its definition. Only a variable that a prompt, an action or a widget value sets. Returns the resolved value.",
             parameters: {
@@ -349,6 +362,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'query_dataset',
+            kind: 'data',
             description:
                 'Query a dataset to look at its data, for example to answer a question. Returns an artifact: an id, columns, the first rows, the total row count, and, as text, each row\'s numbers and dates formatted as the app shows them. Compute from rows, and quote numbers and dates from text. A chat answer can show the artifact with {"artifact": id} as a source.',
             parameters: {
@@ -424,6 +438,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'list_blueprints',
+            kind: 'document',
             description:
                 "List the user's published blueprints of this one's type, for an openBlueprint target: each one's id, name, description, and the variables a link may set, by name and type, which the action's variables can pass.",
             parameters: {type: 'object', properties: {}},
@@ -447,6 +462,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
         },
         {
             name: 'find_usages',
+            kind: 'document',
             description:
                 'Find every path in the blueprint that uses a field, a named format, a variable or a source. Give exactly one. A field counts where a widget, a source or a variable names it, and where a widget with no source of its own, such as a grouping chooser, offers it to the widgets that read its variable. A field instance counts on its own name and on its base field.',
             parameters: {

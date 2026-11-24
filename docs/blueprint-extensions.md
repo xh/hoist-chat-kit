@@ -1,7 +1,7 @@
 # Extending Blueprints
 
 Blueprints configure what a `BlueprintRegistry` holds: widgets, variable types, resolvers, actions,
-renderers and date range presets. The kit registers its built-ins under bare names, such as
+renderers and date range presets. It also holds the app's tools for the Architect. The kit registers its built-ins under bare names, such as
 `cubeGrid` or `refresh`. An app adds its own under dotted names, such as `acme.ticker`, so they
 never clash with a built-in. Every `add` method refuses an app entry whose name has no dot.
 
@@ -303,6 +303,27 @@ A renderer draws a value as more than text, in a grid cell or a stat card:
 A `dateRange` variable names Hoist's presets, such as `mtd`. Register the app's own with
 `dateRangePresets`, each a Hoist `DateRangePreset` under a dotted token such as `acme.fiscalYtd`,
 and the validator, the picker and links accept it.
+
+## Add a Tool
+
+A tool lets the Architect call the app, such as to look up a symbol before it filters by one.
+`architectChatTools()` offers each client tool beside the built-in ones:
+
+| Property | Description |
+|----------|-------------|
+| `summary` | What it does, in one line. With `guidance`, the description the model reads |
+| `guidance` | When to use it, and what to do with its result |
+| `parameters` | A JSON Schema object for its input |
+| `runsOn` | `client` to run in the browser, or `server` for a server host |
+| `execute` | A client tool's code: `(input, {target}) => result`. Throw a message that says how to fix a bad call |
+| `needsApproval` | True to have the user approve each call, or a function of the input |
+
+- A model API takes no dot in a tool name, so the model calls `acme.lookupSymbol` as
+  `acme__lookupSymbol`. A name may not hold `__`.
+- `execute` gets its input with empty optional values dropped. Check the rest, as for any
+  untrusted input.
+- A server tool is a contract with no `execute`, for a server host that runs it with the user's
+  session. The browser never offers it.
 
 ## Where Each Entry Goes
 

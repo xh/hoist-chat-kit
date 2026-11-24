@@ -40,6 +40,54 @@ describe('Architect chat tools', () => {
         expect(names(architectChatTools(open(), {catalog}))).toContain('read_answer');
     });
 
+    it("offers the registry's client tools, under names a model API takes, with input normalized", async () => {
+        const registry = scenarioRegistry(),
+            calls = [];
+        registry.addTools(
+            {
+                name: 'acme.lookupSymbol',
+                summary: 'Find the symbol for a company name.',
+                guidance: 'Use before you filter by a company the user names.',
+                parameters: {
+                    type: 'object',
+                    required: ['name'],
+                    properties: {name: {type: 'string'}, exchange: {type: 'string'}}
+                },
+                runsOn: 'client',
+                needsApproval: true,
+                execute: (input, ctx) => {
+                    calls.push({input, target: ctx.target});
+                    return {symbol: 'NVDA'};
+                }
+            },
+            {
+                name: 'acme.explainVar',
+                summary: 'Explain a VaR move.',
+                parameters: {type: 'object', properties: {}},
+                runsOn: 'server'
+            }
+        );
+        const model = new BlueprintModel({
+            blueprint: loadBlueprint('p2-linked-dashboard.json'),
+            catalog: portfolioCatalog,
+            registry,
+            dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+            mode: 'design',
+            access: 'write'
+        });
+        onTestFinished(() => model.destroy());
+
+        const tools = architectChatTools(model),
+            tool = tools.find(it => it.name === 'acme__lookupSymbol');
+        expect(tools.map(it => it.name)).not.toContain('acme__explainVar');
+        expect(tool.description).toBe(
+            'Find the symbol for a company name. Use before you filter by a company the user names.'
+        );
+        expect(tool.needsApproval).toBe(true);
+        expect(await tool.execute({name: 'Nvidia', exchange: ''}, null)).toEqual({symbol: 'NVDA'});
+        expect(calls).toEqual([{input: {name: 'Nvidia'}, target: model}]);
+    });
+
     it('offers the tools a target can run as chat kit client tools', async () => {
         const model = open(),
             read = architectChatTools(model).find(it => it.name === 'read_blueprint');

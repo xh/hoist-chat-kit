@@ -6,6 +6,7 @@ import {getOwn, toLookup} from './impl/pointer';
 import {findSchemaProblems} from '../impl/SchemaUtils';
 import type {ReactElement, ReactNode} from 'react';
 import {withEffectiveBindings} from './impl/bindable';
+import type {ArchitectTarget} from './architect/ArchitectTools';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintVariable} from './BlueprintVariable';
@@ -340,6 +341,36 @@ export interface RendererContext {
     columnRange?: () => {min: number; max: number};
 }
 
+/**
+ * A tool an app gives the Architect, beside the built-in ones. A client tool runs in the browser,
+ * with the open blueprint. A server tool is a contract for a server host, which runs it with the
+ * user's session, and the browser never offers it.
+ */
+export interface ToolSpec {
+    /** A dotted name, such as `acme.lookupSymbol`. A model API sees it with `__` for each dot. */
+    name: string;
+    /** What the tool does, in one line. */
+    summary: string;
+    /** When to use it, and what to do with its result. */
+    guidance?: string;
+    /** JSON Schema for the tool's input object. */
+    parameters: PlainObject;
+    runsOn: 'client' | 'server';
+    /**
+     * Run a client tool, with its input normalized. Return its result for the model. Throw for a
+     * call the model should fix, with a message that says how.
+     */
+    execute?: (input: PlainObject, ctx: ToolContext) => unknown;
+    /** True to have the user approve each call, or a function to decide per call. */
+    needsApproval?: boolean | ((input: PlainObject) => boolean);
+    app?: boolean;
+}
+
+/** What a client tool runs against: the blueprint the Architect works on. */
+export interface ToolContext {
+    target: ArchitectTarget;
+}
+
 export interface BlueprintRegistryConfig {
     widgets?: WidgetSpec[];
     /** Presets a `dateRange` variable may name, beyond Hoist's own. */
@@ -348,6 +379,7 @@ export interface BlueprintRegistryConfig {
     resolvers?: ResolverSpec[];
     actions?: ActionSpec[];
     renderers?: RendererSpec[];
+    tools?: ToolSpec[];
 }
 
 /**
@@ -362,6 +394,7 @@ export class BlueprintRegistry {
     readonly resolvers: Record<string, ResolverSpec> = toLookup({});
     readonly actions: Record<string, ActionSpec> = toLookup({});
     readonly renderers: Record<string, RendererSpec> = toLookup({});
+    readonly tools: Record<string, ToolSpec> = toLookup({});
     /** The presets a `dateRange` variable may name, by token: Hoist's own, then the app's. */
     readonly dateRangePresets: Record<string, DateRangePreset> = toLookup({...dateRangePresets});
 
@@ -381,6 +414,7 @@ export class BlueprintRegistry {
         this.addRenderers(config.renderers ?? []);
         this.addVariableTypes(config.variableTypes ?? []);
         this.addDateRangePresets(config.dateRangePresets ?? []);
+        this.addTools(config.tools ?? []);
     }
 
     /**
@@ -505,6 +539,38 @@ export class BlueprintRegistry {
 
     addRenderers(...specs: (RendererSpec | RendererSpec[])[]) {
         this.add('renderer', this.renderers, specs);
+    }
+
+    /**
+     * Add tools for the Architect. Throws for one without an object schema, or without `execute`
+     * on the client, or with it on the server.
+     */
+    addTools(...specs: (ToolSpec | ToolSpec[])[]) {
+        specs.flat().forEach(spec => {
+            const {name, parameters, runsOn, execute} = spec;
+            this.checkName('tool', name);
+            throwIf(
+                name.includes('__'),
+                `Tool '${name}' cannot hold '__', which names it on the wire.`
+            );
+            throwIf(
+                !isPlainObject(parameters) || parameters.type !== 'object',
+                `Tool '${name}' needs an object schema for its parameters.`
+            );
+            throwIf(
+                !['client', 'server'].includes(runsOn),
+                `Tool '${name}' needs runsOn 'client' or 'server'.`
+            );
+            throwIf(
+                runsOn === 'client' && !execute,
+                `Tool '${name}': a client tool needs execute.`
+            );
+            throwIf(
+                runsOn === 'server' && execute,
+                `Tool '${name}': a server tool takes no execute.`
+            );
+            this.tools[name] = spec;
+        });
     }
 
     /** Add presets a `dateRange` variable may name, each under a dotted token. */

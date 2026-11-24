@@ -12,7 +12,7 @@ import {type DesignModeTarget, requestDesignModeTool} from './requestDesignMode'
 import {type FeatureRequestSink, requestFeatureTool} from './requestFeature';
 
 /**
- * The Architect's tools for a target, as chat kit client tools. The edit tools enforce the mode
+ * The Architect's tools for a target, as chat kit client tools, with the registry's client tools. The edit tools enforce the mode
  * and access the target holds when each call runs. With the chat's `catalog`, the Architect also
  * learns where each widget is allowed, and can read the chat's answers to add them to the target.
  * With `featureRequests`, it can send the app a request for a capability the registry lacks, once
@@ -51,5 +51,21 @@ export function architectChatTools(
         ...it,
         execute: (input, ctx) => it.execute(normalizeToolInput(it.parameters, input), ctx)
     }));
-    return [...tools, ...chatOnly];
+    return [...tools, ...chatOnly, ...appTools(target)];
+}
+
+//------------------
+// Implementation
+//------------------
+// A model API takes no dot in a tool name, and the registry refuses '__' in one.
+function appTools(target: ArchitectTarget): ChatToolSpec[] {
+    return Object.values(target.registry.tools ?? {})
+        .filter(it => it.runsOn === 'client')
+        .map(({name, summary, guidance, parameters, needsApproval, execute}) => ({
+            name: name.replaceAll('.', '__'),
+            description: [summary, guidance].filter(Boolean).join(' '),
+            parameters,
+            needsApproval,
+            execute: input => execute(normalizeToolInput(parameters, input), {target})
+        }));
 }
