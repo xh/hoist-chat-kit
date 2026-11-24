@@ -158,7 +158,7 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
     displayName: 'DockStack',
     model: false,
     render({impl, stack}) {
-        const {editable, renderView, viewTitle} = impl.props,
+        const {editable, viewRenderer, viewTitle} = impl.props,
             views = (stack.content ?? []).map(it => it.id),
             active = impl.activeOf(stack),
             first = views[0],
@@ -216,7 +216,7 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
                                 className: `${CLS}__view`,
                                 role: 'tabpanel',
                                 hidden: id !== active,
-                                children: renderView(id)
+                                children: viewRenderer(id)
                             })
                         )
                 })

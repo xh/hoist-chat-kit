@@ -146,7 +146,12 @@ describe('dockLayout', () => {
         function dragModel(props: Partial<DockLayoutProps>) {
             const model = new DockLayoutModel();
             onTestFinished(() => model.destroy());
-            model.props = {layout: LAYOUT, renderView: () => null, viewTitle: () => null, ...props};
+            model.props = {
+                layout: LAYOUT,
+                viewRenderer: () => null,
+                viewTitle: () => null,
+                ...props
+            };
             return model;
         }
 
@@ -324,7 +329,7 @@ describe('dockLayout', () => {
     function layout(props: Partial<DockLayoutProps>): ReactElement {
         return dockLayout({
             layout: LAYOUT,
-            renderView: id => div({className: `test-view-${id}`}),
+            viewRenderer: id => div({className: `test-view-${id}`}),
             viewTitle: id => id[0].toUpperCase() + id.slice(1),
             ...props
         }) as ReactElement;

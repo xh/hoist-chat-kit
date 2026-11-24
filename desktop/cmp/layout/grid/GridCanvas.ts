@@ -37,9 +37,9 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
         className,
         cells,
         onChange,
-        renderItem,
-        renderHeader,
-        renderGrip,
+        itemRenderer,
+        headerRenderer,
+        gripRenderer,
         frameProps,
         onDropOver,
         onDrop,
@@ -106,8 +106,8 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 },
                 innerRef: layoutRef,
                 children: cells.map(({id}) => {
-                    const header = renderHeader?.(id),
-                        grip = header == null ? renderGrip?.(id) : null;
+                    const header = headerRenderer?.(id),
+                        grip = header == null ? gripRenderer?.(id) : null;
                     return div({
                         key: id,
                         className: `${CLS}__frame`,
@@ -123,7 +123,11 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                             grip != null
                                 ? div({key: 'grip', className: `${CLS}__grip`, children: grip})
                                 : null,
-                            div({key: 'body', className: `${CLS}__body`, children: renderItem(id)})
+                            div({
+                                key: 'body',
+                                className: `${CLS}__body`,
+                                children: itemRenderer(id)
+                            })
                         ]
                     });
                 })

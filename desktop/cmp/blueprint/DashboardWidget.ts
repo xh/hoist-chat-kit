@@ -292,10 +292,11 @@ export const [DashboardWidget, dashboardWidget] = hoistCmp.withFactory({
                     showGrid: model.isDesign || settings.showGridBackground,
                     ...pick(settings, 'columns', 'rowHeight', 'compact', 'preventCollision'),
                     ...pick(settings, 'margin', 'containerPadding', 'maxRows'),
-                    renderItem: id => model.renderElement(id),
-                    renderHeader: id => (model.cellHasHeader(id) ? cellHeader({model, id}) : null),
+                    itemRenderer: id => model.renderElement(id),
+                    headerRenderer: id =>
+                        model.cellHasHeader(id) ? cellHeader({model, id}) : null,
                     // In design mode a headerless cell moves by a grip, which also selects its view.
-                    renderGrip: id =>
+                    gripRenderer: id =>
                         model.isDesign
                             ? div({
                                   className: `${CLS}__grip`,

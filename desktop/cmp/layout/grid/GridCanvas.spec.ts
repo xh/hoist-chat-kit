@@ -28,7 +28,7 @@ describe('gridCanvas', () => {
 
     it('draws each item as a frame, with its header and body', () => {
         const {container} = renderCanvas({
-            renderHeader: id => (id === 'posGrid' ? div({className: 'test-header'}) : null),
+            headerRenderer: id => (id === 'posGrid' ? div({className: 'test-header'}) : null),
             frameProps: id => ({'data-test-frame': id})
         });
 
@@ -42,8 +42,8 @@ describe('gridCanvas', () => {
 
     it('draws a grip as the drag handle of a cell with no header', () => {
         const {container} = renderCanvas({
-            renderHeader: id => (id === 'posGrid' ? div({className: 'test-header'}) : null),
-            renderGrip: () => div({className: 'test-grip'})
+            headerRenderer: id => (id === 'posGrid' ? div({className: 'test-header'}) : null),
+            gripRenderer: () => div({className: 'test-grip'})
         });
         expect(
             container.querySelector('[data-grid-item="chart"] .xh-layout-grid__grip .test-grip')
@@ -363,7 +363,7 @@ describe('gridCanvas', () => {
     function canvas(props: Partial<GridCanvasProps>): ReactElement {
         return gridCanvas({
             cells: CELLS,
-            renderItem: () => div({className: 'test-body'}),
+            itemRenderer: () => div({className: 'test-body'}),
             ...props
         }) as ReactElement;
     }

@@ -179,7 +179,7 @@ export const [PanesWidget, panesWidget] = hoistCmp.withFactory({
                     dockLayout({
                         layout: model.layout,
                         editable: !model.isLocked,
-                        renderView: id => model.renderElement(id),
+                        viewRenderer: id => model.renderElement(id),
                         viewTitle: id => model.titles[id],
                         onChange: (layout, change) => model.noteLayout(layout, change),
                         canMove: (id, target) => model.canMove(id, target),

@@ -27,7 +27,7 @@ export interface DockLayoutProps {
     /** The tree of splits, stacks and views, as the host holds it. The layout keeps no copy. */
     layout: DockItem[];
     /** A view's content. */
-    renderView: (id: string) => ReactNode;
+    viewRenderer: (id: string) => ReactNode;
     /** A view's tab label. */
     viewTitle: (id: string) => ReactNode;
     /** Called once per finished move or resize, with the new tree. */
