@@ -1,7 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../test/blueprintFixtures';
-import type {BlueprintOp} from './Blueprint';
+import type {Blueprint, BlueprintAccess, BlueprintMode, BlueprintOp} from './Blueprint';
 import {BlueprintModel} from './BlueprintModel';
 import {ARCHITECT_TOOLS, ArchitectToolError} from './architect/ArchitectTools';
 import {FakeBlueprintDataProvider} from './demo/FakeBlueprintDataProvider';
@@ -17,7 +17,11 @@ describe('async checks', () => {
 
     const KNOWN = ['NVDA', 'AAPL'];
 
-    function open() {
+    function open({
+        blueprint = loadBlueprint('p1-one-grid.json'),
+        mode = 'design',
+        access = 'write'
+    }: {blueprint?: Blueprint; mode?: BlueprintMode; access?: BlueprintAccess} = {}) {
         const registry = scenarioRegistry(),
             tickerCheck = vi.fn(async (config: {symbol?: string}) =>
                 KNOWN.includes(config.symbol)
@@ -45,12 +49,12 @@ describe('async checks', () => {
         });
         registry.addVariableTypes({name: 'acme.fund', matches: 'string', checkAsync: fundCheck});
         const model = new BlueprintModel({
-            blueprint: loadBlueprint('p1-one-grid.json'),
+            blueprint,
             catalog: portfolioCatalog,
             registry,
             dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
-            mode: 'design',
-            access: 'write'
+            mode,
+            access
         });
         onTestFinished(() => model.destroy());
         return {model, tickerCheck, fundCheck};
@@ -145,6 +149,53 @@ describe('async checks', () => {
                 message: 'its check could not run: server down'
             }
         ]);
+    });
+
+    describe('on open', () => {
+        const withTicker = (symbol: string) => {
+            const bp = loadBlueprint('p1-one-grid.json');
+            bp.elements.ticker = {component: 'acme.ticker', config: {symbol}};
+            (bp.elements.page.children as {id: string}[]).push({id: 'ticker'});
+            return bp;
+        };
+        const codesOf = (model: BlueprintModel) => model.issues.map(it => it.code);
+
+        it('checks the whole blueprint once, for a writer in design mode', async () => {
+            const {model, tickerCheck} = open({blueprint: withTicker('ZZZZ')});
+            await model.whenChecksSettledAsync();
+            expect(codesOf(model)).toContain('acme.unknownSymbol');
+            expect(tickerCheck).toHaveBeenCalledTimes(1);
+
+            model.setMode('run');
+            model.setMode('design');
+            await model.whenChecksSettledAsync();
+            expect(tickerCheck).toHaveBeenCalledTimes(1);
+        });
+
+        it('runs no check in run mode or for a reader, until a writer enters design mode', async () => {
+            for (const [mode, access] of [
+                ['run', 'write'],
+                ['design', 'read']
+            ] as const) {
+                const {model, tickerCheck} = open({blueprint: withTicker('ZZZZ'), mode, access});
+                await model.whenChecksSettledAsync();
+                expect(tickerCheck).not.toHaveBeenCalled();
+                expect(codesOf(model)).not.toContain('acme.unknownSymbol');
+
+                model.setAccess('write');
+                model.setMode('design');
+                await model.whenChecksSettledAsync();
+                expect(codesOf(model)).toContain('acme.unknownSymbol');
+            }
+        });
+
+        it('checks all of a blueprint the checks have not covered, when asked, in any mode', async () => {
+            const {model, tickerCheck} = open({blueprint: withTicker('ZZZZ'), mode: 'run'});
+            await model.checkAllAsync();
+            expect(codesOf(model)).toContain('acme.unknownSymbol');
+            await model.checkAllAsync();
+            expect(tickerCheck).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('after a design-mode edit', () => {

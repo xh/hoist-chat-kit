@@ -168,6 +168,38 @@ describe('BlueprintDocumentModel', () => {
         expect(await repository.listPublishesAsync(id)).toHaveLength(1);
     });
 
+    it('refuses to publish a draft opened with an error, before its open check has finished', async () => {
+        const {repository, id} = await created(),
+            {blueprintModel, doc} = session(repository),
+            check = vi.fn(async () => [
+                {
+                    code: 'acme.unknownSymbol',
+                    severity: 'error' as const,
+                    path: '/symbol',
+                    message: 'no such symbol'
+                }
+            ]);
+        blueprintModel.registry.addWidgets({
+            name: 'acme.ticker',
+            version: 1,
+            label: 'Ticker',
+            guidance: 'One symbol.',
+            category: 'content',
+            config: {type: 'object', properties: {symbol: {type: 'string'}}},
+            checkAsync: check
+        });
+        const stored = await repository.openAsync(id, {as: 'draft'}),
+            bp = structuredClone(stored.blueprint);
+        bp.elements.ticker = {component: 'acme.ticker', config: {symbol: 'ZZZZ'}};
+        (bp.elements[bp.root].children as {id: string}[]).push({id: 'ticker'});
+        await repository.saveDraftAsync(id, {base: stored.version, blueprint: bp, renames: []});
+
+        await doc.openAsync(id, {as: 'draft'});
+        const refused = await doc.publishAsync();
+        expect(errors(refused)).toContain('acme.unknownSymbol');
+        expect(await repository.listPublishesAsync(id)).toEqual([]);
+    });
+
     it('publishes the draft as the next number, saving it first, and leaves the draft', async () => {
         const {repository, id} = await created(),
             {blueprintModel, doc} = session(repository);

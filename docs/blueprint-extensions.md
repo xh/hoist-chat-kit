@@ -172,7 +172,9 @@ editors what a value means:
   changed, and refuse the edit on an error. A check that throws refuses it with `check.failed`.
   A design-mode edit applies at once, then runs the checks and shows their issues with the
   blueprint's own. They do not undo the edit, but an error blocks publishing until it is fixed. A
-  newer edit replaces a check still running.
+  newer edit replaces a check still running. A writer in design mode checks the whole blueprint
+  once as it opens, and a publish checks whatever no check has covered. Readers and run mode never
+  run checks.
 - **Highcharts modules.** `modules` names each series module the widget needs, such as
   `heatmap`, or gives a function of the config. A widget whose module the app has not loaded
   draws a notice in its place. List every module a module depends on: `solid-gauge` needs

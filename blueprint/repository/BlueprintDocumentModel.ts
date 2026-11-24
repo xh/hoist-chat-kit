@@ -253,8 +253,8 @@ export class BlueprintDocumentModel extends HoistModel {
     /**
      * Publish the saved draft as the next number, once any save in flight has landed. A draft
      * with unsaved edits saves first. A draft with an unfinished widget is refused, naming each,
-     * so readers never see one, as is one with an error from the app's async checks, once they
-     * settle.
+     * so readers never see one, as is one with an error from the app's async checks, which run
+     * over all of it first if they have not covered it.
      */
     publishAsync(note?: string): Promise<BlueprintIssue[]> {
         return this.inTurnAsync(async () => {
@@ -272,7 +272,7 @@ export class BlueprintDocumentModel extends HoistModel {
                         .map(it => ({...it, severity: 'error' as const}))
                 ];
             }
-            await this.blueprintModel.whenChecksSettledAsync();
+            await this.blueprintModel.checkAllAsync();
             const checked = this.blueprintModel.issues.filter(it => it.severity === 'error');
             if (checked.length) {
                 return [refusal("Fix what the app's checks found before you publish."), ...checked];

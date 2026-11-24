@@ -274,6 +274,15 @@ export class BlueprintModel extends HoistModel {
             const issues = this.setBlueprint(blueprint);
             throwIf(hasErrors(issues), `Invalid blueprint: ${issues[0]?.message}`);
         }
+        // A writer in design mode has the async checks cover the whole blueprint, once.
+        this.addReaction({
+            track: () => [this.blueprint, this.mode, this.access],
+            run: () => {
+                const covered = this.checksPending || this.checkedBlueprint === this.blueprint;
+                if (this.canCheck && this.blueprint && !covered) this.runChecks();
+            },
+            fireImmediately: true
+        });
     }
 
     /**
@@ -897,8 +906,20 @@ export class BlueprintModel extends HoistModel {
             before,
             after: result
         });
-        this.checkAfterEdit();
+        if (this.canCheck) this.runChecks();
         return {version: this.version, issues};
+    }
+
+    /**
+     * Have the async checks cover the current blueprint, as before a publish: wait for any in
+     * flight, and run them over what no check has covered yet. Runs in any mode.
+     */
+    async checkAllAsync() {
+        await this.whenChecksSettledAsync();
+        while (this.blueprint && this.checkedBlueprint !== this.blueprint && !this.isDestroyed) {
+            this.runChecks();
+            await this.whenChecksSettledAsync();
+        }
     }
 
     /** Wait for the async checks of the latest design-mode edit, and any edit after it. */
@@ -910,9 +931,15 @@ export class BlueprintModel extends HoistModel {
         }
     }
 
-    // Run the async checks of what changed since the latest finished checks. A newer edit's run
-    // supersedes one in flight, and covers both edits, as it starts from the same blueprint.
-    private checkAfterEdit() {
+    // Only a writer in design mode runs checks as the blueprint opens or changes.
+    private get canCheck(): boolean {
+        return this.mode === 'design' && this.access === 'write';
+    }
+
+    // Run the async checks of what changed since the latest finished checks, or of everything if
+    // none have run. A newer run supersedes one in flight, and covers both, as it starts from the
+    // same blueprint.
+    private runChecks() {
         const run = ++this.checkRun,
             before = this.checkedBlueprint ?? {},
             after = this.blueprint,
@@ -944,7 +971,7 @@ export class BlueprintModel extends HoistModel {
     private resetChecks() {
         this.checkRun++;
         this.checkIssues = [];
-        this.checkedBlueprint = this.blueprint;
+        this.checkedBlueprint = null;
         this.checksPending = null;
     }
 
