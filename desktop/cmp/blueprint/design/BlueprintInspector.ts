@@ -23,6 +23,7 @@ import {
     type BlueprintIssue,
     type BlueprintSelection,
     type DesignAction,
+    toEditorSpec,
     variableTypeLabel,
     wiringFor,
     type WiringRef
@@ -105,6 +106,19 @@ export class BlueprintInspectorModel extends HoistModel {
     /** The selection, if its target is still there. */
     get selection(): BlueprintSelection {
         return this.designModel.selection;
+    }
+
+    /** The list and item of the element's open item page, as its breadcrumb names them, or null. */
+    pageCrumbs(id: string): {list: string; item: string} {
+        const page = this.designModel.itemPage;
+        if (page?.element !== id) return null;
+        const {blueprintModel} = this.designModel,
+            element = blueprintModel.blueprint?.elements?.[id],
+            spec = blueprintModel.registry.widgets[element?.component],
+            list = toEditorSpec(spec?.config).find(it => it.key === page.list),
+            field = page.key.replace(/#\d+$/, ''),
+            source = blueprintModel.getSource(element?.config?.source);
+        return {list: list?.label ?? page.list, item: source?.fieldLabel(field) ?? field};
     }
 
     /**
@@ -349,8 +363,9 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                     })) ?? [],
             hasMenu = (step: BlueprintSelection) =>
                 step.kind === 'view' || (step.kind === 'element' && groupsOf(step.id).length > 0),
-            trailing = path.length > 0 && hasMenu(path[last]);
-        if (path.length < 2 && !trailing) return null;
+            page = path[last]?.kind === 'element' ? impl.pageCrumbs(path[last].id) : null,
+            trailing = !page && path.length > 0 && hasMenu(path[last]);
+        if (path.length < 2 && !trailing && !page) return null;
         const {shown, hidden} = foldCrumbs(
                 path.map((step, idx) => crumbWidth(step.id, idx === last ? kindOf(step) : null)),
                 width - BREADCRUMB_PADDING,
@@ -421,7 +436,7 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                 const step = path[idx],
                     kind = kindOf(step),
                     crumb =
-                        idx === last
+                        idx === last && !page
                             ? span({
                                   key: keyOf(step),
                                   className: `${CLS}__crumb ${CLS}__crumb--current`,
@@ -489,11 +504,34 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                     crumb
                 ];
             });
+        // An open list item's page adds its list, which goes back to it, and the item itself.
+        const pageSteps = page
+            ? [
+                  separator('_list-sep'),
+                  span({
+                      key: '_list',
+                      className: `${CLS}__crumb ${CLS}__crumb--link`,
+                      role: 'button',
+                      tabIndex: 0,
+                      title: `Back to ${page.list}`,
+                      onClick: () => designModel.closeItemPage(),
+                      children: page.list
+                  } as object),
+                  separator('_item-sep'),
+                  span({
+                      key: '_item',
+                      className: `${CLS}__crumb ${CLS}__crumb--current`,
+                      title: page.item,
+                      children: span({className: `${CLS}__crumb-id`, children: page.item})
+                  })
+              ]
+            : [];
         return hbox({
             ref,
             className: `${CLS}__breadcrumb`,
             children: [
                 ...steps,
+                ...pageSteps,
                 ...(trailing ? [separatorAfter(path[last], `${keyOf(path[last])}-sep`)] : [])
             ]
         });

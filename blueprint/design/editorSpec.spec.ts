@@ -11,6 +11,19 @@ describe('toEditorSpec', () => {
     const configOf = (name: string) => BUILT_IN_WIDGETS.find(it => it.name === name).config,
         byKey = (nodes: EditorNode[]) => Object.fromEntries(nodes.map(it => [it.key, it]));
 
+    it("gives a grid column's settings its sections, its common settings and its summary", () => {
+        const columnState = byKey(toEditorSpec(configOf('cubeGrid'))).columnState as any;
+        expect(columnState.settingsIn.groups.map((it: any) => it.id)).toEqual([
+            'header',
+            'values',
+            'size',
+            'styles',
+            'chooser'
+        ]);
+        expect(columnState.settingsIn.common).toEqual(['headerName', 'format', 'width', 'hidden']);
+        expect(columnState.settingsIn.summary).toEqual(['format', 'pinned', 'width']);
+    });
+
     it("edits a dashboard's gap as a pair of numbers, and its packing as picture cards", () => {
         const nodes = byKey(toEditorSpec(configOf('dashboard')));
         expect(nodes.margin).toMatchObject({kind: 'pair', default: [10, 10]});

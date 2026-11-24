@@ -434,11 +434,9 @@ describe('ElementInspector', () => {
         design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay', 'pnlMtd']);
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
             remove = (field: string) =>
-                fireEvent.click(
-                    container
-                        .querySelector(`[data-field="${field}"]`)
-                        .querySelector('[title="Remove"]')
-                ),
+                fireEvent.keyDown(container.querySelector(`[data-field="${field}"]`), {
+                    key: 'Delete'
+                }),
             columns = () => model.blueprint.elements.posGrid.config.columnState;
         remove('mktVal');
         expect(columns()).toEqual(['pnlDay', 'pnlMtd']);
@@ -600,11 +598,15 @@ describe('ElementInspector', () => {
                 mktVal: {format: {name: 'mv', precision: 2}, renderer: 'bar'}
             });
             const {container} = render(elementInspector({designModel: design}) as ReactElement);
-            fireEvent.click(chevronOf(container.querySelector('[data-field="mktVal"]')));
+            // The renderer is on the column's page, past its common settings.
+            fireEvent.click(
+                container.querySelector('[data-field="mktVal"] [aria-label^="All settings of"]')
+            );
             expect(container.querySelectorAll('[data-config-key="format"]').length).toBe(1);
             expect(
                 container.querySelectorAll('.xh-blueprint-element-inspector__renderer').length
             ).toBe(1);
+            act(() => design.closeItemPage());
 
             const buttons = design.addWidget('buttonGroup');
             design.select({kind: 'element', id: buttons.id});
@@ -914,15 +916,57 @@ describe('ElementInspector', () => {
         expect(chevronOf(first()).getAttribute('aria-expanded')).toBe('true');
     });
 
-    it("counts a column's settings in its summary", () => {
+    it('sums a column up in chips, its field in mono, and strikes a hidden one through', () => {
         const {design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columns', {mktVal: {format: 'mv', headerName: 'Value'}});
-        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        design.setConfig('posGrid', '/columnState', [
+            {field: 'mktVal', width: 90, pinned: 'left'},
+            {field: 'pnlDay', hidden: true}
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (field: string) => container.querySelector(`[data-field="${field}"]`);
         expect(
-            container.querySelector(
-                '[data-field="mktVal"] .xh-blueprint-element-inspector__column-meta'
-            ).textContent
-        ).toMatch(/^mv.* · 2 set$/);
+            [...row('mktVal').querySelectorAll('.xh-blueprint-element-inspector__chip-text')].map(
+                it => it.textContent
+            )
+        ).toEqual(['mv', 'pinned left', '90px']);
+        expect(
+            row('mktVal').querySelector('.xh-blueprint-element-inspector__column-field').textContent
+        ).toBe('mktVal');
+        expect(row('pnlDay').className).toContain('__column--hidden');
+        expect(row('mktVal').querySelector('[title="Remove"]')).toBeNull();
+    });
+
+    it("opens a column's page from its row, steps through the list, and goes back to it", () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay', 'pnlMtd']);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            page = () =>
+                container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page'),
+            title = () =>
+                page().querySelector('.xh-blueprint-element-inspector__page-title').textContent;
+        fireEvent.click(
+            container.querySelector('[data-field="mktVal"] [aria-label^="All settings of"]')
+        );
+        expect(design.itemPage).toEqual({element: 'posGrid', list: 'columnState', key: 'mktVal#1'});
+        expect(page().textContent).toContain('1 of 3');
+        expect(title()).toContain('mktVal');
+        // Its sections come from the column's x-groups, Chooser and export folded.
+        expect(bandsOf(page())).toEqual(
+            expect.arrayContaining(['Header', 'Values', 'Size and position'])
+        );
+        fireEvent.keyDown(page(), {key: 'ArrowDown', altKey: true});
+        expect(title()).toContain('pnlDay');
+        fireEvent.click(page().querySelector('[aria-label="Next"]'));
+        expect(page().textContent).toContain('3 of 3');
+        fireEvent.keyDown(page(), {key: 'Escape'});
+        expect(page()).toBeNull();
+        expect(design.itemPage).toBeNull();
+        // Selecting anything closes a page.
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'}));
+        expect(page()).not.toBeNull();
+        act(() => design.select({kind: 'element', id: 'posGrid'}));
+        expect(page()).toBeNull();
     });
 
     it('shows every step of an action open, with no chevron to fold one', () => {
@@ -1069,10 +1113,6 @@ describe('ElementInspector', () => {
         const {format} = inspector.inheritedDisplay('mktVal'),
             formatName = typeof format === 'string' ? format : (format as any)?.name;
         expect(formatName).toBeTruthy();
-        expect(
-            columnRow('mktVal').querySelector('.xh-blueprint-element-inspector__column-meta')
-                .textContent
-        ).toContain(formatName);
         fireEvent.click(chevronOf(columnRow('mktVal')));
         expect(container.querySelector('[data-config-key="format"]').textContent).toContain(
             `${formatName} (from the field)`
@@ -1086,14 +1126,9 @@ describe('ElementInspector', () => {
             `${inspector.fieldLabel('mktVal')} (from the field)`
         );
         expect(drawerInput('width').placeholder).toBe('Auto');
-        expect(labels().slice(0, 6)).toEqual([
-            'Header',
-            'Format',
-            'Renderer',
-            'Width',
-            'Visible',
-            'Pinned'
-        ]);
+        // Its row opens its common settings, with a way to all of them.
+        expect(labels()).toEqual(['Header', 'Format', 'Width', 'Visible']);
+        expect(container.textContent).toMatch(/All \d+ settings/);
 
         const before = model.history.length;
         inspector.commitItemSetting('columns', 'mktVal', 'headerName', 'MV');

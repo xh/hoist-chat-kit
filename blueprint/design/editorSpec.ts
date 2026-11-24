@@ -31,7 +31,17 @@ export type EditorNode = EditorBase &
                * From `x-settings`: the sibling map that holds more settings for each item, and the
                * editors of an entry, the ones it shows first leading.
                */
-              settingsIn?: {key: string; settings: EditorNode[]; shown: number};
+              settingsIn?: {
+                  key: string;
+                  settings: EditorNode[];
+                  shown: number;
+                  /** The item's sections, from its `x-groups`. */
+                  groups?: {id: string; label: string; collapsed?: boolean}[];
+                  /** The settings an item's row shows when opened, from its `x-common`. */
+                  common?: string[];
+                  /** The settings an item's row shows as chips, from its `x-summary`. */
+                  summary?: string[];
+              };
           }
         | {kind: 'oneOf'; options: EditorNode[]}
         | {kind: 'source'}
@@ -86,7 +96,8 @@ export function toEditorSpec(schema: PlainObject): EditorNode[] {
     return ret.map(node => {
         const {in: key, show = []} = node.schema['x-settings'] ?? {},
             map = key ? ret.find(it => it.key === key) : null,
-            entry = map?.kind === 'map' && map.value.kind === 'group' ? map.value.children : null;
+            item = map?.kind === 'map' && map.value.kind === 'group' ? map.value : null,
+            entry = item?.kind === 'group' ? item.children : null;
         if (node.kind !== 'fieldList' || !entry) return node;
         const shown = sortBy(
             entry.filter(it => show.includes(it.key)),
@@ -97,7 +108,10 @@ export function toEditorSpec(schema: PlainObject): EditorNode[] {
             settingsIn: {
                 key,
                 settings: [...shown, ...entry.filter(it => !show.includes(it.key))],
-                shown: shown.length
+                shown: shown.length,
+                groups: item.schema['x-groups'],
+                common: item.schema['x-common'],
+                summary: item.schema['x-summary']
             }
         };
     });

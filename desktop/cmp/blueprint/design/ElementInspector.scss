@@ -570,6 +570,75 @@
     color: var(--xh-text-color-muted);
   }
 
+  // A list row: its label, its field in mono, then chips of what it sets.
+  &__column-field {
+    flex: none;
+    font-family: var(--xh-font-family-mono);
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__chip-text {
+    flex: none;
+    padding: 0 4px;
+    font-size: 10.5px;
+    color: var(--xh-text-color-muted);
+    border: var(--xh-border-solid);
+    border-radius: 3px;
+  }
+
+  // A hidden column, struck through, so the list previews the column chooser.
+  &__column--hidden &__column-label {
+    text-decoration: line-through;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__page-link.xh-button {
+    flex: none;
+    min-height: 0;
+  }
+
+  &__all-settings.xh-button {
+    align-self: flex-start;
+    font-size: 12px;
+  }
+
+  // A list item's page: a bar that goes back and steps, then its sections.
+  &__page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing);
+  }
+
+  &__page-bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    gap: var(--xh-spacing-half);
+    align-items: center;
+    margin: 0 calc(-1 * var(--xh-spacing));
+    padding: var(--xh-spacing-half) var(--xh-spacing);
+    background-color: var(--xh-bg);
+    border-bottom: var(--xh-border-solid);
+  }
+
+  &__page-title {
+    display: flex;
+    flex: 1 1 auto;
+    gap: var(--xh-spacing-half);
+    align-items: baseline;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  &__page-count {
+    flex: none;
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
   &__settings {
     display: flex;
     flex-direction: column;

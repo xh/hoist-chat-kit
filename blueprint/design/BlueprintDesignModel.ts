@@ -53,6 +53,16 @@ export interface BlueprintSelection {
 
 /** What removing an element takes with it, for the user to confirm. */
 /** Where a widget goes: a container, its slot, and the element it follows there, if any. */
+/** A list item whose page the Inspector shows, such as a grid column. */
+export interface ItemPage {
+    /** The element whose config holds the list. */
+    element: string;
+    /** The list's config key, such as `columnState`. */
+    list: string;
+    /** The item's key in the list's editor, such as `nav#1`. */
+    key: string;
+}
+
 export interface AddPlace {
     parent: string;
     /** Default `children`. */
@@ -164,6 +174,25 @@ export class BlueprintDesignModel extends HoistModel {
     select(selection: BlueprintSelection) {
         this.selection = selection;
         this.slotTarget = null;
+        this.itemPage = null;
+    }
+
+    /**
+     * The list item whose page the Inspector shows in place of its element's settings, or null.
+     * Selecting anything closes it.
+     */
+    @observableRef accessor itemPage: ItemPage = null;
+
+    @action
+    openItemPage(page: ItemPage) {
+        this.selection = {kind: 'element', id: page.element};
+        this.slotTarget = null;
+        this.itemPage = page;
+    }
+
+    @action
+    closeItemPage() {
+        this.itemPage = null;
     }
 
     /**

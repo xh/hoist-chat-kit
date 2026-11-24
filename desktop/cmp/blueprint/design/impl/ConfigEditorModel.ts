@@ -56,6 +56,22 @@ export abstract class ConfigEditorModel extends HoistModel {
         this.openItems = {...this.openItems, [scope]: itemKey};
     }
 
+    /** The element whose list items can open a page of their own, or null for none. */
+    get pageElement(): string {
+        return null;
+    }
+
+    /** The key of the item whose page is open in a list, by the list's config key, or null. */
+    pageKey(list: string): string {
+        const page = this.designModel.itemPage;
+        return page && page.element === this.pageElement && page.list === list ? page.key : null;
+    }
+
+    /** Open an item's page, by its list's config key and its key there. */
+    openPage(list: string, key: string) {
+        this.designModel.openItemPage({element: this.pageElement, list, key});
+    }
+
     @action
     toggleItem(scope: string, itemKey: string) {
         this.openItems = {

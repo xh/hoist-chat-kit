@@ -121,6 +121,28 @@ describe('BlueprintInspector', () => {
         expect(tile('Grid').getAttribute('title')).toEqual(expect.any(String));
     });
 
+    it("adds an open column's list and name to the path, the list going back to it", () => {
+        const {design} = open();
+        design.openItemPage({element: 'posGrid', list: 'columnState', key: 'mktVal#1'});
+        const {container} = render(blueprintInspector({designModel: design}) as ReactElement),
+            crumbs = () =>
+                [...container.querySelectorAll('.xh-blueprint-inspector__crumb')].map(
+                    it => it.textContent
+                );
+        expect(crumbs().slice(-3)).toEqual([
+            expect.stringContaining('posGrid'),
+            'Columns',
+            expect.any(String)
+        ]);
+        fireEvent.click(
+            [...container.querySelectorAll('.xh-blueprint-inspector__crumb')].find(
+                it => it.textContent === 'Columns'
+            )
+        );
+        expect(design.itemPage).toBeNull();
+        expect(design.selection).toEqual({kind: 'element', id: 'posGrid'});
+    });
+
     it('names the selection, its path and what it reads, for every kind', () => {
         const {design, inspector} = open();
         design.select({kind: 'element', id: 'posGrid'});

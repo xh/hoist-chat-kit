@@ -30,7 +30,9 @@ import {
     isObject,
     isPlainObject,
     isString,
-    omit
+    omit,
+    sortBy,
+    without
 } from 'lodash';
 import classNames from 'classnames';
 import type React from 'react';
@@ -169,7 +171,10 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
             node.required && !isSet && !badge && `${CLS}__row--missing`
         ),
         onKeyDown: (e: React.KeyboardEvent) => {
-            if (e.key !== 'Delete' || !canReset || isTextEntry(e.target as HTMLElement)) return;
+            const target = e.target as HTMLElement;
+            if (e.key !== 'Delete' || !canReset || isTextEntry(target)) return;
+            // Only for this row's own control, not one in a list or drawer inside it.
+            if (target.closest('[data-config-key]') !== e.currentTarget) return;
             e.preventDefault();
             e.stopPropagation();
             reset();
@@ -926,169 +931,388 @@ function mapEditor(
 }
 
 // Fields in order, each a name, or an object with its field and settings when it has any.
-const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {kind: 'fieldList'}>>>(
-    {
-        displayName: 'BlueprintFieldListEditor',
-        model: false,
-        render({node, list: items, commit, ctx}) {
-            const {impl} = ctx,
-                scope = scopeOf(ctx),
-                {settingsIn} = node,
-                disabled = impl.readOnly,
-                entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
-                fieldsOf = entries.map(it => it.field),
-                options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
-                commitList = (list: PlainObject[]) => {
-                    const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
-                    commit(isEmpty(ret) && !node.required ? undefined : ret);
-                },
-                // Keyed by field, and by place among the same field's, so a list with a repeated or a
-                // missing field still draws, for the user to fix.
-                seen: Record<string, number> = {},
-                rows = useStableRows(
-                    entries.map(entry => {
-                        const name = isString(entry.field) ? entry.field : '?',
-                            n = (seen[name] = (seen[name] ?? 0) + 1);
-                        return {key: `${name}#${n}`, entry};
-                    })
-                ),
-                // Called by key as a row acts, so a row that skipped drawing acts on the list as it is.
-                ops = useLatest({
-                    add: (field: string) => field && commitList([...entries, {field}]),
-                    remove: (key: string) =>
-                        commitList(entries.filter((_, j) => rows[j].key !== key)),
-                    set: (key: string, settingKey: string, v: unknown) =>
-                        commitList(
-                            entries.map((it, j) =>
-                                rows[j].key !== key
-                                    ? it
-                                    : v === undefined
-                                      ? omit(it, settingKey)
-                                      : {...it, [settingKey]: v}
-                            )
-                        )
-                }),
-                // The same props while the list's fields hold, so the select draws again only then.
-                addOptions = useMemo(
-                    () => options.filter(it => !fieldsOf.includes(it.value)),
-                    // eslint-disable-next-line react-hooks/exhaustive-deps
-                    [options.length, fieldsOf.join('|'), impl.fieldOptions(node.role)]
-                ),
-                addField = useCallback((field: string) => ops.current.add(field), [ops]),
-                mappedOf = (entry: PlainObject): PlainObject =>
-                    settingsIn
-                        ? (getOwn(impl.propValue(settingsIn.key) as PlainObject, entry.field) ?? {})
-                        : {},
-                renderers = useStableRenderers({
-                    renderItem: ({key, entry}: PlainObject) => {
-                        const open = impl.isItemOpen(scope, key),
-                            mapped = mappedOf(entry);
-                        return hbox({
-                            className: classNames(
-                                `${CLS}__item-header`,
-                                open && `${CLS}__column--open`
-                            ),
-                            ...({'data-field': entry.field} as object),
-                            children: [
-                                span({
-                                    className: `${CLS}__column-label`,
-                                    children: impl.fieldLabel(entry.field)
-                                }),
-                                span({
-                                    className: `${CLS}__column-meta`,
-                                    children: columnMeta(
-                                        mapped,
-                                        impl.inheritedDisplay(entry.field),
-                                        settingsCount(entry, mapped)
-                                    )
-                                }),
-                                removeItemButton('Remove', impl.readOnly, () =>
-                                    ops.current.remove(key)
-                                )
-                            ]
-                        });
-                    },
-                    renderDetail: ({key, entry}: PlainObject) => {
-                        const more = impl.isItemOpen(`${scope}/more`, key),
-                            itemScope = `${scope}/${key}`,
-                            mapped = mappedOf(entry),
-                            mappedRow = (setting: EditorNode) =>
-                                drawerSetting({
-                                    key: `${settingsIn.key}:${setting.key}`,
-                                    impl,
-                                    node: setting,
-                                    value: mapped[setting.key],
-                                    listKey: settingsIn.key,
-                                    scope: itemScope,
-                                    field: entry.field,
-                                    locked: ctx.locked
-                                });
-                        return div({
-                            className: `${CLS}__settings`,
-                            children: [
-                                ...(settingsIn?.settings.slice(0, settingsIn.shown) ?? []).map(
-                                    mappedRow
-                                ),
-                                ...node.settings.map(setting =>
-                                    drawerSetting({
-                                        key: setting.key,
-                                        impl,
-                                        node: setting,
-                                        value: entry[setting.key],
-                                        listKey: ctx.key,
-                                        scope: itemScope,
-                                        rowKey: key,
-                                        ops,
-                                        locked: ctx.locked
-                                    })
-                                ),
-                                settingsIn?.settings.length > settingsIn?.shown
-                                    ? button({
-                                          key: '_more',
-                                          className: `${CLS}__more`,
-                                          text: more ? 'Fewer settings' : 'More settings',
-                                          icon: more ? Icon.chevronUp() : Icon.chevronDown(),
-                                          minimal: true,
-                                          onClick: () => impl.toggleItem(`${scope}/more`, key)
-                                      })
-                                    : null,
-                                ...(more
-                                    ? settingsIn.settings.slice(settingsIn.shown).map(mappedRow)
-                                    : [])
-                            ]
-                        });
-                    }
-                });
-            return div({
-                className: `${CLS}__field-list`,
-                children: [
-                    entries.length
-                        ? sortableList({
-                              className: `${CLS}__columns`,
-                              value: rows,
-                              itemKey: 'key',
-                              getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
-                              disabled,
-                              compact: true,
-                              onReorder: e =>
-                                  commitList(e.items.map((it: PlainObject) => it.entry)),
-                              ...openItemOf(impl, scope),
-                              ...renderers
-                          })
-                        : null,
-                    select({
-                        key: entries.length,
-                        placeholder: 'Add a field…',
-                        options: addOptions,
-                        disabled,
-                        width: '100%',
-                        onCommit: addField
-                    })
-                ]
-            });
+type FieldListNode = Extract<EditorNode, {kind: 'fieldList'}>;
+
+// A field list's entries and the ops that change them, by a row's key, for its list and its pages.
+function useFieldList(
+    node: FieldListNode,
+    items: unknown[],
+    commit: (v: unknown) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        {settingsIn} = node,
+        entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
+        commitList = (list: PlainObject[]) => {
+            const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
+            commit(isEmpty(ret) && !node.required ? undefined : ret);
+        },
+        // Keyed by field, and by place among the same field's, so a list with a repeated or a
+        // missing field still draws, for the user to fix.
+        seen: Record<string, number> = {},
+        rows = useStableRows(
+            entries.map(entry => {
+                const name = isString(entry.field) ? entry.field : '?',
+                    n = (seen[name] = (seen[name] ?? 0) + 1);
+                return {key: `${name}#${n}`, entry};
+            })
+        ),
+        // Called by key as a row acts, so a row that skipped drawing acts on the list as it is.
+        ops = useLatest({
+            commitList,
+            add: (field: string) => field && commitList([...entries, {field}]),
+            remove: (key: string) => commitList(entries.filter((_, j) => rows[j].key !== key)),
+            set: (key: string, settingKey: string, v: unknown) =>
+                commitList(
+                    entries.map((it, j) =>
+                        rows[j].key !== key
+                            ? it
+                            : v === undefined
+                              ? omit(it, settingKey)
+                              : {...it, [settingKey]: v}
+                    )
+                )
+        }),
+        mappedOf = (entry: PlainObject): PlainObject =>
+            settingsIn
+                ? (getOwn(impl.propValue(settingsIn.key) as PlainObject, entry.field) ?? {})
+                : {};
+    return {entries, rows, ops, mappedOf};
+}
+
+// One setting of a field list entry, its own or in its settings map, as a row of its own.
+function entrySetting(
+    node: FieldListNode,
+    setting: EditorNode,
+    own: boolean,
+    {key, entry}: PlainObject,
+    mapped: PlainObject,
+    ctx: EditorContext,
+    ops: ReturnType<typeof useFieldList>['ops']
+) {
+    const scope = `${scopeOf(ctx)}/${key}`;
+    return own
+        ? drawerSetting({
+              key: setting.key,
+              impl: ctx.impl,
+              node: setting,
+              value: entry[setting.key],
+              listKey: ctx.key,
+              scope,
+              rowKey: key,
+              ops,
+              locked: ctx.locked
+          })
+        : drawerSetting({
+              key: `${node.settingsIn.key}:${setting.key}`,
+              impl: ctx.impl,
+              node: setting,
+              value: mapped[setting.key],
+              listKey: node.settingsIn.key,
+              scope,
+              field: entry.field,
+              locked: ctx.locked
+          });
+}
+
+// Every setting of a field list entry: its own, then its settings map's, each marked by which.
+const entrySettings = (node: FieldListNode) => [
+    ...node.settings.map(it => ({setting: it, own: true})),
+    ...(node.settingsIn?.settings ?? []).map(it => ({setting: it, own: false}))
+];
+
+// What a set value shows as on its item's row, such as `$m 1dp`, `pinned left` or `90px`.
+function chipText(setting: EditorNode, value: unknown): string {
+    if (value == null || value === false) return null;
+    switch (setting.kind) {
+        case 'format': {
+            const {name, options} = splitNamed(value);
+            return (
+                [name, options.precision != null ? `${options.precision}dp` : null]
+                    .filter(Boolean)
+                    .join(' ') || 'format'
+            );
         }
+        case 'number':
+            return `${value}${setting.schema['x-unit'] ?? 'px'}`;
+        case 'boolean':
+            return setting.label.toLowerCase();
+        case 'choice':
+            return `${setting.label.toLowerCase()} ${choiceLabel(setting, value).toLowerCase()}`;
+        default:
+            return String(value);
     }
-);
+}
+
+const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
+    displayName: 'BlueprintFieldListEditor',
+    model: false,
+    render({node, list: items, commit, ctx}) {
+        const {impl} = ctx,
+            scope = scopeOf(ctx),
+            {settingsIn} = node,
+            disabled = impl.readOnly,
+            {entries, rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
+            fieldsOf = entries.map(it => it.field),
+            options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
+            // The same props while the list's fields hold, so the select draws again only then.
+            addOptions = useMemo(
+                () => options.filter(it => !fieldsOf.includes(it.value)),
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+                [options.length, fieldsOf.join('|'), impl.fieldOptions(node.role)]
+            ),
+            addField = useCallback((field: string) => ops.current.add(field), [ops]),
+            all = entrySettings(node),
+            canPage = !!impl.pageElement && all.length > 6,
+            summary = sortBy(
+                all.filter(it => settingsIn?.summary?.includes(it.setting.key)),
+                it => settingsIn.summary.indexOf(it.setting.key)
+            ),
+            common = settingsIn?.common
+                ? sortBy(
+                      all.filter(it => settingsIn.common.includes(it.setting.key)),
+                      it => settingsIn.common.indexOf(it.setting.key)
+                  )
+                : all,
+            renderers = useStableRenderers({
+                renderItem: (row: PlainObject) => {
+                    const {key, entry} = row,
+                        mapped = mappedOf(entry),
+                        chips = summary
+                            .map(({setting, own}) =>
+                                chipText(setting, own ? entry[setting.key] : mapped[setting.key])
+                            )
+                            .filter(Boolean);
+                    return hbox({
+                        className: classNames(
+                            `${CLS}__item-header`,
+                            impl.isItemOpen(scope, key) && `${CLS}__column--open`,
+                            entry.hidden && `${CLS}__column--hidden`
+                        ),
+                        ...({'data-field': entry.field} as object),
+                        // Delete on the row removes the item.
+                        onKeyDown: (e: React.KeyboardEvent) => {
+                            if (e.key !== 'Delete' || disabled) return;
+                            if ((e.target as HTMLElement).closest('input, textarea')) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            ops.current.remove(key);
+                        },
+                        children: [
+                            span({
+                                className: `${CLS}__column-label`,
+                                children: impl.fieldLabel(entry.field)
+                            }),
+                            span({className: `${CLS}__column-field`, children: entry.field}),
+                            ...chips.map((it, idx) =>
+                                span({key: idx, className: `${CLS}__chip-text`, children: it})
+                            ),
+                            canPage
+                                ? button({
+                                      className: `${CLS}__page-link`,
+                                      icon: Icon.chevronRight(),
+                                      minimal: true,
+                                      small: true,
+                                      title: `All settings of ${impl.fieldLabel(entry.field)}`,
+                                      'aria-label': `All settings of ${impl.fieldLabel(entry.field)}`,
+                                      onClick: (e: React.MouseEvent) => {
+                                          e.stopPropagation();
+                                          impl.openPage(ctx.key, key);
+                                      }
+                                  })
+                                : null
+                        ]
+                    });
+                },
+                // An opened row shows its common settings, with the way to all of them.
+                renderDetail: (row: PlainObject) => {
+                    const mapped = mappedOf(row.entry),
+                        shown = canPage ? common : all;
+                    return div({
+                        className: `${CLS}__settings`,
+                        children: [
+                            ...shown.map(({setting, own}) =>
+                                entrySetting(node, setting, own, row, mapped, ctx, ops)
+                            ),
+                            canPage
+                                ? button({
+                                      key: '_all',
+                                      className: `${CLS}__all-settings`,
+                                      text: `All ${all.length} settings`,
+                                      rightIcon: Icon.arrowRight(),
+                                      minimal: true,
+                                      small: true,
+                                      onClick: () => impl.openPage(ctx.key, row.key)
+                                  })
+                                : null
+                        ]
+                    });
+                }
+            });
+        return div({
+            className: `${CLS}__field-list`,
+            children: [
+                entries.length
+                    ? sortableList({
+                          className: `${CLS}__columns`,
+                          value: rows,
+                          itemKey: 'key',
+                          getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
+                          disabled,
+                          compact: true,
+                          onReorder: e =>
+                              ops.current.commitList(e.items.map((it: PlainObject) => it.entry)),
+                          ...openItemOf(impl, scope),
+                          ...renderers
+                      })
+                    : null,
+                select({
+                    key: entries.length,
+                    placeholder: 'Add a field…',
+                    options: addOptions,
+                    disabled,
+                    width: '100%',
+                    onCommit: addField
+                })
+            ]
+        });
+    }
+});
+
+/**
+ * A field list item's page, in place of its element's settings: a bar that goes back and steps
+ * through the list, then the item's settings in its sections, each folding its unset advanced
+ * ones. Alt+↑ and Alt+↓ step, and Escape goes back.
+ */
+export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {itemKey: string}>({
+    displayName: 'BlueprintFieldItemPage',
+    model: false,
+    render({node, list: items, commit, ctx, itemKey}) {
+        const {impl} = ctx,
+            {designModel} = impl,
+            scope = scopeOf(ctx),
+            {rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
+            index = rows.findIndex(it => it.key === itemKey),
+            row = rows[index],
+            step = (by: number) => {
+                const to = rows[index + by];
+                if (to) impl.openPage(ctx.key, to.key);
+            },
+            back = () => {
+                designModel.closeItemPage();
+                impl.setOpenItem(scope, itemKey);
+            };
+        if (!row) return null;
+        const mapped = mappedOf(row.entry),
+            label = impl.fieldLabel(row.entry.field),
+            all = entrySettings(node),
+            groups = node.settingsIn?.groups ?? [{id: null, label: null}],
+            valueOf = ({setting, own}: {setting: EditorNode; own: boolean}) =>
+                own ? row.entry[setting.key] : mapped[setting.key];
+        return div({
+            className: `${CLS}__page`,
+            onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                    e.preventDefault();
+                    step(e.key === 'ArrowUp' ? -1 : 1);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    back();
+                }
+            },
+            children: [
+                hbox({
+                    className: `${CLS}__page-bar`,
+                    children: [
+                        button({
+                            icon: Icon.arrowLeft(),
+                            text: node.label,
+                            minimal: true,
+                            small: true,
+                            title: `Back to ${node.label}`,
+                            onClick: back
+                        }),
+                        div({
+                            className: `${CLS}__page-title`,
+                            children: [
+                                span({children: label}),
+                                span({className: `${CLS}__column-field`, children: row.entry.field})
+                            ]
+                        }),
+                        span({
+                            className: `${CLS}__page-count`,
+                            children: `${index + 1} of ${rows.length}`
+                        }),
+                        button({
+                            icon: Icon.chevronUp(),
+                            minimal: true,
+                            small: true,
+                            disabled: index === 0,
+                            title: 'Previous · Alt+↑',
+                            'aria-label': 'Previous',
+                            onClick: () => step(-1)
+                        }),
+                        button({
+                            icon: Icon.chevronDown(),
+                            minimal: true,
+                            small: true,
+                            disabled: index === rows.length - 1,
+                            title: 'Next · Alt+↓',
+                            'aria-label': 'Next',
+                            onClick: () => step(1)
+                        })
+                    ]
+                }),
+                ...groups.map(group => {
+                    const inGroup = all.filter(
+                            it => group.id == null || it.setting.schema['x-group'] === group.id
+                        ),
+                        moreScope = `${scope}/page-more`,
+                        moreOpen = impl.isItemOpen(moreScope, group.id),
+                        folded =
+                            inGroup.length > 4
+                                ? inGroup.filter(
+                                      it =>
+                                          it.setting.schema['x-advanced'] &&
+                                          valueOf(it) === undefined
+                                  )
+                                : [],
+                        shown = [...without(inGroup, ...folded), ...(moreOpen ? folded : [])],
+                        foldScope = `${scope}/page-fold`,
+                        collapsed = impl.isItemOpen(foldScope, group.id) !== !!group.collapsed;
+                    if (!inGroup.length) return null;
+                    return sectionCard({
+                        key: group.id ?? 'all',
+                        title: group.label ?? label,
+                        count: (() => {
+                            const n = inGroup.filter(it => valueOf(it) !== undefined).length;
+                            return n ? `${n} set` : null;
+                        })(),
+                        collapsed,
+                        onToggle: () => impl.toggleItem(foldScope, group.id),
+                        children: [
+                            ...shown.map(it =>
+                                entrySetting(node, it.setting, it.own, row, mapped, ctx, ops)
+                            ),
+                            folded.length
+                                ? button({
+                                      key: '_more',
+                                      className: `${CLS}__more`,
+                                      text: moreOpen
+                                          ? 'Fewer'
+                                          : `${folded.length} more · ${folded.map(it => it.setting.label).join(', ')}`,
+                                      minimal: true,
+                                      small: true,
+                                      onClick: () => impl.toggleItem(moreScope, group.id)
+                                  })
+                                : null
+                        ]
+                    });
+                })
+            ]
+        });
+    }
+});
 
 /**
  * One setting in a field list entry's drawer, which draws again only as its own value or issues
@@ -1172,33 +1396,6 @@ function useStableRenderers<R>(fns: {
         }),
         [latest]
     );
-}
-
-// How many settings a field list entry sets beside its field, with those of its settings map entry,
-// as its drawer button shows.
-function settingsCount(entry: PlainObject, mapped: PlainObject): number {
-    return Object.keys(entry).filter(it => it !== 'field').length + Object.keys(mapped).length;
-}
-
-// How a column shows in brief, its own settings over what it inherits, and how many it sets, as
-// `mv · 2dp · bar · 3 set`.
-function columnMeta(
-    mapped: PlainObject,
-    inherited: {format?: unknown; renderer?: unknown},
-    count: number
-): string {
-    const own = splitNamed(mapped.format),
-        base = splitNamed(inherited.format),
-        precision = own.options.precision ?? base.options.precision,
-        renderer = splitNamed(mapped.renderer ?? inherited.renderer).name;
-    return [
-        own.name ?? base.name,
-        precision != null ? `${precision}dp` : null,
-        renderer,
-        count ? `${count} set` : null
-    ]
-        .filter(Boolean)
-        .join(' · ');
 }
 
 // A picker's empty choice, naming what an unset value falls back to and where it comes from.

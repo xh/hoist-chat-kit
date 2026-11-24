@@ -30,6 +30,7 @@ import {
     booleanEditor,
     CLS,
     countLabel,
+    fieldItemPage,
     firstSentence,
     propertyRow,
     removeItemButton,
@@ -114,6 +115,17 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     get label(): string {
         return this.widgetSpec?.label ?? this.element?.component;
+    }
+
+    override get pageElement(): string {
+        return this.isView ? null : this.elementId;
+    }
+
+    /** The field list whose item's page is open, or null. */
+    get pageNode(): Extract<EditorNode, {kind: 'fieldList'}> {
+        const list = this.designModel.itemPage?.list,
+            node = list && this.pageKey(list) ? this.nodes.find(it => it.key === list) : null;
+        return node?.kind === 'fieldList' ? node : null;
     }
 
     /** Sections and their "N more" rows toggled from how they start, by widget type and key. */
@@ -518,7 +530,20 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
                     div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),
-                ...(impl.isView ? viewCards(impl) : [...sectionCards(impl), layoutCard(impl)])
+                ...(impl.isView
+                    ? viewCards(impl)
+                    : impl.pageNode
+                      ? [
+                            fieldItemPage({
+                                key: 'page',
+                                node: impl.pageNode,
+                                list: castArray(impl.values[impl.pageNode.key] ?? []),
+                                commit: v => impl.commit(impl.pageNode.key, v),
+                                ctx: {impl, key: impl.pageNode.key},
+                                itemKey: impl.pageKey(impl.pageNode.key)
+                            })
+                        ]
+                      : [...sectionCards(impl), layoutCard(impl)])
             ]
         });
     }
