@@ -594,8 +594,15 @@ body {
     white-space: nowrap;
   }
 
-  // The widget a view holds: a row a click selects, with a chevron toward it.
-  &__held {
+  // The widget a view holds: a list row a click selects, framed as a list, with a chevron.
+  &__held-list {
+    border: 1px solid var(--xh-border-color);
+    border-radius: 4px;
+  }
+
+  &__held.xh-blueprint-element-inspector__item-header {
+    min-height: 30px;
+    padding: 0 4px 0 6px;
     cursor: pointer;
 
     &:hover {
@@ -613,7 +620,12 @@ body {
 
   &__options-link.xh-button {
     justify-content: flex-start;
-    color: var(--xh-intent-primary-text-color);
+    min-height: 26px;
+
+    .bp6-button-text {
+      font-size: 12px;
+      color: var(--xh-intent-primary-text-color);
+    }
   }
 
   // A container's child: a click selects it.

@@ -882,25 +882,32 @@ function holdsCard(impl: ElementInspectorModel): ReactNode {
         key: 'holds',
         title: 'Holds',
         children: [
-            hbox({
-                key: 'held',
-                className: `${CLS}__item-header ${CLS}__held`,
-                role: 'button',
-                tabIndex: 0,
-                title: `Select ${elementId}`,
-                onClick: select,
-                onKeyDown: (e: ReactKeyboardEvent) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    e.preventDefault();
-                    select();
-                },
-                children: [
-                    spec ? widgetIcon(spec, {className: `${CLS}__child-icon`}) : null,
-                    span({className: `${CLS}__column-label ${CLS}__child-id`, children: elementId}),
-                    span({className: `${CLS}__column-meta`, children: spec?.label}),
-                    Icon.chevronRight({className: `${CLS}__held-go`})
-                ]
-            } as object)
+            div({
+                key: 'list',
+                className: `${CLS}__held-list`,
+                children: hbox({
+                    key: 'held',
+                    className: `${CLS}__item-header ${CLS}__held`,
+                    role: 'button',
+                    tabIndex: 0,
+                    title: `Select ${elementId}`,
+                    onClick: select,
+                    onKeyDown: (e: ReactKeyboardEvent) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                        e.preventDefault();
+                        select();
+                    },
+                    children: [
+                        spec ? widgetIcon(spec, {className: `${CLS}__child-icon`}) : null,
+                        span({
+                            className: `${CLS}__column-label ${CLS}__child-id`,
+                            children: elementId
+                        }),
+                        span({className: `${CLS}__column-meta`, children: spec?.label}),
+                        Icon.chevronRight({className: `${CLS}__held-go`})
+                    ]
+                } as object)
+            })
         ]
     });
 }
@@ -1158,21 +1165,28 @@ function slotEditor(impl: ElementInspectorModel) {
 // The variable an input shows and sets.
 function setsEditor(impl: ElementInspectorModel) {
     return div({
-        className: `${CLS}__row`,
-        ...({'data-config-key': 'sets'} as object),
+        className: `${CLS}__row ${CLS}__row--inline`,
+        ...({'data-config-key': 'sets', role: 'group', 'aria-label': 'Sets'} as object),
         children: [
             div({className: `${CLS}__label`, children: 'Sets'}),
-            select({
-                value: impl.setsVariable,
-                options: impl.setsOptions,
-                placeholder: 'Pick a variable…',
-                disabled: impl.readOnly,
-                width: '100%',
-                onCommit: (it: string) => it && it !== impl.setsVariable && impl.setSets(it)
-            }),
-            ...impl
-                .issuesFor(SETS_KEY)
-                .map((it, idx) => div({key: idx, className: `${CLS}__issue`, children: it.message}))
+            div({
+                className: `${CLS}__row-body`,
+                children: [
+                    select({
+                        value: impl.setsVariable,
+                        options: impl.setsOptions,
+                        placeholder: 'Pick a variable…',
+                        disabled: impl.readOnly,
+                        width: '100%',
+                        onCommit: (it: string) => it && it !== impl.setsVariable && impl.setSets(it)
+                    }),
+                    ...impl
+                        .issuesFor(SETS_KEY)
+                        .map((it, idx) =>
+                            div({key: idx, className: `${CLS}__issue`, children: it.message})
+                        )
+                ]
+            })
         ]
     });
 }
