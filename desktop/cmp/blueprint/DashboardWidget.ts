@@ -1,7 +1,7 @@
 import {box, div, hbox, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
-import {differenceWith, isEqual, pick, sortBy} from 'lodash';
+import {differenceWith, isEqual, isString, pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
 import {BlueprintWidgetModel, type ChildRef, type DashboardWidgetConfig} from '../../../blueprint';
 import {
@@ -17,6 +17,7 @@ import {emptyContent, resetLayoutButton} from './impl/layout';
 import {containerAt} from './design/impl/dropTargets';
 import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
+import {staleRunControl} from './impl/StaleRun';
 
 /**
  * The `dashboard` widget: a grid canvas that places each child at the `x`, `y`, `w` and `h` of its
@@ -130,14 +131,20 @@ export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetCo
         return !!ref && !ref.hideHeader;
     }
 
-    /** A cell's header items: in design mode its element's id first, then its own items. */
+    /**
+     * A cell's header items: in design mode its element's id first, then its own items, then its
+     * source's Run control while the source is stale.
+     */
     headerItemsFor(id: string): ReactNode[] {
+        const sourceName = this.blueprintModel.declaredElement(id)?.config?.source,
+            source = isString(sourceName) ? this.blueprintModel.getSource(sourceName) : null;
         return [
             // A cell titled by its ID already shows it.
             this.isDesign && this.titles[id] !== id
                 ? span({key: '_id', className: `${CLS}__cell-id`, children: id})
                 : null,
-            ...(this.cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id))
+            ...(this.cellHeaderRefs[id] ?? []).map(it => this.renderElement(it.id)),
+            source ? staleRunControl({key: '_stale', source}) : null
         ].filter(Boolean);
     }
 

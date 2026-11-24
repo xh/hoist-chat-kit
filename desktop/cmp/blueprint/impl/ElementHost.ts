@@ -28,6 +28,7 @@ import {designMenu} from '../design/impl/designActions';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 import {GRID_RESIZE_HANDLE} from '../../layout';
 import {missingModules} from './highchartsModules';
+import {hasCellHeader, staleRunControl} from './StaleRun';
 
 const DESIGN_ELEMENT = 'xh-blueprint-view__design-element';
 
@@ -325,8 +326,9 @@ export function designEmpty(id: string, viewModel: BlueprintViewModel) {
     });
 }
 
-// A data widget over its source: masked while it loads, marked while a manual source is stale, and
-// naming the values in play when it has no rows.
+// A data widget over its source: masked while it loads, dimmed while a manual source is stale, with
+// its Run control here only where no cell header holds it, and naming the values in play when it
+// has no rows.
 function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode) {
     const {source, blueprintModel} = model;
     if (category !== 'data' || !source) return body;
@@ -347,7 +349,10 @@ function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode
             })
             .filter(Boolean);
     return box({
-        className: 'xh-blueprint-view__data',
+        className: classNames(
+            'xh-blueprint-view__data',
+            source.isStale && !source.isLoading && 'xh-blueprint-view__data--stale'
+        ),
         children: [
             noRows
                 ? notePlaceholder(
@@ -360,24 +365,13 @@ function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode
                 spinner: true,
                 message: progressText(source.progress)
             }),
-            source.isStale && !source.isLoading
-                ? div({
+            hasCellHeader(blueprintModel, model.id)
+                ? null
+                : staleRunControl({
                       key: 'stale',
-                      className: 'xh-blueprint-view__stale',
-                      items: [
-                          'Inputs changed',
-                          button({
-                              text: 'Run',
-                              icon: Icon.play(),
-                              intent: 'primary',
-                              onClick: (e: React.MouseEvent) => {
-                                  e.stopPropagation();
-                                  source.reloadAsync().catchDefault();
-                              }
-                          })
-                      ]
+                      source,
+                      className: 'xh-blueprint-view__stale--floating'
                   })
-                : null
         ]
     });
 }
