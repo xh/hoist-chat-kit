@@ -1,12 +1,5 @@
 import {div} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps, useLocalModel} from '@xh/hoist/core';
-import {
-    group,
-    type GroupImperativeHandle,
-    type Layout,
-    panel as splitPanel,
-    separator
-} from '@xh/hoist/kit/react-resizable-panels';
+import {elementFactory, hoistCmp, type HoistProps, useLocalModel} from '@xh/hoist/core';
 import classNames from 'classnames';
 import {
     type DragEvent,
@@ -17,7 +10,22 @@ import {
     useRef
 } from 'react';
 import {overlayHost, OVERLAY_LAYERS} from '../overlay';
+import {
+    Group,
+    type GroupImperativeHandle,
+    type GroupProps,
+    type Layout,
+    Panel,
+    type PanelProps,
+    Separator,
+    type SeparatorProps
+} from 'react-resizable-panels';
 import './DockLayout.scss';
+
+// Named apart from Hoist's own panel and separator.
+const splitGroup = elementFactory<GroupProps>(Group),
+    splitPanel = elementFactory<PanelProps>(Panel),
+    splitSeparator = elementFactory<SeparatorProps>(Separator);
 import {DockLayoutModel, type DockLayoutProps, tabIndexAt, zoneAt} from './DockLayoutModel';
 import type {DockItem, DockTarget} from './dockTree';
 
@@ -110,7 +118,7 @@ const dockSplit = hoistCmp.factory<
             }
         });
 
-        return group({
+        return splitGroup({
             className: `${CLS}__split`,
             orientation: (split.type === 'column' ? 'vertical' : 'horizontal') as
                 'vertical' | 'horizontal',
@@ -126,7 +134,7 @@ const dockSplit = hoistCmp.factory<
             },
             children: children.flatMap((it, idx) => [
                 idx
-                    ? separator({
+                    ? splitSeparator({
                           key: `sep-${ids[idx]}`,
                           className: `${CLS}__separator`,
                           disabled: !impl.props.editable
