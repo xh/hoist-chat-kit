@@ -11,6 +11,7 @@ import {
 } from 'lodash';
 import {
     type Blueprint,
+    type BlueprintElement,
     type BlueprintIssue,
     isFieldInstance,
     type JoinDecl,
@@ -34,6 +35,9 @@ import {
     matchesType,
     withInlineType
 } from './impl/variableValues';
+
+// An object, as untrusted JSON may hold one, narrowed for the checks that read it.
+const isRecord = (v: unknown): v is PlainObject => isPlainObject(v);
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -163,7 +167,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                         `${p}/${pn}`,
                         `the field takes no parameter '${pn}'`
                     );
-                } else if (!(isPlainObject(pv) && '$var' in pv) && !matchesType(pv, pd.type)) {
+                } else if (!(isRecord(pv) && '$var' in pv) && !matchesType(pv, pd.type)) {
                     err('source.badParam', `${p}/${pn}`, `parameter '${pn}' takes a ${pd.type}`);
                 }
             }
@@ -174,14 +178,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
         };
 
-    if (!isPlainObject(bp)) {
+    if (!isRecord(bp)) {
         err('structure.notObject', '', 'a blueprint is a JSON object');
         return issues;
     }
 
     // A key that reaches a prototype is refused before anything else reads the blueprint.
     walk(bp, (o, path) => {
-        if (!isPlainObject(o)) return;
+        if (!isRecord(o)) return;
         Object.keys(o)
             .filter(isForbiddenKey)
             .forEach(k => err('path.forbidden', `${path}/${k}`, `'${k}' is forbidden as a key`));
@@ -198,15 +202,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
     }
 
-    const elements: Record<string, any> = toLookup(bp.elements),
-        variables: Record<string, any> = toLookup(bp.variables),
-        sources: Record<string, any> = toLookup(bp.sources),
+    const elements = toLookup(bp.elements),
+        variables = toLookup(bp.variables),
+        sources = toLookup(bp.sources),
         // Each element config key a preset group controls, as `id/key`.
         presetKeys = new Set(
             Object.values(toLookup(bp.presets))
                 // Only a group with presets gives its paths a value.
-                .filter((it: any) => isPlainObject(it?.items) && !isEmpty(it.items))
-                .flatMap((it: any) => (Array.isArray(it?.controls) ? it.controls : []))
+                .filter((it: PlainObject) => isRecord(it?.items) && !isEmpty(it.items))
+                .flatMap((it: PlainObject) => (Array.isArray(it?.controls) ? it.controls : []))
                 .map(it => String(it?.path ?? '').split('/'))
                 .filter(segs => segs[1] === 'elements' && segs[3] === 'config' && segs[4])
                 .map(segs => `${segs[2]}/${segs[4]}`)
@@ -350,7 +354,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     // A config value bound to a variable, in an element's config or a preset's: the property must
     // take a binding, of the variable's type, and every value the variable may hold.
     function checkBound(key: string, prop: PlainObject, value: unknown, at: string) {
-        const name = isPlainObject(value) ? (value as PlainObject).$var : null,
+        const name = isRecord(value) ? (value as PlainObject).$var : null,
             bound = isString(name) ? variables[name] : null;
         if (!bound) return;
         const want = prop?.['x-binding'] ? bindingTypesOf(prop) : null;
@@ -375,7 +379,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     // A widget cannot draw without a required value, so a variable it reads must start with one:
     // a default that is not empty, one a resolver computes, or one every preset sets.
     function checkMayBeNull(key: string, value: unknown, at: string) {
-        const name = isPlainObject(value) ? (value as PlainObject).$var : null,
+        const name = isRecord(value) ? (value as PlainObject).$var : null,
             decl = isString(name) ? getOwn(variables, name) : null;
         if (!decl || decl.setBy === 'resolver') return;
         const control = `/variables/${name}/default`,
@@ -429,7 +433,10 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 'compute needs setBy "resolver"'
             );
         }
-        for (const [key, r] of Object.entries({compute: v.compute, default: v.default})) {
+        for (const [key, r] of Object.entries<PlainObject>({
+            compute: v.compute,
+            default: v.default
+        })) {
             if (!r) continue;
             if (r.resolver && !registry.resolvers[r.resolver]) {
                 err('variable.unknownResolver', p, `unknown resolver '${r.resolver}'`);
@@ -524,7 +531,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     checkResolverCycles(variables, err);
 
     walk(bp, (o, path) => {
-        if (isPlainObject(o) && '$var' in o && !variables[o.$var]) {
+        if (isRecord(o) && '$var' in o && !variables[o.$var]) {
             err('variable.unknown', path, `unknown variable '${o.$var}'`);
         }
     });
@@ -541,7 +548,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 err('source.unknownDataset', `${p}/dataset`, `unknown dataset '${s.dataset}'`);
                 continue;
             }
-            for (const [pn, pv] of Object.entries<any>(s.params ?? {})) {
+            for (const [pn, pv] of Object.entries<unknown>(s.params ?? {})) {
                 const pd = ds.params[pn];
                 if (!pd) {
                     err(
@@ -549,14 +556,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                         `${p}/params/${pn}`,
                         `${s.dataset} has no parameter '${pn}'. Parameters: ${Object.keys(ds.params).join(', ')}`
                     );
-                } else if (!isAnswer && !(isPlainObject(pv) && '$var' in pv)) {
+                } else if (!isAnswer && !(isRecord(pv) && '$var' in pv)) {
                     err(
                         'source.literalParam',
                         `${p}/params/${pn}`,
                         `bind parameter '${pn}' to a variable. A blueprint holds no literal parameter values: use a prompted variable, or a variable with no setBy for a constant.`
                     );
                 } else if (
-                    pv?.$var &&
+                    isRecord(pv) &&
+                    pv.$var &&
                     variables[pv.$var] &&
                     !typeMatches(variables[pv.$var].type, pd.type)
                 ) {
@@ -577,7 +585,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 }
             }
             const fields = toLookup(ds.fields);
-            for (const [iname, inst] of Object.entries<any>(s.fields ?? {})) {
+            for (const [iname, inst] of Object.entries<PlainObject>(s.fields ?? {})) {
                 if (!isFieldInstance(inst)) {
                     if (!getOwn(ds.fields, iname)) {
                         err(
@@ -803,7 +811,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 );
             } else if (
                 jf.reduce &&
-                isPlainObject(agg) &&
+                isRecord(agg) &&
                 ['last', 'first'].includes((agg as PlainObject).type) &&
                 !(agg as PlainObject).orderField
             ) {
@@ -955,8 +963,8 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         if (isString(cfg.groupBy)) need(cfg.groupBy, `${p}/groupBy`, 'dimension');
         if (isArray(cfg.columnState)) {
             const listed = new Set<string>();
-            cfg.columnState.forEach((c: any, i: number) => {
-                const f = isString(c) ? c : c?.field;
+            cfg.columnState.forEach((c: unknown, i: number) => {
+                const f = isString(c) ? c : (c as PlainObject)?.field;
                 if (f !== TREE_COLUMN) need(f, `${p}/columnState/${i}`);
                 if (isString(f) && listed.has(f)) {
                     err('field.duplicate', `${p}/columnState/${i}`, `'${f}' is already a column`);
@@ -964,12 +972,12 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 listed.add(f);
             });
         }
-        if (isPlainObject(cfg.columns)) {
+        if (isRecord(cfg.columns)) {
             Object.keys(cfg.columns).forEach(f => {
                 if (f !== TREE_COLUMN) need(f, `${p}/columns/${f}`);
             });
         }
-        if (el.component === 'chart' && isPlainObject(cfg.series)) {
+        if (el.component === 'chart' && isRecord(cfg.series)) {
             Object.keys(cfg.series).forEach(f => need(f, `${p}/series/${f}`));
         }
         // A heatmap's axes group its rows, so each is a dimension.
@@ -999,8 +1007,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             );
         }
         walk(cfg.filter, (o, path) => {
-            if (isPlainObject(o) && 'field' in o && 'op' in o)
-                need(o.field, `${p}/filter${path}/field`);
+            if (isRecord(o) && 'field' in o && 'op' in o) need(o.field, `${p}/filter${path}/field`);
         });
         // A grid's style rules: fields in each rule, colors from the allowlist, and caps.
         const checkStyles = (rules: unknown, at: string) => {
@@ -1015,7 +1022,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             rules.forEach((rule: PlainObject, i) => {
                 const ruleAt = `${at}/${i}`;
                 walk(rule?.when, (o, path) => {
-                    if (!isPlainObject(o) || !('field' in o) || !('op' in o)) return;
+                    if (!isRecord(o) || !('field' in o) || !('op' in o)) return;
                     need(o.field, `${ruleAt}/when${path}/field`);
                     const f = fields?.[o.field],
                         // A number with no aggregator shows blank on a group row, and a keyed
@@ -1043,7 +1050,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 });
             });
         };
-        if (isPlainObject(cfg.columns)) {
+        if (isRecord(cfg.columns)) {
             Object.entries<PlainObject>(cfg.columns).forEach(([f, col]) =>
                 checkStyles(col?.styles, `${p}/columns/${f}/styles`)
             );
@@ -1063,7 +1070,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             );
         }
         walk(cfg, (o, path) => {
-            if (!isPlainObject(o) || !o.type || !/\/action(\/\d+)?$/.test(path)) return;
+            if (!isRecord(o) || !o.type || !/\/action(\/\d+)?$/.test(path)) return;
             const spec = registry.actions[o.type];
             if (!spec) {
                 err(
@@ -1132,7 +1139,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             .filter(it => it?.component === 'variableInput')
             .map(it => it.config?.variable)
     );
-    for (const [name, decl] of Object.entries<any>(bp.variables ?? {})) {
+    for (const [name, decl] of Object.entries<PlainObject>(bp.variables ?? {})) {
         if (!isAnswer && decl?.setBy === 'prompt' && !shown.has(name)) {
             warn(
                 'variable.noInput',
@@ -1149,7 +1156,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             .filter(it => it?.component === 'presetSelector')
             .map(it => it.config?.group)
     );
-    for (const [gname, pre] of Object.entries<any>(bp.presets ?? {})) {
+    for (const [gname, pre] of Object.entries<PlainObject>(bp.presets ?? {})) {
         if (!isAnswer && !selected.has(gname)) {
             warn(
                 'preset.noSelector',
@@ -1158,7 +1165,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             );
         }
         const gp = `/presets/${gname}`;
-        if (!isPlainObject(pre) || !isArray(pre.controls)) {
+        if (!isRecord(pre) || !isArray(pre.controls)) {
             err(
                 'preset.badGroup',
                 gp,
@@ -1166,7 +1173,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             );
             continue;
         }
-        if (!isPlainObject(pre.items) || isEmpty(pre.items)) {
+        if (!isRecord(pre.items) || isEmpty(pre.items)) {
             err(
                 'preset.noItems',
                 `${gp}/items`,
@@ -1183,7 +1190,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
         }
         const checkPresetItems = (path: string, segs: string[]) => {
-            for (const [iname, item] of Object.entries<any>(pre.items ?? {})) {
+            for (const [iname, item] of Object.entries<PlainObject>(pre.items ?? {})) {
                 let o = item?.set;
                 for (const seg of segs) {
                     o =
@@ -1281,7 +1288,7 @@ const isEmptyValue = (v: unknown) => v == null || v === '' || (isArray(v) && !v.
 export function getWriters(decl: PlainObject): PlainObject[] {
     const sb = decl?.setBy;
     if (isArray(sb)) return sb;
-    return isPlainObject(sb) ? [sb] : [];
+    return isRecord(sb) ? [sb] : [];
 }
 
 /** True if URL parameters, actions and the Architect may set a variable. */
@@ -1334,19 +1341,22 @@ const TOP_LEVEL_KEYS = ['schema', 'formats', 'variables', 'sources', 'presets', 
 function canFold(
     filter: unknown,
     fields: Record<string, FieldDef>,
-    variables: Record<string, any>,
-    elements: Record<string, any>,
+    variables: Record<string, VariableDecl>,
+    elements: Record<string, BlueprintElement>,
     registry: ValidateBlueprintContext['registry']
 ): boolean {
     if (filter == null) return true;
-    if (!isPlainObject(filter)) return false;
+    if (!isRecord(filter)) return false;
     const f = filter as PlainObject,
         recurse = (it: unknown) => canFold(it, fields, variables, elements, registry);
 
     if (isString(f.$var)) {
         const v = variables[f.$var];
         if (!v) return true;
-        if (v.setBy == null) return 'value' in (v.default ?? {}) ? recurse(v.default.value) : false;
+        if (v.setBy == null) {
+            const dflt: PlainObject = v.default ?? {};
+            return 'value' in dflt ? recurse(dflt.value) : false;
+        }
         const writers = getWriters(v);
         return (
             !isString(v.setBy) &&
@@ -1360,7 +1370,7 @@ function canFold(
         return String(f.op ?? 'AND').toUpperCase() === 'AND' && f.filters.every(recurse);
     }
     if (f.op !== '=' || isArray(f.value) || !fields[f.field]?.isDimension) return false;
-    if (isPlainObject(f.value) && isString(f.value.$var)) {
+    if (isRecord(f.value) && isString(f.value.$var)) {
         return !String(variables[f.value.$var]?.type ?? '').endsWith('[]');
     }
     return true;
@@ -1368,14 +1378,14 @@ function canFold(
 
 /** Resolver arguments may read other variables, but never in a cycle. Reports each cycle once. */
 function checkResolverCycles(
-    variables: Record<string, any>,
+    variables: Record<string, VariableDecl>,
     err: (code: string, path: string, message: string) => void
 ) {
     const readsOf = (r: PlainObject): string[] => {
             const ret: string[] = [];
             if (r?.resolver) {
                 walk(r.args, o => {
-                    if (isPlainObject(o) && isString(o.$var)) ret.push(o.$var);
+                    if (isRecord(o) && isString(o.$var)) ret.push(o.$var);
                 });
             }
             return ret;
@@ -1475,11 +1485,11 @@ function checkDashboardLayout(
     });
 }
 
-function walk(o: any, fn: (v: any, path: string) => void, path = '') {
+function walk(o: unknown, fn: (v: unknown, path: string) => void, path = '') {
     fn(o, path);
     if (isArray(o)) {
         o.forEach((v, i) => walk(v, fn, `${path}/${i}`));
-    } else if (isPlainObject(o)) {
+    } else if (isRecord(o)) {
         for (const [k, v] of Object.entries(o)) walk(v, fn, `${path}/${k}`);
     }
 }
