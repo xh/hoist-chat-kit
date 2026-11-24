@@ -26,8 +26,10 @@ Example: P1 is the smallest whole blueprint (`p1-one-grid.json`, used as is):
         "asOf": {"type": "localDate", "label": "As of", "setBy": "prompt", "default": {"resolver": "today"}}
     },
     "sources": {"positions": {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}}}},
-    "root": "posGrid",
+    "root": "page",
     "elements": {
+        "page": {"component": "panel", "tbar": [{"id": "asOfInput"}], "children": [{"id": "posGrid"}]},
+        "asOfInput": {"component": "variableInput", "config": {"variable": "asOf"}},
         "posGrid": {
             "component": "cubeGrid",
             "config": {"source": "positions", "groupBy": ["sector", "symbol"], "columnState": ["mktVal", "pnlDay"]}
@@ -51,7 +53,7 @@ Example: P2's dashboard canvas (`p2-linked-dashboard.json`, the root element):
 
 ```json
 "dashboard": {
-    "component": "dashCanvas",
+    "component": "dashboard",
     "children": [
         {"id": "headline", "x": 0, "y": 0, "w": 12, "h": 2},
         {"id": "posGrid", "x": 0, "y": 2, "w": 8, "h": 7},
@@ -66,7 +68,8 @@ Example: P2's dashboard canvas (`p2-linked-dashboard.json`, the root element):
 Deck: "Built from Hoist, and it gives back to Hoist", glossary card Widget, the Registry half of "The Data Catalog and Registry sit beside the work".
 
 - A widget is a Hoist model and component that the document configures. 30 are built in.
-- Each is named after the Hoist component it renders, such as `cubeGrid`, `dashCanvas`, `chart` or `statCard`, so Hoist's docs apply (chat kit D132).
+- Most are named after the Hoist component they render, such as `cubeGrid`, `chart` or `statCard`, so Hoist's docs apply (chat kit D132). The layout containers take plain names, `dashboard` and `panes` (decision 205).
+- Prompt inputs are ordinary `variableInput` elements, usually in a root panel's `tbar` (decision 204). P1 now has one: see its reseeded file.
 - A widget declares its config schema, its outputs and the paths presets may control. Its state lives in its config, never hidden in the model.
 - Apps register their own widgets under dotted names, such as `toolbox.portfolioBuilder`.
 

@@ -13,6 +13,20 @@ Toolbox, Blueprints tab, light theme. Source PNGs and the cropped JPEGs are in t
 | catalog | The Data Catalog and Registry | Catalog on positions, with P3 open so the "used" counts fill |
 | registry | The Data Catalog and Registry | Registry on cubeGrid with its live example |
 
+## Taken (Nov 23, after rounds 2 to 4)
+
+| Shot | Slide | Shows |
+|---|---|---|
+| editor3 | People edit on the canvas | P3 design mode, Positions, posGrid selected: guide nav, History dock, Edit/Interact, the Inspector's quick actions, Wiring, field sets and picture cards |
+| library3 | A library to find blueprints | The Library as cards with drawn schematics |
+| catalog3 | The Data Catalog and Registry | The one-screen Data Catalog on positions, with its JSON panel |
+| concepts3 | Toolbox teaches Blueprints | Concepts › Sources and joins with its live example |
+| builtins3 | Toolbox teaches Blueprints | Built-ins › Layout › dashCanvas (dark theme: charts take the app theme at load) |
+
+Older shots still in use: map and dock (Nov 22, before rounds 3 and 4), registry (box, Nov 22, dark).
+
+Retake once blueprints-ui passes them: editor3 and any shot showing the document bar or Design / Run (decision 200's view bar and Preview); the breadcrumb menus (decision 196, built); version history (decision 199); the prompt bar and renamed widgets and Layout tab (decisions 204 and 205); the Inspector (decision 206).
+
 ## Still wanted
 
 | # | Slide | Shows |
