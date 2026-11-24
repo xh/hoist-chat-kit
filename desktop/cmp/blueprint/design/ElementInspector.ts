@@ -540,19 +540,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                               ...placementRows(impl, it => !inPlacementRow(impl, it))
                           ]
                       })
-                    : null,
-                impl.readOnly
-                    ? null
-                    : button({
-                          className: `${CLS}__remove`,
-                          icon: Icon.delete(),
-                          text: impl.isView
-                              ? `Remove ${impl.elementId} and its view`
-                              : `Remove ${impl.elementId}`,
-                          intent: 'danger',
-                          minimal: true,
-                          onClick: () => impl.removeAsync()
-                      })
+                    : null
             ]
         });
     }

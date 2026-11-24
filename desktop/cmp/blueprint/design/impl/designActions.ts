@@ -86,9 +86,15 @@ export function actionMenuItems(
     actions: DesignAction[]
 ): MenuItemLike[] {
     return actions.map(action => ({
-        text: action.disabledReason
-            ? span({title: action.disabledReason, children: action.label})
-            : action.label,
+        text: span({
+            title: action.disabledReason,
+            children: [
+                action.label,
+                action.shortcut
+                    ? span({className: 'xh-blueprint-menu-shortcut', children: action.shortcut})
+                    : null
+            ]
+        }),
         icon: actionIcon(action.icon),
         intent: action.intent,
         disabled: !!action.disabledReason,
@@ -104,12 +110,17 @@ export function actionMenuItems(
  */
 export function designMenu(
     designModel: BlueprintDesignModel,
-    sel: BlueprintSelection
+    sel: BlueprintSelection,
+    omit?: string
 ): MenuItemLike[] {
     if (sel?.kind !== 'element' && sel?.kind !== 'view') return [];
     const view = sel.kind === 'element' ? designModel.viewOf(sel.id) : null,
         parent = sel.kind === 'view' ? sel.of : designModel.pathTo(sel.id).at(-1),
-        actions = actionMenuItems(designModel, sel.id, designModel.designActions(sel));
+        actions = actionMenuItems(
+            designModel,
+            sel.id,
+            designModel.designActions(sel).filter(it => it.id !== omit)
+        );
     return [
         ...actions,
         ...(view || parent
@@ -269,7 +280,8 @@ export function addWidgetAt(designModel: BlueprintDesignModel, widget: string, p
  */
 export function selectionMenu(
     designModel: BlueprintDesignModel,
-    {kind, id}: BlueprintSelection
+    {kind, id}: BlueprintSelection,
+    omit?: string
 ): (PlainObject | string)[] {
     const {blueprintModel} = designModel;
     if (blueprintModel.mode !== 'design' || blueprintModel.access !== 'write') return [];
@@ -301,7 +313,7 @@ export function selectionMenu(
             }
         ];
     }
-    return [rename, '-', ...designMenu(designModel, {kind, id})];
+    return [rename, '-', ...designMenu(designModel, {kind, id}, omit)];
 }
 
 /** Issues counted as a screen reader reads a dot: `2 errors, 1 warning`. */

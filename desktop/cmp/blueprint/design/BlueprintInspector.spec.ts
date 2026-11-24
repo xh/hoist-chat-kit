@@ -42,38 +42,44 @@ describe('BlueprintInspector', () => {
         return {model, design, inspector};
     }
 
-    it("shows the selection's quick actions under its id, each one edit, with its key or why not", () => {
+    it("puts + and ⋯ in the header, ⋯ holding the selection's actions with their keys", async () => {
         const {model, design} = open();
         design.select({kind: 'element', id: 'sectorChart'});
         const {container} = render(blueprintInspector({designModel: design}) as ReactElement),
-            bar = () => container.querySelector('.xh-blueprint-inspector__actions'),
-            buttons = () => [...bar().querySelectorAll('.xh-button')];
-        expect(buttons().map(it => it.textContent)).toEqual(['Duplicate', 'Wrap in', 'Delete']);
-        expect(buttons()[0].getAttribute('title')).toBe('Duplicate · Ctrl+D');
+            header = () => container.querySelector('.xh-blueprint-inspector__header'),
+            items = () => [...document.querySelectorAll('.bp6-menu-item')];
+        expect(container.querySelector('.xh-blueprint-inspector__actions')).toBeNull();
+        // A dashboard places its children itself, so nothing adds after one.
+        expect(header().querySelector('[aria-label^="Add"]')).toBeNull();
+        fireEvent.click(header().querySelector('[aria-label="More"]'));
+        await vi.waitFor(() => expect(items().length).toBeGreaterThan(0));
+        expect(items().map(it => it.textContent)).toEqual(
+            expect.arrayContaining(['DuplicateCtrl+D', 'DeleteDel'])
+        );
+        expect(items().some(it => it.textContent.startsWith('Wrap in'))).toBe(true);
         const edits = model.history.length;
-        fireEvent.click(buttons()[0]);
-        expect(model.history.length).toBe(edits + 1);
-        expect(design.selectedElementId).not.toBe('sectorChart');
+        fireEvent.click(items().find(it => it.textContent.startsWith('Duplicate')));
+        await vi.waitFor(() => expect(model.history.length).toBe(edits + 1));
+    });
 
-        // A container also offers to add a widget to it, and the root cannot be duplicated.
-        act(() => design.select({kind: 'element', id: 'page'}));
-        // A container's own action leads, in primary.
-        expect(buttons()[0].textContent).toBe('Add a widget…');
-        expect((buttons()[1] as HTMLButtonElement).disabled).toBe(true);
-        expect(buttons()[1].getAttribute('title')).toMatch(/root/);
+    it('adds inside the root from +, as nothing comes after it', () => {
+        const {design} = open();
+        design.select({kind: 'element', id: 'page'});
+        const {container} = render(blueprintInspector({designModel: design}) as ReactElement);
+        expect(
+            container.querySelector('.xh-blueprint-inspector__header [aria-label="Add a widget…"]')
+        ).not.toBeNull();
     });
 
     it('offers a container the widgets it takes in a popover, adding at its end or after a child', async () => {
         const {model, design} = open(),
             box = design.addWidget('box', 'positions').id,
             a = design.addWidget('markdown', box).id,
-            bar = design.addWidget('toolbar', box).id;
+            bar = design.addWidget('toolbar', 'positions').id;
         act(() => design.select({kind: 'element', id: box}));
         const {container} = render(blueprintInspector({designModel: design}) as ReactElement),
-            button = (text: string) =>
-                [...container.querySelectorAll('.xh-blueprint-inspector__actions .xh-button')].find(
-                    it => it.textContent === text
-                ),
+            button = (label: string) =>
+                container.querySelector(`.xh-blueprint-inspector__header [aria-label="${label}"]`),
             tile = (label: string) =>
                 [
                     ...([...document.querySelectorAll('.xh-blueprint-inspector__add-panel')]
@@ -88,7 +94,7 @@ describe('BlueprintInspector', () => {
         );
         await vi.waitFor(() => expect(tile('Text')).toBeTruthy());
         fireEvent.click(tile('Text'));
-        expect(kids()).toHaveLength(3);
+        expect(kids()).toHaveLength(2);
         expect(kids()[0]).toBe(a);
         await vi.waitFor(() =>
             expect(document.querySelector('.xh-blueprint-inspector__add-panel')).toBeNull()
@@ -100,10 +106,14 @@ describe('BlueprintInspector', () => {
         await vi.waitFor(() => expect(tile('Text')).toBeTruthy());
         fireEvent.click(tile('Text'));
         expect(kids()[0]).toBe(a);
-        expect(kids()).toHaveLength(4);
+        expect(kids()).toHaveLength(3);
         expect(kids()[1]).toBe(design.selectedElementId);
+        await vi.waitFor(() =>
+            expect(document.querySelector('.xh-blueprint-inspector__add-panel')).toBeNull()
+        );
 
-        // A container that refuses a widget shows it disabled, with the reason.
+        // A container that refuses a widget shows it disabled, with the reason. In a dashboard,
+        // + adds inside it.
         act(() => design.select({kind: 'element', id: bar}));
         fireEvent.click(button('Add a widget…'));
         await vi.waitFor(() => expect(tile('Grid')).toBeTruthy());

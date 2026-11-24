@@ -9,13 +9,12 @@ import {
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
-import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {menuItem, popover} from '@xh/hoist/kit/blueprint';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
 import {useHotkeys} from '@xh/hoist/desktop/hooks';
 import {useOnResize} from '@xh/hoist/utils/react';
-import {isString, partition, sum} from 'lodash';
+import {isString, sum} from 'lodash';
 import type React from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {
@@ -39,13 +38,7 @@ import {variableText} from '../../../../blueprint/impl/variableText';
 import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
 import {selectChip} from './impl/chips';
-import {
-    actionIcon,
-    actionMenuItems,
-    refuse,
-    runDesignActionAsync,
-    selectionMenu
-} from './impl/designActions';
+import {refuse, runDesignActionAsync, selectionMenu} from './impl/designActions';
 import {modeHotkeys} from './impl/designHotkeys';
 import {type CrumbChild, type CrumbGroup, crumbMenu} from './impl/crumbMenu';
 import {partIcon} from './impl/icons';
@@ -83,7 +76,6 @@ export const [BlueprintInspector, blueprintInspector] =
                           children: [
                               breadcrumb({impl}),
                               header({impl}),
-                              actionBar({impl}),
                               ...impl.issues.map((it, idx) =>
                                   issueRow({key: idx, impl, issue: it})
                               ),
@@ -566,7 +558,12 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
     model: false,
     render({impl}) {
         const {selection, designModel} = impl,
-            items = selectionMenu(designModel, selection),
+            actions = designModel.designActions(selection),
+            // + adds after the selection where it can, else inside it. The other stays in ⋯.
+            add =
+                actions.find(it => it.id === 'addAfter') ??
+                actions.find(it => it.id === 'addWidget'),
+            items = selectionMenu(designModel, selection, add?.id),
             renameRef = useRef<HTMLInputElement>(null);
         // Focused and selected as it appears, so typing replaces the id and Enter or Esc acts.
         useEffect(() => {
@@ -609,65 +606,30 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                     ]
                 }),
                 filler(),
+                add
+                    ? addWidgetButton({
+                          designModel,
+                          id: selection.id,
+                          action: add,
+                          buttonProps: {
+                              icon: Icon.add(),
+                              minimal: true,
+                              title: add.label,
+                              'aria-label': add.label
+                          }
+                      })
+                    : null,
                 items.length
                     ? menuButton({
                           icon: Icon.ellipsisHorizontal(),
                           minimal: true,
                           title: 'More',
                           'aria-label': 'More',
-                          menuItems: () => selectionMenu(designModel, impl.selection) as any[]
+                          menuItems: () =>
+                              selectionMenu(designModel, impl.selection, add?.id) as any[]
                       })
                     : null
             ]
-        });
-    }
-});
-
-// The selection's quick actions, as the design menu and keys run them: Duplicate, Wrap in and its
-// own actions, then Delete apart at the right. Each says its key, or why it cannot run.
-const actionBar = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
-    displayName: 'BlueprintInspectorActions',
-    model: false,
-    render({impl}) {
-        const {selection, designModel} = impl,
-            actions = designModel.designActions(selection);
-        if (!actions.length) return null;
-        const [rest, remove] = partition(actions, it => it.id !== 'delete'),
-            control = (action: DesignAction) => {
-                const props = {
-                    key: action.id,
-                    icon: actionIcon(action.icon),
-                    text: action.label,
-                    title:
-                        action.disabledReason ??
-                        [action.label, action.shortcut].filter(Boolean).join(' · '),
-                    intent: action.intent,
-                    minimal: true,
-                    disabled: !!action.disabledReason
-                };
-                if (action.host === 'addWidget') {
-                    return addWidgetButton({
-                        key: action.id,
-                        designModel,
-                        id: selection.id,
-                        action,
-                        buttonProps: props
-                    });
-                }
-                return action.items
-                    ? menuButton({
-                          ...props,
-                          menuItems: () => actionMenuItems(designModel, selection.id, action.items)
-                      })
-                    : button({
-                          ...props,
-                          onClick: () => runDesignActionAsync(designModel, selection.id, action)
-                      });
-            };
-        return toolbar({
-            className: `${CLS}__actions`,
-            compact: true,
-            children: [...rest.map(control), filler(), ...remove.map(control)]
         });
     }
 });

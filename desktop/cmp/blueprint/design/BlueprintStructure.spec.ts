@@ -282,7 +282,7 @@ describe('BlueprintStructure', () => {
             texts = (id: string) =>
                 structure
                     .menuFor(record(structure, `element:${id}`))
-                    .map((it: any) => it.text ?? it);
+                    .map((it: any) => it.text?.props?.children?.[0] ?? it.text ?? it);
         expect(texts('posGrid')).toEqual([
             'Rename…',
             '-',

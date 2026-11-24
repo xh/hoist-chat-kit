@@ -121,29 +121,6 @@
     border-bottom: var(--xh-border-solid);
   }
 
-  // The selection's quick actions, on the Inspector's ground, their labels giving way to icons
-  // when narrow.
-  // Its padding and gap are its only spacing, in place of a compact toolbar's fixed height and
-  // margins.
-  &__actions.xh-toolbar {
-    --xh-toolbar-item-spacing: 0;
-
-    flex: none;
-    container-type: inline-size;
-    gap: var(--xh-spacing-half);
-    height: auto;
-    min-height: 24px;
-    padding: var(--xh-spacing-half) var(--xh-spacing);
-    background-color: var(--xh-bg);
-    border-bottom: var(--xh-border-solid);
-
-    @container (width < 320px) {
-      .bp6-button-text {
-        display: none;
-      }
-    }
-  }
-
   &__titles {
     min-width: 0;
     flex: 1 1 auto;
@@ -262,4 +239,11 @@
   flex: none;
   padding: var(--xh-spacing-half) var(--xh-spacing);
   border-top: var(--xh-border-solid);
+}
+
+// A design action's key, at the right of its menu item.
+.xh-blueprint-menu-shortcut {
+  margin-left: var(--xh-spacing-double);
+  font-size: 11px;
+  color: var(--xh-text-color-muted);
 }

@@ -1134,9 +1134,6 @@ describe('ElementInspector', () => {
         expect(cell().headerItems).toEqual([{id: 'groupChooser'}, {id: 'posViewsSelector'}]);
         expect(model.history.length).toBe(before + 1);
         expect(model.history.at(-1).description).toBe('posGrid view: hide header');
-        expect(container.querySelector('.xh-blueprint-element-inspector__remove').textContent).toBe(
-            'Remove posGrid and its view'
-        );
     });
 
     it("folds a widget's canvas view settings into a section, with a way to select the view", () => {
@@ -1423,11 +1420,8 @@ describe('ElementInspector', () => {
                 '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'
             )
         ).toHaveLength(0);
-        // Removing it is a danger action at the very end.
-        const remove = container.querySelector('.xh-blueprint-element-inspector__remove');
-        expect(remove.textContent).toBe('Remove posGrid');
-        expect(remove.className).toMatch(/intent-danger/);
-        expect(remove).toBe(container.firstElementChild.lastElementChild);
+        // Delete is in the header's ⋯, not at the end.
+        expect(container.querySelector('.xh-blueprint-element-inspector__remove')).toBeNull();
         expect(row('Title').className).toContain('__row--inline');
         expect(row('Column state').className).not.toContain('__row--inline');
     });
