@@ -1,5 +1,6 @@
 import {div} from '@xh/hoist/cmp/layout';
 import {elementFactory, hoistCmp, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {logDebug} from '@xh/hoist/utils/js';
 import classNames from 'classnames';
 import {
     type DragEvent,
@@ -21,13 +22,13 @@ import {
     type SeparatorProps
 } from 'react-resizable-panels';
 import './DockLayout.scss';
+import {DockLayoutModel, type DockLayoutProps, tabIndexAt, zoneAt} from './DockLayoutModel';
+import type {DockItem, DockTarget} from './dockTree';
 
 // Named apart from Hoist's own panel and separator.
 const splitGroup = elementFactory<GroupProps>(Group),
     splitPanel = elementFactory<PanelProps>(Panel),
     splitSeparator = elementFactory<SeparatorProps>(Separator);
-import {DockLayoutModel, type DockLayoutProps, tabIndexAt, zoneAt} from './DockLayoutModel';
-import type {DockItem, DockTarget} from './dockTree';
 
 const CLS = 'xh-layout-dock';
 
@@ -101,7 +102,9 @@ const dockSplit = hoistCmp.factory<
             key = split.type === 'column' ? 'height' : 'width',
             children = split.content ?? [],
             sizes = children.map(it => it[key] ?? 100 / children.length),
-            ids = children.map(keyOf);
+            ids = children.map(keyOf),
+            orientation: GroupProps['orientation'] =
+                split.type === 'column' ? 'vertical' : 'horizontal';
 
         // Controlled: a new tree's sizes reach the group, which otherwise keeps its own.
         useEffect(() => {
@@ -113,15 +116,14 @@ const dockSplit = hoistCmp.factory<
                     );
                 } catch (e) {
                     // A group still registering its panels takes the sizes on its next draw.
-                    console.debug('dockLayout: sizes not yet applied', e);
+                    logDebug(['Sizes not yet applied', e], 'DockLayout');
                 }
             }
         });
 
         return splitGroup({
             className: `${CLS}__split`,
-            orientation: (split.type === 'column' ? 'vertical' : 'horizontal') as
-                'vertical' | 'horizontal',
+            orientation,
             groupRef: ref,
             disabled: !impl.props.editable,
             onLayoutChanged: (layout: Layout, meta) => {
@@ -168,7 +170,7 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
         return div({
             ref: setEl,
             className: `${CLS}__stack`,
-            ...({'data-dock-stack': first} as object),
+            ...{'data-dock-stack': first},
             children: [
                 div({
                     key: 'tabs',
@@ -187,7 +189,8 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
                             role: 'tab',
                             tabIndex: id === active ? 0 : -1,
                             draggable: !!editable,
-                            ...({'aria-selected': id === active, 'data-dock-view': id} as object),
+                            'aria-selected': id === active,
+                            ...{'data-dock-view': id},
                             onClick: () => impl.activate(id),
                             onKeyDown: e => onTabKey(impl, e, views, id),
                             onDragStart: e => {
