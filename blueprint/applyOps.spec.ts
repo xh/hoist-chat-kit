@@ -306,9 +306,7 @@ describe('applyOps', () => {
         });
 
         it('renames the root', () => {
-            const {result} = apply([
-                {op: 'renameId', kind: 'element', from: 'dashboard', to: 'main'}
-            ]);
+            const {result} = apply([{op: 'renameId', kind: 'element', from: 'page', to: 'main'}]);
             expect(result.root).toBe('main');
         });
 

@@ -25,7 +25,10 @@ describe('wiring', () => {
 
     it("gives a variable's writers and readers, a source by its parameter", () => {
         const asOf = wiringFor(p3, {kind: 'variable', id: 'asOf'});
-        expect(asOf.setBy).toEqual([{kind: 'prompt', id: 'asOf'}]);
+        expect(asOf.setBy).toEqual([
+            {kind: 'prompt', id: 'asOf'},
+            {kind: 'element', id: 'asOfInput'}
+        ]);
         expect(labels(asOf.readBy)).toEqual(
             ['orders', 'positions', 'prices.end', 'priceStart', 'reportActions', 'yearStart'].sort()
         );
@@ -62,7 +65,7 @@ describe('wiring', () => {
         const graph = wiringGraph(p3),
             {upstream, downstream} = traceWiring(graph, {kind: 'element', id: 'posGrid'}),
             names = (it: {id: string}[]) => it.map(n => n.id).sort();
-        expect(graph.nodes).toHaveLength(18 + 3 + 8 + 1);
+        expect(graph.nodes).toHaveLength(21 + 3 + 8 + 1);
         expect(names(upstream)).toEqual(
             ['asOf', 'fund', 'grouping', 'pnlFilter', 'posViews', 'positions', 'yearStart'].sort()
         );

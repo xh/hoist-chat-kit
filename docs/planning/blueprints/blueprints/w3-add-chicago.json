@@ -3,6 +3,7 @@
     "description": "Add Chicago as a third city, with tomorrow's rain as cards over its forecast",
     "ops": [
         {"op": "set", "path": "/variables/cityC", "value": {"type": "string", "label": "City C", "setBy": "prompt", "default": {"value": "Chicago"}, "options": {"values": ["Chicago", "London", "New York", "Paris", "Sydney", "Tokyo"]}}},
+        {"op": "addElement", "id": "cityCInput", "element": {"component": "variableInput", "config": {"variable": "cityC"}}, "parent": "page", "slot": "tbar"},
         {"op": "set", "path": "/variables/today", "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "today"}}},
         {"op": "set", "path": "/variables/tomorrow", "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "dateOffset", "args": {"from": {"$var": "today"}, "days": 1}}}},
         {"op": "set", "path": "/sources/currentC", "value": {"dataset": "currentWeather", "params": {"city": {"$var": "cityC"}, "units": {"$var": "units"}}}},

@@ -231,7 +231,7 @@ A variable type is a dotted name for a kind of value, such as `acme.fund`:
 | `name` | The type's dotted name |
 | `matches` | The field type its values match, such as `string`, so it binds wherever that type fits |
 | `guidance` | For the Architect: what the values mean, and where they come from |
-| `input` | The prompt input, in place of the built-in one for `matches`. It shows `value` and calls `onCommit` |
+| `input` | The input a `variableInput` draws for the type, in place of the built-in one for `matches`. It shows `value` and calls `onCommit` |
 | `urlCodec` | The text form of a value in a link, for a type whose `matches` has none, such as a portfolio. Without it, a link cannot set the type. `parse` reads untrusted text, and throws or returns null for text it cannot read |
 
 ## Add a Resolver

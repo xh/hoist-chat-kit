@@ -3,7 +3,6 @@ import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {type AddPlace, type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
 import {overlayHost} from '../layout/overlay';
 import {designHotkeys} from './design/impl/designHotkeys';
-import {blueprintToolbar} from './impl/BlueprintToolbar';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {drillInDialog} from './impl/DrillIn';
 import './BlueprintView.scss';
@@ -42,7 +41,6 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
             isDesign = !!designModel && model.mode === 'design';
         return panel({
             className,
-            tbar: blueprintToolbar({blueprintModel: model}),
             // Bound in run mode too, where they do nothing, so switching modes remounts nothing.
             hotkeys: designModel ? designHotkeys(designModel, {fromWidgets: true}) : null,
             // Focusable, so the design keys work once a click selects an element.

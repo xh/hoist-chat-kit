@@ -135,7 +135,7 @@ describe('joins', () => {
             ): Blueprint => ({
                 schema: {blueprint: 1},
                 variables: {
-                    asOf: {type: 'localDate', setBy: 'prompt', default: {resolver: 'today'}}
+                    asOf: {type: 'localDate', default: {resolver: 'today'}}
                 },
                 sources: {
                     positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}, joins},

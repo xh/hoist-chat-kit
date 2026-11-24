@@ -14,6 +14,7 @@ import type {
 import {parentOf} from './elements';
 import {listOf} from './labels';
 import {templateDemand} from './template';
+import {getOwn} from './pointer';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
 
@@ -339,6 +340,23 @@ const NUMBER_INPUT_SCHEMA = {
 const TEXT_INPUT_SCHEMA = SELECT_SCHEMA;
 
 const SWITCH_INPUT_SCHEMA = DATE_INPUT_SCHEMA;
+
+const VARIABLE_INPUT_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['variable'],
+    properties: {
+        variable: {
+            type: 'string',
+            'x-variable': true,
+            description: 'The prompted variable it shows and sets: one whose setBy is "prompt".'
+        },
+        label: {
+            ...LABEL,
+            description: "Shown beside the input. Default the variable's label."
+        }
+    }
+} as const satisfies BlueprintSchema;
 
 const SLIDER_SCHEMA = {
     type: 'object',
@@ -1235,6 +1253,11 @@ export type TextInputWidgetConfig = SelectWidgetConfig;
 
 export type SwitchInputWidgetConfig = DateInputWidgetConfig;
 
+export type VariableInputWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof VARIABLE_INPUT_SCHEMA
+>;
+
 export type SliderWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof SLIDER_SCHEMA>;
 
 export type FilterChooserWidgetConfig = FromExtendedSchema<
@@ -1834,6 +1857,22 @@ const switchInput = inputSpec({
     value: {type: 'bool'}
 });
 
+const variableInput: WidgetSpec = {
+    name: 'variableInput',
+    icon: 'edit',
+    version: 1,
+    category: 'input',
+    size: INPUT_SIZE,
+    sections: [{label: 'Content', keys: ['variable', 'label']}],
+    summary: 'The input for a prompted variable, by its type.',
+    label: 'Variable input',
+    terms: ['prompt', 'variable input', 'parameter', 'as of', 'input'],
+    guidance:
+        'Shows and sets one variable whose setBy is "prompt", with the input its type calls for: a date picker for a date, a select for a variable with options, a range picker for a dateRange, and an app type\'s own input. Show every prompted variable in one, usually in the root panel\'s tbar.',
+    config: VARIABLE_INPUT_SCHEMA,
+    example: {component: 'variableInput', config: {variable: 'asOf'}}
+};
+
 const slider = inputSpec({
     name: 'slider',
     icon: 'arrowsLeftRight',
@@ -2389,6 +2428,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     numberInput,
     textInput,
     switchInput,
+    variableInput,
     slider,
     filterChooser,
     cubeGrid,
@@ -2611,6 +2651,22 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
               ]
             : [])
     ],
+    // It shows a prompted variable, which the user sets through it.
+    variableInput: (cfg, {blueprint}) => {
+        const name = cfg.variable;
+        if (typeof name !== 'string' || !name) return [];
+        const decl = getOwn(blueprint.variables, name),
+            issue = (code: string, message: string): BlueprintIssue[] => [
+                {code, severity: 'error', path: '/variable', message}
+            ];
+        if (!decl) return issue('variableInput.unknownVariable', `there is no variable '${name}'`);
+        return decl.setBy === 'prompt'
+            ? []
+            : issue(
+                  'variableInput.notPrompted',
+                  `'${name}' is not prompted. A variableInput shows a variable whose setBy is "prompt".`
+              );
+    },
     // A layout takes a size cap, and each view names a child.
     panes: (cfg, {blueprint, id}) => {
         if (!cfg.layout) return [];
@@ -2792,6 +2848,9 @@ const EXAMPLE_BLUEPRINTS: Record<string, () => WidgetSpec['exampleBlueprint']> =
         }
     }),
     callout: () => ({variables: {asOf: {type: 'localDate', label: 'As of', setBy: 'prompt'}}}),
+    variableInput: () => ({
+        variables: {asOf: {type: 'localDate', label: 'As of', setBy: 'prompt'}}
+    }),
     propertyTable: () => ({variables: {fund: {type: 'string', label: 'Fund', setBy: 'prompt'}}}),
     presetSelector: () => ({
         variables: {view: {type: 'string', label: 'View'}},
@@ -2854,6 +2913,7 @@ const PREVIEWS: Record<string, string> = {
     numberInput: 'input',
     textInput: 'input',
     switchInput: 'switch',
+    variableInput: 'input',
     slider: 'slider',
     filterChooser: 'input',
     groupingChooser: 'input',

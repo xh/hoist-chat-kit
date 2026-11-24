@@ -22,8 +22,10 @@ issues.
     "sources": {
         "positions": {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}}}
     },
-    "root": "dashboard",
+    "root": "page",
     "elements": {
+        "page": {"component": "panel", "tbar": [{"id": "asOfInput"}], "children": [{"id": "dashboard"}]},
+        "asOfInput": {"component": "variableInput", "config": {"variable": "asOf"}},
         "dashboard": {
             "component": "dashboard",
             "children": [
@@ -115,7 +117,7 @@ so an `acme.fund` binds wherever a `string` fits.
 
 | `setBy` | Set by | A link and the Architect can set it |
 |---------|--------|-------------------------------------|
-| `"prompt"` | An input in the blueprint's toolbar | Yes |
+| `"prompt"` | The user, through a `variableInput` element that shows it. Validation warns of one that none shows | Yes |
 | `{"element": id}` | A widget that shows the value and sets it, such as a `select` | Yes |
 | `{"element": id, "output": name}` | A widget's runtime state, such as a grid's `selection`. An output can take an argument, such as `"field": "symbol"` | No |
 | `"resolver"` | Its `compute`, run again whenever its inputs change | No |
@@ -460,6 +462,7 @@ beside these under dotted names.
 | `callout` | content | A tinted note with an icon, for a caveat, a warning or a takeaway |
 | `toolbar` | container | A row of inputs, on its own or in a panel's `tbar` or `bbar` |
 | `select`, `dateInput`, `dateRangePicker`, `numberInput`, `textInput`, `switchInput`, `slider` | input | An input that sets one variable |
+| `variableInput` | input | The input a prompted variable's type calls for, usually in the root panel's `tbar` |
 | `filterChooser` | input | A filter built from the values of its source's dimensions |
 | `groupingChooser` | input | The dimensions a grid groups by |
 | `buttonGroupInput` | input | A segmented control that picks one option of a string variable |

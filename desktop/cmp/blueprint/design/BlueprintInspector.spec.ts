@@ -56,7 +56,7 @@ describe('BlueprintInspector', () => {
         expect(design.selectedElementId).not.toBe('sectorChart');
 
         // A container also offers to add a widget to it, and the root cannot be duplicated.
-        act(() => design.select({kind: 'element', id: 'tabs'}));
+        act(() => design.select({kind: 'element', id: 'page'}));
         // A container's own action leads, in primary.
         expect(buttons()[0].textContent).toBe('Add a widget…');
         expect((buttons()[1] as HTMLButtonElement).disabled).toBe(true);
@@ -115,6 +115,7 @@ describe('BlueprintInspector', () => {
         const {design, inspector} = open();
         design.select({kind: 'element', id: 'posGrid'});
         expect(inspector.breadcrumb).toEqual([
+            {kind: 'element', id: 'page'},
             {kind: 'element', id: 'tabs'},
             {kind: 'element', id: 'positions'},
             {kind: 'view', id: 'posGrid', of: 'positions'},
@@ -122,7 +123,7 @@ describe('BlueprintInspector', () => {
         ]);
         design.select({kind: 'view', id: 'posGrid', of: 'positions'});
         expect(inspector.breadcrumb.at(-1)).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
-        expect(inspector.breadcrumb).toHaveLength(3);
+        expect(inspector.breadcrumb).toHaveLength(4);
         expect(inspector.subtitle).toBe('View · holds posGrid · in positions');
         design.select({kind: 'element', id: 'posGrid'});
         expect(inspector.subtitle).toBe('Grid · reads positions, grouping, pnlFilter');
@@ -155,7 +156,7 @@ describe('BlueprintInspector', () => {
             Presets: ['posViews']
         });
         design.select({kind: 'variable', id: 'asOf'});
-        expect(rows()['Set by']).toEqual(['prompt']);
+        expect(rows()['Set by']).toEqual(['prompt', 'asOfInput']);
         expect([...rows()['Read by']].sort()).toEqual(
             ['orders', 'positions', 'prices.end', 'priceStart', 'reportActions', 'yearStart'].sort()
         );
@@ -267,7 +268,8 @@ describe('BlueprintInspector', () => {
 
         it("lists the children of the step before each chevron, the containers' and the selection's own", async () => {
             const {container} = await show('overview');
-            const [afterTabs, trailing] = chevrons(container);
+            // The first chevron follows the root panel, which holds the inputs over the tabs.
+            const [, afterTabs, trailing] = chevrons(container);
             openMenu(afterTabs);
             await vi.waitFor(() => expect(itemIds()).toEqual(['overview', 'positions', 'orders']));
             act(() => {
@@ -311,7 +313,7 @@ describe('BlueprintInspector', () => {
             const current = container.querySelector('.xh-blueprint-inspector__crumb--current');
             expect(current.nextElementSibling).toBeNull();
             // Its containers' and its view's chevrons still open their children.
-            expect(chevrons(container)).toHaveLength(3);
+            expect(chevrons(container)).toHaveLength(4);
         });
 
         it('selects a child on a click, and marks it on the dashboard while hovered', async () => {
@@ -349,7 +351,7 @@ describe('BlueprintInspector', () => {
             design.addWidget('markdown', panel);
             design.addWidget('buttonGroup', panel, {slot: 'tbar'});
             act(() => design.select({kind: 'element', id: panel}));
-            await vi.waitFor(() => expect(chevrons(container).length).toBe(4));
+            await vi.waitFor(() => expect(chevrons(container).length).toBe(5));
             openMenu(chevrons(container).at(-1));
             await vi.waitFor(() => expect(menuItems()).toHaveLength(2));
             const headings = [
@@ -362,7 +364,7 @@ describe('BlueprintInspector', () => {
             const {design, container} = await show('overview');
             const box = design.addWidget('box', 'overview').id;
             act(() => design.select({kind: 'element', id: box}));
-            await vi.waitFor(() => expect(chevrons(container).length).toBe(4));
+            await vi.waitFor(() => expect(chevrons(container).length).toBe(5));
             openMenu(chevrons(container).at(-1));
             const add = await vi.waitFor(() => {
                 const it = [
@@ -401,7 +403,7 @@ describe('BlueprintInspector', () => {
 
         it("moves between a menu's own rows, never into a container's submenu", async () => {
             const {container, design} = await show('overview');
-            const afterTabs = chevrons(container)[0];
+            const afterTabs = chevrons(container)[1];
             act(() => {
                 afterTabs.focus();
                 fireEvent.keyDown(afterTabs, {key: 'Enter'});
@@ -431,8 +433,8 @@ describe('BlueprintInspector', () => {
                 fireEvent.keyDown(document.activeElement, {key: 'Enter'});
             });
             expect(design.selectedElementId).toBe('positions');
-            await vi.waitFor(() => expect(document.activeElement).toBe(chevrons(container)[0]));
-            expect(chevrons(container)[0]).toBe(afterTabs);
+            await vi.waitFor(() => expect(document.activeElement).toBe(chevrons(container)[1]));
+            expect(chevrons(container)[1]).toBe(afterTabs);
         });
 
         it('leaves room for the trailing chevron when it folds the path', () => {
@@ -468,11 +470,11 @@ describe('BlueprintInspector', () => {
         expect(getByText('Morning report')).toBeTruthy();
         expect(getByText('P&L and risk')).toBeTruthy();
         expect(container.textContent).toContain(
-            '18 elements · 3 sources · 8 variables · 1 preset group'
+            '21 elements · 3 sources · 8 variables · 1 preset group'
         );
         expect(container.textContent).not.toMatch(/Select/);
-        fireEvent.click(getByText('tabs'));
-        expect(design.selectedElementId).toBe('tabs');
+        fireEvent.click(getByText('page'));
+        expect(design.selectedElementId).toBe('page');
     });
 
     it('renames from the header, and not once Escape cancels it', () => {

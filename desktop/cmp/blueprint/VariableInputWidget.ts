@@ -1,38 +1,67 @@
-import {fragment, label} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel, XH} from '@xh/hoist/core';
+import {fragment, hbox, label} from '@xh/hoist/cmp/layout';
+import {
+    hoistCmp,
+    HoistModel,
+    type HoistProps,
+    managed,
+    useLocalModel,
+    uses,
+    XH
+} from '@xh/hoist/core';
 import {dateRangePicker} from '@xh/hoist/desktop/cmp/daterange';
 import {dateInput, numberInput, select, switchInput, textInput} from '@xh/hoist/desktop/cmp/input';
-import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {isEmpty} from 'lodash';
+import classNames from 'classnames';
 import type {ReactNode} from 'react';
-import {type BlueprintModel, type BlueprintVariable, variableLabel} from '../../../../blueprint';
-import {DateRangeBinding} from './DateRangeBinding';
+import {
+    type BlueprintModel,
+    type BlueprintVariable,
+    BlueprintWidgetModel,
+    type VariableInputWidgetConfig,
+    variableLabel
+} from '../../../blueprint';
+import {DateRangeBinding} from './impl/DateRangeBinding';
 
-interface BlueprintToolbarProps extends HoistProps {
-    blueprintModel: BlueprintModel;
+/** The `variableInput` widget's model: the prompted variable its config names. */
+export class VariableInputWidgetModel extends BlueprintWidgetModel<VariableInputWidgetConfig> {
+    /** The variable it shows, or null if the blueprint has none of its name. */
+    get variable(): BlueprintVariable {
+        return this.blueprintModel.getVariable(this.resolvedConfig.variable as string) ?? null;
+    }
+
+    /** Set the variable to a value the user gave. */
+    set(value: unknown) {
+        const {variable} = this;
+        if (variable) this.blueprintModel.setVariable(variable.name, value);
+    }
 }
 
 /**
- * The blueprint's toolbar: an input for each prompted variable. Hidden when there are none. A
- * preset group shows through a `presetSelector` widget instead.
+ * The `variableInput` widget: the input a prompted variable's type calls for, beside its label. It
+ * shows nothing until its config names a variable the blueprint declares.
  */
-export const blueprintToolbar = hoistCmp.factory<BlueprintToolbarProps>({
-    displayName: 'BlueprintToolbar',
-    model: false,
-    render({blueprintModel: model}) {
-        const prompts = model.variables.filter(it => it.decl.setBy === 'prompt');
-        if (isEmpty(prompts)) return null;
-        return toolbar({
-            className: 'xh-blueprint-view__toolbar',
-            children: prompts.flatMap(it => [
-                label(variableLabel(it.name, it.decl)),
-                promptInput(it, model, value => model.setVariable(it.name, value))
-            ])
+export const [VariableInputWidget, variableInputWidget] = hoistCmp.withFactory({
+    displayName: 'VariableInputWidget',
+    className: 'xh-blueprint-variable-input',
+    model: uses(VariableInputWidgetModel),
+    render({model, className}) {
+        const {variable, blueprintModel, resolvedConfig} = model;
+        if (!variable) return null;
+        const text = resolvedConfig.label || variableLabel(variable.name, variable.decl);
+        return hbox({
+            className: classNames('xh-blueprint-input', className),
+            alignItems: 'center',
+            children: [
+                label(String(text)),
+                promptInput(variable, blueprintModel, value => model.set(value))
+            ]
         });
     }
 });
 
+//------------------
+// Implementation
+//------------------
 function promptInput(
     v: BlueprintVariable,
     model: BlueprintModel,

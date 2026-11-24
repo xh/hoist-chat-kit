@@ -26,8 +26,11 @@
         "currentB": {"dataset": "currentWeather", "params": {"city": {"$var": "cityB"}, "units": {"$var": "units"}}},
         "forecastB": {"dataset": "weather", "params": {"city": {"$var": "cityB"}, "units": {"$var": "units"}}}
     },
-    "root": "dashboard",
+    "root": "page",
     "elements": {
+        "page": {"component": "panel", "tbar": [{"id": "cityAInput"}, {"id": "cityBInput"}], "children": [{"id": "dashboard"}]},
+        "cityAInput": {"component": "variableInput", "config": {"variable": "cityA"}},
+        "cityBInput": {"component": "variableInput", "config": {"variable": "cityB"}},
         "dashboard": {
             "component": "dashboard",
             "children": [

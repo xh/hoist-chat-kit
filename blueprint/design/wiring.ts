@@ -112,6 +112,9 @@ export function wiringGraph(blueprint: Blueprint): WiringGraph {
                 add({from: to, to: {kind: 'variable', id: name}, kind: 'sets'});
             }
         });
+        if (el.component === 'variableInput' && Object.hasOwn(variables, el.config?.variable)) {
+            add({from: to, to: {kind: 'variable', id: el.config.variable}, kind: 'sets'});
+        }
         if (el.component === 'presetSelector' && Object.hasOwn(presets, el.config?.group)) {
             add({from: {kind: 'preset', id: el.config.group}, to, kind: 'shows'});
         }

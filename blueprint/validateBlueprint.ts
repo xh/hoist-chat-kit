@@ -1112,6 +1112,22 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         });
     }
 
+    // A prompted variable shows in a variableInput, as the user has no other way to set it.
+    const shown = new Set(
+        Object.values(elements)
+            .filter(it => it?.component === 'variableInput')
+            .map(it => it.config?.variable)
+    );
+    for (const [name, decl] of Object.entries<any>(bp.variables ?? {})) {
+        if (!isAnswer && decl?.setBy === 'prompt' && !shown.has(name)) {
+            warn(
+                'variable.noInput',
+                `/variables/${name}`,
+                "no variableInput shows it, so the user cannot change it. Add one, usually in the root panel's tbar."
+            );
+        }
+    }
+
     // Presets: named groups, each controlling its own paths.
     const owner: Record<string, string> = toLookup({});
     const selected = new Set(

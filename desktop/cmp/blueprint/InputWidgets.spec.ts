@@ -233,6 +233,25 @@ describe('input widgets', () => {
         expect(picker.pickerModel.anchorDate.isoString).toBe('2026-03-05');
     });
 
+    // A column of a variableInput for each prompted variable named, over a note.
+    const withInputs = (...names: string[]) => ({
+        root: 'page',
+        elements: {
+            page: {
+                component: 'box',
+                config: {direction: 'column'},
+                children: [...names.map(it => ({id: `${it}Input`})), {id: 'note'}]
+            },
+            ...Object.fromEntries(
+                names.map(it => [
+                    `${it}Input`,
+                    {component: 'variableInput', config: {variable: it}}
+                ])
+            ),
+            note: {component: 'markdown', config: {text: 'x'}}
+        }
+    });
+
     it("anchors a prompted date range's picker on its asOf", () => {
         const model = new BlueprintModel({
             blueprint: {
@@ -246,8 +265,7 @@ describe('input widgets', () => {
                         asOf: {$var: 'asOf'}
                     }
                 },
-                root: 'note',
-                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+                ...withInputs('range')
             },
             catalog: portfolioCatalog,
             registry: scenarioRegistry(),
@@ -256,7 +274,7 @@ describe('input widgets', () => {
         });
         onTestFinished(() => model.destroy());
         const {container} = render(blueprintView({model})),
-            picker = container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker');
+            picker = container.querySelector('.xh-blueprint-variable-input .xh-date-range-picker');
         expect(picker.textContent).toContain('2026-03-01');
         expect(picker.textContent).toContain('2026-03-02');
     });
@@ -269,8 +287,7 @@ describe('input widgets', () => {
                     asOf: {type: 'localDate', setBy: 'prompt', default: {value: '2026-03-02'}},
                     range: {type: 'dateRange', setBy: 'prompt', default: {value: 'mtd'}}
                 },
-                root: 'note',
-                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+                ...withInputs('range')
             },
             catalog: portfolioCatalog,
             registry: scenarioRegistry(),
@@ -281,7 +298,7 @@ describe('input widgets', () => {
         onTestFinished(() => model.destroy());
         const {container} = render(blueprintView({model})),
             text = () =>
-                container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker')
+                container.querySelector('.xh-blueprint-variable-input .xh-date-range-picker')
                     .textContent;
         model.applyEdit({
             ops: [{op: 'set', path: '/variables/range/asOf', value: {$var: 'asOf'}}]
@@ -297,8 +314,7 @@ describe('input widgets', () => {
                     range: {type: 'dateRange', label: 'Range', setBy: 'prompt'},
                     window: {type: 'period', label: 'Window', setBy: 'prompt'}
                 },
-                root: 'note',
-                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+                ...withInputs('range', 'window')
             },
             catalog: portfolioCatalog,
             registry: scenarioRegistry(),
@@ -308,7 +324,7 @@ describe('input widgets', () => {
         onTestFinished(() => model.destroy());
         const {container} = render(blueprintView({model}));
         expect(
-            container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker')
+            container.querySelector('.xh-blueprint-variable-input .xh-date-range-picker')
         ).toBeTruthy();
         expect(screen.getByText('Window')).toBeTruthy();
         expect(() => model.setVariable('window', '3m')).toThrow();

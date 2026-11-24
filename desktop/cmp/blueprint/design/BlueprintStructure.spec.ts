@@ -97,7 +97,7 @@ describe('BlueprintStructure', () => {
         const {structure} = open(),
             sections = structure.gridModel.store.rootRecords;
         expect(sections.map(it => [it.data.name, it.data.count])).toEqual([
-            ['Elements', 18],
+            ['Elements', 21],
             ['Sources', 3],
             ['Variables', 8],
             ['Presets', 1]

@@ -21,15 +21,31 @@ import {validateBlueprint} from './validateBlueprint';
  */
 describe('validateBlueprint', () => {
     const registry = scenarioRegistry(),
+        // A blueprint written for one rule shows no inputs: the variableInput spec checks that rule.
         validate = (bp: Blueprint, isAnswer = false) =>
             validateBlueprint(bp, {
                 catalog: portfolioCatalog,
                 registry,
                 artifacts: ARTIFACTS,
                 isAnswer
-            }),
+            }).filter(it => it.code !== 'variable.noInput'),
         codes = (bp: Blueprint) => validate(bp).map(it => it.code),
         p2 = () => loadBlueprint('p2-linked-dashboard.json');
+
+    it("shows an example's prompted variables in variableInputs, in a panel's tbar over it", () => {
+        const {blueprint} = exampleBlueprintOf(registry.widgets.cubeGrid, portfolioCatalog),
+            {root, elements} = blueprint;
+        expect(elements[root]).toMatchObject({component: 'panel', children: [{id: 'cubeGrid'}]});
+        const inputs = (elements[root].tbar as {id: string}[]).map(it => elements[it.id]);
+        expect(inputs.map(it => it.config.variable)).toEqual(
+            Object.keys(blueprint.variables).filter(
+                it => blueprint.variables[it].setBy === 'prompt'
+            )
+        );
+        expect(
+            validateBlueprint(blueprint, {catalog: portfolioCatalog, registry}).map(it => it.code)
+        ).not.toContain('variable.noInput');
+    });
 
     it.each(Object.values(registry.widgets).filter(it => it.example && !it.reserved && !it.app))(
         "renders the built-in $name's example on its own, as a registry browser assembles it",
@@ -729,6 +745,8 @@ describe('validateBlueprint', () => {
         it('refuses several writers on a variable that is not a filter', () => {
             const bp = p2();
             bp.variables.asOf.setBy = [{element: 'posGrid', output: 'selection'}];
+            delete bp.elements.page.tbar;
+            delete bp.elements.asOfInput;
             expect(codes(bp)).toEqual(['variable.typeMismatch']);
         });
     });
@@ -826,7 +844,7 @@ describe('validateBlueprint', () => {
         const titled = (title: string, at: 'chart' | 'column' | 'card' | 'tab'): Blueprint => {
             const bp = p2(),
                 {elements} = bp;
-            bp.root = 'tabs';
+            elements.page.children = [{id: 'tabs'}];
             elements.tabs = {
                 component: 'tabContainer',
                 children: [{id: 'dashboard', title: at === 'tab' ? title : 'Positions'}]
@@ -1054,7 +1072,9 @@ describe('validateBlueprint', () => {
                 validateBlueprint(withVariable({type: 'dateRange', default: {value}}), {
                     catalog: portfolioCatalog,
                     registry: reg
-                }).map(it => it.code);
+                })
+                    .filter(it => it.code !== 'variable.noInput')
+                    .map(it => it.code);
             expect(check('mtd')).toEqual([]);
             expect(check({kind: 'preset', token: 'acme.fiscalYtd', offset: -1})).toEqual([]);
             expect(check({kind: 'relative', count: 3, unit: 'months'})).toEqual([]);

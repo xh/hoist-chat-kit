@@ -16,8 +16,10 @@
         },
         "funds": {"dataset": "fundSummary", "params": {"asOf": {"$var": "asOf"}}}
     },
-    "root": "dashboard",
+    "root": "page",
     "elements": {
+        "page": {"component": "panel", "tbar": [{"id": "asOfInput"}], "children": [{"id": "dashboard"}]},
+        "asOfInput": {"component": "variableInput", "config": {"variable": "asOf"}},
         "dashboard": {"component": "dashboard", "children": [{"id": "posGrid", "x": 0, "y": 0, "w": 12, "h": 10}]},
         "posGrid": {
             "component": "cubeGrid",

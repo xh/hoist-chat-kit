@@ -66,6 +66,8 @@ describe('BlueprintMap', () => {
         });
         const elements = groupsOf(map, 'Elements');
         expect(Object.values(elements).flat()).toEqual([
+            'fundInput',
+            'asOfInput',
             'reportActions',
             'headline',
             'sectorChart',
@@ -77,7 +79,9 @@ describe('BlueprintMap', () => {
             'priceChart',
             'ordersGrid'
         ]);
+        // The root panel's inputs lead, in no tab.
         expect(Object.keys(elements)).toEqual([
+            '',
             'Overview tab · overview',
             'Positions tab · positions',
             'Orders tab · orders'

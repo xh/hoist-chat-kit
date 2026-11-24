@@ -100,11 +100,7 @@ describe('layout and container widgets', () => {
                         schema: {blueprint: 1},
                         root: 'row',
                         variables: {
-                            asOf: {
-                                type: 'localDate',
-                                setBy: 'prompt',
-                                default: {value: '2026-03-02'}
-                            }
+                            asOf: {type: 'localDate', default: {value: '2026-03-02'}}
                         },
                         sources: {
                             positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}}

@@ -312,7 +312,7 @@ describe('BlueprintDesignModel', () => {
 
         it("names an element's ancestors, root first, and what the Architect's last edit touched", () => {
             const {model, design} = p3();
-            expect(design.pathTo('posGrid')).toEqual(['tabs', 'positions']);
+            expect(design.pathTo('posGrid')).toEqual(['page', 'tabs', 'positions']);
             model.applyEdit({
                 author: 'architect',
                 ops: [{op: 'set', path: '/elements/posGrid/config/title', value: 'Held'}]
@@ -409,6 +409,8 @@ describe('BlueprintDesignModel', () => {
 
         design.setInputVariable(id, 'asOf');
         expect(model.blueprint.variables.asOf.setBy).toEqual({element: id});
+        // Its variableInput goes, as the date input is now the one way to set it.
+        expect(model.blueprint.elements).not.toHaveProperty('asOfInput');
 
         design.setInputVariable(id, 'tradeDate');
         expect(model.blueprint.variables.tradeDate).toEqual({
@@ -488,25 +490,25 @@ describe('BlueprintDesignModel', () => {
     describe('slots', () => {
         const withPanel = () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
-            bp.elements.page = {
+            bp.elements.section = {
                 component: 'panel',
                 config: {title: 'Page'},
                 children: [{id: 'ordersGrid'}]
             };
             bp.elements.dashboard.children = bp.elements.dashboard.children.map(it =>
-                it.id === 'ordersGrid' ? {...it, id: 'page'} : it
+                it.id === 'ordersGrid' ? {...it, id: 'section'} : it
             );
             return bp;
         };
 
         it('adds into a named slot, and after an element in the slot that holds it', () => {
             const {model, design} = open(withPanel()),
-                {id: rule} = design.addWidget('separator', 'page', {slot: 'bbar'});
-            expect(model.blueprint.elements.page.bbar).toEqual([{id: rule}]);
+                {id: rule} = design.addWidget('separator', 'section', {slot: 'bbar'});
+            expect(model.blueprint.elements.section.bbar).toEqual([{id: rule}]);
             design.select({kind: 'element', id: rule});
-            expect(design.addTarget).toEqual({parent: 'page', slot: 'bbar', after: rule});
+            expect(design.addTarget).toEqual({parent: 'section', slot: 'bbar', after: rule});
             const {id: next} = design.addWidget('spacer');
-            expect((model.blueprint.elements.page.bbar as any[]).map(it => it.id)).toEqual([
+            expect((model.blueprint.elements.section.bbar as any[]).map(it => it.id)).toEqual([
                 rule,
                 next
             ]);
@@ -514,15 +516,15 @@ describe('BlueprintDesignModel', () => {
 
         it('moves beside an element into the slot that holds it, and removes what a slot holds with its parent', () => {
             const {model, design} = open(withPanel()),
-                {id: bar} = design.addWidget('toolbar', 'page', {slot: 'tbar'}),
-                {id: other} = design.addWidget('separator', 'page');
+                {id: bar} = design.addWidget('toolbar', 'section', {slot: 'tbar'}),
+                {id: other} = design.addWidget('separator', 'section');
             expect(design.moveTo(other, bar, 'after').issues).toEqual([]);
-            expect((model.blueprint.elements.page.tbar as any[]).map(it => it.id)).toEqual([
+            expect((model.blueprint.elements.section.tbar as any[]).map(it => it.id)).toEqual([
                 bar,
                 other
             ]);
-            expect(design.describeRemoval('page').elements).toEqual(
-                expect.arrayContaining(['page', 'ordersGrid', bar, other])
+            expect(design.describeRemoval('section').elements).toEqual(
+                expect.arrayContaining(['section', 'ordersGrid', bar, other])
             );
         });
 
@@ -1095,12 +1097,14 @@ describe('BlueprintDesignModel', () => {
             expect(ids('posGrid')).toEqual(['duplicate', 'wrap', 'delete']);
             expect(ids('dashboard')).toEqual([
                 'addWidget',
+                'addAfter',
                 'duplicate',
                 'wrap',
                 'changeType',
                 'delete'
             ]);
-            expect(action('dashboard', 'duplicate').disabledReason).toMatch(/root/);
+            expect(ids('page')).toEqual(['addWidget', 'duplicate', 'wrap', 'changeType', 'delete']);
+            expect(action('page', 'duplicate').disabledReason).toMatch(/root/);
             const toolbar = action('posGrid', 'wrap').items.find(it => it.id === 'wrap:toolbar');
             expect(toolbar.disabledReason).toEqual(expect.any(String));
             expect(

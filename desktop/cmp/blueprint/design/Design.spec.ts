@@ -3,6 +3,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
+    type Blueprint,
     BlueprintDesignModel,
     BlueprintModel,
     FakeBlueprintDataProvider
@@ -39,9 +40,11 @@ describe('design mode selection', () => {
         await initTestAppAsync();
     });
 
-    function open(file = 'p2-linked-dashboard.json') {
+    function open(file = 'p2-linked-dashboard.json', edit: (bp: Blueprint) => void = null) {
+        const blueprint = loadBlueprint(file);
+        edit?.(blueprint);
         const model = new BlueprintModel({
-                blueprint: loadBlueprint(file),
+                blueprint,
                 catalog: portfolioCatalog,
                 registry: scenarioRegistry(),
                 dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
@@ -63,7 +66,7 @@ describe('design mode selection', () => {
         onTestFinished(() => outline.destroy());
 
         const roots = gridModel.store.rootRecords.map(it => it.id);
-        expect(roots).toEqual(['dashboard']);
+        expect(roots).toEqual(['page']);
         expect(gridModel.store.getById('dashboard').children.map(it => it.id)).toEqual(
             model.blueprint.elements.dashboard.children.map(it => it.id)
         );
@@ -826,7 +829,11 @@ describe('design mode selection', () => {
     });
 
     it('runs the design keys on the selection, but never from an input', () => {
-        const {design, model} = open('p3-morning-report.json'),
+        // One input in the tbar, which jsdom would otherwise fold into its overflow menu.
+        const {design, model} = open('p3-morning-report.json', bp => {
+                bp.elements.page.tbar = [{id: 'asOfInput'}];
+                delete bp.elements.fundInput;
+            }),
             {container} = render(blueprintView({model, designModel: design}) as ReactElement),
             key = (target: Element, key: string, init: object = {}) =>
                 fireEvent.keyDown(target, {key, ...init});
@@ -856,7 +863,7 @@ describe('design mode selection', () => {
         key(canvas, 'z', {ctrlKey: true});
         expect(y()).toBe(before);
 
-        const input = container.querySelector('.xh-blueprint-view__toolbar input');
+        const input = container.querySelector('.xh-blueprint-variable-input input');
         expect(input).toBeTruthy();
         key(input, 'Escape');
         expect(design.selectedElementId).toBe('sectorChart');
@@ -973,17 +980,17 @@ describe('design mode selection', () => {
         const model = new BlueprintModel({
                 blueprint: {
                     ...loadBlueprint('p1-one-grid.json'),
-                    root: 'page',
+                    root: 'column',
                     variables: {
                         ...loadBlueprint('p1-one-grid.json').variables,
                         who: {type: 'string', setBy: {element: 'name'}}
                     },
                     elements: {
                         ...loadBlueprint('p1-one-grid.json').elements,
-                        page: {
+                        column: {
                             component: 'box',
                             config: {direction: 'column'},
-                            children: [{id: 'buttons'}, {id: 'name'}, {id: 'posGrid'}]
+                            children: [{id: 'buttons'}, {id: 'name'}, {id: 'page'}]
                         },
                         buttons: {
                             component: 'buttonGroup',

@@ -1383,7 +1383,7 @@ describe('blueprint desktop widgets', () => {
         });
     });
 
-    it('renders the toolbar prompts over the root element', async () => {
+    it("renders a prompted variable's input in the root panel's tbar", async () => {
         const model = open(loadBlueprint('p1-one-grid.json'));
         render(blueprintView({model}));
         expect(await screen.findByText('As of')).toBeTruthy();
@@ -1493,17 +1493,10 @@ describe('blueprint desktop widgets', () => {
     it('replaces a blueprint with charts with another, without a widget outliving its source', async () => {
         const model = open(loadBlueprint('p3-morning-report.json'));
         render(blueprintView({model}));
-        expect(await screen.findByText('As of')).toBeTruthy();
+        expect(await screen.findByText('Overview')).toBeTruthy();
         model.setBlueprint(loadBlueprint('p1-one-grid.json'));
         await wait();
-        expect(model.blueprint.root).toBe('posGrid');
-    });
-
-    it('leaves preset groups out of its toolbar, for a presetSelector to show', async () => {
-        const model = open(loadBlueprint('p3-morning-report.json'));
-        render(blueprintView({model}));
-        expect(await screen.findByText('As of')).toBeTruthy();
-        expect(screen.queryByText('Columns')).toBeNull();
+        expect(model.blueprint.elements.page.children).toEqual([{id: 'posGrid'}]);
     });
 
     it("renders an app variable type's own prompt input", async () => {
@@ -1521,6 +1514,9 @@ describe('blueprint desktop widgets', () => {
             default: {value: 'Oak Mount'}
         };
         bp.sources.positions.params.fund = {$var: 'fund'};
+        bp.elements.fundInput = {component: 'variableInput', config: {variable: 'fund'}};
+        bp.elements.page.tbar = [{id: 'fundInput'}];
+        delete bp.elements.asOfInput;
 
         render(blueprintView({model: open(bp, registry)}));
         expect(await screen.findByText('Fund input: Oak Mount')).toBeTruthy();

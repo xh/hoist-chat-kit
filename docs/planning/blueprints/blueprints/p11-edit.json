@@ -3,6 +3,7 @@
     "description": "Add Oak Mount's headline numbers and note from the chat",
     "ops": [
         {"op": "set", "path": "/variables/fund", "value": {"type": "toolbox.fund", "label": "Fund", "setBy": "prompt", "default": {"value": "Oak Mount"}}},
+        {"op": "addElement", "id": "fundInput", "element": {"component": "variableInput", "config": {"variable": "fund"}}, "parent": "page", "slot": "tbar"},
         {"op": "set", "path": "/sources/fundSummary", "value": {"dataset": "fundSummary", "params": {"asOf": {"$var": "asOf"}, "fund": {"$var": "fund"}}}},
         {"op": "addElement", "id": "fundCards", "element": {"component": "tileFrame", "config": {"title": "Fund Today"}}, "parent": "dashboard", "child": {"x": 0, "y": 14, "w": 8, "h": 2}},
         {"op": "addElement", "id": "fundNav", "element": {"component": "statCard", "config": {"source": "fundSummary", "field": "nav"}}, "parent": "fundCards", "child": {}},

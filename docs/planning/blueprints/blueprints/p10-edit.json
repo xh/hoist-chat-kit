@@ -3,6 +3,7 @@
     "description": "Add a lookback prompt with a return over it, then a date range picker for the price chart",
     "ops": [
         {"op": "set", "path": "/variables/lookback", "value": {"type": "period", "label": "Lookback", "setBy": "prompt", "default": {"value": "3M"}}},
+        {"op": "addElement", "id": "lookbackInput", "element": {"component": "variableInput", "config": {"variable": "lookback"}}, "parent": "page", "slot": "tbar"},
         {
             "op": "set",
             "path": "/variables/lookbackStart",

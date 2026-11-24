@@ -27,6 +27,7 @@ import {heatmapWidget, HeatmapWidgetModel} from '../HeatmapWidget';
 import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
 import {markdownWidget, MarkdownWidgetModel} from '../MarkdownWidget';
 import {panelWidget, PanelWidgetModel} from '../PanelWidget';
+import {variableInputWidget, VariableInputWidgetModel} from '../VariableInputWidget';
 import {propertyTableWidget, PropertyTableWidgetModel} from '../PropertyTableWidget';
 import {separatorWidget, SeparatorWidgetModel} from '../SeparatorWidget';
 import {spacerWidget, SpacerWidgetModel} from '../SpacerWidget';
@@ -92,6 +93,7 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     numberInput: {model: NumberInputWidgetModel, component: numberInputWidget},
     textInput: {model: TextInputWidgetModel, component: textInputWidget},
     switchInput: {model: SwitchInputWidgetModel, component: switchInputWidget},
+    variableInput: {model: VariableInputWidgetModel, component: variableInputWidget},
     slider: {model: SliderWidgetModel, component: sliderWidget},
     filterChooser: {model: FilterChooserWidgetModel, component: filterChooserWidget}
 };

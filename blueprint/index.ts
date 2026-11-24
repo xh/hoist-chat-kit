@@ -33,6 +33,7 @@ export type {
     SelectWidgetConfig,
     SliderWidgetConfig,
     SwitchInputWidgetConfig,
+    VariableInputWidgetConfig,
     TextInputWidgetConfig,
     ToolbarWidgetConfig,
     GroupingChooserWidgetConfig,

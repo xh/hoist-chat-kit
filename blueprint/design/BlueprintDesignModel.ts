@@ -772,7 +772,7 @@ export class BlueprintDesignModel extends HoistModel {
     /**
      * Make an input element show and set a variable, in one edit: an existing one, or a new one of
      * the widget's first value type. The variable it set before keeps its value, set by no one.
-     * Null unsets it.
+     * A prompted variable's variableInputs go. Null unsets it.
      */
     setInputVariable(elementId: string, name: string): BlueprintEditResult {
         const variables = this.blueprintModel.blueprint?.variables ?? {},
@@ -782,7 +782,13 @@ export class BlueprintDesignModel extends HoistModel {
                 .map(([vn]): BlueprintOp => ({op: 'remove', path: `/variables/${vn}/setBy`}));
         let set: BlueprintOp[] = [];
         if (name && getOwn(variables, name)) {
-            set = [{op: 'set', path: `/variables/${name}/setBy`, value: writer}];
+            // A prompted variable's inputs go, as the element is now the one way to set it.
+            const inputs = Object.entries(this.blueprintModel.blueprint.elements ?? {})
+                .filter(
+                    ([, el]) => el.component === 'variableInput' && el.config?.variable === name
+                )
+                .map(([id]): BlueprintOp => ({op: 'removeElement', id}));
+            set = [...inputs, {op: 'set', path: `/variables/${name}/setBy`, value: writer}];
         } else if (name) {
             const type = castArray(this.elementSpec(elementId)?.value?.type ?? [])[0];
             if (!type) return refused(`${elementId} sets no variable.`);
@@ -809,9 +815,21 @@ export class BlueprintDesignModel extends HoistModel {
         if (slotTarget && selected === (slotTarget.of ?? slotTarget.parent)) return slotTarget;
         if (selected && isContainer(selected)) return {parent: selected, after: null};
         if (selected && locate(blueprint?.elements, selected)) return this.placeAfter(selected);
-        return blueprint?.root && isContainer(blueprint.root)
-            ? {parent: blueprint.root, after: null}
-            : null;
+        const content = this.rootContent;
+        return content && isContainer(content) ? {parent: content, after: null} : null;
+    }
+
+    /**
+     * Where a blueprint's content starts: the root, or the one container in its children where the
+     * root is a panel that holds its inputs in a toolbar over it.
+     */
+    get rootContent(): string {
+        const elements = this.blueprintModel.blueprint?.elements,
+            root = this.blueprintModel.blueprint?.root,
+            el = getOwn(elements, root),
+            only =
+                el?.component === 'panel' && el.children?.length === 1 ? el.children[0].id : null;
+        return only && this.elementSpec(only)?.children ? only : (root ?? null);
     }
 
     /**
