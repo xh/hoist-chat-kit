@@ -103,9 +103,18 @@
       }
     }
 
-    // Set back but still readable, so the context stays legible.
+    // Set back by its color, not its opacity, so its text stays readable: its id muted, its
+    // detail as muted as ever, and its icon and border faded.
     &--dim {
-      opacity: 0.65;
+      border-color: color-mix(in srgb, var(--xh-border-color) 50%, var(--xh-bg));
+
+      .xh-blueprint-map__node-id {
+        color: var(--xh-blueprint-inspector-muted);
+      }
+
+      svg {
+        opacity: 0.5;
+      }
     }
   }
 
