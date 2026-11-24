@@ -702,7 +702,7 @@ describe('ElementInspector', () => {
         expect(row().querySelector('.bp6-switch')).toBeNull();
     });
 
-    it('marks a set value, which ↺ or Delete on its control resets, and names and explains each row', () => {
+    it('marks a set value, which ↺ or Delete on its control resets, and names each row', () => {
         const {model, design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = (key: string) => container.querySelector(`[data-config-key="${key}"]`),
@@ -730,11 +730,9 @@ describe('ElementInspector', () => {
         expect(title.getAttribute('aria-label')).toBe('Title');
         fireEvent.keyDown(title, {key: 'Delete'});
         expect(config().title).toBe('Positions');
-        // Help comes from the schema: a tooltip on the label, and a first sentence under the control.
+        // Help is the label's tooltip alone: no native title, and no line under the control.
         expect(row('stripeRows').querySelector('[title]')).toBeNull();
-        expect(
-            row('title').querySelector('.xh-blueprint-element-inspector__help').textContent
-        ).toBe('The title in its header.');
+        expect(row('title').querySelector('.xh-blueprint-element-inspector__help')).toBeNull();
     });
 
     it('pictures four options or fewer as cards, and more as a select', () => {
@@ -1006,7 +1004,7 @@ describe('ElementInspector', () => {
         expect(page().querySelector('.xh-blueprint-element-inspector__format-options')).toBeNull();
         expect(page().querySelector('[data-config-key="precision"]')).not.toBeNull();
         expect(page().querySelector('[data-config-key="scale"]')).toBeNull();
-        expect(page().textContent).toMatch(/more · .*Scale/);
+        expect(page().textContent).toMatch(/\d+ more.*Scale/);
         const precision = page().querySelector<HTMLInputElement>(
             '[data-config-key="precision"] input'
         );

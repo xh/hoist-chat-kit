@@ -33,6 +33,7 @@ import {
     fieldItemPage,
     firstSentence,
     listItemPage,
+    moreLine,
     propertyRow,
     removeItemButton,
     sectionCard,
@@ -761,24 +762,18 @@ function setSummary(impl: ElementInspectorModel, nodes: EditorNode[]): string {
     return set.length ? set.map(it => it.label).join(', ') : 'Nothing set';
 }
 
-// A section's unset advanced settings, folded to one row that names them, or the way to fold them.
+// A section's unset advanced settings, folded to one quiet line that names them, or the way to
+// fold them again.
 function moreRow(impl: ElementInspectorModel, section: InspectorSection): ReactNode {
     const {folded, moreOpen, group} = section;
     if (!folded.length) return null;
-    const toggle = () => impl.toggleSection(`more:${group}`);
-    if (moreOpen) {
-        return button({
-            key: 'more',
-            className: `${CLS}__more`,
-            text: 'Fewer',
-            minimal: true,
-            small: true,
-            onClick: toggle
-        });
-    }
+    const toggle = () => impl.toggleSection(`more:${group}`),
+        names = folded.map(it => it.label);
+    if (moreOpen) return moreLine(true, folded.length, names, toggle);
     return tooltip({
         key: 'more',
         className: `${CLS}__more-box`,
+        hoverOpenDelay: 500,
         content: div({
             className: `${CLS}__more-tip`,
             children: folded.map(it =>
@@ -791,13 +786,7 @@ function moreRow(impl: ElementInspectorModel, section: InspectorSection): ReactN
                 })
             )
         }),
-        item: button({
-            className: `${CLS}__more`,
-            text: `${folded.length} more · ${folded.map(it => it.label).join(', ')}`,
-            minimal: true,
-            small: true,
-            onClick: toggle
-        })
+        item: moreLine(false, folded.length, names, toggle)
     });
 }
 

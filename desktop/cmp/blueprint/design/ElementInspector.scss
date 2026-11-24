@@ -1,4 +1,27 @@
 .xh-blueprint-element-inspector {
+  // Controls a size smaller than an app's forms, so the Inspector's rows stay compact.
+  .bp6-input:not(textarea),
+  .xh-select__control {
+    min-height: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .xh-select__value-container {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .bp6-button:not(.bp6-small) {
+    min-height: 26px;
+    font-size: 12px;
+  }
+
+  .xh-segmented-control .bp6-button {
+    min-height: 24px;
+    padding: 0 8px;
+  }
+
   display: flex;
   flex-direction: column;
   gap: var(--xh-spacing);
@@ -68,8 +91,9 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--xh-text-color);
-    background-color: var(--xh-bg);
+    background-color: var(--xh-bg-alt);
     border-top: var(--xh-border-solid);
+    border-bottom: var(--xh-border-solid);
 
     &--toggle {
       cursor: pointer;
@@ -91,18 +115,31 @@
     min-width: 0;
   }
 
-  &__more.xh-button {
-    justify-content: flex-start;
+  &__more {
+    display: flex;
+    gap: 6px;
+    align-items: center;
     min-width: 0;
-    overflow: hidden;
-    font-size: 12px;
+    min-height: 24px;
+    font-size: 11px;
     color: var(--xh-text-color-muted);
+    cursor: pointer;
 
-    .bp6-button-text {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+    &:focus-visible {
+      outline: var(--xh-focus-outline);
     }
+  }
+
+  &__more-n {
+    flex: none;
+    font-weight: 500;
+    color: var(--xh-intent-primary-text-color);
+  }
+
+  &__more-names {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   &__more-tip {
@@ -162,8 +199,8 @@
   &__card-body {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-spacing-half);
-    padding: var(--xh-spacing-half) 0 var(--xh-spacing);
+    gap: 6px;
+    padding: var(--xh-spacing) 0 10px;
   }
 
   &__hint {
@@ -220,7 +257,7 @@
     grid-template-columns: 104px minmax(0, 1fr);
     column-gap: var(--xh-spacing-half);
     align-items: center;
-    min-height: 28px;
+    min-height: 30px;
 
     > .xh-blueprint-element-inspector__row-body {
       display: grid;
@@ -273,6 +310,11 @@
     min-width: 0;
     font-size: 11.5px;
     font-weight: 500;
+    color: var(--xh-text-color-muted);
+  }
+
+  // A set value's label reads in the text color, unset ones stay muted.
+  &__row--set > &__label {
     color: var(--xh-text-color);
   }
 
@@ -297,8 +339,8 @@
   }
 
   &__reset.xh-button {
-    position: absolute;
-    left: -9px;
+    flex: none;
+    margin-left: auto;
     min-width: 0;
     min-height: 0;
     padding: 0;
@@ -316,10 +358,6 @@
     opacity: 1;
   }
 
-  &__row--set:is(:hover, :focus-within) > &__label:has(&__reset) > &__dot {
-    opacity: 0;
-  }
-
   // Required and unset: the widget's Needs setup focuses it.
   &__row--missing > &__label {
     color: var(--xh-intent-warning-text-color);
@@ -328,17 +366,6 @@
   &__row--missing &__row-body .bp6-input,
   &__row--missing &__row-body .xh-select__control {
     box-shadow: inset 0 0 0 1px var(--xh-intent-warning);
-  }
-
-  // The focused row's first sentence of help, muted under its control. One row at a time.
-  &__help {
-    display: none;
-    font-size: 11px;
-    color: var(--xh-text-color-muted);
-  }
-
-  &__row:focus-within > &__row-body > &__help {
-    display: block;
   }
 
   &__label-tip {

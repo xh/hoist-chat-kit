@@ -206,6 +206,9 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                 className: `${CLS}__label`,
                 children: [
                     isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
+                    labelTooltip(node),
+                    node.required ? span({className: `${CLS}__req`, children: '*'}) : null,
+                    // At the label's end, clear of the control, shown on hover or focus.
                     canReset
                         ? button({
                               className: `${CLS}__reset`,
@@ -216,9 +219,7 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                               'aria-label': `Reset ${node.label}`,
                               onClick: reset
                           })
-                        : null,
-                    labelTooltip(node),
-                    node.required ? span({className: `${CLS}__req`, children: '*'}) : null
+                        : null
                 ]
             }),
             div({
@@ -245,13 +246,7 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                             ),
                             children: it.message
                         })
-                    ),
-                    node.description
-                        ? div({
-                              className: `${CLS}__help`,
-                              children: firstSentence(node.description)
-                          })
-                        : null
+                    )
                 ]
             }),
             node.kind === 'format' && !ctx.flatFormat
@@ -294,6 +289,32 @@ function defaultText(node: EditorNode): string {
     if (node.kind === 'boolean' || node.kind === 'choice')
         return choiceLabel(node, dflt === true ? 'true' : dflt);
     return isArray(dflt) ? (dflt as unknown[]).join(', ') : String(dflt);
+}
+
+/**
+ * A section's "N more" line, naming the settings it folds, or "Fewer" to fold them again: quiet
+ * text, its count in the intent, that a click, Enter or Space toggles.
+ */
+export function moreLine(open: boolean, count: number, names: string[], toggle: () => void) {
+    return div({
+        key: '_more',
+        className: `${CLS}__more`,
+        role: 'button',
+        tabIndex: 0,
+        'aria-expanded': open,
+        onClick: toggle,
+        onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            toggle();
+        },
+        children: open
+            ? [span({key: 'n', className: `${CLS}__more-n`, children: 'Fewer'})]
+            : [
+                  span({key: 'n', className: `${CLS}__more-n`, children: `${count} more`}),
+                  span({key: 'names', className: `${CLS}__more-names`, children: names.join(', ')})
+              ]
+    } as object);
 }
 
 /** The first sentence of a description, for a line of help. */
@@ -1554,16 +1575,12 @@ function pageView(opts: {
                     children: [
                         ...shown.map(it => it.row),
                         folded.length
-                            ? button({
-                                  key: '_more',
-                                  className: `${CLS}__more`,
-                                  text: moreOpen
-                                      ? 'Fewer'
-                                      : `${folded.length} more · ${folded.map(it => it.node.label).join(', ')}`,
-                                  minimal: true,
-                                  small: true,
-                                  onClick: () => impl.toggleItem(moreScope, group.id)
-                              })
+                            ? moreLine(
+                                  moreOpen,
+                                  folded.length,
+                                  folded.map(it => it.node.label),
+                                  () => impl.toggleItem(moreScope, group.id)
+                              )
                             : null
                     ]
                 });
