@@ -59,15 +59,17 @@ export function designHotkeys(
 }
 
 /**
- * The keys that switch between Edit and Interact, and to Preview, alone, for a part of the
- * designer that binds no other design keys, such as the Inspector. Never bind them inside a part
- * that does, or a toggle runs twice.
+ * The keys that switch between Edit and Interact, and to Preview, and Ctrl+D to duplicate, for
+ * the Inspector, which binds no other design keys, as Delete resets a setting there. Never bind
+ * them inside a part that binds the design keys, or each runs twice.
  */
-export function modeHotkeys(designModel: BlueprintDesignModel): HotkeyConfig[] {
-    return designHotkeys(designModel, {arrows: false}).filter(it => MODE_COMBOS.includes(it.combo));
+export function inspectorHotkeys(designModel: BlueprintDesignModel): HotkeyConfig[] {
+    return designHotkeys(designModel, {arrows: false}).filter(it =>
+        INSPECTOR_COMBOS.includes(it.combo)
+    );
 }
 
-const MODE_COMBOS = ['e', 'i', '`', 'p'];
+const INSPECTOR_COMBOS = ['e', 'i', '`', 'p', 'mod+d'];
 
 //------------------
 // Implementation

@@ -280,9 +280,11 @@ export function addWidgetAt(designModel: BlueprintDesignModel, widget: string, p
  */
 export function selectionMenu(
     designModel: BlueprintDesignModel,
-    {kind, id}: BlueprintSelection,
+    sel: BlueprintSelection,
     omit?: string
 ): (PlainObject | string)[] {
+    const {kind, id} = sel,
+        of = sel.kind === 'view' ? sel.of : null;
     const {blueprintModel} = designModel;
     if (blueprintModel.mode !== 'design' || blueprintModel.access !== 'write') return [];
     const rename = {
@@ -300,6 +302,7 @@ export function selectionMenu(
             }
         },
         remove = {text: 'Delete', icon: Icon.delete(), intent: 'danger'};
+    if (kind === 'view') return designMenu(designModel, {kind, id, of}, omit);
     if (kind !== 'element') {
         return [
             rename,

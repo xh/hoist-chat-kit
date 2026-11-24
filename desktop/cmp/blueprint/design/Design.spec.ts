@@ -28,7 +28,8 @@ import {ElementOutlineModel} from './ElementOutline';
 import {
     removeElementAsync,
     removePresetGroupAsync,
-    removeSelectionAsync
+    removeSelectionAsync,
+    selectionMenu
 } from './impl/designActions';
 
 /**
@@ -287,6 +288,12 @@ describe('design mode selection', () => {
             .onKeyDown({target: document.body, preventDefault: () => null} as any);
         expect(design.selection).toEqual({kind: 'view', id: 'a', of: 'dock'});
         expect(design.designActions(design.selection).map(it => it.id)).toEqual(['delete']);
+        // Its ⋯ menu holds its actions and a way to what holds it.
+        expect(
+            selectionMenu(design, design.selection).map(
+                (it: any) => it.text?.props?.children?.[0] ?? it.text ?? it
+            )
+        ).toEqual(['Delete', '-', 'Select dock']);
         expect(designMarks(design, overlay)[0].target).toBe('[data-blueprint-element="a"]');
     });
 

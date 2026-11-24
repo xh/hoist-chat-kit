@@ -655,6 +655,8 @@ export class BlueprintDesignModel extends HoistModel {
             icon: 'minusCircle',
             intent: 'danger',
             shortcut: 'Del',
+            disabledReason:
+                this.blueprintModel.blueprint?.root === id ? 'The root cannot be deleted.' : null,
             confirm: cascades ? removalMessage(id, removal) : null,
             run: () => {
                 const next =

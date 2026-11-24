@@ -1129,6 +1129,8 @@ describe('BlueprintDesignModel', () => {
             ]);
             expect(ids('page')).toEqual(['addWidget', 'duplicate', 'wrap', 'changeType', 'delete']);
             expect(action('page', 'duplicate').disabledReason).toMatch(/root/);
+            expect(action('page', 'delete').disabledReason).toBe('The root cannot be deleted.');
+            expect(action('dashboard', 'delete').disabledReason).toBeFalsy();
             const toolbar = action('posGrid', 'wrap').items.find(it => it.id === 'wrap:toolbar');
             expect(toolbar.disabledReason).toEqual(expect.any(String));
             expect(

@@ -39,7 +39,7 @@ import './BlueprintInspector.scss';
 import {elementInspector} from './ElementInspector';
 import {selectChip} from './impl/chips';
 import {refuse, runDesignActionAsync, selectionMenu} from './impl/designActions';
-import {modeHotkeys} from './impl/designHotkeys';
+import {inspectorHotkeys} from './impl/designHotkeys';
 import {type CrumbChild, type CrumbGroup, crumbMenu} from './impl/crumbMenu';
 import {partIcon} from './impl/icons';
 import {presetsEditor} from './PresetsEditor';
@@ -87,7 +87,7 @@ export const [BlueprintInspector, blueprintInspector] =
                           ]
                       })
                     : summary({className, impl, document: documentModel?.document}),
-                modeHotkeys(designModel)
+                inspectorHotkeys(designModel)
             );
         }
     });

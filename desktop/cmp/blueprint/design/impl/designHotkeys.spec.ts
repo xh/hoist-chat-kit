@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import type {BlueprintDesignModel} from '../../../../../blueprint';
-import {designHotkeys, modeHotkeys} from './designHotkeys';
+import {designHotkeys, inspectorHotkeys} from './designHotkeys';
 
 /** The design keys, which Blueprint's own "?" dialog lists under Design beside the app's. */
 describe('designHotkeys', () => {
@@ -25,6 +25,7 @@ describe('designHotkeys', () => {
         p().onKeyDown({target: document.body, preventDefault: () => null} as any);
         expect(onPreview).toHaveBeenCalledTimes(2);
         // The Inspector's keys take it too.
-        expect(modeHotkeys(dm).map(it => it.combo)).toContain('p');
+        expect(inspectorHotkeys(dm).map(it => it.combo)).toContain('p');
+        expect(inspectorHotkeys(dm).map(it => it.combo)).not.toContain('del');
     });
 });
