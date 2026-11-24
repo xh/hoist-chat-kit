@@ -884,7 +884,7 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                     commitList(items.map((it, j) => (keys[j] === key ? v : it)))
             }),
             renderers = useStableRenderers({
-                renderItem: (row: PlainObject) => {
+                itemRenderer: (row: PlainObject) => {
                     const label = itemLabel(row.value, row.index),
                         chips = summary
                             .map(it => chipText(it, (row.value as PlainObject)?.[it.key]))
@@ -922,7 +922,7 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                     });
                 },
                 // An item without a page opens its settings in place.
-                renderDetail: (row: PlainObject) => {
+                detailRenderer: (row: PlainObject) => {
                     const itemScope = `${scope}/${row.key}`,
                         value = row.value as PlainObject;
                     if (canPage) return null;
@@ -1458,7 +1458,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                   )
                 : all,
             renderers = useStableRenderers({
-                renderItem: (row: PlainObject) => {
+                itemRenderer: (row: PlainObject) => {
                     const {key, entry} = row,
                         mapped = mappedOf(entry),
                         chips = summary
@@ -1505,7 +1505,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                     });
                 },
                 // An item without a page opens its settings in place.
-                renderDetail: (row: PlainObject) => {
+                detailRenderer: (row: PlainObject) => {
                     if (canPage) return null;
                     const mapped = mappedOf(row.entry),
                         shown = canPage ? common : all;
@@ -1961,16 +1961,16 @@ function useLatest<T>(value: T): {readonly current: T} {
     return ret;
 }
 
-// renderItem and renderDetail that keep their identity and call the latest functions given.
+// itemRenderer and detailRenderer that keep their identity and call the latest functions given.
 function useStableRenderers<R>(fns: {
-    renderItem: (row: R) => ReactNode;
-    renderDetail: (row: R) => ReactNode;
+    itemRenderer: (row: R) => ReactNode;
+    detailRenderer: (row: R) => ReactNode;
 }) {
     const latest = useLatest(fns);
     return useMemo(
         () => ({
-            renderItem: (row: R) => latest.current.renderItem(row),
-            renderDetail: (row: R) => latest.current.renderDetail(row)
+            itemRenderer: (row: R) => latest.current.itemRenderer(row),
+            detailRenderer: (row: R) => latest.current.detailRenderer(row)
         }),
         [latest]
     );
@@ -2175,7 +2175,7 @@ function sortDrawer(
                       disabled,
                       compact: true,
                       onReorder: e => commitKeys(e.items.map((it: PlainObject) => it.key)),
-                      renderItem: ({index, key}: {index: number; key: SortKey}) =>
+                      itemRenderer: ({index, key}: {index: number; key: SortKey}) =>
                           hbox({
                               className: `${CLS}__sort-key`,
                               ...({'data-sort-field': key.field} as object),
@@ -2412,10 +2412,10 @@ function actionEditor(
                           disabled,
                           compact: true,
                           onReorder: e => commitSteps(e.items.map((it: PlainObject) => it.step)),
-                          renderItem: (row: PlainObject) => stepHeader(row.step, row.index),
+                          itemRenderer: (row: PlainObject) => stepHeader(row.step, row.index),
                           // Every step's body shows, with no chevron to fold it.
                           isItemExpandable: () => false,
-                          renderDetail: (row: PlainObject) => stepBody(row.step, row.index)
+                          detailRenderer: (row: PlainObject) => stepBody(row.step, row.index)
                       })
                   ]
                 : steps.map((step, i) =>

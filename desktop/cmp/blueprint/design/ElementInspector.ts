@@ -988,7 +988,7 @@ function viewCards(impl: ElementInspectorModel) {
                                   designModel,
                                   designModel.reorder(e.item.id, e.toIndex - e.fromIndex).issues
                               ),
-                          renderItem: ({id}: {id: string}) =>
+                          itemRenderer: ({id}: {id: string}) =>
                               hbox({
                                   className: `${CLS}__item-header ${CLS}__header-item`,
                                   children: [
@@ -1243,7 +1243,7 @@ function childrenCard(impl: ElementInspectorModel) {
                           disabled,
                           compact: true,
                           onReorder: e => impl.moveChild(e.item.id, e.fromIndex, e.toIndex),
-                          renderItem: (it: {id: string}) => row(it.id)
+                          itemRenderer: (it: {id: string}) => row(it.id)
                       })
                     : div({
                           key: 'list',
@@ -1283,7 +1283,7 @@ function tabsEditor(impl: ElementInspectorModel) {
                         disabled,
                         compact: true,
                         onReorder: e => impl.moveTab(e.item.id, e.toIndex),
-                        renderItem: (tab: {id: string; title: string}) =>
+                        itemRenderer: (tab: {id: string; title: string}) =>
                             hbox({
                                 className: `${CLS}__item-header ${CLS}__tab`,
                                 children: [
