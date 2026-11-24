@@ -1,7 +1,7 @@
 import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
-import {action, computed, observableRef, runInAction} from '@xh/hoist/mobx';
+import {action, compareStructural, computed, observableRef, runInAction} from '@xh/hoist/mobx';
 import {isEmpty, isEqual, isString, omit, pickBy, sortBy, uniq} from 'lodash';
 import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
@@ -257,6 +257,11 @@ export abstract class ConfigEditorModel extends HoistModel {
         return this.designModel.blueprintModel.blueprint?.presets ?? {};
     }
 
+    /** One property's value, which holds its identity across edits to the others. */
+    propValue(key: string): unknown {
+        return this.memo(`value:${key}`, () => this.values[key]);
+    }
+
     /** The variables an action may set, for an `x-variable` param. */
     get settableVariables(): Option[] {
         return Object.entries(this.variables)
@@ -271,6 +276,10 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The fields of the source that can fill a role, with their labels. */
     fieldOptions(role: string): Option[] {
+        return this.memo(`fieldOptions:${role}`, () => this.buildFieldOptions(role));
+    }
+
+    private buildFieldOptions(role: string): Option[] {
         const {source} = this;
         if (!source) return [];
         return Object.values(source.fields)
@@ -282,6 +291,14 @@ export abstract class ConfigEditorModel extends HoistModel {
      * A field's format, renderer and header from its catalog field and kind, before a widget's own.
      */
     inheritedDisplay(name: string): {format: unknown; renderer: unknown; headerName: string} {
+        return this.memo(`inherited:${name}`, () => this.buildInheritedDisplay(name));
+    }
+
+    private buildInheritedDisplay(name: string): {
+        format: unknown;
+        renderer: unknown;
+        headerName: string;
+    } {
         const field = this.source?.fields[name];
         if (!field) return {format: null, renderer: null, headerName: null};
         const kind = this.designModel.blueprintModel.catalogs
@@ -301,7 +318,7 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** A field's label, through the source. */
     fieldLabel(name: string): string {
-        return this.source?.fieldLabel(name) ?? name;
+        return this.memo(`label:${name}`, () => this.source?.fieldLabel(name) ?? name);
     }
 
     /** The variables a property can bind, by the type its schema takes. */
@@ -482,6 +499,19 @@ export abstract class ConfigEditorModel extends HoistModel {
         this.refusal = {key, issues};
         this.resets = {...this.resets, [key]: (this.resets[key] ?? 0) + 1};
     }
+
+    // A value through a computed per key, so an editor that reads it draws again only as the value
+    // itself changes, not on every edit the blueprint takes.
+    private memo<T>(key: string, fn: () => T): T {
+        let ret = this.memos.get(key);
+        if (!ret) {
+            ret = computed(fn, {equals: compareStructural});
+            this.memos.set(key, ret);
+        }
+        return ret.get() as T;
+    }
+
+    private readonly memos = new Map<string, {get(): unknown}>();
 
     private get source() {
         const {sourceName} = this;

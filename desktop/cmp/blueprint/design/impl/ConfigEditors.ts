@@ -449,7 +449,7 @@ function editorFor(
             return listEditor({node, list: (value as unknown[]) ?? [], commit, ctx});
         case 'filter':
             return filterEditor({
-                key: ctx.impl.values.source,
+                key: ctx.impl.sourceName,
                 value: value as PlainObject,
                 fieldSpecs: () => ctx.impl.filterFieldSpecs(),
                 labelOf: it => ctx.impl.fieldLabel(it),
@@ -871,7 +871,9 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
                         )
                 }),
                 mappedOf = (entry: PlainObject): PlainObject =>
-                    settingsIn ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {}) : {},
+                    settingsIn
+                        ? (getOwn(impl.propValue(settingsIn.key) as PlainObject, entry.field) ?? {})
+                        : {},
                 renderers = useStableRenderers({
                     renderItem: ({key, entry}: PlainObject) => {
                         const open = impl.isItemOpen(scope, key),

@@ -86,6 +86,10 @@ describe('ElementInspector', () => {
             inspector.variablesFor(node);
             inspector.sourceName;
             inspector.presets;
+            inspector.fieldLabel('mktVal');
+            inspector.fieldOptions('dimension');
+            inspector.inheritedDisplay('mktVal');
+            inspector.propValue('columnState');
         });
         onTestFinished(dispose);
         inspector.commit('title', 'Positions');
