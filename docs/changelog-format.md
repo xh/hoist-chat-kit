@@ -3,10 +3,34 @@
 Reference for writing and reviewing entries in the Hoist Chat Kit `CHANGELOG.md`. The kit follows
 the hoist-react changelog conventions, so an entry here reads like one there.
 
+## Where Entries Go
+
+Write new entries in a **changelog fragment**, not in `CHANGELOG.md`. Each pull request adds a
+markdown file in [`changelog.d/`](../changelog.d/README.md), named for its branch. The fragment holds
+the release body without its `##` heading: the same `###` section headers and bullets described
+below. A release assembles every fragment into `CHANGELOG.md` under the real version number, so pull
+requests never conflict over `CHANGELOG.md` and a late merge cannot land under a shipped version.
+
+```markdown
+### 🐞 Bug Fixes
+
+* Fixed `ChatModel` dropping a queued message when the transport reconnected.
+```
+
+Add a one-line entry with `pnpm changelog add fix "<text>"`.
+
+Leave release-level content out of fragments: the `(upgrade difficulty: ...)` suffix, the
+upgrade-notes sentence, the `Requires @xh/hoist` line, and `####` topic groups. The release
+curator adds them.
+
+The `pnpm changelog` script runs `xh-changelog` from `@xh/hoist-dev-utils`. Its README section
+[Changelog fragments](https://github.com/xh/hoist-dev-utils/blob/master/README.md#changelog-fragments)
+covers the fragment format, the commands, what `check` enforces, and how a release behaves.
+
 ## Entry Structure
 
-Every major version entry uses this structure. Minor and patch releases use whichever sections
-apply.
+Every major version entry in `CHANGELOG.md` uses this structure once the release is curated. Minor
+and patch releases use whichever sections apply.
 
 ```markdown
 ## {VERSION} - {YYYY-MM-DD}
@@ -51,10 +75,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ```
 
 The topmost heading on `develop` is always the next major version with a `-SNAPSHOT` suffix, as in
-`## 2.0.0-SNAPSHOT - unreleased`. New entries go under it. At release time, the heading becomes
-the release version and date, which is a minor or patch version when nothing breaks. After the
-release, a snapshot heading goes back on top. See
-[Cut a release](./build-and-publish.md#cut-a-release).
+`## 2.0.0-SNAPSHOT - unreleased`. It stays empty. Entries wait in `changelog.d/` until a release
+assembles them below it. See [Cut a release](./build-and-publish.md#cut-a-release).
 
 ## Section Headers
 
@@ -168,7 +190,8 @@ newer Hoist release:
 
 - Raise the `@xh/hoist` range in `peerDependencies` in `package.json`.
 - Update the version in the README's Installation section.
-- State the new minimum in the changelog entry, as a standalone line under the version heading.
+- State the new minimum in a `💥 Breaking Changes` bullet in your fragment. When the release is
+  curated, the curator also adds it as a standalone line under the version heading.
 
 Set the floor only to what the kit genuinely cannot run without. That is normally the release the
 kit's tests run against.

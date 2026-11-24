@@ -54,7 +54,7 @@ Look before you judge. Each of these has changed an answer before.
   tracked, with a plan recorded.
 - **`DECISIONS.md`.** Find the entries that cover the area. An ask that reverses a decision is a
   question for the maintainer. Do not reverse it quietly.
-- **Earlier answers.** Search the CHANGELOG and `git log` for the component and the feature. A
+- **Earlier answers.** Search the CHANGELOG, the fragments in `changelog.d/`, and `git log` for the component and the feature. A
   follow-up ask often means an earlier answer covered only the case in front of it. For example,
   the busy line was split into spans for an app to style apart, and the tooltip kept the whole
   line. Fix the gap in the earlier answer. Do not add a
@@ -196,12 +196,12 @@ and the review then finds the rest. Cover:
   without each optional method.
 
 Follow `AGENTS.md`. A change is done with its specs, doc comments, README section, index and
-registry rows, and CHANGELOG entry. Add a `DECISIONS.md` entry when the change makes a design
+registry rows, and changelog fragment. Add a `DECISIONS.md` entry when the change makes a design
 choice: a new seam, a new convention, or a declined option that will come up again. Run the
 change in Toolbox when it is visual. If you checked it by unit tests only, the reply says so.
 
-Add CHANGELOG entries under the topmost heading as it stands. Which release a change ships in is
-the maintainer's plan. Do not infer it from the repo's state.
+Add changelog entries in a fragment in `changelog.d/`, never in `CHANGELOG.md`. Which release a
+change ships in is the maintainer's plan. Do not infer it from the repo's state.
 
 Branching, committing, pushing and publishing each need the maintainer's ask, as `AGENTS.md`
 states.
