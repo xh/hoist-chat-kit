@@ -942,6 +942,27 @@ describe('ElementInspector', () => {
         expect(row('mktVal').querySelector('[title="Remove"]')).toBeNull();
     });
 
+    it("opens a column's style rule on a page within its page, and goes back to the column", () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['pnlDay']);
+        design.setConfig('posGrid', '/columns', {
+            pnlDay: {
+                styles: [{when: {field: 'pnlDay', op: '<', value: 0}, style: {color: 'danger'}}]
+            }
+        });
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            page = () =>
+                container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page');
+        fireEvent.click(page().querySelector('[aria-label="All settings of pnlDay < 0 · danger"]'));
+        expect(design.itemPage.inner).toMatchObject({list: 'styles', label: 'pnlDay < 0 · danger'});
+        expect(page().textContent).toContain('1 of 1');
+        expect(bandsOf(page())).toEqual(['When 1 set', 'Style 1 set']);
+        fireEvent.keyDown(page(), {key: 'Escape'});
+        expect(design.itemPage).toMatchObject({list: 'columnState', key: 'pnlDay#1'});
+        expect(design.itemPage.inner).toBeUndefined();
+    });
+
     it("shows a column's format options as rows of its page, the less used folded", () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['mktVal']);

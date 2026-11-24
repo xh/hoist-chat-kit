@@ -109,7 +109,7 @@ export class BlueprintInspectorModel extends HoistModel {
     }
 
     /** The list and item of the element's open item page, as its breadcrumb names them, or null. */
-    pageCrumbs(id: string): {list: string; item: string} {
+    pageCrumbs(id: string): {list: string; item: string; inner: string} {
         const page = this.designModel.itemPage;
         if (page?.element !== id) return null;
         const {blueprintModel} = this.designModel,
@@ -120,7 +120,8 @@ export class BlueprintInspectorModel extends HoistModel {
             source = blueprintModel.getSource(element?.config?.source);
         return {
             list: list?.label ?? page.list,
-            item: page.label ?? source?.fieldLabel(field) ?? field
+            item: page.label ?? source?.fieldLabel(field) ?? field,
+            inner: page.inner ? (page.inner.label ?? page.inner.key) : null
         };
     }
 
@@ -521,12 +522,36 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                       children: page.list
                   } as object),
                   separator('_item-sep'),
-                  span({
-                      key: '_item',
-                      className: `${CLS}__crumb ${CLS}__crumb--current`,
-                      title: page.item,
-                      children: span({className: `${CLS}__crumb-id`, children: page.item})
-                  })
+                  page.inner
+                      ? span({
+                            key: '_item',
+                            className: `${CLS}__crumb ${CLS}__crumb--link`,
+                            role: 'button',
+                            tabIndex: 0,
+                            title: `Back to ${page.item}`,
+                            onClick: () => designModel.closeInnerPage(),
+                            children: page.item
+                        } as object)
+                      : span({
+                            key: '_item',
+                            className: `${CLS}__crumb ${CLS}__crumb--current`,
+                            title: page.item,
+                            children: span({className: `${CLS}__crumb-id`, children: page.item})
+                        }),
+                  ...(page.inner
+                      ? [
+                            separator('_inner-sep'),
+                            span({
+                                key: '_inner',
+                                className: `${CLS}__crumb ${CLS}__crumb--current`,
+                                title: page.inner,
+                                children: span({
+                                    className: `${CLS}__crumb-id`,
+                                    children: page.inner
+                                })
+                            })
+                        ]
+                      : [])
               ]
             : [];
         return hbox({

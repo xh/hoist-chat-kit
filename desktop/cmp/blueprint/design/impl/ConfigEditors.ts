@@ -800,7 +800,13 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
             namedRef = useNamedInputs(),
             settings = itemSettings(node),
             {schema} = node.item,
-            canPage = !scope.includes('/') && itemsGetPages(node, impl),
+            // A top-level list's items get pages, and a list's on an item's page, a page within it.
+            inPage = !!ctx.flatFormat,
+            canPage = (!scope.includes('/') || inPage) && itemsGetPages(node, impl),
+            open = (key: string, label: string) =>
+                inPage
+                    ? impl.designModel.openInnerPage({list: node.key, key, label})
+                    : impl.openPage(ctx.key, key, label),
             summary = sortBy(
                 settings.filter(it => schema['x-summary']?.includes(it.key)),
                 it => schema['x-summary'].indexOf(it.key)
@@ -844,7 +850,7 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                                       'aria-label': `All settings of ${label}`,
                                       onClick: (e: React.MouseEvent) => {
                                           e.stopPropagation();
-                                          impl.openPage(ctx.key, row.key, label);
+                                          open(row.key, label);
                                       }
                                   })
                                 : null
@@ -894,8 +900,7 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                                 rightIcon: Icon.arrowRight(),
                                 minimal: true,
                                 small: true,
-                                onClick: () =>
-                                    impl.openPage(ctx.key, row.key, itemLabel(row.value, row.index))
+                                onClick: () => open(row.key, itemLabel(row.value, row.index))
                             })
                         ]
                     });
@@ -1574,7 +1579,36 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             index = rows.findIndex(it => it.key === itemKey),
             row = rows[index];
         if (!row) return null;
-        const mapped = mappedOf(row.entry);
+        const mapped = mappedOf(row.entry),
+            {field} = row.entry,
+            // A list on the page whose item's own page is open, such as a style rule's.
+            inner = impl.designModel.itemPage?.inner,
+            innerList = inner
+                ? entrySettings(node).find(
+                      it => it.setting.key === inner.list && it.setting.kind === 'list'
+                  )
+                : null;
+        if (innerList) {
+            const {setting, own} = innerList;
+            return listItemPage({
+                node: setting as ListNode,
+                list: castArray((own ? row.entry : mapped)[setting.key] ?? []),
+                commit: v =>
+                    own
+                        ? ops.current.set(row.key, setting.key, v)
+                        : impl.commitItemSetting(node.settingsIn.key, field, setting.key, v),
+                ctx: {
+                    impl,
+                    key: own ? ctx.key : node.settingsIn.key,
+                    scope: `${scope}/${row.key}`,
+                    flatFormat: true,
+                    inherited: impl.inheritedDisplay(field),
+                    fieldType: impl.fieldType(field)
+                },
+                itemKey: inner.key,
+                inner: true
+            });
+        }
         return pageView({
             impl,
             scope,
@@ -1593,11 +1627,10 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
                         row: entrySetting(node, setting, own, row, mapped, ctx, ops, true)
                     };
                 if (setting.kind !== 'format') return [ret];
-                const {field} = row.entry,
-                    commitFormat = (v: unknown) =>
-                        own
-                            ? ops.current.set(row.key, setting.key, v)
-                            : impl.commitItemSetting(node.settingsIn.key, field, setting.key, v);
+                const commitFormat = (v: unknown) =>
+                    own
+                        ? ops.current.set(row.key, setting.key, v)
+                        : impl.commitItemSetting(node.settingsIn.key, field, setting.key, v);
                 return [
                     ret,
                     ...formatOptionSettings(setting, value, commitFormat, {
@@ -1620,10 +1653,12 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
 });
 
 /** A list item's page, as {@link pageView} draws it, such as a grid row action's. */
-export const listItemPage = hoistCmp.factory<ListEditorProps<ListNode> & {itemKey: string}>({
+export const listItemPage = hoistCmp.factory<
+    ListEditorProps<ListNode> & {itemKey: string; inner?: boolean}
+>({
     displayName: 'BlueprintListItemPage',
     model: false,
-    render({node, list: items, commit, ctx, itemKey}) {
+    render({node, list: items, commit, ctx, itemKey, inner}) {
         const {impl} = ctx,
             scope = scopeOf(ctx),
             keys = impl.keysFor(scope, items),
@@ -1657,11 +1692,16 @@ export const listItemPage = hoistCmp.factory<ListEditorProps<ListNode> & {itemKe
                     ctx: {...ctx, scope: `${scope}/${itemKey}`}
                 })
             })),
-            onStep: by =>
-                keys[index + by] &&
-                impl.openPage(ctx.key, keys[index + by], itemLabel(items[index + by], index + by)),
+            onStep: by => {
+                const to = keys[index + by],
+                    label = to && itemLabel(items[index + by], index + by);
+                if (!to) return;
+                if (inner) impl.designModel.openInnerPage({list: node.key, key: to, label});
+                else impl.openPage(ctx.key, to, label);
+            },
             onBack: () => {
-                impl.designModel.closeItemPage();
+                if (inner) impl.designModel.closeInnerPage();
+                else impl.designModel.closeItemPage();
                 impl.setOpenItem(scope, itemKey);
                 focusItem(itemKey);
             }

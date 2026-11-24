@@ -63,6 +63,8 @@ export interface ItemPage {
     key: string;
     /** What the breadcrumb calls the item, where its key does not say. */
     label?: string;
+    /** An item of a list on this item's page whose own page shows, such as a column's style rule. */
+    inner?: {list: string; key: string; label?: string};
 }
 
 export interface AddPlace {
@@ -196,6 +198,18 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     closeItemPage() {
         this.itemPage = null;
+    }
+
+    /** Open the page of an item of a list on the open item's page. */
+    @action
+    openInnerPage(inner: ItemPage['inner']) {
+        if (this.itemPage) this.itemPage = {...this.itemPage, inner};
+    }
+
+    /** Close an inner page, back to the item's page that holds it. */
+    @action
+    closeInnerPage() {
+        if (this.itemPage) this.itemPage = omit(this.itemPage, 'inner');
     }
 
     /** True while the Inspector's Find a setting is open. */
