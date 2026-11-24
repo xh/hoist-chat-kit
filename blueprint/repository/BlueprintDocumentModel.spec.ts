@@ -4,7 +4,7 @@ import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blue
 import type {BlueprintAccess} from '../Blueprint';
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
-import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
+import {FakeBlueprintDataProvider} from '../demo/FakeBlueprintDataProvider';
 import {BlueprintDocumentModel} from './BlueprintDocumentModel';
 import type {BlueprintRecord} from './BlueprintRepository';
 import {InMemoryBlueprintRepository} from './InMemoryBlueprintRepository';

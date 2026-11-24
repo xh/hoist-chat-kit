@@ -3,7 +3,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
-import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
+import {FakeBlueprintDataProvider} from '../demo/FakeBlueprintDataProvider';
 import {InMemoryBlueprintRepository} from '../repository/InMemoryBlueprintRepository';
 import {fieldUsages} from '../usages';
 import {architectPrompt} from './architectPrompt';

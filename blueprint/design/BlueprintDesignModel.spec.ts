@@ -4,7 +4,7 @@ import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import type {Blueprint} from '../Blueprint';
 import {BlueprintModel} from '../BlueprintModel';
-import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
+import {FakeBlueprintDataProvider} from '../demo/FakeBlueprintDataProvider';
 import {viewTitle} from '../impl/elements';
 import {BlueprintDesignModel} from './BlueprintDesignModel';
 

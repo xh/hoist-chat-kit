@@ -8,8 +8,8 @@ import type {
     BlueprintDataResult,
     BlueprintDataUpdate,
     BlueprintFieldInstance
-} from './BlueprintDataProvider';
-import type {DataCatalog, DatasetDef} from './DataCatalog';
+} from '../BlueprintDataProvider';
+import type {DataCatalog, DatasetDef} from '../DataCatalog';
 
 export interface FakeBlueprintDataProviderConfig {
     catalog: DataCatalog;

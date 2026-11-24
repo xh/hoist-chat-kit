@@ -12,7 +12,7 @@ import type {Blueprint} from './Blueprint';
 import {applyOps} from './applyOps';
 import {BlueprintRegistry} from './BlueprintRegistry';
 import {DataCatalog} from './DataCatalog';
-import {exampleBlueprintOf} from './exampleBlueprint';
+import {exampleBlueprintOf} from './demo/exampleBlueprint';
 import {validateBlueprint} from './validateBlueprint';
 
 const PLACEMENT_HINTS = ['variable.noInput', 'widget.fitsToolbar'];

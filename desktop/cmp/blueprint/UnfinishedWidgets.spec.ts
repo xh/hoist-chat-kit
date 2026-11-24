@@ -3,13 +3,8 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {uniq} from 'lodash';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {
-    BlueprintDesignModel,
-    BlueprintModel,
-    exampleBlueprintOf,
-    FakeBlueprintDataProvider,
-    isIncomplete
-} from '../../../blueprint';
+import {BlueprintDesignModel, BlueprintModel, isIncomplete} from '../../../blueprint';
+import {exampleBlueprintOf, FakeBlueprintDataProvider} from '../../../blueprint/demo';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {blueprintView} from './BlueprintView';
 

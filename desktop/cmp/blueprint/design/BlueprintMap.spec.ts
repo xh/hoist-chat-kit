@@ -4,11 +4,8 @@ import path from 'node:path';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {
-    BlueprintDesignModel,
-    BlueprintModel,
-    FakeBlueprintDataProvider
-} from '../../../../blueprint';
+import {BlueprintDesignModel, BlueprintModel} from '../../../../blueprint';
+import {FakeBlueprintDataProvider} from '../../../../blueprint/demo';
 import {
     loadBlueprint,
     portfolioCatalog,

@@ -5,12 +5,8 @@ import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {
-    type Blueprint,
-    BlueprintDesignModel,
-    BlueprintModel,
-    FakeBlueprintDataProvider
-} from '../../../blueprint';
+import {type Blueprint, BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
+import {FakeBlueprintDataProvider} from '../../../blueprint/demo';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {blueprintView} from './BlueprintView';
 import type {DashboardWidgetModel} from './DashboardWidget';

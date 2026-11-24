@@ -11,7 +11,8 @@ import {
     weatherCatalog
 } from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
-import {BlueprintModel, DataCatalog, FakeBlueprintDataProvider} from '../../../blueprint';
+import {BlueprintModel, DataCatalog} from '../../../blueprint';
+import {FakeBlueprintDataProvider} from '../../../blueprint/demo';
 import {ChartWidgetModel} from './ChartWidget';
 import {GaugeWidgetModel} from './GaugeWidget';
 import {HeatmapWidgetModel} from './HeatmapWidget';

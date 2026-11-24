@@ -8,9 +8,9 @@ import {
     type BlueprintElement,
     BlueprintModel,
     type BlueprintWidgetModel,
-    FakeBlueprintDataProvider,
     type VariableDecl
 } from '../../../blueprint';
+import {FakeBlueprintDataProvider} from '../../../blueprint/demo';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
 import {blueprintView} from './BlueprintView';
 import {

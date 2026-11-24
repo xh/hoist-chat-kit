@@ -4,7 +4,7 @@ import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../test/blueprintFixtures';
 import {BlueprintModel} from './BlueprintModel';
 import {BlueprintWidgetModel} from './BlueprintWidgetModel';
-import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
+import {FakeBlueprintDataProvider} from './demo/FakeBlueprintDataProvider';
 
 /**
  * A widget that shows a value, such as a grouping chooser, is connected to the variable whose

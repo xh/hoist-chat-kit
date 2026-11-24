@@ -7,7 +7,7 @@ import type {Blueprint} from './Blueprint';
 import {blueprintLinkParams, blueprintLinkUrl, parseBlueprintLink} from './BlueprintLink';
 import {BlueprintModel} from './BlueprintModel';
 import type {BlueprintRegistry} from './BlueprintRegistry';
-import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
+import {FakeBlueprintDataProvider} from './demo/FakeBlueprintDataProvider';
 import {BlueprintDocumentModel} from './repository/BlueprintDocumentModel';
 import {InMemoryBlueprintRepository} from './repository/InMemoryBlueprintRepository';
 import {validateBlueprint} from './validateBlueprint';

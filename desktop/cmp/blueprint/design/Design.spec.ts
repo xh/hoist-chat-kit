@@ -2,12 +2,8 @@ import {act, fireEvent, render, within} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {
-    type Blueprint,
-    BlueprintDesignModel,
-    BlueprintModel,
-    FakeBlueprintDataProvider
-} from '../../../../blueprint';
+import {type Blueprint, BlueprintDesignModel, BlueprintModel} from '../../../../blueprint';
+import {FakeBlueprintDataProvider} from '../../../../blueprint/demo';
 import {
     loadBlueprint,
     portfolioCatalog,

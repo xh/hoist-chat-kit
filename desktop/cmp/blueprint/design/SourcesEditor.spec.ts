@@ -3,11 +3,8 @@ import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {
-    BlueprintDesignModel,
-    BlueprintModel,
-    FakeBlueprintDataProvider
-} from '../../../../blueprint';
+import {BlueprintDesignModel, BlueprintModel} from '../../../../blueprint';
+import {FakeBlueprintDataProvider} from '../../../../blueprint/demo';
 import {
     loadBlueprint,
     portfolioCatalog,

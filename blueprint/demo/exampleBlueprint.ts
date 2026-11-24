@@ -1,8 +1,8 @@
 import {cloneDeep, uniq, uniqBy} from 'lodash';
-import type {Blueprint, BlueprintElement} from './Blueprint';
-import type {WidgetSpec} from './BlueprintRegistry';
-import type {DataCatalog} from './DataCatalog';
-import {childIds} from './impl/elements';
+import type {Blueprint, BlueprintElement} from '../Blueprint';
+import type {WidgetSpec} from '../BlueprintRegistry';
+import type {DataCatalog} from '../DataCatalog';
+import {childIds} from '../impl/elements';
 
 // Plain data and pure functions only, so the harness under plain Node can load these.
 

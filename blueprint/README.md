@@ -117,8 +117,10 @@ blueprintView({model});
 ```
 
 `dataProvider` implements `BlueprintDataProvider`: `loadAsync()` for each request, or
-`subscribe()` for live rows. See `BlueprintDataProvider.ts`. `FakeBlueprintDataProvider` gives
-repeatable rows from the catalog alone, for tests and demos.
+`subscribe()` for live rows. See `BlueprintDataProvider.ts`. For tests and demos,
+`@xh/hoist-chat-kit/blueprint/demo` holds `FakeBlueprintDataProvider`, which gives repeatable rows
+from the catalog alone, and `exampleBlueprintOf()`, which builds a blueprint around one widget. The
+main entry point leaves them out, so an app does not ship them.
 
 ## Common Usage Patterns
 

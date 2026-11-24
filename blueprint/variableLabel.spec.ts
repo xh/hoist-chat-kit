@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {exampleBlueprintOf} from './exampleBlueprint';
+import {exampleBlueprintOf} from './demo/exampleBlueprint';
 import {variableLabel} from './variableLabel';
 
 /** A variable shows to users by its label, else by its name in words. */

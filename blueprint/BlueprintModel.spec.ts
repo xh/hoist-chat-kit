@@ -26,7 +26,7 @@ import type {
 } from './BlueprintDataProvider';
 import {BlueprintModel} from './BlueprintModel';
 import {BlueprintWidgetModel} from './BlueprintWidgetModel';
-import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
+import {FakeBlueprintDataProvider} from './demo/FakeBlueprintDataProvider';
 
 /**
  * A blueprint at runtime: the document is the source of truth, variables carry every value that

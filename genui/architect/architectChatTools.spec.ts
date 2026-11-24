@@ -1,6 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
-import {BlueprintModel, FakeBlueprintDataProvider} from '../../blueprint';
+import {BlueprintModel} from '../../blueprint';
+import {FakeBlueprintDataProvider} from '../../blueprint/demo';
 import {ChatToolResult} from '../../core';
 import {chatUiTextSpec} from '../../desktop/cmp/genui';
 import {getArtifactRows} from '../../impl/ArtifactRows';

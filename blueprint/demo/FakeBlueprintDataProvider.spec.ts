@@ -1,8 +1,8 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
-import {portfolioCatalog} from '../test/blueprintFixtures';
-import type {BlueprintDataRequest, BlueprintDataUpdate} from './BlueprintDataProvider';
+import {portfolioCatalog} from '../../test/blueprintFixtures';
+import type {BlueprintDataRequest, BlueprintDataUpdate} from '../BlueprintDataProvider';
 import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
 
 /**
