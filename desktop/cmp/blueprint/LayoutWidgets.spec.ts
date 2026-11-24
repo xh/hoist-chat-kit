@@ -1,5 +1,6 @@
 import {act, render, screen} from '@testing-library/react';
 import type {PlainObject} from '@xh/hoist/core';
+import {autorun} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {cloneDeep} from 'lodash';
 import type {ReactElement} from 'react';
@@ -853,6 +854,58 @@ describe('layout and container widgets', () => {
     });
 
     describe('dashboard cells', () => {
+        it('derives its cells, titles and header items afresh only as they change', () => {
+            const model = new BlueprintModel({
+                    blueprint: {
+                        schema: {blueprint: 1},
+                        root: 'dash',
+                        elements: {
+                            dash: {
+                                component: 'dashboard',
+                                children: [
+                                    {id: 'a', x: 0, y: 0, w: 6, h: 2, title: 'First'},
+                                    {id: 'b', x: 6, y: 0, w: 6, h: 2}
+                                ]
+                            },
+                            a: {component: 'markdown', config: {text: 'A'}},
+                            b: {component: 'markdown', config: {text: 'B'}}
+                        }
+                    },
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode: 'design',
+                    access: 'write'
+                }),
+                dash = new DashboardWidgetModel({
+                    blueprintModel: model,
+                    id: 'dash',
+                    renderElement: () => null
+                }),
+                set = (path: string, value: unknown) =>
+                    model.applyEdit({ops: [{op: 'set', path, value}]});
+            onTestFinished(() => {
+                dash.destroy();
+                model.destroy();
+            });
+            let runs = 0;
+            const dispose = autorun(() => {
+                runs++;
+                dash.cells;
+                dash.titles;
+                dash.cellHeaderRefs;
+            });
+            onTestFinished(dispose);
+            set('/elements/b/config/text', 'Bee');
+            expect(runs).toBe(1);
+            set('/elements/dash/children', [
+                {id: 'a', x: 0, y: 0, w: 6, h: 2, title: 'Second'},
+                {id: 'b', x: 6, y: 0, w: 6, h: 2}
+            ]);
+            expect(runs).toBe(2);
+            expect(dash.titles.a).toBe('Second');
+        });
+
         const cells = (mode: 'run' | 'design' = 'run') => {
             const model = new BlueprintModel({
                     blueprint: {

@@ -1,6 +1,6 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
-import {computed} from '@xh/hoist/mobx';
+import {compareStructural, computed} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {set} from 'lodash';
 import type {ReactNode} from 'react';
@@ -44,7 +44,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     /** The element as the blueprint declares it, or null once it is gone. */
     @computed
     get element(): BlueprintElement {
-        return this.blueprintModel.effective?.elements?.[this.id] ?? null;
+        return this.blueprintModel.effectiveElement(this.id);
     }
 
     /** The element's child references, in order. Empty for a widget that is not a container. */
@@ -54,7 +54,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
 
     /** The widget of another element, by its ID. */
     componentOf(id: string): string {
-        return this.blueprintModel.effective?.elements?.[id]?.component ?? null;
+        return this.blueprintModel.effectiveElement(id)?.component ?? null;
     }
 
     /** The references in one of the element's slot lists, or in one of a child reference's. */
@@ -73,7 +73,23 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return blueprintModel.issues.some(it => it.code === 'layout.tooNarrow' && it.path === path);
     }
 
+    /**
+     * A value derived through a computed per key that compares structurally, so a view that reads
+     * it draws again only as the value itself changes, not on every edit.
+     */
+    protected memo<T>(key: string, fn: () => T): T {
+        let ret = this.memos.get(key);
+        if (!ret) {
+            ret = computed(fn, {equals: compareStructural});
+            this.memos.set(key, ret);
+        }
+        return ret.get() as T;
+    }
+
+    private readonly memos = new Map<string, {get(): unknown}>();
+
     /** The container that holds the element, or null for the root. */
+    @computed
     get parentElement(): BlueprintElement {
         const elements = this.blueprintModel.effective?.elements;
         return elements?.[parentOf(elements, this.id)] ?? null;

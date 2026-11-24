@@ -32,11 +32,10 @@ export function layoutChildren(
     direction: 'row' | 'column',
     children: ChildRef[] = model.children
 ): ReactNode[] {
-    const {effective, registry} = model.blueprintModel,
-        elements = effective?.elements ?? {},
+    const {registry} = model.blueprintModel,
         along = direction === 'row' ? 'width' : 'height';
     return children.map(ref => {
-        const el = elements[ref.id],
+        const el = model.blueprintModel.effectiveElement(ref.id),
             size = {
                 width: ref.width as number,
                 height: ref.height as number,

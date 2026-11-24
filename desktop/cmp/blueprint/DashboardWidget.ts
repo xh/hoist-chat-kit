@@ -31,9 +31,15 @@ import {paletteDrag} from './impl/paletteDrag';
 export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetConfig> {
     /** The cells, as the child references place them. */
     get cells(): GridCell[] {
-        const {blueprint, registry} = this.blueprintModel,
+        return this.memo('cells', () => this.buildCells());
+    }
+
+    private buildCells(): GridCell[] {
+        const {blueprintModel} = this,
+            {registry} = blueprintModel,
             cells = this.children.map(it => {
-                const size = registry.widgets[blueprint?.elements?.[it.id]?.component]?.size?.min;
+                const size =
+                    registry.widgets[blueprintModel.declaredElement(it.id)?.component]?.size?.min;
                 return {
                     id: it.id,
                     ...(pick(it, 'x', 'y', 'w', 'h') as Omit<GridCell, 'id'>),
@@ -75,12 +81,15 @@ export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetCo
      * variables resolved, else its widget's label, else its ID.
      */
     get titles(): Record<string, string> {
+        return this.memo('titles', () => this.buildTitles());
+    }
+
+    private buildTitles(): Record<string, string> {
         const {blueprintModel} = this,
-            {registry} = blueprintModel,
-            elements = blueprintModel.blueprint?.elements ?? {};
+            {registry} = blueprintModel;
         return Object.fromEntries(
             this.children.map(ref => {
-                const element = elements[ref.id],
+                const element = blueprintModel.declaredElement(ref.id),
                     title = blueprintModel.resolveTitle(
                         (ref.title as string) ?? element?.config?.title
                     );
@@ -99,17 +108,21 @@ export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetCo
      * draws no header of its own in a cell.
      */
     get cellHeaderRefs(): Record<string, ChildRef[]> {
-        const elements = this.blueprintModel.blueprint?.elements ?? {};
-        return Object.fromEntries(
-            this.children.map(({id}) => [
-                id,
-                [
-                    ...this.slotRefs('headerItems', id),
-                    ...(elements[id]?.component === 'panel'
-                        ? ((elements[id].headerItems as ChildRef[]) ?? [])
-                        : [])
-                ]
-            ])
+        return this.memo('cellHeaderRefs', () =>
+            Object.fromEntries(
+                this.children.map(({id}) => {
+                    const element = this.blueprintModel.declaredElement(id);
+                    return [
+                        id,
+                        [
+                            ...this.slotRefs('headerItems', id),
+                            ...(element?.component === 'panel'
+                                ? ((element.headerItems as ChildRef[]) ?? [])
+                                : [])
+                        ]
+                    ];
+                })
+            )
         );
     }
 
@@ -322,8 +335,8 @@ const cellHeader = hoistCmp.factory<HoistProps & {model: DashboardWidgetModel; i
     displayName: 'DashboardCellHeader',
     model: false,
     render({model, id}) {
-        const {blueprint, registry} = model.blueprintModel,
-            element = blueprint?.elements?.[id],
+        const {registry} = model.blueprintModel,
+            element = model.blueprintModel.declaredElement(id),
             props = {className: `${CLS}__cell-icon`},
             title = model.titles[id];
         return hbox({

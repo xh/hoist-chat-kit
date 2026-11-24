@@ -6,6 +6,7 @@ import {dropRight, isEmpty, isEqual, last, omitBy, pickBy, takeRight} from 'loda
 import type {
     Blueprint,
     BlueprintEdit,
+    BlueprintElement,
     BlueprintIssue,
     BlueprintOp,
     ResolverCall
@@ -475,6 +476,22 @@ export class BlueprintModel extends HoistModel {
      * The blueprint as widgets show it: the definition, with each path that a preset group
      * controls set from the group's active preset, then any transient change made in run mode.
      */
+    /**
+     * An element as widgets show it, from {@link effective}, or null. Read through a computed per
+     * element, so a view that reads it draws again only as that element changes.
+     */
+    effectiveElement(id: string): BlueprintElement {
+        return elementOf(this.effectiveElements, id, () => this.effective?.elements);
+    }
+
+    /** An element as the blueprint declares it, or null, read as {@link effectiveElement} is. */
+    declaredElement(id: string): BlueprintElement {
+        return elementOf(this.declaredElements, id, () => this.blueprint?.elements);
+    }
+
+    private readonly effectiveElements = new Map<string, {get(): BlueprintElement}>();
+    private readonly declaredElements = new Map<string, {get(): BlueprintElement}>();
+
     @computed
     get effective(): Blueprint {
         const {blueprint, transientValues} = this,
@@ -920,4 +937,19 @@ const MAX_TITLE = 200;
 
 function isAtOrUnder(path: string, prefix: string): boolean {
     return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+// An element by ID, through a computed per element that keeps, so reading it tracks that element.
+function elementOf(
+    cache: Map<string, {get(): BlueprintElement}>,
+    id: string,
+    elements: () => Record<string, BlueprintElement>
+): BlueprintElement {
+    if (id == null) return null;
+    let ret = cache.get(id);
+    if (!ret) {
+        ret = computed(() => getOwn(elements(), id) ?? null);
+        cache.set(id, ret);
+    }
+    return ret.get();
 }
