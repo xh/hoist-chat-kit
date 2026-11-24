@@ -3,7 +3,8 @@ import {HoistModel, XH} from '@xh/hoist/core';
 import {action, bindable, bindableRef, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {findLast, isEmpty, round, take} from 'lodash';
+import {findLast, has, isEmpty, take} from 'lodash';
+import {fmtFileSize, getAttachmentTip} from './AttachmentTip';
 import type {ChatComposerHost} from './ChatComposerHost';
 import type {ChatModel} from '../ChatModel';
 import {
@@ -34,6 +35,12 @@ export interface ChatComposerConfig {
      * Default any.
      */
     accept?: string[];
+
+    /**
+     * A user-friendly description of the accepted file types, such as `'Images, PDF or CSV'`,
+     * shown in {@link ChatComposerModel.attachmentTip}. Default built from `accept`.
+     */
+    acceptLabel?: string;
 
     /** Maximum files per message. Default 10. */
     maxFiles?: number;
@@ -118,6 +125,9 @@ export class ChatComposerModel extends HoistModel {
     /** File types to accept, as MIME types or extensions, or null for any. (bindable) */
     @bindableRef accessor accept: string[];
 
+    /** A user-friendly description of the accepted file types, or null to build one. (bindable) */
+    @bindable accessor acceptLabel: string;
+
     /** Maximum files per message. (bindable) */
     @bindable accessor maxFiles: number;
 
@@ -161,6 +171,17 @@ export class ChatComposerModel extends HoistModel {
      * null. Cleared when the last message changes. (observable)
      */
     @observable accessor retryDueId: string = null;
+
+    /**
+     * A user-friendly summary of the attachment rules, such as "Images, PDF or CSV. Up to 4
+     * files, 5 MB each." - shown while files are dragged over a `ChatPanel`. Names the types
+     * from `acceptLabel`, or else from `accept`.
+     */
+    @computed
+    get attachmentTip(): string {
+        const {accept, acceptLabel, maxFiles, maxFileSize} = this;
+        return getAttachmentTip({accept, acceptLabel, maxFiles, maxFileSize});
+    }
 
     /** True if the draft has no text and no attachments. */
     @computed
@@ -214,6 +235,7 @@ export class ChatComposerModel extends HoistModel {
             host,
             enableAttachments = false,
             accept = null,
+            acceptLabel = null,
             maxFiles = 10,
             maxFileSize = 10 * MB,
             drafts = ChatKit.defaults.drafts
@@ -223,6 +245,7 @@ export class ChatComposerModel extends HoistModel {
         this.drafts = drafts;
         this.enableAttachments = enableAttachments;
         this.accept = accept;
+        this.acceptLabel = acceptLabel;
         this.maxFiles = maxFiles;
         this.maxFileSize = maxFileSize;
 
@@ -600,7 +623,7 @@ function isAccepted(file: File, accept: string[]): boolean {
     if (isEmpty(accept)) return true;
 
     const name = file.name.toLowerCase(),
-        type = file.type.toLowerCase();
+        type = getMediaType(file).toLowerCase();
     return accept.some(it => {
         const rule = it.trim().toLowerCase();
         if (rule.startsWith('.')) return name.endsWith(rule);
@@ -614,10 +637,32 @@ async function toFilePartAsync(file: File): Promise<ChatFilePart> {
         type: 'file',
         id: genChatId(),
         name: file.name,
-        mediaType: file.type || 'application/octet-stream',
+        mediaType: getMediaType(file) || 'application/octet-stream',
         size: file.size,
         data: await readBase64Async(file)
     };
+}
+
+/**
+ * Media types of text files that a browser may give no type, by extension. Without one, a codec
+ * would take a markdown file for binary and leave it out of the request.
+ */
+const TEXT_TYPES_BY_EXTENSION: Record<string, string> = {
+    csv: 'text/csv',
+    json: 'application/json',
+    markdown: 'text/markdown',
+    md: 'text/markdown',
+    txt: 'text/plain',
+    yaml: 'application/yaml',
+    yml: 'application/yaml'
+};
+
+/** The file's media type, or else that of its extension, or else an empty string. */
+function getMediaType(file: File): string {
+    if (file.type) return file.type;
+    const dot = file.name.lastIndexOf('.'),
+        extension = dot < 0 ? null : file.name.slice(dot + 1).toLowerCase();
+    return has(TEXT_TYPES_BY_EXTENSION, extension) ? TEXT_TYPES_BY_EXTENSION[extension] : '';
 }
 
 function readBase64Async(file: File): Promise<string> {
@@ -631,8 +676,4 @@ function readBase64Async(file: File): Promise<string> {
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
     });
-}
-
-function fmtFileSize(bytes: number): string {
-    return bytes >= MB ? `${round(bytes / MB, 1)} MB` : `${round(bytes / 1024)} KB`;
 }

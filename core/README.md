@@ -1363,17 +1363,19 @@ are props of the `ChatComposer` component. See [`/desktop/cmp/chat/`](../desktop
 | `host` | `ChatComposerHost` | The conversation the composer sends to. Required for a composer you create. |
 | `enableAttachments` | `boolean` | True to let the user attach files. Default false. |
 | `accept` | `string[]` | MIME types (`image/*`, `application/pdf`) or extensions (`.csv`). Default any. |
+| `acceptLabel` | `string` | A user-friendly description of the accepted types, such as `'Images, PDF or CSV'`, shown in `attachmentTip`. Default built from `accept`. |
 | `maxFiles` | `number` | Most files per message. Default 10. |
 | `maxFileSize` | `number` | Largest file, in bytes. Default 10 MB. |
 | `drafts` | `'local' \| 'memory'` | Where to keep the draft text. Default `ChatKit.defaults.drafts`. See [Keep drafts](#keep-drafts). |
 
-The four file settings are also `@bindable` members of the model, so an app can change them after
+The five file settings are also `@bindable` members of the model, so an app can change them after
 construction, for example to allow files only while an agent that reads them is selected.
 
 | Member | Description |
 |--------|-------------|
 | `text` | Draft text. `@bindable` - assign it directly. |
 | `attachments` | Files attached to the draft, as `ChatFilePart[]`. |
+| `attachmentTip` | A user-friendly summary of the attachment rules, such as "Images, PDF or CSV. Up to 4 files, 5 MB each." |
 | `isEmpty` | True if the draft has no text and no files. |
 | `host` | The `ChatComposerHost` the composer sends to. |
 | `chatModel` | The host when it is a `ChatModel`, else null. Stop, per-thread drafts and the status region need one. |

@@ -39,6 +39,7 @@ import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
 import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
 import {threadLoadFailed, threadNotFound} from '../../impl/ThreadStatus';
 import {useWorkspaceWidth} from './impl/useWorkspaceWidth';
+import {refuseFileDrop} from '../chat/impl/FileDrop';
 
 /** Content for the workspace's side panel: an element, or a function that renders one. */
 export type ChatWorkspaceSidePanel = ReactNode | (() => ReactNode);
@@ -148,6 +149,8 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
             ref: rootRef,
             className: classNames(className, model.isCompact && 'xh-chat--compact'),
             testId,
+            onDragOver: refuseFileDrop,
+            onDrop: refuseFileDrop,
             ...rest,
             children: useHotkeys(
                 div({

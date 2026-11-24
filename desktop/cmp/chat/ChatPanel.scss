@@ -3,6 +3,44 @@
     background-color: var(--xh-chat-bg);
   }
 
+  // The hint over the panel's body: a scrim that dims the conversation, with a large icon over a
+  // heading and a tip at its center, sized to be read at a glance across a full panel.
+  &__drop-hint {
+    flex-direction: column;
+    gap: var(--xh-spacing);
+    margin: var(--xh-spacing-half);
+    padding: var(--xh-chat-side-pad);
+    text-align: center;
+    z-index: 1;
+
+    .xh-chat-drop-hint__icon {
+      align-items: center;
+      background-color: var(--xh-chat-drop-hint-icon-bg);
+      border-radius: 50%;
+      display: flex;
+      font-size: var(--xh-chat-drop-hint-icon-size);
+      height: var(--xh-chat-drop-hint-icon-box-size);
+      justify-content: center;
+      width: var(--xh-chat-drop-hint-icon-box-size);
+    }
+
+    .xh-chat-drop-hint__text {
+      color: var(--xh-chat-drop-hint-title-color);
+      font-family: var(--xh-font-family-headings);
+      font-size: var(--xh-chat-drop-hint-title-font-size);
+      font-weight: 600;
+    }
+
+    .xh-chat-drop-hint__tip {
+      color: var(--xh-chat-drop-hint-tip-color);
+      font-size: var(--xh-chat-font-size);
+      // Under the heading's own gap, so the two read as one block.
+      margin-top: calc(var(--xh-spacing-half) * -1);
+      max-width: 420px;
+      text-wrap: balance;
+    }
+  }
+
   // The status region and composer share the message column's width and gutter, so they line up.
   &__footer {
     box-sizing: border-box;

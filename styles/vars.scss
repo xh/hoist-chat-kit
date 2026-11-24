@@ -178,6 +178,16 @@ body {
   --xh-chat-composer-status-height: 24px;
   // The room before the status region's line, to set its text level with the input's.
   --xh-chat-composer-status-inset: 4px;
+  // The hint over a file drop zone. The icon's box, the heading and the tip show over a ChatPanel.
+  --xh-chat-drop-hint-bg: color-mix(in srgb, var(--xh-chat-bg) 90%, transparent);
+  --xh-chat-drop-hint-border: 2px dashed var(--xh-intent-primary);
+  --xh-chat-drop-hint-color: var(--xh-intent-primary-text-color);
+  --xh-chat-drop-hint-icon-size: 24px;
+  --xh-chat-drop-hint-icon-box-size: 56px;
+  --xh-chat-drop-hint-icon-bg: color-mix(in srgb, var(--xh-intent-primary) 16%, transparent);
+  --xh-chat-drop-hint-title-color: var(--xh-text-color-headings);
+  --xh-chat-drop-hint-title-font-size: 18px;
+  --xh-chat-drop-hint-tip-color: var(--xh-text-color);
   --xh-chat-scope-popover-width: 320px;
   --xh-chat-scope-popover-max-height: 280px;
   --xh-chat-suggestion-bg: var(--xh-chat-part-header-bg);

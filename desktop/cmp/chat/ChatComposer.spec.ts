@@ -102,6 +102,22 @@ describe('ChatComposer', () => {
         expect(addFiles).toHaveBeenCalledWith([file]);
     });
 
+    it('takes dropped files and shows its own hint, with no drop zone around it', async () => {
+        const chatModel = createModel({composer: {enableAttachments: true}}),
+            file = new File(['x'], 'notes.txt', {type: 'text/plain'}),
+            fileDrag = {dataTransfer: {types: ['Files'], files: [file]}};
+        renderComposer(chatModel);
+
+        fireEvent.dragEnter(input(), fileDrag);
+        expect(document.querySelector('.xh-chat-composer__drop-hint')).toBeTruthy();
+
+        await act(async () => {
+            fireEvent.drop(input(), fileDrag);
+        });
+        await vi.waitFor(() => expect(chatModel.composerModel.attachments).toHaveLength(1));
+        expect(document.querySelector('.xh-chat-composer__drop-hint')).toBeNull();
+    });
+
     it('shows its placeholder prop, with a default', () => {
         const chatModel = createModel(),
             {rerender} = renderComposer(chatModel);

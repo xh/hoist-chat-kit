@@ -31,6 +31,7 @@ import {
 } from '../../../threads';
 import './ChatThreadList.scss';
 import {ChatThreadListLocalModel} from './impl/ChatThreadListLocalModel';
+import {refuseFileDrop} from '../chat/impl/FileDrop';
 
 /** Props for {@link ChatThreadList}. */
 export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxProps {
@@ -174,6 +175,8 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
         return vframe({
             ref,
             className: classNames(className, compact && 'xh-chat-thread-list--compact'),
+            onDragOver: refuseFileDrop,
+            onDrop: refuseFileDrop,
             testId,
             ...rest,
             children: [

@@ -1,6 +1,6 @@
-import type {ReactNode} from 'react';
+import {type ReactNode, useRef} from 'react';
 import {div} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps, uses} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {getTestId} from '@xh/hoist/utils/js';
 import type {ChatImagePolicy, ChatMarkdownPlugins} from '../../../cmp/markdown';
@@ -16,7 +16,7 @@ import '../../impl/ChatMotion.scss';
 import {chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
 import {composerCenteredProvider} from './impl/ComposerPlacement';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
-import {refuseFileDrop} from './impl/FileDrop';
+import {fileDropHint, FileDropModel, fileDropZoneProvider} from './impl/FileDrop';
 import {getChatHotkeys} from '../../impl/ChatShortcuts';
 
 /** Props for {@link ChatPanel}. */
@@ -96,6 +96,9 @@ export interface ChatPanelProps
  * to the bottom in one frame, with no animation, and focus stays in it.
  * Pass `emptyState` to show other content in the list instead, with the composer at the bottom.
  *
+ * When the model enables attachments, a file dropped anywhere on the panel goes to the composer.
+ * A hint covers the panel while files are dragged over it.
+ *
  * With focus in the panel, outside a text field, `/` focuses the composer - see
  * `ChatKit.defaults.shortcuts`.
  *
@@ -130,6 +133,13 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             ...rest
         } = props;
 
+        // The whole panel takes file drops for its composer. Reads the model on each event.
+        const modelRef = useRef(model);
+        modelRef.current = model;
+        const fileDrop = useLocalModel(
+            () => new FileDropModel(() => modelRef.current.composerModel)
+        );
+
         // A thread whose turn runs on the server, with nothing saved yet, shows that the reply is
         // on its way in the list, not the centered empty state of a new chat.
         const isAwaitingReply = model.isEmpty && model.isRunningOnServer,
@@ -140,83 +150,96 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                 emptyState == null &&
                 !messageListProps?.emptyState,
             {footer, belowComposer, ...headProps} = emptyStateProps ?? {};
-        return panel({
-            ref,
-            testId,
-            className: classNames(className, {'xh-chat-panel--empty': isCentered}),
-            hotkeys: [
-                ...getChatHotkeys({focusComposer: () => model.composerModel.focus()}),
-                ...(hotkeys ?? [])
-            ],
-            ...rest,
-            children: [
-                isCentered
-                    ? div({
-                          key: 'emptyHead',
-                          className: 'xh-chat-panel__empty-head',
-                          children: chatEmptyState(headProps)
-                      })
-                    : chatMessageList({
-                          key: 'list',
-                          model,
-                          emptyState,
-                          suggestions,
-                          allowImages,
-                          citationMarkers,
-                          onSourceClick,
-                          markdownPlugins,
-                          testId: getTestId(testId, 'messages'),
-                          ...messageListProps
-                      }),
-                div({
-                    key: 'footer',
-                    // Centered, the composer settles in after the heading. Docked, it holds still.
-                    className: classNames('xh-chat-panel__footer', {
-                        'xh-chat-settle xh-chat-settle--2': isCentered
-                    }),
-                    onDragOver: refuseFileDrop,
-                    onDrop: refuseFileDrop,
-                    children: composerCenteredProvider({
-                        value: isCentered,
-                        children: [
-                            chatStatusRegion({
-                                model: model.composerModel,
-                                ...statusRegionProps
-                            }),
-                            chatComposer({
-                                model: model.composerModel,
-                                testId: getTestId(testId, 'composer'),
-                                ...composerProps
-                            })
-                        ]
-                    })
+        // The panel is the drop zone for all it holds: the composer and the list leave files to it.
+        return fileDropZoneProvider({
+            value: true,
+            children: panel({
+                ref,
+                testId,
+                className: classNames(className, {
+                    'xh-chat-panel--empty': isCentered,
+                    'xh-chat-panel--dragging': fileDrop.isDragging
                 }),
-                isCentered
-                    ? div({
-                          key: 'emptyTail',
-                          // The tail settles as one: the suggestions within it come and go as the
-                          // composer fills and empties, and must not settle again.
-                          className: 'xh-chat-panel__empty-tail xh-chat-settle xh-chat-settle--3',
-                          children: [
-                              belowComposer != null
-                                  ? div({
-                                        key: 'belowComposer',
-                                        className: 'xh-chat-panel__below-composer',
-                                        children: belowComposer
-                                    })
-                                  : null,
-                              chatSuggestions({key: 'suggestions', model, suggestions}),
-                              footer != null
-                                  ? div({
-                                        key: 'footer',
-                                        className: 'xh-chat-empty-state__footer',
-                                        children: footer
-                                    })
-                                  : null
-                          ]
-                      })
-                    : null
-            ]
+                ...fileDrop.handlers,
+                hotkeys: [
+                    ...getChatHotkeys({focusComposer: () => model.composerModel.focus()}),
+                    ...(hotkeys ?? [])
+                ],
+                ...rest,
+                children: [
+                    isCentered
+                        ? div({
+                              key: 'emptyHead',
+                              className: 'xh-chat-panel__empty-head',
+                              children: chatEmptyState(headProps)
+                          })
+                        : chatMessageList({
+                              key: 'list',
+                              model,
+                              emptyState,
+                              suggestions,
+                              allowImages,
+                              citationMarkers,
+                              onSourceClick,
+                              markdownPlugins,
+                              testId: getTestId(testId, 'messages'),
+                              ...messageListProps
+                          }),
+                    div({
+                        key: 'footer',
+                        // Centered, the composer settles in after the heading. Docked, it holds still.
+                        className: classNames('xh-chat-panel__footer', {
+                            'xh-chat-settle xh-chat-settle--2': isCentered
+                        }),
+                        children: composerCenteredProvider({
+                            value: isCentered,
+                            children: [
+                                chatStatusRegion({
+                                    model: model.composerModel,
+                                    ...statusRegionProps
+                                }),
+                                chatComposer({
+                                    model: model.composerModel,
+                                    testId: getTestId(testId, 'composer'),
+                                    ...composerProps
+                                })
+                            ]
+                        })
+                    }),
+                    isCentered
+                        ? div({
+                              key: 'emptyTail',
+                              // The tail settles as one: the suggestions within it come and go as the
+                              // composer fills and empties, and must not settle again.
+                              className:
+                                  'xh-chat-panel__empty-tail xh-chat-settle xh-chat-settle--3',
+                              children: [
+                                  belowComposer != null
+                                      ? div({
+                                            key: 'belowComposer',
+                                            className: 'xh-chat-panel__below-composer',
+                                            children: belowComposer
+                                        })
+                                      : null,
+                                  chatSuggestions({key: 'suggestions', model, suggestions}),
+                                  footer != null
+                                      ? div({
+                                            key: 'footer',
+                                            className: 'xh-chat-empty-state__footer',
+                                            children: footer
+                                        })
+                                      : null
+                              ]
+                          })
+                        : null,
+                    fileDrop.isDragging
+                        ? fileDropHint(
+                              'xh-chat-panel__drop-hint',
+                              model.composerModel.attachmentTip
+                          )
+                        : null
+                ]
+            })
         });
     }
 });
