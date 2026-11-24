@@ -90,6 +90,16 @@ describe('SourcesEditor', () => {
                     container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page');
             expect(row().textContent).toContain('on symbol');
             expect(row().textContent).toContain('1 field');
+            // Its picker sits in the list's own Add row, inside the frame.
+            const adds = [...container.querySelectorAll('.xh-sortable-list__add')].map(
+                it => it.textContent
+            );
+            expect(adds).toEqual(
+                expect.arrayContaining([
+                    expect.stringContaining('Join a source…'),
+                    expect.stringContaining('Add an instance of…')
+                ])
+            );
             fireEvent.click(row().querySelector('[aria-label="All settings of prices"]'));
             expect(page().textContent).toContain('1 of 1');
             expect(page().textContent).toContain('Fields');

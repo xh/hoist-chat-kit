@@ -4,7 +4,8 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {wait} from '@xh/hoist/promise';
-import {type KeyboardEvent, useEffect, useRef} from 'react';
+import {type KeyboardEvent, type ReactNode, useEffect, useRef} from 'react';
+import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
 import {
     type BlueprintDesignModel,
@@ -473,8 +474,11 @@ function joinsEditor(impl: SourceEditorModel) {
         onKeyDown: (e: KeyboardEvent) =>
             !disabled &&
             onItemDelete(e, key => impl.removeJoin(joins.findIndex(it => it.source === key))),
-        children: [
-            ...joins.map(join =>
+        children: frameList({
+            className: `${CLS}__joins`,
+            items: joins.map(join => ({id: join.source, join})),
+            disabled,
+            itemRenderer: ({join}: PlainObject) =>
                 itemRow(
                     join.source,
                     join.source,
@@ -485,17 +489,47 @@ function joinsEditor(impl: SourceEditorModel) {
                         join.fields?.length ? countLabel(join.fields.length, 'field') : null
                     ],
                     () => impl.setPage({list: 'joins', key: join.source})
-                )
-            ),
-            select({
-                value: null,
-                options: impl.joinSourceOptions.filter(it => !joins.some(j => j.source === it)),
+                ),
+            picker: {
                 placeholder: 'Join a source…',
-                disabled,
+                options: impl.joinSourceOptions.filter(it => !joins.some(j => j.source === it)),
+                onPick: (source: string) => impl.addJoin(source)
+            }
+        })
+    });
+}
+
+// A framed list of items in no particular order, with a picker in its own Add row that adds one.
+function frameList(opts: {
+    className: string;
+    items: {id: string}[];
+    disabled: boolean;
+    itemRenderer: (item: PlainObject) => ReactNode;
+    picker: {placeholder: string; options: Option[] | string[]; onPick: (value: string) => void};
+}) {
+    const {className, items, disabled, itemRenderer, picker} = opts;
+    return sortableList({
+        className,
+        value: items,
+        itemKey: 'id',
+        variant: 'divided',
+        handle: 'custom',
+        disabled,
+        compact: true,
+        itemRenderer,
+        addRenderer: ({disabled: off}) =>
+            select({
+                key: items.length,
+                placeholder: picker.placeholder,
+                options: picker.options as any[],
+                disabled: off || !picker.options.length,
                 width: '100%',
-                onCommit: (source: string) => source && impl.addJoin(source)
+                onCommit: (value: string) => {
+                    if (!value) return;
+                    picker.onPick(value);
+                    refocusAdd(document.querySelector(`.${className}`));
+                }
             })
-        ]
     });
 }
 
@@ -661,12 +695,15 @@ function instancesEditor(
 ) {
     const disabled = impl.readOnly;
     return div({
-        className: `${CLS}__list ${CLS}__field-list ${CLS}__instances`,
+        className: `${CLS}__list ${CLS}__field-list`,
         onKeyDown: (e: KeyboardEvent) =>
             !disabled &&
             onItemDelete(e, name => commitFields({...overrides, ...omit(instances, name)})),
-        children: [
-            ...Object.entries(instances).map(([name, inst]) =>
+        children: frameList({
+            className: `${CLS}__instances`,
+            items: Object.entries(instances).map(([name, inst]) => ({id: name, inst})),
+            disabled,
+            itemRenderer: ({id: name, inst}: PlainObject) =>
                 itemRow(
                     name,
                     name,
@@ -677,21 +714,13 @@ function instancesEditor(
                             : null
                     ],
                     () => impl.setPage({list: 'instances', key: name})
-                )
-            ),
-            select({
-                key: Object.keys(instances).length,
+                ),
+            picker: {
                 placeholder: 'Add an instance of…',
                 options: impl.parameterizedFields,
-                disabled: disabled || !impl.parameterizedFields.length,
-                width: '100%',
-                onCommit: (field: string) => {
-                    if (!field) return;
-                    impl.addInstance(field);
-                    refocusAdd(document.querySelector(`.${CLS}__instances`));
-                }
-            })
-        ]
+                onPick: (field: string) => impl.addInstance(field)
+            }
+        })
     });
 }
 
