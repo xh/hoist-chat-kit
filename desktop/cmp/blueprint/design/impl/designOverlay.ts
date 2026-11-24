@@ -5,6 +5,7 @@ import {layoutGesture} from '../../../layout';
 import type {OverlayMark, OverlayModel} from '../../../layout/overlay';
 import {altHold} from './altHold';
 import './designOverlay.scss';
+import {gridColId} from '../../CubeGridWidget';
 
 const CLS = 'xh-blueprint-overlay',
     CELL = '[data-blueprint-view';
@@ -59,10 +60,10 @@ export function designMarks(
     // The grid column whose row is open or whose page shows, by its header.
     const item = designModel.outlinedItem;
     if (item && item.element === selected && elements?.[selected]?.component === 'cubeGrid') {
-        const field = item.key.replace(/#\d+$/, '');
+        const colId = gridColId(item.key.replace(/#\d+$/, ''));
         ret.push({
             key: 'item',
-            target: `${elementTarget(selected)} .ag-header-cell[col-id="${CSS.escape(field)}"]`,
+            target: `${elementTarget(selected)} .ag-header-cell[col-id="${CSS.escape(colId)}"]`,
             render: () => outline('item')
         });
     }

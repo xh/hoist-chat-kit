@@ -540,7 +540,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             const state: ColumnState[] = columnEntries(this.resolvedConfig.columnState)
                 .filter(it => it.field === TREE_COLUMN || this.source.fields[it.field])
                 .map(it => ({
-                    colId: it.field === TREE_COLUMN ? LABEL_COL : it.field,
+                    colId: gridColId(it.field),
                     hidden: !!it.hidden,
                     width: it.width ?? null,
                     manuallySized: it.width != null,
@@ -675,6 +675,11 @@ export const COLUMN_ANIMATION: GridOptions = {
 
 const TREE_COLUMN = 'group',
     LABEL_COL = 'cubeLabel';
+
+/** The id of the grid column that shows a field, or the tree column for `group`. */
+export function gridColId(field: string): string {
+    return field === TREE_COLUMN ? LABEL_COL : field;
+}
 
 function columnEntries(columnState: unknown): PlainObject[] {
     return castArray(columnState ?? []).map(it => (isString(it) ? {field: it} : it));

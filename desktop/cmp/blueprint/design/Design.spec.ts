@@ -214,6 +214,10 @@ describe('design mode selection', () => {
         );
         design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'});
         expect(itemMark().target).toContain('col-id="pnlDay"');
+        // The tree column, as `group`, outlines by its own column's id.
+        design.setOpenListItem({element: 'posGrid', list: 'columnState', key: 'group#1'});
+        design.closeItemPage();
+        expect(itemMark().target).toContain('col-id="cubeLabel"');
         design.select({kind: 'element', id: 'posGrid'});
         expect(itemMark()).toBeUndefined();
     });
