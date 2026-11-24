@@ -1,6 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {type ToastSpec, XH} from '@xh/hoist/core';
-import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../test/blueprintFixtures';
@@ -216,7 +215,7 @@ describe('BlueprintLink', () => {
                         model.registry
                     )
                 );
-            await wait(50);
+            await vi.waitFor(() => expect(load).toHaveBeenCalled());
 
             expect(problems).toEqual([]);
             expect(model.getActivePreset('view')).toBe('bySymbol');

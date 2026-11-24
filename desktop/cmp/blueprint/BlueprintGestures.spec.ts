@@ -57,7 +57,6 @@ describe('blueprint gestures', () => {
         await vi.waitFor(() =>
             charts.forEach(it => expect(it.chartModel.series.length).toBeGreaterThan(0))
         );
-        await act(() => wait(50));
         const before = configs();
         for (const id of ['sectorChart', 'gauge', 'heat']) {
             act(() => {

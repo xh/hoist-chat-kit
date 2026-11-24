@@ -409,11 +409,10 @@ describe('blueprint desktop widgets', () => {
             it("writes a user's resize to columnState alone, leaving columns as they are", async () => {
                 const columns = {mktVal: {headerName: 'MV', format: {precision: 0}}},
                     model = open(withColumns(columns)),
-                    grid = widget(CubeGridWidgetModel, model, 'posGrid');
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
                 await columnsApplied(grid);
-                const gridModel = grid.cubeGridModel.innerGridModel;
                 await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
-                await wait(100);
                 gridModel.noteColumnManuallySized('mktVal', 150);
                 await vi.waitFor(() =>
                     expect(model.blueprint.elements.posGrid.config.columnState).toEqual(
@@ -811,7 +810,6 @@ describe('blueprint desktop widgets', () => {
             gridModel = grid.cubeGridModel.innerGridModel;
         await columnsApplied(grid);
         await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
-        await wait(100);
         const {version} = model;
         gridModel.noteColumnManuallySized('mktVal', 156.67);
         await vi.waitFor(() => expect(model.version).toBe(version + 1));
@@ -827,9 +825,8 @@ describe('blueprint desktop widgets', () => {
             gridModel = grid.cubeGridModel.innerGridModel;
         await columnsApplied(grid);
 
-        // A user resizes once the data has loaded and the grid has autosized.
+        // A user resizes once the data has loaded.
         await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
-        await wait(100);
         gridModel.noteColumnManuallySized('mktVal', 150);
         await vi.waitFor(() =>
             expect(model.blueprint.elements.posGrid.config.columnState).toEqual([

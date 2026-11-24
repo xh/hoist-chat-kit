@@ -1,5 +1,4 @@
 import {render} from '@testing-library/react';
-import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {uniq} from 'lodash';
 import type {ReactElement} from 'react';
@@ -84,11 +83,13 @@ describe('unfinished widgets', () => {
             expect(model.issues.filter(isIncomplete).map(it => it.path)).toContain(
                 `/elements/${name}/config/${key}`
             );
-            const {container} = render(blueprintView({model, designModel: design}) as ReactElement);
-            await wait(20);
-            const note = container.querySelector(
-                `[data-blueprint-element="${name}"] .xh-blueprint-view__notice`
-            );
+            const {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+                notice = () =>
+                    container.querySelector(
+                        `[data-blueprint-element="${name}"] .xh-blueprint-view__notice`
+                    );
+            await vi.waitFor(() => expect(notice()).not.toBeNull());
+            const note = notice();
             expect(note?.textContent).toMatch(/ has no .* yet\./);
         }
     );

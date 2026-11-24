@@ -1163,9 +1163,10 @@ describe('BlueprintModel', () => {
                 const source = model.getSource('positions') as any;
                 source.loadMissingSets(source.groupingSets);
             });
-            await wait(20);
-            expect(provider.subs).toHaveLength(2);
-            expect(provider.last.req.groupBy).toContainEqual(['region']);
+            await vi.waitFor(() => {
+                expect(provider.subs).toHaveLength(2);
+                expect(provider.last.req.groupBy).toContainEqual(['region']);
+            });
             expect(provider.loadAggregatesAsync).not.toHaveBeenCalled();
         });
 
