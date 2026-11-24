@@ -1,4 +1,7 @@
 .xh-blueprint-element-inspector {
+  // A quieter text color that still reads at 4.5:1 or better, on the body and on a section's band.
+  --xh-blueprint-inspector-muted: color-mix(in srgb, var(--xh-text-color) 72%, var(--xh-bg));
+
   // Controls a size smaller than an app's forms, so the Inspector's rows stay compact.
   .bp6-input:not(textarea),
   .xh-select__control {
@@ -18,8 +21,10 @@
   }
 
   .xh-segmented-control .bp6-button {
-    min-height: 24px;
-    padding: 0 8px;
+    min-height: 26px;
+    height: 26px;
+    padding: 0 10px;
+    font-size: 11.5px;
   }
 
   display: flex;
@@ -85,8 +90,7 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    height: 28px;
-    margin: 0 calc(-1 * var(--xh-spacing));
+    height: 30px;
     padding: 0 var(--xh-spacing);
     font-size: 12px;
     font-weight: 600;
@@ -106,7 +110,7 @@
     font-weight: normal;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   // A section's "N more" row, naming the advanced settings it folds.
@@ -122,12 +126,17 @@
     min-width: 0;
     min-height: 24px;
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     cursor: pointer;
 
     &:focus-visible {
       outline: var(--xh-focus-outline);
     }
+  }
+
+  &__more-icon {
+    flex: none;
+    width: 10px;
   }
 
   &__more-n {
@@ -170,9 +179,10 @@
 
   // A quiet Hoist badge, set through its variables so it holds whatever loads first.
   &__card-count {
+    font-size: 11px;
     font-weight: normal;
     white-space: nowrap;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__card-badge-box {
@@ -309,8 +319,8 @@
     align-items: center;
     min-width: 0;
     font-size: 11.5px;
-    font-weight: 500;
-    color: var(--xh-text-color-muted);
+    font-weight: 400;
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   // A set value's label reads in the text color, unset ones stay muted.
@@ -339,8 +349,10 @@
   }
 
   &__reset.xh-button {
-    flex: none;
-    margin-left: auto;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
     min-width: 0;
     min-height: 0;
     padding: 0;
@@ -366,6 +378,12 @@
   &__row--missing &__row-body .bp6-input,
   &__row--missing &__row-body .xh-select__control {
     box-shadow: inset 0 0 0 1px var(--xh-intent-warning);
+  }
+
+  &__menu-reason {
+    max-width: 260px;
+    font-size: 11px;
+    white-space: normal;
   }
 
   &__label-tip {
@@ -621,14 +639,14 @@
     flex: none;
     font-family: var(--xh-font-family-mono);
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__chip-text {
     flex: none;
     padding: 0 4px;
     font-size: 10.5px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     border: var(--xh-border-solid);
     border-radius: 3px;
   }
@@ -726,7 +744,7 @@
   &__page-count {
     flex: none;
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__settings {

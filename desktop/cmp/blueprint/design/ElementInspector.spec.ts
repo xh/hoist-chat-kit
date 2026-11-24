@@ -1809,7 +1809,8 @@ describe('ElementInspector', () => {
                 it =>
                     it.closest('.xh-blueprint-element-inspector__row').firstElementChild.textContent
             )
-        ).toEqual(['Title', 'Empty text', 'Summary row']);
+        ).toEqual(['Title', 'Empty text']);
+        // A choice offers none here, as no variable's values are known to be among its own.
         // The chip says how to unbind, and its visible × or Delete unbinds, in one edit.
         expect(chip.getAttribute('aria-keyshortcuts')).toBe('Delete Backspace');
         expect(chip.getAttribute('aria-label')).toMatch(/Delete unbinds\.$/);

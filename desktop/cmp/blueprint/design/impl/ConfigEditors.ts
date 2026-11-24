@@ -309,8 +309,12 @@ export function moreLine(open: boolean, count: number, names: string[], toggle: 
             toggle();
         },
         children: open
-            ? [span({key: 'n', className: `${CLS}__more-n`, children: 'Fewer'})]
+            ? [
+                  Icon.chevronDown({key: 'i', className: `${CLS}__more-icon`}),
+                  span({key: 'n', className: `${CLS}__more-n`, children: 'Fewer'})
+              ]
             : [
+                  Icon.chevronRight({key: 'i', className: `${CLS}__more-icon`}),
                   span({key: 'n', className: `${CLS}__more-n`, children: `${count} more`}),
                   span({key: 'names', className: `${CLS}__more-names`, children: names.join(', ')})
               ]
@@ -763,7 +767,18 @@ function bindableEditor(
                           // Those it cannot bind show too, disabled, each saying why.
                           menuItems: [
                               ...sortBy(choices, it => !!it.reason).map(({name, reason}) => ({
-                                  text: reason ? span({title: reason, children: name}) : name,
+                                  // A variable it cannot take says why, under its name.
+                                  text: reason
+                                      ? div({
+                                            children: [
+                                                div(name),
+                                                div({
+                                                    className: `${CLS}__menu-reason`,
+                                                    children: reason
+                                                })
+                                            ]
+                                        })
+                                      : name,
                                   disabled: !!reason,
                                   actionFn: () => commit({$var: name})
                               })),

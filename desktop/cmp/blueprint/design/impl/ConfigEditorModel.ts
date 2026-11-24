@@ -385,7 +385,12 @@ export abstract class ConfigEditorModel extends HoistModel {
             if (!want.some(type => variableTypeMatches(registry, it.type, type))) {
                 return {name, reason: `A ${it.type}, but this takes a ${want.join(' or ')}.`};
             }
-            const bad = boundValues(it).find(v => !fitsProp(v, node.schema));
+            const values = boundValues(it);
+            // A choice binds only a variable whose values it knows are among its own.
+            if (node.schema.enum && !values.length) {
+                return {name, reason: 'Its values are open, but this takes one of its choices.'};
+            }
+            const bad = values.find(v => !fitsProp(v, node.schema));
             return {
                 name,
                 reason:
