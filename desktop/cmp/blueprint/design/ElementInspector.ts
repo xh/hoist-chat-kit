@@ -71,7 +71,13 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     override isPersonalizable(key: string): boolean {
-        return !!this.element?.personalizable?.includes(`/config/${key}`);
+        return !!this.personalizable?.includes(`/config/${key}`);
+    }
+
+    // The same list across edits that leave it alone, so rows that read it do not draw again.
+    @computed
+    private get personalizable(): string[] {
+        return this.element?.personalizable ?? null;
     }
 
     /** True while the selection is the view that holds the element, not the element. */
@@ -178,10 +184,12 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     /** The element's config as it shows, with the active presets applied. */
+    @computed
     get values(): PlainObject {
-        return this.element?.config ?? {};
+        return this.element?.config ?? EMPTY;
     }
 
+    @computed
     get sourceName(): string {
         return this.values.source ?? null;
     }
@@ -371,6 +379,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return this.designModel.setConfig(this.elementId, `/${key}`, value);
     }
 
+    @computed
     private get element() {
         const {effective} = this.designModel.blueprintModel,
             id = this.designModel.selectedElementId ?? this.designModel.selectedViewId;
@@ -398,6 +407,8 @@ function refuseMessage(designModel: BlueprintDesignModel, message: string) {
 const ELEMENT_KEY = '';
 
 // A slot as the inspector's slot picker names it.
+const EMPTY = {};
+
 const slotValue = (slot: string, of?: string) => (of ? `${slot}:${of}` : slot);
 
 // The key a placement property's refusals go under, apart from the config's own.

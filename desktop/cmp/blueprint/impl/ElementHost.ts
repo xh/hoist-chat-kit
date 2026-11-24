@@ -5,6 +5,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
+import {compareStructural, computed} from '@xh/hoist/mobx';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {uniq} from 'lodash';
@@ -213,6 +214,18 @@ function inScrollbar(el: HTMLElement, x: number, y: number): boolean {
 }
 
 // The field a widget needs set before it can draw: the variable an input sets, or a source.
+// What needsField() finds for a widget, which draws again only as that changes, not on every edit.
+const needsCache = new WeakMap<BlueprintWidgetModel, {get(): ReturnType<typeof needsField>}>();
+
+function needsOf(model: BlueprintWidgetModel, spec: WidgetSpec) {
+    let ret = needsCache.get(model);
+    if (!ret) {
+        ret = computed(() => needsField(model, spec), {equals: compareStructural});
+        needsCache.set(model, ret);
+    }
+    return ret.get();
+}
+
 function needsField(
     model: BlueprintWidgetModel,
     spec: WidgetSpec
@@ -359,7 +372,7 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
                 ? 'The data for this answer is no longer available.'
                 : (model.source?.joinWait ?? model.source?.selectionWait ?? null);
     // A widget that needs a field set says so first, and in design mode offers to set it.
-    const needs = needsField(model, spec);
+    const needs = needsOf(model, spec);
     if (needs) {
         const {designModel, blueprintModel} = viewModel,
             canFix =

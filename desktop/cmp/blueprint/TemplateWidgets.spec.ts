@@ -1,4 +1,5 @@
 import {render, screen, waitFor} from '@testing-library/react';
+import {autorun} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
@@ -10,6 +11,7 @@ import {
     BlueprintModel
 } from '../../../blueprint';
 import {blueprintView} from './BlueprintView';
+import {MarkdownWidgetModel} from './MarkdownWidget';
 
 /**
  * `markdown` and `callout` render text whose references read variables and the root aggregates of
@@ -128,6 +130,23 @@ describe('template widgets', () => {
             ])
         ).toEqual([['XH', 'https://xh.io']]);
         expect(textOf(container)).toBe('Note: [Log in](https://evil.example) XH');
+    });
+
+    it('keeps its markdown props while its text and values hold, so the markdown parses again only then', () => {
+        const {model} = show({component: 'markdown', config: {text: 'Fund: {fund}'}}),
+            note = new MarkdownWidgetModel({
+                blueprintModel: model,
+                id: 'note',
+                renderElement: () => null
+            });
+        onTestFinished(() => note.destroy());
+        let props = null;
+        const dispose = autorun(() => (props = note.markdownProps('Fund: {fund}')));
+        onTestFinished(dispose);
+        const first = props;
+        expect(note.markdownProps('Fund: {fund}').markdownPlugins).toBe(first.markdownPlugins);
+        model.setVariable('fund', 'Elm');
+        expect(props.markdownPlugins).not.toBe(first.markdownPlugins);
     });
 
     it('renders nothing for a template whose every reference is empty', () => {

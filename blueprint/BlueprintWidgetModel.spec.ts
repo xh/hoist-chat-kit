@@ -1,3 +1,4 @@
+import {autorun} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../test/blueprintFixtures';
@@ -37,6 +38,9 @@ describe('BlueprintWidgetModel', () => {
         return model;
     }
 
+    const errorsOf = (r: {issues: {severity: string}[]}) =>
+        r.issues.filter(it => it.severity === 'error');
+
     const widget = (model: BlueprintModel, id: string) => {
         const ret = new BlueprintWidgetModel({
             blueprintModel: model,
@@ -46,6 +50,26 @@ describe('BlueprintWidgetModel', () => {
         onTestFinished(() => ret.destroy());
         return ret;
     };
+
+    it('keeps its element through an edit to another element, so its view does not draw again', () => {
+        const model = open(),
+            grid = widget(model, 'posGrid'),
+            set = (path: string, value: unknown) =>
+                expect(errorsOf(model.applyEdit({ops: [{op: 'set', path, value}]}))).toEqual([]);
+        model.setMode('design');
+        model.setAccess('write');
+        let runs = 0;
+        const dispose = autorun(() => {
+            runs++;
+            grid.element;
+            grid.children;
+        });
+        onTestFinished(dispose);
+        set('/elements/sectorChart/config/title', 'S');
+        expect(runs).toBe(1);
+        set('/elements/posGrid/config/columnState', ['mktVal']);
+        expect(runs).toBe(2);
+    });
 
     it('says why an edit would be refused, applying nothing, and refuses nothing in run mode', () => {
         const model = open();

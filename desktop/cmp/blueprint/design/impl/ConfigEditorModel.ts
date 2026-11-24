@@ -1,13 +1,14 @@
 import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
-import {action, observableRef, runInAction} from '@xh/hoist/mobx';
+import {action, computed, observableRef, runInAction} from '@xh/hoist/mobx';
 import {isEmpty, isEqual, isString, omit, pickBy, sortBy, uniq} from 'lodash';
 import {isSettableFromOutside, toEditorSpec} from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import type {
     ActionSpec,
+    Blueprint,
     BlueprintDesignModel,
     BlueprintEditResult,
     BlueprintIssue,
@@ -237,17 +238,35 @@ export abstract class ConfigEditorModel extends HoistModel {
         });
     }
 
+    /**
+     * The blueprint's variables, sources and preset groups. Each keeps its identity across an
+     * edit that leaves it alone, so an editor that reads one does not draw again.
+     */
+    @computed
+    get variables(): Blueprint['variables'] {
+        return this.designModel.blueprintModel.blueprint?.variables ?? {};
+    }
+
+    @computed
+    get sources(): Blueprint['sources'] {
+        return this.designModel.blueprintModel.blueprint?.sources ?? {};
+    }
+
+    @computed
+    get presets(): Blueprint['presets'] {
+        return this.designModel.blueprintModel.blueprint?.presets ?? {};
+    }
+
     /** The variables an action may set, for an `x-variable` param. */
     get settableVariables(): Option[] {
-        return Object.entries(this.designModel.blueprintModel.blueprint?.variables ?? {})
+        return Object.entries(this.variables)
             .filter(([, decl]) => isSettableFromOutside(decl))
             .map(([name]) => ({value: name, label: name}));
     }
 
     /** The blueprint's sources, for an `x-source` property. */
     get sourceOptions(): Option[] {
-        const sources = this.designModel.blueprintModel.blueprint?.sources ?? {};
-        return Object.keys(sources).map(it => ({value: it, label: it}));
+        return Object.keys(this.sources).map(it => ({value: it, label: it}));
     }
 
     /** The fields of the source that can fill a role, with their labels. */
@@ -287,13 +306,13 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The variables a property can bind, by the type its schema takes. */
     variablesFor(node: EditorNode): string[] {
-        const {blueprint, registry} = this.designModel.blueprintModel,
+        const {registry} = this.designModel.blueprintModel,
             want = variableTypeOf(node.schema),
             fits = (type: string) =>
                 type === want ||
                 registry.variableTypes[type]?.matches === want ||
                 (want === 'number' && type === 'int');
-        return Object.entries(blueprint?.variables ?? {})
+        return Object.entries(this.variables)
             .filter(([, it]) => !want || fits(it.type))
             .map(([name]) => name);
     }
@@ -385,7 +404,7 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** The editor of a literal value of a variable: its type, or one of its options. Null if none. */
     valueNodeFor(name: string): EditorNode {
-        const decl = getOwn(this.designModel.blueprintModel.blueprint?.variables, name);
+        const decl = getOwn(this.variables, name);
         if (!decl) return null;
         const options = (decl.options as PlainObject)?.values as unknown[],
             schema = this.valueSchema(decl.type, options);

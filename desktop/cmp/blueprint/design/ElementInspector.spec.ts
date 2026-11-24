@@ -76,6 +76,22 @@ describe('ElementInspector', () => {
         nodes.forEach((it, idx) => expect(it).toBe(before[idx]));
     });
 
+    it('leaves what a row reads alone on an edit to another property, so the row skips drawing', () => {
+        const {inspector} = open();
+        const node = inspector.nodes.find(it => it.key === 'groupBy');
+        let runs = 0;
+        const dispose = autorun(() => {
+            runs++;
+            inspector.isPersonalizable('groupBy');
+            inspector.variablesFor(node);
+            inspector.sourceName;
+            inspector.presets;
+        });
+        onTestFinished(dispose);
+        inspector.commit('title', 'Positions');
+        expect(runs).toBe(1);
+    });
+
     it("edits the selected element's config, one property per edit, and removes a cleared one", () => {
         const {model, inspector} = open();
         expect(inspector.nodes.map(it => it.key)).toContain('title');

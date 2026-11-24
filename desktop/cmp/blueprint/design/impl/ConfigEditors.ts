@@ -352,9 +352,7 @@ function editorFor(
             return select({
                 value: value ?? null,
                 options: withCurrent(
-                    Object.keys(ctx.impl.designModel.blueprintModel.blueprint?.presets ?? {}).map(
-                        it => ({value: it, label: it})
-                    ),
+                    Object.keys(ctx.impl.presets).map(it => ({value: it, label: it})),
                     value
                 ),
                 disabled,
@@ -1431,7 +1429,7 @@ function linkValuesEditor(
     const {impl} = ctx,
         disabled = impl.readOnly,
         rowFields = ctx.key === 'rowActions' ? impl.fieldOptions('any') : [],
-        variables = Object.keys(impl.designModel.blueprintModel.blueprint?.variables ?? {}),
+        variables = Object.keys(impl.variables),
         set = (name: string, value: unknown) => commit({...values, [name]: value}),
         // A new name starts from the variable or row field it shares a name with, if any.
         starter = (name: string) =>

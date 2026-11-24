@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
-import {action, observable, observableRef} from '@xh/hoist/mobx';
+import {action, compareStructural, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {growCell} from '../../../../blueprint/impl/dashboardCells';
 import {parentOf} from '../../../../blueprint/impl/elements';
 import {DASHBOARD_GAP} from './layout';
@@ -81,17 +81,31 @@ export class TemplateWidgetModel<
         return fillTemplate(text, ref => this.refValue(ref));
     }
 
-    /** The props for `chatMarkdown` that render a markdown template from the config. */
+    /**
+     * The props for `chatMarkdown` that render a markdown template from the config. They keep
+     * their identity while the text and its values do, so the markdown parses again only then.
+     */
     markdownProps(
         text: string
     ): Pick<ChatMarkdownProps, 'content' | 'markdownPlugins' | 'isStreaming'> {
-        const {content, values} = markdownTemplate(text, ref => this.refValue(ref));
-        return {
-            content,
-            markdownPlugins: {rehype: [[rehypeTemplateValues, {values}]]},
-            isStreaming: this.isStreaming
-        };
+        if (this.template?.text !== text) {
+            this.template = {
+                text,
+                filled: computed(() => markdownTemplate(text, ref => this.refValue(ref)), {
+                    equals: compareStructural
+                })
+            };
+        }
+        const {content, values} = this.template.filled.get();
+        if (this.plugins?.values !== values) {
+            this.plugins = {values, plugins: {rehype: [[rehypeTemplateValues, {values}]]}};
+        }
+        return {content, markdownPlugins: this.plugins.plugins, isStreaming: this.isStreaming};
     }
+
+    // The template last filled, and the plugins for its values.
+    private template: {text: string; filled: {get(): ReturnType<typeof markdownTemplate>}} = null;
+    private plugins: {values: unknown; plugins: ChatMarkdownProps['markdownPlugins']} = null;
 
     // A chat answer's host says which of its elements are still arriving.
     private get isStreaming(): boolean {

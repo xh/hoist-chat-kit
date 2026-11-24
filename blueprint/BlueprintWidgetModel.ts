@@ -42,13 +42,14 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     }
 
     /** The element as the blueprint declares it, or null once it is gone. */
+    @computed
     get element(): BlueprintElement {
         return this.blueprintModel.effective?.elements?.[this.id] ?? null;
     }
 
     /** The element's child references, in order. Empty for a widget that is not a container. */
     get children(): ChildRef[] {
-        return this.element?.children ?? [];
+        return this.element?.children ?? NO_CHILDREN;
     }
 
     /** The widget of another element, by its ID. */
@@ -233,3 +234,5 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         this.blueprintModel.setOutput(this.id, output, value);
     }
 }
+
+const NO_CHILDREN: ChildRef[] = [];
