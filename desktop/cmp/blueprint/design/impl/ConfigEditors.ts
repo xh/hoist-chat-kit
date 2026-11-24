@@ -33,7 +33,7 @@ import {
 } from 'lodash';
 import classNames from 'classnames';
 import type React from 'react';
-import {type ReactElement, type ReactNode, useMemo, useRef} from 'react';
+import {type ReactElement, type ReactNode, useCallback, useMemo, useRef} from 'react';
 import {
     type BlueprintIssue,
     type EditorNode,
@@ -855,6 +855,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
                 ),
                 // Called by key as a row acts, so a row that skipped drawing acts on the list as it is.
                 ops = useLatest({
+                    add: (field: string) => field && commitList([...entries, {field}]),
                     remove: (key: string) =>
                         commitList(entries.filter((_, j) => rows[j].key !== key)),
                     set: (key: string, settingKey: string, v: unknown) =>
@@ -868,6 +869,13 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
                             )
                         )
                 }),
+                // The same props while the list's fields hold, so the select draws again only then.
+                addOptions = useMemo(
+                    () => options.filter(it => !fieldsOf.includes(it.value)),
+                    // eslint-disable-next-line react-hooks/exhaustive-deps
+                    [options.length, fieldsOf.join('|'), impl.fieldOptions(node.role)]
+                ),
+                addField = useCallback((field: string) => ops.current.add(field), [ops]),
                 mappedOf = (entry: PlainObject): PlainObject =>
                     settingsIn
                         ? (getOwn(impl.propValue(settingsIn.key) as PlainObject, entry.field) ?? {})
@@ -972,10 +980,10 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
                     select({
                         key: entries.length,
                         placeholder: 'Add a field…',
-                        options: options.filter(it => !fieldsOf.includes(it.value)),
+                        options: addOptions,
                         disabled,
                         width: '100%',
-                        onCommit: (field: string) => field && commitList([...entries, {field}])
+                        onCommit: addField
                     })
                 ]
             });
