@@ -1,5 +1,6 @@
 import {act, fireEvent, render} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
+import {runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -217,7 +218,7 @@ describe('gridCanvas', () => {
         function gestureModel(onChange: GridCanvasProps['onChange']) {
             const model = new GridCanvasModel();
             onTestFinished(() => model.destroy());
-            model.setProps({cells: CELLS, onChange, compact: false});
+            linkProps(model, {cells: CELLS, onChange, compact: false});
             return model;
         }
     });
@@ -277,11 +278,11 @@ describe('gridCanvas', () => {
         it('gives react-grid-layout the compactor of its compaction, pushing only when it does not compact', () => {
             const model = new GridCanvasModel();
             onTestFinished(() => model.destroy());
-            model.setProps({cells: CELLS, compact: 'vertical'});
+            linkProps(model, {cells: CELLS, compact: 'vertical'});
             expect(model.compactor.type).toBe('vertical');
-            model.setProps({cells: CELLS, compact: false, preventCollision: true});
+            linkProps(model, {cells: CELLS, compact: false, preventCollision: true});
             expect(model.compactor).toMatchObject({type: null, preventCollision: true});
-            model.setProps({cells: CELLS, compact: false});
+            linkProps(model, {cells: CELLS, compact: false});
             expect(model.compactor).toMatchObject({type: null, allowOverlap: true});
         });
     });
@@ -388,3 +389,8 @@ describe('gridCanvas', () => {
         return {i: id, x, y, w, h};
     }
 });
+
+// Give a model the props its component would, as a linked component does on each draw.
+function linkProps(model: {_componentProps: object}, props: object) {
+    runInAction(() => (model._componentProps = props));
+}

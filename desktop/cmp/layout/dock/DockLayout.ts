@@ -47,12 +47,10 @@ export const dockLayout = hoistCmp.factory<HoistProps & DockLayoutProps>({
     className: CLS,
     model: false,
     render(props) {
-        const impl = useLocalModel(() => new DockLayoutModel()),
-            {className, layout, active, onHiddenChange, overlay} = props;
-        impl.props = props;
+        const impl = useLocalModel(DockLayoutModel),
+            {className, layout, active, overlay} = props;
 
         useShowActive(impl, active);
-        useReportHidden(impl, onHiddenChange);
         usePreviewMarks(impl);
         useEffect(() => impl.followDrags(), [impl]);
         useRestoreFocus(impl);
@@ -331,20 +329,6 @@ function useRestoreFocus(impl: DockLayoutModel) {
         impl.pendingFocus = null;
         if (document.activeElement !== el) el.focus();
     });
-}
-
-// Tell a host which views no tab shows, when that changes.
-function useReportHidden(impl: DockLayoutModel, onHiddenChange: (ids: string[]) => void) {
-    const hidden = impl.hidden,
-        key = hidden.join('\u0000'),
-        last = useRef<string>(null);
-    useEffect(() => {
-        if (key === last.current) return;
-        last.current = key;
-        onHiddenChange?.(hidden);
-        impl.overlay.layoutChanged();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [key]);
 }
 
 // Draw the drop a drag would make, above design marks.

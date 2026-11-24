@@ -1,5 +1,6 @@
 import {act, fireEvent, render} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
+import {runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -146,12 +147,12 @@ describe('dockLayout', () => {
         function dragModel(props: Partial<DockLayoutProps>) {
             const model = new DockLayoutModel();
             onTestFinished(() => model.destroy());
-            model.props = {
+            linkProps(model, {
                 layout: LAYOUT,
                 viewRenderer: () => null,
                 viewTitle: () => null,
                 ...props
-            };
+            });
             return model;
         }
 
@@ -170,7 +171,7 @@ describe('dockLayout', () => {
         it('shows a dropped view in the stack it joins', () => {
             const model = dragModel({
                 editable: true,
-                onChange: next => (model.props = {...model.props, layout: next})
+                onChange: next => linkProps(model, {...model.props, layout: next})
             });
             model.activate('positions');
             model.startDrag('chart');
@@ -354,3 +355,8 @@ describe('dockLayout', () => {
         );
     }
 });
+
+// Give a model the props its component would, as a linked component does on each draw.
+function linkProps(model: {_componentProps: object}, props: object) {
+    runInAction(() => (model._componentProps = props));
+}

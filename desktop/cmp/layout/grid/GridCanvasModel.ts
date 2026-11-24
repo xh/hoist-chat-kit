@@ -143,8 +143,18 @@ export function compactCells(
  * @internal
  */
 export class GridCanvasModel extends HoistModel {
-    // Set on each render, so not observable: the parent re-renders the canvas when it changes.
-    props: CanvasModelProps = {cells: []};
+    /** The canvas's props, from its component, with their defaults. Observable. */
+    get props(): CanvasModelProps {
+        const {cells, onChange, compact, preventCollision, onDropOver} = this
+            .componentProps as GridCanvasProps;
+        return {
+            cells: cells ?? [],
+            onChange,
+            compact: compact ?? 'vertical',
+            preventCollision: preventCollision ?? false,
+            onDropOver
+        };
+    }
 
     /** Bumped after each gesture, to hand react-grid-layout the host's cells again. */
     @observable accessor epoch = 0;
@@ -155,10 +165,6 @@ export class GridCanvasModel extends HoistModel {
         return this.props.cells.map(
             ({id, x, y, w, h, minW, minH}) => ({i: id, x, y, w, h, minW, minH, epoch}) as LayoutItem
         );
-    }
-
-    setProps(props: CanvasModelProps) {
-        this.props = props;
     }
 
     /** The grid's layout element, where react-grid-layout takes drags from outside. */

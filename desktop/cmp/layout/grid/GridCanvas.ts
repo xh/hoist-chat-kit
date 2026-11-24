@@ -53,11 +53,10 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
         margin = [10, 10],
         containerPadding = margin
     }) {
-        const impl = useLocalModel(() => new GridCanvasModel()),
+        const impl = useLocalModel(GridCanvasModel),
             [width, widthRef] = useContentWidth(),
             [height, setHeight] = useState<number>(null),
             heightRef = useOnResize(rect => setHeight(rect.height), {debounce: 100});
-        impl.setProps({cells, onChange, compact, preventCollision, onDropOver});
         useEffect(() => impl.followDrags(), [impl]);
         const layoutRef = useCallback(
             (el: HTMLElement) => {

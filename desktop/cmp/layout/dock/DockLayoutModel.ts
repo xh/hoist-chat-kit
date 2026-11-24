@@ -72,8 +72,23 @@ export interface DockDrop {
  * @internal
  */
 export class DockLayoutModel extends HoistModel {
-    // Set on each render, so not observable: the parent re-renders the layout when it changes.
-    props: DockLayoutProps = null;
+    /** The layout's props, from its component. Observable. */
+    get props(): DockLayoutProps {
+        return this.componentProps as DockLayoutProps;
+    }
+
+    override afterLinked() {
+        // Tell the host which views no tab shows, when that changes.
+        this.addReaction({
+            track: () => this.hidden,
+            run: hidden => {
+                this.props.onHiddenChange?.(hidden);
+                this.overlay.layoutChanged();
+            },
+            equals: 'structural',
+            fireImmediately: true
+        });
+    }
 
     /** Views chosen to show, at most one per stack. Others show their stack's first view. */
     @observableRef accessor chosen: string[] = [];
