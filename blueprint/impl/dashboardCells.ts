@@ -26,6 +26,12 @@ export function growCell(children: ChildRef[], id: string, rows: number): ChildR
 /** The columns of a dashboard that names none. */
 export const DASHBOARD_COLUMNS = 12;
 
+/** The row height in pixels of a dashboard that names none. */
+export const DASHBOARD_ROW_HEIGHT = 50;
+
+/** The gap in pixels between a dashboard's cells, and around them, where it names none. */
+export const DASHBOARD_GAP = 10;
+
 /**
  * A dashboard's cells for a new column count. Each cell's edges scale in proportion, so cells that
  * shared an edge still do. A cell narrower than `minWidth` gives for it, such as its widget's

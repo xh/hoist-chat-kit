@@ -12,6 +12,7 @@ import type {
     WidgetFit,
     WidgetSpec
 } from '../BlueprintRegistry';
+import {DASHBOARD_COLUMNS, DASHBOARD_GAP, DASHBOARD_ROW_HEIGHT} from './dashboardCells';
 import {parentOf} from './elements';
 import {listOf} from './labels';
 import {templateDemand} from './template';
@@ -81,7 +82,7 @@ const DASHBOARD_SCHEMA = {
             type: 'integer',
             minimum: 1,
             maximum: 48,
-            default: 12,
+            default: DASHBOARD_COLUMNS,
             description: 'Columns in the grid.'
         },
         rowHeight: {
@@ -89,7 +90,7 @@ const DASHBOARD_SCHEMA = {
             type: 'integer',
             minimum: 10,
             maximum: 200,
-            default: 50,
+            default: DASHBOARD_ROW_HEIGHT,
             'x-unit': 'px',
             description: 'Height of one row.'
         },
@@ -115,7 +116,7 @@ const DASHBOARD_SCHEMA = {
             items: {type: 'integer', minimum: 0, maximum: 40},
             minItems: 2,
             maxItems: 2,
-            default: [10, 10],
+            default: [DASHBOARD_GAP, DASHBOARD_GAP],
             title: 'Cell gap',
             'x-unit': 'px',
             description: 'The space between cells, across and down.'
@@ -1441,7 +1442,7 @@ const TILE_FRAME_SCHEMA = {
             type: 'integer',
             minimum: 0,
             maximum: 64,
-            default: 10,
+            default: DASHBOARD_GAP,
             'x-unit': 'px',
             description: "The space between tiles, as a dashboard's cell gap by default."
         },

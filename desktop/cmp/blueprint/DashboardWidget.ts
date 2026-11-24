@@ -3,12 +3,7 @@ import {hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core'
 import {Icon} from '@xh/hoist/icon';
 import {differenceWith, isEqual, pick, sortBy} from 'lodash';
 import type {ReactNode} from 'react';
-import {
-    BlueprintWidgetModel,
-    DASHBOARD_COLUMNS,
-    type ChildRef,
-    type DashboardWidgetConfig
-} from '../../../blueprint';
+import {BlueprintWidgetModel, type ChildRef, type DashboardWidgetConfig} from '../../../blueprint';
 import {
     compactCells,
     gridCanvas,
@@ -18,7 +13,7 @@ import {
     placeCell
 } from '../layout';
 import {widgetIcon} from './design/impl/icons';
-import {DASHBOARD_GAP, emptyContent, resetLayoutButton} from './impl/layout';
+import {emptyContent, resetLayoutButton} from './impl/layout';
 import {containerAt} from './design/impl/dropTargets';
 import {currentDropSource, elementDrag} from './design/impl/elementDrag';
 import {paletteDrag} from './impl/paletteDrag';
@@ -50,20 +45,20 @@ export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetCo
         return compactCells(cells, this.settings);
     }
 
-    /** The dashboard's settings, with Hoist's DashCanvas defaults. */
+    /** The dashboard's settings, each at its schema default where unset. */
     get settings(): DashboardSettings {
-        const config = this.resolvedConfig,
-            margin = (config.margin ?? [DASHBOARD_GAP, DASHBOARD_GAP]) as [number, number];
+        const value = (key: string) => this.configValue(key) as any,
+            margin = value('margin') as [number, number];
         return {
-            columns: config.columns ?? DASHBOARD_COLUMNS,
-            rowHeight: config.rowHeight ?? 50,
-            compact: config.compact ?? 'vertical',
-            preventCollision: !!config.preventCollision,
+            columns: value('columns'),
+            rowHeight: value('rowHeight'),
+            compact: value('compact'),
+            preventCollision: !!value('preventCollision'),
             margin,
-            containerPadding: (config.containerPadding as [number, number]) ?? margin,
-            maxRows: config.maxRows ?? Infinity,
-            showGridBackground: !!config.showGridBackground,
-            layoutLocked: !!this.configValue('layoutLocked')
+            containerPadding: value('containerPadding') ?? margin,
+            maxRows: value('maxRows') ?? Infinity,
+            showGridBackground: !!value('showGridBackground'),
+            layoutLocked: !!value('layoutLocked')
         };
     }
 

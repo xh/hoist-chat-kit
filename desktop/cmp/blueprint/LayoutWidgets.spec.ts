@@ -854,6 +854,41 @@ describe('layout and container widgets', () => {
     });
 
     describe('dashboard cells', () => {
+        it('lays out with the defaults its schema gives, which design mode shows', () => {
+            const model = new BlueprintModel({
+                    blueprint: {
+                        schema: {blueprint: 1},
+                        root: 'dash',
+                        elements: {dash: {component: 'dashboard'}}
+                    },
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null
+                }),
+                dash = new DashboardWidgetModel({
+                    blueprintModel: model,
+                    id: 'dash',
+                    renderElement: () => null
+                });
+            onTestFinished(() => {
+                dash.destroy();
+                model.destroy();
+            });
+            const {settings} = dash;
+            for (const key of [
+                'columns',
+                'rowHeight',
+                'compact',
+                'margin',
+                'preventCollision',
+                'showGridBackground',
+                'layoutLocked'
+            ]) {
+                expect(settings[key], key).toEqual(dash.configDefault(key));
+            }
+            expect(settings.containerPadding).toEqual(settings.margin);
+        });
+
         it('derives its cells, titles and header items afresh only as they change', () => {
             const model = new BlueprintModel({
                     blueprint: {

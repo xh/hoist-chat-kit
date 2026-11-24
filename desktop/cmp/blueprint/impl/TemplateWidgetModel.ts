@@ -1,9 +1,12 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {action, compareStructural, computed, observable, observableRef} from '@xh/hoist/mobx';
-import {growCell} from '../../../../blueprint/impl/dashboardCells';
+import {
+    DASHBOARD_GAP,
+    DASHBOARD_ROW_HEIGHT,
+    growCell
+} from '../../../../blueprint/impl/dashboardCells';
 import {parentOf} from '../../../../blueprint/impl/elements';
-import {DASHBOARD_GAP} from './layout';
 import {
     type BlueprintSource,
     type BlueprintWidgetConfig,
@@ -61,7 +64,9 @@ export class TemplateWidgetModel<
     makeTaller() {
         const parent = this.parentElement,
             dashboardId = parentOf(this.blueprintModel.blueprint.elements, this.id),
-            rowStep = ((parent?.config?.rowHeight as number) ?? 50) + DASHBOARD_GAP,
+            rowStep =
+                ((parent?.config?.rowHeight as number) ?? DASHBOARD_ROW_HEIGHT) +
+                ((parent?.config?.margin as number[])?.[1] ?? DASHBOARD_GAP),
             rows = Math.ceil(this.overflow / rowStep);
         if (!this.canGrow || !rows) return;
         this.applyUserEdit(
