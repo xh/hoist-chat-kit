@@ -124,7 +124,7 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                                                 ]
                                             })
                                         ]
-                                    } as object);
+                                    });
                                 })
                             })
                         ]

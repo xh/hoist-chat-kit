@@ -615,7 +615,7 @@ function itemRow(key: string, label: string, chips: string[], openPage: () => vo
         key,
         className: `${CLS}__item-header`,
         tabIndex: 0,
-        ...({'data-row-key': key} as object),
+        ...{'data-row-key': key},
         onKeyDown: (e: KeyboardEvent) => {
             // Its › opens the page on its own click.
             if ((e.key !== 'Enter' && e.key !== ' ') || e.target !== e.currentTarget) return;
@@ -637,7 +637,7 @@ function itemRow(key: string, label: string, chips: string[], openPage: () => vo
                 onClick: openPage
             })
         ]
-    } as object);
+    });
 }
 
 // The page of the join or field instance open, or null if it is gone.

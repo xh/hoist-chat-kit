@@ -44,7 +44,7 @@ export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintView
             // Bound in run mode too, where they do nothing, so switching modes remounts nothing.
             hotkeys: designModel ? designHotkeys(designModel, {fromWidgets: true}) : null,
             // Focusable, so the design keys work once a click selects an element.
-            contentBoxProps: isDesign ? ({tabIndex: 0} as object) : null,
+            contentBoxProps: isDesign ? {tabIndex: 0} : null,
             children: [
                 // A designer marks hover and selection in a layer over the blueprint, kept in run
                 // mode too, so switching modes remounts nothing.

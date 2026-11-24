@@ -63,7 +63,7 @@ export const [BlueprintMap, blueprintMap] = hoistCmp.withFactory<BlueprintMapPro
         return panel({
             className,
             hotkeys: designHotkeys(designModel, {arrows: false}),
-            contentBoxProps: {tabIndex: 0} as object,
+            contentBoxProps: {tabIndex: 0},
             children: div({
                 className: classNames(`${CLS}__frame`, showLegend && `${CLS}__frame--legend`),
                 children: [mapScroll(), showLegend ? legend({key: 'legend', impl}) : null]
@@ -527,7 +527,7 @@ const mapNode = hoistCmp.factory<
                 state && `${CLS}__node--${state}`,
                 isSelected && `${CLS}__node--selected`
             ),
-            ...({
+            ...{
                 'data-map-node': node.key,
                 role: 'option',
                 'aria-selected': isSelected,
@@ -539,7 +539,7 @@ const mapNode = hoistCmp.factory<
                 ]
                     .filter(Boolean)
                     .join(', ')
-            } as object),
+            },
             tabIndex: impl.tabStop === node.key ? 0 : -1,
             onFocus: () => impl.setHoverKey(node.key),
             onBlur: () => {
@@ -577,7 +577,7 @@ const mapNode = hoistCmp.factory<
                     div({
                         key: port,
                         className: `${CLS}__port`,
-                        ...({'data-map-port': `${node.key}#${port}`} as object),
+                        ...{'data-map-port': `${node.key}#${port}`},
                         children: port
                     })
                 ),
@@ -718,7 +718,7 @@ const legend = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
         const collapsed = impl.legendCollapsed;
         return div({
             className: classNames(`${CLS}__legend`, collapsed && `${CLS}__legend--collapsed`),
-            ...({role: 'group', 'aria-label': 'Legend'} as object),
+            ...{role: 'group', 'aria-label': 'Legend'},
             children: [
                 button({
                     key: 'header',
@@ -727,7 +727,7 @@ const legend = hoistCmp.factory<HoistProps & {impl: BlueprintMapModel}>({
                     rightIcon: collapsed ? Icon.chevronUp() : Icon.chevronDown(),
                     minimal: true,
                     onClick: () => impl.toggleLegend(),
-                    ...({'aria-expanded': !collapsed} as object)
+                    ...{'aria-expanded': !collapsed}
                 }),
                 collapsed
                     ? null

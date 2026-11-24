@@ -724,10 +724,10 @@ function findBox(impl: ElementInspectorModel): ReactNode {
                                         span({className: `${CLS}__find-label`, children: it.label}),
                                         span({className: `${CLS}__find-where`, children: it.where})
                                     ]
-                                } as object)
+                                })
                             )
                           : div({className: `${CLS}__find-none`, children: 'No setting matches'})
-                  } as object)
+                  })
                 : null
         ]
     });
@@ -926,7 +926,7 @@ function holdsCard(impl: ElementInspectorModel): ReactNode {
                         span({className: `${CLS}__column-meta`, children: spec?.label}),
                         Icon.chevronRight({className: `${CLS}__held-go`})
                     ]
-                } as object)
+                })
             })
         ]
     });
@@ -947,7 +947,7 @@ function optionsRow(impl: ElementInspectorModel): ReactNode {
     return div({
         key: 'options',
         className: `${CLS}__row ${CLS}__row--inline`,
-        ...({'data-config-key': 'options', role: 'group', 'aria-label': 'Options'} as object),
+        ...{'data-config-key': 'options', role: 'group', 'aria-label': 'Options'},
         children: [
             div({className: `${CLS}__label`, children: 'Options'}),
             div({
@@ -1195,7 +1195,7 @@ function slotEditor(impl: ElementInspectorModel) {
 function setsEditor(impl: ElementInspectorModel) {
     return div({
         className: `${CLS}__row ${CLS}__row--inline`,
-        ...({'data-config-key': 'sets', role: 'group', 'aria-label': 'Sets'} as object),
+        ...{'data-config-key': 'sets', role: 'group', 'aria-label': 'Sets'},
         children: [
             div({className: `${CLS}__label`, children: 'Sets'}),
             div({
@@ -1245,7 +1245,7 @@ function childrenCard(impl: ElementInspectorModel) {
                 ref = blueprint.elements[impl.elementId].children.find(it => it.id === id);
             return hbox({
                 className: `${CLS}__item-header ${CLS}__child`,
-                ...({'data-child': id} as object),
+                ...{'data-child': id},
                 onClick: () =>
                     designModel.select(
                         view ? {kind: 'view', id, of: view.of} : {kind: 'element', id}

@@ -60,14 +60,14 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         if (!isDesign) {
             return div({
                 className: DESIGN_ELEMENT,
-                ...({'data-blueprint-element': id} as object),
+                ...{'data-blueprint-element': id},
                 children: [content, null, null]
             });
         }
         return div({
             className: DESIGN_ELEMENT,
             // Read by cellElementAt, by a selection that scrolls into view, and by the overlay.
-            ...({'data-blueprint-element': id} as object),
+            ...{'data-blueprint-element': id},
             // In Edit, a left press into a widget selects it, and the widget never sees it: no
             // sort, no action, no focus. Design chrome, Alt held and Interact let it through.
             onPointerDownCapture: e => stopIfCaptured(e, designModel),
@@ -267,7 +267,7 @@ function needsField(
 function notePlaceholder(children: ReactNode) {
     return placeholder({
         className: 'xh-blueprint-view__notice',
-        ...({role: 'note'} as object),
+        ...{role: 'note'},
         children
     });
 }

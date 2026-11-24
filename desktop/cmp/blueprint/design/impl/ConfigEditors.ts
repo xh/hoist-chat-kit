@@ -235,7 +235,7 @@ function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) 
             className: `${CLS}__label`,
             title: caption ? node.label : null,
             children: [
-                isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
+                isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true}) : null,
                 caption ?? labelTooltip(node)
             ]
         }),
@@ -306,7 +306,7 @@ export function joinRows<T>(
             div({
                 key: `row:${label}`,
                 className: `${CLS}__row ${CLS}__row-group`,
-                ...({role: 'group', 'aria-label': label} as object),
+                ...{role: 'group', 'aria-label': label},
                 children: [
                     div({className: `${CLS}__label`, children: label}),
                     div({className: `${CLS}__row-cells`, children: shared[label].map(rowOf)})
@@ -1045,7 +1045,7 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                             `${CLS}__item-header`,
                             impl.isItemOpen(scope, row.key) && `${CLS}__column--open`
                         ),
-                        ...({'data-row-key': row.key} as object),
+                        ...{'data-row-key': row.key},
                         // An item with a page has one way in: a click on its row, or its ›.
                         onClick: canPage
                             ? (e: React.MouseEvent) => clickOpens(e, () => open(row.key, label))
@@ -1312,7 +1312,7 @@ function drawerButton(open: boolean, onClick: () => void) {
         minimal: true,
         intent: open ? 'primary' : null,
         onClick,
-        ...({'aria-expanded': open} as object)
+        ...{'aria-expanded': open}
     });
 }
 
@@ -1640,7 +1640,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                             impl.isItemOpen(scope, key) && `${CLS}__column--open`,
                             entry.hidden && `${CLS}__column--hidden`
                         ),
-                        ...({'data-field': entry.field, 'data-row-key': key} as object),
+                        ...{'data-field': entry.field, 'data-row-key': key},
                         // An item with a page has one way in: a click on its row, or its ›.
                         onClick: canPage
                             ? (e: React.MouseEvent) =>
@@ -2308,7 +2308,7 @@ function pairEditor(
                 width: null,
                 commitOnChange: false,
                 onCommit: (v: number) => set(i, v),
-                ...({'aria-label': label} as object)
+                ...{'aria-label': label}
             })
         )
     });
@@ -2377,7 +2377,7 @@ function sortDrawer(
                       itemRenderer: ({index, key}: {index: number; key: SortKey}) =>
                           hbox({
                               className: `${CLS}__sort-key`,
-                              ...({'data-sort-field': key.field} as object),
+                              ...{'data-sort-field': key.field},
                               children: [
                                   select({
                                       value: key.field,
@@ -2520,7 +2520,7 @@ function actionEditor(
     const stepHeader = (step: PlainObject, i: number) =>
             hbox({
                 className: `${CLS}__item-header`,
-                ...({'data-row-key': keys[i]} as object),
+                ...{'data-row-key': keys[i]},
                 children: [
                     select({
                         value: step.type,
@@ -2953,7 +2953,7 @@ export function sectionCard({
                             span({className: `${CLS}__card-title`, children: title}),
                             count ? span({className: `${CLS}__card-count`, children: count}) : null
                         ]
-                    } as object),
+                    }),
                     badge
                         ? span({
                               className: `${CLS}__card-badge-box`,
@@ -2973,7 +2973,7 @@ export function sectionCard({
                               className: `${CLS}__card-chevron`,
                               'aria-hidden': true,
                               children: collapsed ? Icon.chevronRight() : Icon.chevronDown()
-                          } as object)
+                          })
                         : null
                 ]
             }),

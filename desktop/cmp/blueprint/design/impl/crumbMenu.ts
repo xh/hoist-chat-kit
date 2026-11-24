@@ -102,7 +102,7 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
                                 placement: submenuPlacement,
                                 popoverClassName: menuClassName
                             },
-                            ...({'data-crumb-child': child.id} as object)
+                            ...{'data-crumb-child': child.id}
                         })
                     )
                 ]);
@@ -137,7 +137,7 @@ export const crumbMenu = hoistCmp.factory<CrumbMenuProps>({
                     setOpen(true);
                 },
                 children: Icon.chevronRight()
-            } as object)
+            })
         });
     }
 });
