@@ -940,6 +940,22 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    it("checks a chart's series entries: a measure of its source, and each setting's form", () => {
+        const bp = p2();
+        bp.elements.sectorChart.config.series = {
+            pnlDay: {name: 'P&L', color: '#aa0000', type: 'line'}
+        };
+        expect(codes(bp)).toEqual([]);
+        bp.elements.sectorChart.config.series = {pnlDay: {color: 'red'}};
+        expect(validate(bp).map(it => it.path)).toEqual([
+            '/elements/sectorChart/config/series/pnlDay/color'
+        ]);
+        bp.elements.sectorChart.config.series = {nope: {name: 'X'}};
+        expect(validate(bp).map(it => it.path)).toEqual([
+            '/elements/sectorChart/config/series/nope'
+        ]);
+    });
+
     describe('grid styles', () => {
         const styled = (styles: object[], rowStyles: object[] = []): Blueprint => {
             const bp = p2();

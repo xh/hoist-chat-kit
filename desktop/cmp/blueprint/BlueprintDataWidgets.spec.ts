@@ -712,6 +712,25 @@ describe('blueprint data widgets', () => {
             expect(chart.chartModel.series.map(it => it.yAxis ?? 0)).toEqual([0, 1]);
         });
 
+        it("names, colors, retypes and hides a measure's series from its series entry", async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {
+                y: ['pnlDay', 'mktVal'],
+                series: {mktVal: {name: 'Value', color: '#336699', type: 'line', hidden: true}}
+            });
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series).toHaveLength(2));
+            const [first, second] = chart.chartModel.series;
+            expect(second).toMatchObject({
+                name: 'Value',
+                color: '#336699',
+                type: 'line',
+                visible: false
+            });
+            expect(first.color).toBeUndefined();
+            expect(first.visible).toBeUndefined();
+        });
+
         it("writes the axis and tooltips in a field's own scale, never stepping to compact form", async () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             Object.assign(bp.elements.sectorChart.config, {y: ['pnlDay'], y2: ['mktVal']});

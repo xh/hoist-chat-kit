@@ -969,6 +969,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 if (f !== TREE_COLUMN) need(f, `${p}/columns/${f}`);
             });
         }
+        if (el.component === 'chart' && isPlainObject(cfg.series)) {
+            Object.keys(cfg.series).forEach(f => need(f, `${p}/series/${f}`));
+        }
         // A heatmap's axes group its rows, so each is a dimension.
         const axisRole = el.component === 'heatmap' ? 'dimension' : undefined;
         if (cfg.x) need(cfg.x, `${p}/x`, axisRole);

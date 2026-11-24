@@ -12,6 +12,7 @@ import {
     isEqual,
     isFinite,
     isString,
+    omitBy,
     orderBy,
     uniq
 } from 'lodash';
@@ -149,14 +150,22 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
                 ? seriesTooltip(this.formatOf(this.primary[0]))
                 : null,
             y2Tooltip = this.hasY2 ? seriesTooltip(this.formatOf(this.y2[0])) : null;
+        // Each measure's series takes its settings from series, though not a series per groupBy value.
+        const measures = !this.resolvedConfig.groupBy
+            ? [...this.primary, ...this.y2]
+            : this.isGrouped
+              ? []
+              : this.primary;
         chartModel.setSeries(
-            toSeries(props, false).map((it, idx) =>
-                this.hasY2 && idx >= firstY2
-                    ? {...it, yAxis: 1, tooltip: y2Tooltip}
-                    : primaryTooltip
-                      ? {...it, tooltip: primaryTooltip}
-                      : it
-            )
+            toSeries(props, false).map((it, idx) => {
+                const ret =
+                    this.hasY2 && idx >= firstY2
+                        ? {...it, yAxis: 1, tooltip: y2Tooltip}
+                        : primaryTooltip
+                          ? {...it, tooltip: primaryTooltip}
+                          : it;
+                return {...ret, ...seriesOptions(this.resolvedConfig.series?.[measures[idx]])};
+            })
         );
     }
 
@@ -410,6 +419,13 @@ function toTimestamp(value: unknown): number | string {
 // An axis tick: compact, unless the field's format names a scale.
 interface AxisOpts {
     axis?: boolean;
+}
+
+// A measure's series settings as Highcharts series options, leaving out what it leaves unset.
+function seriesOptions(settings: PlainObject): PlainObject {
+    if (!settings) return {};
+    const {name, color, type, hidden} = settings;
+    return omitBy({name, color, type, visible: hidden ? false : undefined}, it => it === undefined);
 }
 
 // A series' tooltip line, with its values formatted as its field's.

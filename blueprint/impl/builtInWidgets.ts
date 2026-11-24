@@ -1098,6 +1098,7 @@ const CHART_SCHEMA = {
         y: {
             'x-group': 'list',
             title: 'Series',
+            'x-settings': {in: 'series', show: ['name', 'color', 'type']},
             type: 'array',
             items: {
                 type: 'string'
@@ -1157,6 +1158,44 @@ const CHART_SCHEMA = {
             maximum: 100,
             'x-unset': 'All',
             description: 'Shows only the first points, after sorting.'
+        },
+        series: {
+            'x-group': 'list',
+            type: 'object',
+            'x-field': 'measure',
+            description:
+                'How each series of y and y2 draws, keyed by its measure: its name, color, type, and whether it shows. Not for a series per groupBy value. Keep the defaults unless the user asks.',
+            additionalProperties: {
+                type: 'object',
+                additionalProperties: false,
+                'x-common': ['name', 'color', 'type', 'hidden'],
+                'x-summary': ['type', 'color'],
+                properties: {
+                    name: {
+                        type: 'string',
+                        maxLength: 60,
+                        description:
+                            "The series' name in the legend and tooltip. Default the field label."
+                    },
+                    color: {
+                        type: 'string',
+                        pattern: '^#[0-9a-fA-F]{6}$',
+                        description:
+                            'The series color, as #rrggbb. Default the next of the chart colors.'
+                    },
+                    type: {
+                        enum: ['line', 'spline', 'column', 'bar', 'area', 'areaspline', 'scatter'],
+                        description:
+                            "How the series draws, over the chart's type, such as a line over columns."
+                    },
+                    hidden: {
+                        type: 'boolean',
+                        title: 'Visible',
+                        'x-labels': {false: 'Show', true: 'Hide'},
+                        description: 'Starts the series hidden. A reader shows it from the legend.'
+                    }
+                }
+            }
         },
         highchartsConfig: {
             'x-group': 'appearance',
@@ -2334,7 +2373,7 @@ const chart: WidgetSpec = {
     label: 'Chart',
     terms: ['chart', 'graph', 'plot', 'trend', 'bar chart', 'line chart'],
     guidance:
-        'A Hoist chart. If x is a dimension, the chart aggregates its source by x. If x is a date or time field, it plots rows as they are, for a time series. Name it with its title, not a text element beside it.',
+        'A Hoist chart. If x is a dimension, the chart aggregates its source by x. If x is a date or time field, it plots rows as they are, for a time series. Name it with its title, not a text element beside it. Name, color or restyle a series in series, keyed by its measure, never in highchartsConfig.',
     category: 'data',
     // A waterfall comes with highcharts-more.
     modules: cfg => (cfg.type === 'waterfall' ? ['highcharts-more'] : []),
