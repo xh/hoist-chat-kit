@@ -40,13 +40,13 @@ export interface ArchitectRecordUsage {
 export interface ArchitectRecordToolCall {
     name: string;
     input: PlainObject;
-    /** The result, with each long list of rows cut to its first rows. */
+    /** The result, with each long list of data rows, such as a query's, cut to its first rows. */
     result: unknown;
     error: string;
     durationMs: number;
     /** True if a list of rows in the result was cut. */
     truncated: boolean;
-    /** The full length of each list cut, by its path in the result, such as `rows`. */
+    /** The full length of each list cut, by its JSON Pointer in the result, such as `/rows`. */
     totalRows?: Record<string, number>;
 }
 
@@ -68,6 +68,8 @@ export interface ArchitectTurnRecord {
     formatVersion: 1;
     /** The ID of the turn's user message. */
     turnId: string;
+    /** The turn's place in its conversation, from 1. */
+    turnNumber: number;
     prompt: string;
     model: string;
     effort: string;
@@ -117,7 +119,7 @@ export interface ArchitectRecordOptions {
     effort?: string;
     /** Tokens and cost for a turn, over what its reply's metadata reports, such as with its cost. */
     usageOf?: (turnId: string) => ArchitectRecordUsage;
-    /** The rows a list in a tool result keeps before it is cut. Default 5. */
+    /** The rows a list of data rows in a tool result keeps before it is cut. Default 5. */
     maxRows?: number;
     /** Epoch millis of the export. Default now. */
     now?: number;
@@ -152,6 +154,7 @@ export function architectTurnRecord(
             kind: 'architectTurn',
             formatVersion: 1,
             turnId,
+            turnNumber: messages.slice(0, start + 1).filter(it => it.role === 'user').length,
             prompt: user.text,
             model: (steps.find(it => it.model)?.model ??
                 replies.find(it => it.metadata?.model)?.metadata.model ??
@@ -184,7 +187,7 @@ export function architectTurnRecord(
             edits: calls.filter(it => EDIT_TOOLS.includes(it.toolName)).map(editRecord),
             usage: usageRecord(steps, usageOf?.(turnId)),
             redacted: toolCalls.some(it => it.truncated)
-                ? `Each list of rows in a tool result keeps its first ${maxRows} rows. totalRows gives each list's full length.`
+                ? `Each list of data rows in a tool result keeps its first ${maxRows} rows. totalRows gives each list's full length.`
                 : null
         };
     return context.blueprintBefore
@@ -292,7 +295,8 @@ function toolCallRecord(part: ChatToolCallPart, maxRows: number): ArchitectRecor
     };
 }
 
-// A copy of a value with each list of rows - objects - longer than maxRows cut to its first rows.
+// A copy of a value with each list of data rows longer than maxRows cut to its first rows. Only
+// data is cut: what the model read of a blueprint, the registry or the catalog stays whole.
 function cutRows(
     value: unknown,
     maxRows: number,
@@ -300,22 +304,23 @@ function cutRows(
     totals: Record<string, number>
 ): unknown {
     if (isArray(value)) {
-        const isRows = value.length > maxRows && value.every(it => isPlainObject(it));
-        if (isRows) totals[path || '/'] = value.length;
-        return (isRows ? value.slice(0, maxRows) : value).map((it, idx) =>
-            cutRows(it, maxRows, `${path}/${idx}`, totals)
-        );
+        return value.map((it, idx) => cutRows(it, maxRows, `${path}/${idx}`, totals));
     }
-    if (isPlainObject(value)) {
-        return Object.fromEntries(
-            Object.entries(value as PlainObject).map(([k, v]) => [
-                k,
-                cutRows(v, maxRows, `${path}/${k}`, totals)
-            ])
-        );
-    }
-    return value;
+    if (!isPlainObject(value)) return value;
+    return Object.fromEntries(
+        Object.entries(value as PlainObject).map(([k, v]) => {
+            const at = `${path}/${k.replace(/~/g, '~0').replace(/\//g, '~1')}`;
+            if (DATA_KEYS.includes(k) && isArray(v) && v.length > maxRows) {
+                totals[at] = v.length;
+                v = v.slice(0, maxRows);
+            }
+            return [k, cutRows(v, maxRows, at, totals)];
+        })
+    );
 }
+
+// The keys of a tool result that hold data rows: a query's rows, and their text.
+const DATA_KEYS = ['rows', 'text'];
 
 function editRecord(part: ChatToolCallPart): ArchitectRecordEdit {
     const input = part.input ?? {},

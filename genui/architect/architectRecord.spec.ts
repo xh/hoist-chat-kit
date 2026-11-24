@@ -264,4 +264,82 @@ describe('Architect records', () => {
         expect(source).toContain('id: "P30"');
         expect(source).toContain('// TODO: what this turn should do');
     });
+
+    it('cuts only data rows, leaving what the model read of the blueprint, registry and catalog whole', () => {
+        const objs = (n: number) => Array.from({length: n}, (_, i) => ({id: `x${i}`})),
+            messages = [
+                new ChatMessage({id: 'u1', role: 'user', content: 'Look.', createdAt: T}),
+                new ChatMessage({
+                    id: 'a1',
+                    role: 'assistant',
+                    createdAt: T + 10,
+                    parts: [
+                        call(
+                            'c1',
+                            'read_blueprint',
+                            {paths: ['/elements/dashboard/children']},
+                            {
+                                output: {
+                                    version: 3,
+                                    parts: {'/elements/dashboard/children': objs(6)}
+                                }
+                            },
+                            T
+                        ),
+                        call(
+                            'c2',
+                            'describe_catalog',
+                            {dataset: 'positions'},
+                            {output: {fields: objs(42)}},
+                            T
+                        ),
+                        call(
+                            'c3',
+                            'query_dataset',
+                            {dataset: 'positions'},
+                            {
+                                output: {
+                                    rows: objs(12),
+                                    text: objs(12),
+                                    byPath: {'/a~b': {rows: objs(7)}}
+                                }
+                            },
+                            T
+                        )
+                    ]
+                })
+            ],
+            [readCall, catalogCall, queryCall] = architectTurnRecord('u1', {messages}).toolCalls;
+        expect(readCall).toMatchObject({
+            truncated: false,
+            result: {parts: {'/elements/dashboard/children': objs(6)}}
+        });
+        expect((catalogCall.result as any).fields).toHaveLength(42);
+        expect(catalogCall.truncated).toBe(false);
+        expect(queryCall.totalRows).toEqual({'/rows': 12, '/text': 12, '/byPath/~1a~0b/rows': 7});
+    });
+
+    it('reads a later turn as Markdown under its own number, its cache writes, and long results folded', async () => {
+        const capture = await captured(),
+            messages = conversation(),
+            reply = messages[1];
+        (reply.metadata.usage as any[])[0].cacheWriteInputTokens = 300;
+        reply.parts.push(
+            call(
+                'c5',
+                'describe_catalog',
+                {},
+                {output: {fields: Array.from({length: 30}, (_, i) => ({name: `f${i}`}))}},
+                T
+            )
+        );
+        const first = architectRecordMarkdown(
+                architectTurnRecord('u1', {messages, contextOf: id => capture.get(id)})
+            ),
+            second = architectRecordMarkdown(architectTurnRecord('u2', {messages}));
+        expect(second).toMatch(/^## Turn 2/);
+        expect(first).toContain('300 cache writes');
+        expect(first).toMatch(/<details>\n<summary>Result, \d+ lines<\/summary>/);
+        expect(first).toMatch(/\d+ more lines in the JSON record/);
+    });
 });

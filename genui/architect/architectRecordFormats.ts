@@ -10,11 +10,11 @@ import type {
 export function architectRecordMarkdown(
     record: ArchitectTurnRecord | ArchitectConversationRecord
 ): string {
-    if (record.kind === 'architectTurn') return turnMarkdown(record, 1);
+    if (record.kind === 'architectTurn') return turnMarkdown(record);
     return [
         `# Conversation with the Architect`,
         `Exported ${record.exportedAt}. ${record.turns.length} turn${record.turns.length === 1 ? '' : 's'}.`,
-        ...record.turns.map((it, idx) => turnMarkdown(it, idx + 1))
+        ...record.turns.map(turnMarkdown)
     ].join('\n\n');
 }
 
@@ -66,7 +66,7 @@ export function architectHarnessScenario(
 //------------------
 // Implementation
 //------------------
-function turnMarkdown(turn: ArchitectTurnRecord, n: number): string {
+function turnMarkdown(turn: ArchitectTurnRecord): string {
     const {context, usage} = turn,
         bp = context.blueprint,
         facts = [
@@ -92,7 +92,7 @@ function turnMarkdown(turn: ArchitectTurnRecord, n: number): string {
             ['Usage', usage ? usageText(usage) : null]
         ].filter(([, v]) => v);
     return [
-        `## Turn ${n}`,
+        `## Turn ${turn.turnNumber}`,
         facts.map(([k, v]) => `- **${k}:** ${v}`).join('\n'),
         `### Prompt\n\n${quote(turn.prompt)}`,
         context.uiContext ? `### ui_context\n\n${json(context.uiContext)}` : null,
@@ -107,7 +107,9 @@ function turnMarkdown(turn: ArchitectTurnRecord, n: number): string {
                   )
                   .join('\n')}`
             : null,
-        turn.answers.length ? `### Answers\n\n${turn.answers.map(json).join('\n\n')}` : null,
+        turn.answers.length
+            ? `### Answers\n\n${turn.answers.map(it => jsonBlock('Answer', it)).join('\n\n')}`
+            : null,
         turn.text ? `### Reply\n\n${turn.text}` : null,
         turn.redacted ? `_${turn.redacted}_` : null
     ]
@@ -119,8 +121,8 @@ function toolCallMarkdown(call: ArchitectRecordToolCall, idx: number): string {
     const head = `${idx + 1}. \`${call.name}\`${call.durationMs != null ? ` (${call.durationMs} ms)` : ''}${call.error ? ', failed' : ''}`;
     return [
         head,
-        `Input:\n${json(call.input)}`,
-        call.error ? `Error:\n${json(call.error)}` : `Result:\n${json(call.result)}`,
+        jsonBlock('Input', call.input),
+        call.error ? jsonBlock('Error', call.error) : jsonBlock('Result', call.result),
         call.truncated ? `Rows cut, of ${JSON.stringify(call.totalRows)}.` : null
     ]
         .filter(Boolean)
@@ -128,10 +130,11 @@ function toolCallMarkdown(call: ArchitectRecordToolCall, idx: number): string {
 }
 
 function usageText(usage: ArchitectTurnRecord['usage']): string {
-    const {inputTokens, outputTokens, cachedInputTokens, cost} = usage;
+    const {inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens, cost} = usage;
     return [
         inputTokens != null ? `${inputTokens} in` : null,
         cachedInputTokens ? `${cachedInputTokens} cached` : null,
+        cacheWriteInputTokens ? `${cacheWriteInputTokens} cache writes` : null,
         outputTokens != null ? `${outputTokens} out` : null,
         cost != null ? `$${cost.toFixed(4)}` : null
     ]
@@ -142,6 +145,24 @@ function usageText(usage: ArchitectTurnRecord['usage']): string {
 function json(value: unknown): string {
     return '```json\n' + JSON.stringify(value, null, 2) + '\n```';
 }
+
+// A value as JSON, inline when short, else folded and cut to its first lines.
+function jsonBlock(label: string, value: unknown): string {
+    const lines = JSON.stringify(value, null, 2).split('\n');
+    if (lines.length <= INLINE_LINES) return `${label}:\n${json(value)}`;
+    const more = lines.length - SHOWN_LINES;
+    return [
+        `<details>\n<summary>${label}, ${lines.length} lines</summary>\n`,
+        '```json\n' + lines.slice(0, SHOWN_LINES).join('\n') + '\n```',
+        more > 0 ? `\n${more} more lines in the JSON record.` : null,
+        '</details>'
+    ]
+        .filter(Boolean)
+        .join('\n');
+}
+
+const INLINE_LINES = 12,
+    SHOWN_LINES = 20;
 
 function quote(text: string): string {
     return (text ?? '')
