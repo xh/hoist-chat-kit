@@ -1,8 +1,11 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {cloneDeep, isString} from 'lodash';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
+import portfolioJson from '../../docs/planning/blueprints/catalogs/portfolio.json';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
+import {DataCatalog, type DataCatalogJson} from '../DataCatalog';
 import {FakeBlueprintDataProvider} from '../demo/FakeBlueprintDataProvider';
 import {InMemoryBlueprintRepository} from '../repository/InMemoryBlueprintRepository';
 import {fieldUsages} from '../usages';
@@ -111,6 +114,95 @@ describe('Architect tools', () => {
         expect(params.asOf.required).toBe(true);
         expect(key).toContain('symbol');
         expect(() => run('describe_catalog', {dataset: 'nope'}, model)).toThrow(/unknown dataset/);
+    });
+
+    describe('what the model may see', () => {
+        // Positions reads rows but for its P&L, which is schema only, and its trader, which is
+        // hidden. Orders is schema only, and fund summaries hidden.
+        const accessCatalog = () => {
+            const json = cloneDeep(portfolioJson) as DataCatalogJson,
+                {positions} = json.datasets;
+            json.modelAccess = 'schema';
+            positions.modelAccess = 'rows';
+            const closed = {trader: 'none', pnlDay: 'schema'} as const;
+            positions.fields = positions.fields.map(it => {
+                const f = isString(it) ? json.fields.find(sf => sf.name === it) : it;
+                return closed[f.name] ? {...f, modelAccess: closed[f.name]} : it;
+            });
+            json.datasets.fundSummary.modelAccess = 'none';
+            return new DataCatalog(json);
+        };
+
+        function openWith(catalog: DataCatalog) {
+            const ret = new BlueprintModel({
+                blueprint: loadBlueprint('p2-linked-dashboard.json'),
+                catalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog}),
+                mode: 'design',
+                access: 'write'
+            });
+            onTestFinished(() => ret.destroy());
+            return ret;
+        }
+
+        it('describes no hidden dataset or field, and says which datasets it may read rows of', () => {
+            const model = openWith(accessCatalog()),
+                list = run('describe_catalog', {}, model);
+            expect(list.map(it => it.dataset)).not.toContain('fundSummary');
+            expect(list.find(it => it.dataset === 'positions').modelAccess).toBe('rows');
+            expect(list.find(it => it.dataset === 'orders').modelAccess).toBe('schema');
+            expect(() => run('describe_catalog', {dataset: 'fundSummary'}, model)).toThrow(
+                /unknown dataset/
+            );
+
+            const {fields, modelAccess} = run('describe_catalog', {dataset: 'positions'}, model);
+            expect(modelAccess).toBe('rows');
+            expect(fields.map(it => it.name)).not.toContain('trader');
+            expect(fields.find(it => it.name === 'pnlDay').modelAccess).toBe('schema');
+            expect(fields.find(it => it.name === 'sector')).not.toHaveProperty('modelAccess');
+
+            const prompt = architectPrompt(model);
+            expect(prompt).not.toMatch(/- fundSummary /);
+            expect(prompt).toMatch(/- orders [^\n]*Schema only/);
+            expect(prompt).not.toMatch(/- positions [^\n]*Schema only/);
+        });
+
+        it('refuses to query rows the model may not read, and never names a hidden one', async () => {
+            const model = openWith(accessCatalog()),
+                params = {asOf: '2026-07-01'},
+                query = (input: object) =>
+                    run('query_dataset', {dataset: 'positions', params, ...input}, model);
+
+            await expect(run('query_dataset', {dataset: 'orders', params}, model)).rejects.toThrow(
+                /may not read the rows of 'orders'/
+            );
+            await expect(
+                run('query_dataset', {dataset: 'fundSummary', params}, model)
+            ).rejects.toThrow(/unknown dataset 'fundSummary'. Datasets: (?!.*fundSummary)/);
+            await expect(query({fields: ['pnlDay']})).rejects.toThrow(/may not read field pnlDay/);
+            await expect(query({fields: ['trader']})).rejects.toThrow(/unknown fields: trader/);
+            await expect(query({fields: ['mktVal'], groupBy: ['trader']})).rejects.toThrow(
+                /unknown fields: trader/
+            );
+            await expect(query({fields: ['mktVal'], sortBy: 'pnlDay|desc'})).rejects.toThrow(
+                /may not read field pnlDay/
+            );
+            await expect(
+                query({fields: ['mktVal'], filter: {field: 'pnlDay', op: '>', value: 0}})
+            ).rejects.toThrow(/may not read field pnlDay/);
+
+            const {columns} = await query({});
+            expect(columns.map(it => it.name)).not.toContain('trader');
+            expect(columns.map(it => it.name)).not.toContain('pnlDay');
+        });
+
+        it('runs no query artifact again once its rows are closed to the model', async () => {
+            const request = {dataset: 'orders', params: {asOf: '2026-07-01'}, fields: ['quantity']};
+            await expect(runDatasetQueryAsync(request, openWith(accessCatalog()))).rejects.toThrow(
+                /may not read the rows of 'orders'/
+            );
+        });
     });
 
     it('lists registry entries in a line each, or gives full specs by name or category', () => {

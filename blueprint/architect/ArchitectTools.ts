@@ -1,15 +1,16 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isEmpty, isPlainObject, pickBy, uniq} from 'lodash';
+import {castArray, isArray, isEmpty, isPlainObject, isString, pickBy, uniq} from 'lodash';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, BlueprintOp} from '../Blueprint';
 import type {BlueprintDataProvider} from '../BlueprintDataProvider';
 import type {BlueprintAccess, BlueprintMode} from '../Blueprint';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
-import type {DataCatalog, DatasetDef} from '../DataCatalog';
+import type {DataCatalog, DatasetDef, FieldDef} from '../DataCatalog';
 import type {BlueprintRepository, BlueprintSummary} from '../repository/BlueprintRepository';
 import {isLinkSettableType} from '../impl/linkParams';
 import {applyOps} from '../applyOps';
 import {withDefaultBindingsImplied} from '../impl/bindable';
 import {checkEditAllowed} from '../impl/access';
+import {filterFields} from '../impl/bindings';
 import {checkFilter} from '../impl/configSchema';
 import {fieldUsages} from '../usages';
 import {isIncomplete, isSettableFromOutside} from '../validateBlueprint';
@@ -123,27 +124,28 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
         run: (input, {catalogs}) => {
             if (!input?.dataset) {
                 return catalogs.flatMap(cat =>
-                    Object.values(cat.datasets).map(d => ({
+                    modelDatasets(cat).map(d => ({
                         dataset: d.name,
                         catalog: cat.json.label,
                         label: d.label,
                         guidance: d.guidance ?? d.description,
                         params: d.params,
                         ...(d.key ? {key: d.key} : {}),
-                        fieldCount: Object.keys(d.fields).length,
+                        modelAccess: cat.modelAccessOf(d.name),
+                        fieldCount: modelFields(cat, d).length,
                         categories: uniq(
-                            Object.values(d.fields).map(f => JSON.stringify(f.category ?? null))
+                            modelFields(cat, d).map(f => JSON.stringify(f.category ?? null))
                         )
                             .map(c => JSON.parse(c))
                             .filter(Boolean)
                     }))
                 );
             }
-            const cat = catalogs.find(it => it.getDataset(input.dataset)),
-                d = cat?.getDataset(input.dataset);
+            const {cat, ds: d} = findModelDataset(catalogs, input.dataset);
             if (!d) throw new Error(`unknown dataset '${input.dataset}'`);
-            const q = String(input.search ?? '').toLowerCase(),
-                fields = Object.values(d.fields).filter(f => {
+            const access = cat.modelAccessOf(d.name),
+                q = String(input.search ?? '').toLowerCase(),
+                fields = modelFields(cat, d).filter(f => {
                     const c = castArray(f.category ?? []).join(' > ');
                     if (
                         input.category &&
@@ -163,6 +165,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                 dataset: d.name,
                 params: d.params,
                 ...(d.key ? {key: d.key} : {}),
+                modelAccess: access,
                 kinds: cat.kinds,
                 formats: cat.formats,
                 fields: fields.map(f => ({
@@ -178,7 +181,10 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                     guidance: f.guidance ?? f.description,
                     deprecated: f.deprecated,
                     replacedBy: f.replacedBy,
-                    renderer: f.renderer
+                    renderer: f.renderer,
+                    ...(cat.modelAccessOf(d.name, f.name) !== access
+                        ? {modelAccess: cat.modelAccessOf(d.name, f.name)}
+                        : {})
                 }))
             };
         }
@@ -489,24 +495,42 @@ export async function runDatasetQueryAsync(
     input: PlainObject,
     target: Pick<ArchitectTarget, 'catalogs' | 'dataProvider'>
 ): Promise<{dataset: DatasetDef; requested: string[]; rows: PlainObject[]; totalRows: number}> {
-    const cat = target.catalogs.find(it => it.getDataset(input?.dataset)),
-        ds = cat?.getDataset(input?.dataset);
+    const {cat, ds} = findModelDataset(target.catalogs, input?.dataset);
     if (!ds) {
-        const names = target.catalogs.flatMap(it => Object.keys(it.datasets));
+        const names = target.catalogs.flatMap(it => modelDatasets(it).map(d => d.name));
         throw new Error(`unknown dataset '${input?.dataset}'. Datasets: ${names.join(', ')}`);
+    }
+    const readable = modelFields(cat, ds)
+        .filter(f => cat.modelAccessOf(ds.name, f.name) === 'rows')
+        .map(f => f.name);
+    if (!readable.length) {
+        throw new Error(
+            `you may not read the rows of '${ds.name}'. Build a view over it, and the user sees its data.`
+        );
     }
     const params = input.params ?? {},
         missing = Object.entries(ds.params).find(([n, p]) => p.required && params[n] == null);
     if (missing) throw new Error(`${ds.name} requires parameter '${missing[0]}'`);
 
-    const fields: string[] = input.fields?.length
-            ? input.fields
-            : Object.keys(ds.fields).slice(0, 12),
+    const fields: string[] = input.fields?.length ? input.fields : readable.slice(0, 12),
         groupBy: string[] = input.groupBy ?? [],
-        unknown = [...fields, ...groupBy].filter(f => !ds.fields[f]);
+        unknown = [...fields, ...groupBy].filter(
+            f => !ds.fields[f] || cat.modelAccessOf(ds.name, f) === 'none'
+        );
     if (unknown.length) throw new Error(`unknown fields: ${unknown.join(', ')}`);
     const [badFilter] = input.filter == null ? [] : checkFilter(input.filter);
     if (badFilter) throw new Error(`filter: ${badFilter.message}`);
+    const closed = uniq([
+        ...fields,
+        ...groupBy,
+        ...filterFields(input.filter),
+        ...(isString(input.sortBy) ? [input.sortBy.split('|')[0]] : [])
+    ]).filter(f => !readable.includes(f));
+    if (closed.length) {
+        throw new Error(
+            `you may not read field ${closed.join(', ')} of '${ds.name}', to show, group, filter or sort by. Fields you may read: ${readable.join(', ')}`
+        );
+    }
 
     const requested = uniq([...groupBy, ...fields]),
         {rows} = await target.dataProvider.loadAsync({
@@ -528,6 +552,21 @@ export async function runDatasetQueryAsync(
 //------------------
 // Implementation
 //------------------
+// The datasets and fields of a catalog the model may know of: all but those it hides.
+const modelDatasets = (cat: DataCatalog): DatasetDef[] =>
+    Object.values(cat.datasets).filter(d => cat.modelAccessOf(d.name) !== 'none');
+
+const modelFields = (cat: DataCatalog, ds: DatasetDef): FieldDef[] =>
+    Object.values(ds.fields).filter(f => cat.modelAccessOf(ds.name, f.name) !== 'none');
+
+function findModelDataset(
+    catalogs: DataCatalog[],
+    name: string
+): {cat: DataCatalog; ds: DatasetDef} {
+    const cat = catalogs.find(it => it.getDataset(name) && it.modelAccessOf(name) !== 'none');
+    return {cat, ds: cat?.getDataset(name) ?? null};
+}
+
 const REGISTRY_KINDS: Record<string, keyof ArchitectTarget['registry']> = {
     widget: 'widgets',
     variableType: 'variableTypes',

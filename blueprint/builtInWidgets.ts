@@ -13,6 +13,7 @@ import type {
     WidgetSpec
 } from './BlueprintRegistry';
 import {DASHBOARD_COLUMNS, DASHBOARD_GAP, DASHBOARD_ROW_HEIGHT} from './dashboardCells';
+import {filterFields} from './impl/bindings';
 import {parentOf} from './impl/elements';
 import {listOf} from './impl/labels';
 import {templateDemand} from './impl/template';
@@ -2894,13 +2895,6 @@ export function rendererFields(renderer: unknown): string[] {
 
 function fieldNames(names: unknown[]): string[] {
     return uniq(names.filter(it => isString(it) && it !== TREE_COLUMN)) as string[];
-}
-
-function filterFields(filter: unknown): string[] {
-    if (!filter || typeof filter !== 'object') return [];
-    const f = filter as PlainObject;
-    if (Array.isArray(f.filters)) return f.filters.flatMap(filterFields);
-    return isString(f.field) ? [f.field] : [];
 }
 
 //------------------

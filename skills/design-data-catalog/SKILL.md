@@ -107,7 +107,20 @@ it. Say in the dataset's guidance when to join it, and on which key.
   symbol at once. Cap the rows on the server, with a clear error past the cap, and say the cost
   in the dataset's guidance.
 
-## 6. Write for the Architect
+## 6. Decide what the model may see
+
+`modelAccess` sets what the Architect may see, on the catalog as a default, on a dataset, or on a
+field. A field overrides its dataset, and a dataset the catalog.
+
+- **`schema`, the default:** the Architect builds views over the data, and the user sees it, but
+  `query_dataset` never reads its rows.
+- **`rows`:** the Architect may query it, to answer a question from the data.
+- **`none`:** the Architect never learns it exists. A dataset with `none` hides all its fields.
+
+Open rows only where answering from data is worth sending it to the model provider. Keep a
+sensitive field, such as a counterparty or a salary, at `schema` or `none` inside an open dataset.
+
+## 7. Write for the Architect
 
 The Architect's index shows each dataset in one line, with all of its `guidance`, else its
 `description`. `describe_catalog` gives the fields, with the same fallback.

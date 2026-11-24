@@ -55,6 +55,7 @@ import {paramLabel} from './impl/paramLabel';
 import {rendererFields} from './builtInWidgets';
 import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
+import {filterFields} from './impl/bindings';
 import {parentOf} from './impl/elements';
 import {withInlineType} from './impl/variableValues';
 import {getWriters} from './validateBlueprint';
@@ -378,14 +379,14 @@ export class BlueprintSource extends HoistBase {
                 String(resolved.op).toUpperCase() === 'AND' && isArray(resolved.filters)
                     ? resolved.filters
                     : [resolved],
-            isJoined = (c: PlainObject) => filterFieldsOf(c).some(f => joined.includes(f)),
+            isJoined = (c: PlainObject) => filterFields(c).some(f => joined.includes(f)),
             server = andOf(clauses.filter(it => !isJoined(it))),
             browserClauses = clauses.filter(isJoined),
             browser = andOf(browserClauses),
             pushdown: PlainObject[] = [];
         for (const spec of this.joins) {
             const names = spec.fields.map(f => f.name),
-                own = browserClauses.filter(c => filterFieldsOf(c).every(f => names.includes(f)));
+                own = browserClauses.filter(c => filterFields(c).every(f => names.includes(f)));
             if (!own.length) continue;
             const secondary = this.context.getSource(spec.join.source);
             if (!secondary?.hasLoaded) return {server, browser, pushdown: 'waiting'};
@@ -457,7 +458,7 @@ export class BlueprintSource extends HoistBase {
                         // filter runs on it in the browser and pushes down by it.
                         demanded = [
                             ...(primary?.demandedNames ?? []),
-                            ...filterFieldsOf(this.context.resolveFilter(decl.filter))
+                            ...filterFields(this.context.resolveFilter(decl.filter))
                         ],
                         used = joinFields(join, catalog.getDataset(decl.dataset), own).filter(it =>
                             demanded.includes(it.name)
@@ -963,12 +964,6 @@ const PUSHDOWN_CAP = 2000;
 function andOf(clauses: PlainObject[]): PlainObject {
     const present = clauses.filter(Boolean);
     return present.length > 1 ? {op: 'AND', filters: present} : (present[0] ?? null);
-}
-
-// The fields a filter names, at any depth.
-function filterFieldsOf(filter: PlainObject): string[] {
-    if (isArray(filter?.filters)) return filter.filters.flatMap(filterFieldsOf);
-    return isString(filter?.field) ? [filter.field] : [];
 }
 
 // A join's key for a row, as its values of the fields given, in order. Null if any is null, as a

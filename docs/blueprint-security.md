@@ -22,6 +22,11 @@ Nothing in the browser decides what data a user may see, or which blueprints the
 - **Types.** A repository scopes every read and write to its type, so one app cannot reach
   another app's blueprints by id. `BlueprintDocumentModel` also refuses a record of another type,
   in case a repository fails to scope.
+- **The model sees rows only where the catalog opens them.** A dataset or field's `modelAccess`
+  defaults to `schema`: the Architect builds views over it but never queries it, and `none` hides
+  it from the Architect entirely. `query_dataset` refuses every other field, in what it returns,
+  groups, filters and sorts by, and so does an answer that runs a query's artifact again. This
+  limits what reaches the model provider. It is not a check on the user, which the server makes.
 - **Nothing reveals.** A repository answers the same for a blueprint that is missing and one the
   user may not read, so a guessed id learns nothing.
 

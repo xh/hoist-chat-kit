@@ -43,3 +43,11 @@ export function andFilters(filters: FilterSpec[]): FilterSpec {
     if (present.length < 2) return present[0] ?? null;
     return {op: 'AND', filters: present};
 }
+
+/** The fields a filter names, at any depth. */
+export function filterFields(filter: unknown): string[] {
+    if (!isPlainObject(filter)) return [];
+    const f = filter as PlainObject;
+    if (isArray(f.filters)) return f.filters.flatMap(filterFields);
+    return typeof f.field === 'string' ? [f.field] : [];
+}

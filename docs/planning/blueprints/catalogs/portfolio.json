@@ -1,6 +1,7 @@
 {
     "version": 1,
     "label": "Portfolio",
+    "modelAccess": "rows",
     "formats": {
         "mv": {"scale": "millions", "precision": 1, "ledger": true},
         "exposure": {"scale": "millions", "precision": 1, "ledger": true},

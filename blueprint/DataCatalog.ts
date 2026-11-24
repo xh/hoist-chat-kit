@@ -3,6 +3,15 @@ import {isPlainObject, isString, keyBy, omit, pick, uniq} from 'lodash';
 import {paramLabel} from './impl/paramLabel';
 import {toLookup} from './impl/pointer';
 
+/**
+ * What the model may see of a dataset or a field: its rows, only its schema, or nothing at all.
+ * With `schema`, the Architect builds views over the data but never reads it. See
+ * {@link DataCatalog.modelAccessOf}.
+ */
+export type ModelAccess = 'rows' | 'schema' | 'none';
+
+const MODEL_ACCESS: ModelAccess[] = ['rows', 'schema', 'none'];
+
 /** Kinds every catalog has, beside `currency:<code>`. */
 export const BUILT_IN_KINDS = ['fraction', 'bps', 'shares'];
 
@@ -30,6 +39,8 @@ export interface FieldDef {
     params?: Record<string, ParamDef>;
     deprecated?: boolean;
     replacedBy?: string;
+    /** What the model may see of the field. Default its dataset's. */
+    modelAccess?: ModelAccess;
 }
 
 /** A parameter of a dataset or a parameterized field. */
@@ -64,6 +75,8 @@ export interface DatasetDef {
      * to be a dimension (`join.keyNotDimension`).
      */
     key?: string[];
+    /** What the model may see of the dataset. Default the catalog's. */
+    modelAccess?: ModelAccess;
     /** Every field, keyed by name, with shared fields and kind defaults resolved. */
     fields: Record<string, FieldDef>;
 }
@@ -72,6 +85,8 @@ export interface DatasetDef {
 export interface DataCatalogJson {
     version?: number;
     label?: string;
+    /** What the model may see of each dataset that does not say. Default `schema`. */
+    modelAccess?: ModelAccess;
     formats?: Record<string, PlainObject>;
     kinds?: Record<string, KindDef>;
     fields?: FieldDef[];
@@ -99,7 +114,12 @@ export class DataCatalog {
             checkKind = (kind: string, what: string) => {
                 if (kind != null && !this.isKnownKind(kind))
                     problems.push(`unknown kind '${kind}' on ${what}`);
+            },
+            checkAccess = (access: string, what: string) => {
+                if (access != null && !MODEL_ACCESS.includes(access as ModelAccess))
+                    problems.push(`unknown modelAccess '${access}' of ${what}`);
             };
+        checkAccess(json.modelAccess, 'the catalog');
         Object.entries(json.datasets).forEach(([name, ds]) => {
             const fields = ds.fields.map(it =>
                 this.withKindDefaults(isString(it) ? shared[it] : it)
@@ -110,6 +130,7 @@ export class DataCatalog {
                 params: toLookup(ds.params),
                 fields: toLookup(keyBy(fields, 'name'))
             };
+            checkAccess(ds.modelAccess, `dataset '${name}'`);
             Object.entries(ds.params ?? {}).forEach(([pn, pd]) =>
                 checkKind(pd.kind, `parameter '${pn}' of dataset '${name}'`)
             );
@@ -121,6 +142,7 @@ export class DataCatalog {
                 );
             fields.forEach(f => {
                 checkKind(f.kind, `field '${f.name}' of dataset '${name}'`);
+                checkAccess(f.modelAccess, `field '${f.name}' of dataset '${name}'`);
                 this.checkParamLabel(f, name, ds.params ?? {}, problems);
                 Object.entries(f.params ?? {}).forEach(([pn, pd]) =>
                     checkKind(pd.kind, `parameter '${pn}' of field '${f.name}'`)
@@ -139,6 +161,17 @@ export class DataCatalog {
 
     getDataset(name: string): DatasetDef {
         return this.datasets[name] ?? null;
+    }
+
+    /**
+     * What the model may see of a dataset, or of one of its fields: the field's own access, else
+     * its dataset's, else the catalog's, else `schema`. A dataset with `none` hides every field.
+     */
+    modelAccessOf(dataset: string, field?: string): ModelAccess {
+        const ds = this.getDataset(dataset),
+            own = ds?.modelAccess ?? this.json.modelAccess ?? 'schema';
+        if (field == null || own === 'none') return own;
+        return ds.fields[field]?.modelAccess ?? own;
     }
 
     // A format label a param chooses names a param of the dataset, and gives text for each value.

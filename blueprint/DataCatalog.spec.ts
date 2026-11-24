@@ -15,6 +15,59 @@ describe('DataCatalog', () => {
         expect(weatherCatalog.getDataset('weather')).toBeTruthy();
     });
 
+    it("resolves what the model may see: a field's own access, else its dataset's, else the catalog's, else schema", () => {
+        const c = new DataCatalog({
+            datasets: {
+                positions: {
+                    params: {},
+                    modelAccess: 'rows',
+                    fields: [
+                        {name: 'sector', type: 'string'},
+                        {name: 'salary', type: 'number', modelAccess: 'none'},
+                        {name: 'pnl', type: 'number', modelAccess: 'schema'}
+                    ]
+                },
+                trades: {params: {}, fields: [{name: 'qty', type: 'number'}]},
+                secret: {
+                    params: {},
+                    modelAccess: 'none',
+                    fields: [{name: 'x', type: 'number', modelAccess: 'rows'}]
+                }
+            }
+        });
+        expect(c.modelAccessOf('positions')).toBe('rows');
+        expect(c.modelAccessOf('positions', 'sector')).toBe('rows');
+        expect(c.modelAccessOf('positions', 'salary')).toBe('none');
+        expect(c.modelAccessOf('positions', 'pnl')).toBe('schema');
+        expect(c.modelAccessOf('trades')).toBe('schema');
+        expect(c.modelAccessOf('trades', 'qty')).toBe('schema');
+        // A hidden dataset hides every field, whatever the field says.
+        expect(c.modelAccessOf('secret', 'x')).toBe('none');
+
+        const open = new DataCatalog({
+            modelAccess: 'rows',
+            datasets: {trades: {params: {}, fields: [{name: 'qty', type: 'number'}]}}
+        });
+        expect(open.modelAccessOf('trades', 'qty')).toBe('rows');
+    });
+
+    it('refuses a modelAccess it does not know', () => {
+        expect(
+            () =>
+                new DataCatalog({
+                    datasets: {
+                        trades: {
+                            params: {},
+                            fields: [{name: 'qty', type: 'number', modelAccess: 'all' as any}]
+                        }
+                    }
+                })
+        ).toThrow(/modelAccess 'all' of field 'qty'/);
+        expect(() => new DataCatalog({modelAccess: 'open' as any, datasets: {}})).toThrow(
+            /modelAccess 'open' of the catalog/
+        );
+    });
+
     it('gives a field its kind defaults, and the field its own values over them', () => {
         const c = new DataCatalog(
             catalog([

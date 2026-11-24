@@ -58,12 +58,18 @@ function index(
     registry: ArchitectTarget['registry']
 ): string {
     const datasets = catalogs.flatMap(cat =>
-            Object.values(cat.datasets).map(d => {
-                const params = Object.entries(d.params)
-                    .map(([n, p]) => `${n}: ${p.type}${p.required ? '' : '?'}`)
-                    .join(', ');
-                return `- ${d.name} (${cat.json.label}): ${d.label}. ${d.guidance ?? d.description ?? ''} Params: ${params}.`;
-            })
+            Object.values(cat.datasets)
+                .filter(d => cat.modelAccessOf(d.name) !== 'none')
+                .map(d => {
+                    const params = Object.entries(d.params)
+                            .map(([n, p]) => `${n}: ${p.type}${p.required ? '' : '?'}`)
+                            .join(', '),
+                        schemaOnly =
+                            cat.modelAccessOf(d.name) === 'schema'
+                                ? ' Schema only: build views over it, but query_dataset cannot read it.'
+                                : '';
+                    return `- ${d.name} (${cat.json.label}): ${d.label}. ${d.guidance ?? d.description ?? ''} Params: ${params}.${schemaOnly}`;
+                })
         ),
         widgets = Object.entries(registry.widgets).filter(([, w]) => !w.reserved),
         byCategory = Object.entries(CATEGORY_LABELS)

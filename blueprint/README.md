@@ -209,12 +209,12 @@ cache point, so it costs a few tokens a step and keeps the cache.
 | Tool | What it does |
 |------|--------------|
 | `read_blueprint` | Reads the blueprint, whole or at given paths, with its version |
-| `describe_catalog` | Lists datasets, or describes the fields of one |
+| `describe_catalog` | Lists datasets, or describes the fields of one, except those the catalog hides from the model |
 | `describe_registry` | Lists widgets and other entries, or gives an entry's config schema |
 | `edit_blueprint` | Applies an edit, in design mode with write access |
 | `validate_blueprint` | Checks the blueprint, or an edit as a dry run |
 | `set_variable` | Sets a variable that a prompt or the Architect may set |
-| `query_dataset` | Queries a dataset, and returns the result as an artifact of the reply |
+| `query_dataset` | Queries the fields the catalog opens to the model (`modelAccess: 'rows'`), and returns the result as an artifact of the reply |
 | `find_usages` | Finds every path that uses a field, a format, a variable or a source |
 | `list_blueprints` | Lists the published blueprints of this one's type, with the variables a link may set, for an `openBlueprint` target |
 | `request_design_mode` | Asks the user, on the chat's approval card, to switch to design mode |
