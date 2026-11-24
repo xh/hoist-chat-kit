@@ -5,10 +5,10 @@ import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
 import {tooltip} from '@xh/hoist/kit/blueprint';
-import {action, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
+import {action, bindable, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isArray, isEqual, isPlainObject, isString, without} from 'lodash';
-import {type ReactNode, useEffect, useMemo} from 'react';
+import {type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useMemo} from 'react';
 import {
     type BlueprintDesignModel,
     type EditorNode,
@@ -128,6 +128,68 @@ export class ElementInspectorModel extends ConfigEditorModel {
         const list = this.designModel.itemPage?.list,
             node = list && this.pageKey(list) ? this.nodes.find(it => it.key === list) : null;
         return node?.kind === 'fieldList' || node?.kind === 'list' ? node : null;
+    }
+
+    /** What Find a setting looks for. */
+    @bindable accessor findQuery = '';
+
+    /**
+     * The settings Find a setting matches, by label, key or description: the element's own, folded
+     * ones included, then each grid column's, which open on its page.
+     */
+    @computed
+    get findResults(): FindResult[] {
+        const q = this.findQuery.trim().toLowerCase();
+        if (!q) return [];
+        const matches = (node: EditorNode) =>
+                [node.label, node.key, node.description].some(it => it?.toLowerCase().includes(q)),
+            own = this.sections.flatMap(section =>
+                [...section.nodes, ...(section.moreOpen ? [] : section.folded)]
+                    .filter(matches)
+                    .map(node => ({
+                        id: node.key,
+                        label: node.label,
+                        where: section.label,
+                        node,
+                        section
+                    }))
+            ),
+            items = this.nodes.flatMap(list => {
+                if (list.kind !== 'fieldList' || !list.settingsIn) return [];
+                const settings = [...list.settings, ...list.settingsIn.settings].filter(matches),
+                    seen: Record<string, number> = {};
+                return castArray(this.values[list.key] ?? []).flatMap(it => {
+                    const field = isString(it) ? it : it?.field,
+                        n = (seen[field] = (seen[field] ?? 0) + 1),
+                        itemKey = `${field}#${n}`;
+                    return settings.map(node => ({
+                        id: `${list.key}/${itemKey}/${node.key}`,
+                        label: node.label,
+                        where: `${list.label} › ${this.fieldLabel(field)}`,
+                        node,
+                        page: {list: list.key, key: itemKey}
+                    }));
+                });
+            });
+        return [...own, ...items].slice(0, 40);
+    }
+
+    /** Show a found setting: open its section, its N more or its item's page, and focus its row. */
+    @action
+    showFound(result: FindResult) {
+        const {designModel} = this;
+        designModel.findOpen = false;
+        this.findQuery = '';
+        if (result.page) {
+            this.openPage(result.page.list, result.page.key);
+        } else {
+            const {section} = result;
+            if (section.collapsed) this.toggleSection(section.group);
+            if (section.folded.includes(result.node) && !section.moreOpen) {
+                this.toggleSection(`more:${section.group}`);
+            }
+        }
+        designModel.focusField(this.elementId, result.node.key);
     }
 
     /** Sections and their "N more" rows toggled from how they start, by widget type and key. */
@@ -439,6 +501,18 @@ function refuseMessage(designModel: BlueprintDesignModel, message: string) {
 }
 
 // The key a refusal of the element itself, such as its removal, goes under.
+/** A setting Find a setting matched, as {@link ElementInspectorModel.findResults} gives it. */
+export interface FindResult {
+    id: string;
+    label: string;
+    /** Where it sits: its section, or its list and item. */
+    where: string;
+    node: EditorNode;
+    section?: InspectorSection;
+    /** The item whose page holds it, for a list item's setting. */
+    page?: {list: string; key: string};
+}
+
 /** A section of the element's settings, as {@link ElementInspectorModel.sections} gives it. */
 export interface InspectorSection {
     group: SettingGroup;
@@ -529,6 +603,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                               div({className: `${CLS}__widget`, children: impl.label})
                           ]
                       }),
+                designModel.findOpen && !impl.isView ? findBox(impl) : null,
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
                     div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),
@@ -543,6 +618,68 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
 });
 
 const LIST_KINDS = ['fieldList', 'list', 'stringList'];
+
+// Find a setting: a box that filters every setting, the hidden and those on item pages included,
+// and its matches. Enter shows the first, a click any, and Escape closes it.
+function findBox(impl: ElementInspectorModel): ReactNode {
+    const close = () => {
+        impl.designModel.findOpen = false;
+        impl.findQuery = '';
+    };
+    return div({
+        key: 'find',
+        className: `${CLS}__find`,
+        onKeyDown: (e: ReactKeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            e.stopPropagation();
+            close();
+        },
+        children: [
+            textInput({
+                value: impl.findQuery,
+                placeholder: 'Find a setting',
+                autoFocus: true,
+                commitOnChange: true,
+                leftIcon: Icon.search(),
+                width: '100%',
+                onCommit: (v: string) => (impl.findQuery = v ?? ''),
+                onKeyDown: (e: KeyboardEvent) => {
+                    if (e.key === 'Enter' && impl.findResults.length) {
+                        e.preventDefault();
+                        impl.showFound(impl.findResults[0]);
+                    }
+                }
+            }),
+            impl.findQuery.trim()
+                ? div({
+                      className: `${CLS}__find-results`,
+                      role: 'listbox',
+                      children: impl.findResults.length
+                          ? impl.findResults.map(it =>
+                                div({
+                                    key: it.id,
+                                    className: `${CLS}__find-result`,
+                                    role: 'option',
+                                    tabIndex: 0,
+                                    onClick: () => impl.showFound(it),
+                                    onKeyDown: (e: ReactKeyboardEvent) => {
+                                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                                        e.preventDefault();
+                                        impl.showFound(it);
+                                    },
+                                    children: [
+                                        span({className: `${CLS}__find-label`, children: it.label}),
+                                        span({className: `${CLS}__find-where`, children: it.where})
+                                    ]
+                                } as object)
+                            )
+                          : div({className: `${CLS}__find-none`, children: 'No setting matches'})
+                  } as object)
+                : null
+        ]
+    });
+}
 
 // The open item's page, for a field list such as a grid's columns or a list such as its actions.
 function itemPage(impl: ElementInspectorModel): ReactNode {

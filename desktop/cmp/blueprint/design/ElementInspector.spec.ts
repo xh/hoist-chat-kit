@@ -966,6 +966,50 @@ describe('ElementInspector', () => {
         expect(columns()).toEqual(['mktVal', 'pnlMtd']);
     });
 
+    it("finds a setting by label, key or description, hidden ones and columns' too, and shows it", async () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay']);
+        act(() => {
+            design.findOpen = true;
+        });
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            input = () =>
+                container.querySelector<HTMLInputElement>(
+                    '.xh-blueprint-element-inspector__find input'
+                ),
+            results = () =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__find-result')].map(
+                    it => it.textContent
+                );
+        fireEvent.change(input(), {target: {value: 'pinned'}});
+        // Each column's Pinned, and the column list, whose description names it.
+        await vi.waitFor(() =>
+            expect(results().filter(it => /^Pinned.*Columns › /.test(it))).toHaveLength(2)
+        );
+        // A folded setting is found too, and showing it opens its N more.
+        fireEvent.change(input(), {target: {value: 'tree style'}});
+        await vi.waitFor(() => expect(results()[0]).toMatch(/^Tree style/));
+        fireEvent.click(container.querySelector('.xh-blueprint-element-inspector__find-result'));
+        expect(design.findOpen).toBe(false);
+        expect(container.querySelector('[data-config-key="treeStyle"]')).not.toBeNull();
+        // A column's setting opens its page.
+        act(() => {
+            design.findOpen = true;
+        });
+        fireEvent.change(input(), {target: {value: 'pinned'}});
+        await vi.waitFor(() => expect(results().length).toBe(3));
+        fireEvent.click(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__find-result')].at(-1)
+        );
+        expect(design.itemPage).toMatchObject({list: 'columnState', key: 'pnlDay#1'});
+        // Escape closes it.
+        act(() => {
+            design.findOpen = true;
+        });
+        fireEvent.keyDown(input(), {key: 'Escape'});
+        expect(design.findOpen).toBe(false);
+    });
+
     it('names a style rule by its test and style', () => {
         const {design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/rowStyles', [

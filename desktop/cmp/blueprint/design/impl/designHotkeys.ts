@@ -64,9 +64,21 @@ export function designHotkeys(
  * them inside a part that binds the design keys, or each runs twice.
  */
 export function inspectorHotkeys(designModel: BlueprintDesignModel): HotkeyConfig[] {
-    return designHotkeys(designModel, {arrows: false}).filter(it =>
-        INSPECTOR_COMBOS.includes(it.combo)
-    );
+    return [
+        ...designHotkeys(designModel, {arrows: false}).filter(it =>
+            INSPECTOR_COMBOS.includes(it.combo)
+        ),
+        {
+            combo: '/',
+            label: 'Find a setting',
+            group: 'Design',
+            onKeyDown: (e: KeyboardEvent) => {
+                if (designModel.selection?.kind !== 'element') return;
+                e.preventDefault();
+                designModel.findOpen = true;
+            }
+        }
+    ];
 }
 
 const INSPECTOR_COMBOS = ['e', 'i', '`', 'p', 'mod+d'];

@@ -622,6 +622,50 @@
     font-size: 12px;
   }
 
+  // Find a setting: its box, then its matches, each with where it sits.
+  &__find {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__find-results {
+    display: flex;
+    flex-direction: column;
+    max-height: 280px;
+    overflow-y: auto;
+    border: var(--xh-border-solid);
+    border-radius: var(--xh-border-radius);
+  }
+
+  &__find-result {
+    display: flex;
+    gap: var(--xh-spacing);
+    align-items: baseline;
+    padding: 4px var(--xh-spacing);
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--xh-intent-primary-trans1);
+      outline: none;
+    }
+  }
+
+  &__find-label {
+    font-weight: 500;
+  }
+
+  &__find-where,
+  &__find-none {
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__find-none {
+    padding: 4px var(--xh-spacing);
+  }
+
   // A list item's page: a bar that goes back and steps, then its sections.
   &__page {
     display: flex;

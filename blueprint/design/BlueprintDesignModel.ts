@@ -198,6 +198,9 @@ export class BlueprintDesignModel extends HoistModel {
         this.itemPage = null;
     }
 
+    /** True while the Inspector's Find a setting is open. */
+    @bindable accessor findOpen = false;
+
     /** The list item whose row is open in the Inspector, or null. */
     @observableRef accessor openListItem: ItemPage = null;
 
@@ -250,6 +253,12 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     requestFieldFocus(id: string, key: string) {
         this.select({kind: 'element', id});
+        this.fieldFocus = {id, key};
+    }
+
+    /** Ask the Inspector to focus one of the selected element's fields, keeping its page open. */
+    @action
+    focusField(id: string, key: string) {
         this.fieldFocus = {id, key};
     }
 

@@ -647,6 +647,16 @@ const header = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}>({
                     ]
                 }),
                 filler(),
+                selection.kind === 'element'
+                    ? button({
+                          icon: Icon.search(),
+                          minimal: true,
+                          title: 'Find a setting · /',
+                          'aria-label': 'Find a setting',
+                          active: designModel.findOpen,
+                          onClick: () => (designModel.findOpen = !designModel.findOpen)
+                      })
+                    : null,
                 add
                     ? addWidgetButton({
                           designModel,
