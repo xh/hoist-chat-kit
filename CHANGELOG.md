@@ -28,7 +28,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   match. Removed the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes, and the `--xh-chat-tile-min-width` and
   `--xh-chat-tile-value-font-size` variables. Set Hoist's `--xh-stat-card-*` variables instead. See
-  [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v4-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
+  [Move Metrics to the Stat Cards
+  Spec](docs/upgrade-notes/v4-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
 * `ChatUiCard` now renders a Hoist `Card` that holds a `PropertyTable`. Removed the
   `xh-chat-ui-card__fields`, `__field`, `__label` and `__value` classes and the
   `--xh-chat-card-section-pad` variable. Set Hoist's `--xh-card-*` and `--xh-property-table-*`
@@ -36,7 +37,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
   emits `STATE_SNAPSHOT` now gets its state back with every run. See
-  [Move the Agent State to the Chat](docs/upgrade-notes/v4-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
+  [Move the Agent State to the
+  Chat](docs/upgrade-notes/v4-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
 * `ChatUiCatalogConfig.urlAllowList` now matches each entry by its parsed origin and path, not as
   a string prefix. An entry with a path now allows only URLs under that path, and only http and
   https URLs open. Check any entry with a path, and widen it to its origin if needed.

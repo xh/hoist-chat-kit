@@ -198,8 +198,8 @@ mode and access, and each variable's current value.
 
 Beside a designer, add `uiContextProvider(designModel)` to `contextProviders` and pass
 `withUiContext: true` to `architectPrompt()`. Each step then says what the user selected, with
-its widget, container and dashboard cell, and the active tabs and presets, so a request such as "make
-the selected widget taller" has a target. When a request needs a target and the user selected
+its widget, container and dashboard cell, and the active tabs and presets, so a request such as
+"make the selected widget taller" has a target. When a request needs a target and the user selected
 nothing, the Architect asks. It never changes the selection. Its context sits after the prompt's
 cache point, so it costs a few tokens a step and keeps the cache.
 
@@ -275,7 +275,10 @@ const capture = new ArchitectTurnCapture({
     systemPromptOf: () => systemPrompt
 });
 // In the ChatModel's config:
-contextProviders: capture.wrap([blueprintContextProvider(blueprintModel), uiContextProvider(designModel)]);
+contextProviders: capture.wrap([
+    blueprintContextProvider(blueprintModel),
+    uiContextProvider(designModel)
+]);
 
 const opts = {messages: chatModel.messages, contextOf: id => capture.get(id), systemPrompt},
     record = architectTurnRecord(userMessageId, opts),
@@ -380,8 +383,8 @@ On the dashboard, the selected element has a toolbar, and the keys act on it: `?
 pressed in a widget's own grid, button or input stays with that control. An empty container
 offers to add a widget: give `blueprintView` an `onAddWidget(place)` to open the host's palette
 there, and an `onAskArchitect()` for the empty dashboard's second button. Set the design model's
-`onRequestAdd` to open that palette from the `/` key; the palette then focuses its search. Give `blueprintMap` an
-`onOpenElement(id)` to show an element on the dashboard from a double-click. `wiringFor(blueprint,
+`onRequestAdd` to open that palette from the `/` key; the palette then focuses its search. Give
+`blueprintMap` an `onOpenElement(id)` to show an element on the dashboard from a double-click. `wiringFor(blueprint,
 selection)` lists what a selection reads and sets, and what reads and sets it.
 
 ### Picture widgets and blueprints
@@ -405,8 +408,8 @@ property. The registry's annotations pick an editor: a source select for `x-sour
 picker or a `GroupingChooser` for `x-field`, a `FilterChooser` for `x-filter`, and pickers for
 `x-format`, `x-renderer` and `x-action`, and a select of the variables an action may set for an
 action param marked `x-variable`. A property that binds, by type or by `x-binding`, can take a
-variable in place of a value. A shape with no editor falls back to JSON, so every value stays editable. The
-inspector draws these nodes, so a new widget gets an editor from its schema alone.
+variable in place of a value. A shape with no editor falls back to JSON, so every value stays
+editable. The inspector draws these nodes, so a new widget gets an editor from its schema alone.
 
 ### Give a config property a default
 
