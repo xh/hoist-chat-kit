@@ -147,6 +147,94 @@ describe('async checks', () => {
         ]);
     });
 
+    describe('after a design-mode edit', () => {
+        const codes = (model: BlueprintModel) => model.issues.map(it => [it.code, it.path]);
+
+        it("applies at once, then shows the check's issues without blocking the edit", async () => {
+            const {model} = open(),
+                {version} = model.applyEdit({ops: [addTicker('ZZZZ')]});
+            expect(version).toBe(2);
+            expect(model.blueprint.elements.ticker).toBeTruthy();
+            await model.whenChecksSettledAsync();
+            expect(codes(model)).toContainEqual([
+                'acme.unknownSymbol',
+                '/elements/ticker/config/symbol'
+            ]);
+        });
+
+        it('keeps an issue through edits that leave its element alone, until a fix or its removal', async () => {
+            const {model, tickerCheck} = open();
+            model.applyEdit({ops: [addTicker('ZZZZ')]});
+            await model.whenChecksSettledAsync();
+            model.applyEdit({
+                ops: [{op: 'set', path: '/elements/posGrid/config/groupBy', value: ['sector']}]
+            });
+            await model.whenChecksSettledAsync();
+            expect(codes(model).map(it => it[0])).toContain('acme.unknownSymbol');
+            expect(tickerCheck).toHaveBeenCalledTimes(1);
+
+            model.applyEdit({
+                ops: [{op: 'set', path: '/elements/ticker/config/symbol', value: 'NVDA'}]
+            });
+            await model.whenChecksSettledAsync();
+            expect(codes(model).map(it => it[0])).not.toContain('acme.unknownSymbol');
+
+            model.applyEdit({
+                ops: [{op: 'set', path: '/elements/ticker/config/symbol', value: 'ZZZZ'}]
+            });
+            await model.whenChecksSettledAsync();
+            model.applyEdit({ops: [{op: 'removeElement', id: 'ticker'}]});
+            expect(codes(model).map(it => it[0])).not.toContain('acme.unknownSymbol');
+        });
+
+        it('drops a check a newer edit supersedes, and checks both edits together', async () => {
+            const {model, tickerCheck} = open();
+            let release: () => void;
+            tickerCheck.mockImplementationOnce(
+                () =>
+                    new Promise(resolve => {
+                        release = () =>
+                            resolve([
+                                {
+                                    code: 'acme.unknownSymbol',
+                                    severity: 'error',
+                                    path: '/symbol',
+                                    message: 'stale'
+                                }
+                            ]);
+                    })
+            );
+            model.applyEdit({ops: [addTicker('ZZZZ')]});
+            model.applyEdit({
+                ops: [{op: 'set', path: '/elements/ticker/config/symbol', value: 'NVDA'}]
+            });
+            release();
+            await model.whenChecksSettledAsync();
+            expect(codes(model).map(it => it[0])).not.toContain('acme.unknownSymbol');
+            expect(tickerCheck).toHaveBeenCalledTimes(2);
+            expect(tickerCheck.mock.calls[1][0]).toEqual({symbol: 'NVDA'});
+        });
+
+        it('checks once for an edit that waited for its checks', async () => {
+            const {model, tickerCheck} = open();
+            await model.applyEditAsync({ops: [addTicker('NVDA')]});
+            await model.whenChecksSettledAsync();
+            expect(tickerCheck).toHaveBeenCalledTimes(1);
+        });
+
+        it('leaves an unchanged blueprint and its open alone, though an error stands', async () => {
+            const {model} = open();
+            model.applyEdit({ops: [addTicker('ZZZZ')]});
+            await model.whenChecksSettledAsync();
+            expect(model.setBlueprint(model.blueprint)).toEqual([]);
+            expect(
+                model.applyEdit({
+                    ops: [{op: 'set', path: '/elements/ticker/config/symbol', value: 'ZZZZ'}]
+                }).issues
+            ).toEqual([]);
+        });
+    });
+
     it("runs the checks for the Architect's edit_blueprint", async () => {
         const {model} = open(),
             edit = ARCHITECT_TOOLS.find(it => it.name === 'edit_blueprint'),

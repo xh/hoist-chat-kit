@@ -170,7 +170,9 @@ editors what a value means:
   needs the app's server, such as that a symbol exists. `edit_blueprint` and
   `BlueprintModel.applyEditAsync()` run it after the validator passes, for an element the edit
   changed, and refuse the edit on an error. A check that throws refuses it with `check.failed`.
-  Edits that do not wait, such as design mode's, skip it.
+  A design-mode edit applies at once, then runs the checks and shows their issues with the
+  blueprint's own. They do not undo the edit, but an error blocks publishing until it is fixed. A
+  newer edit replaces a check still running.
 - **Highcharts modules.** `modules` names each series module the widget needs, such as
   `heatmap`, or gives a function of the config. A widget whose module the app has not loaded
   draws a notice in its place. List every module a module depends on: `solid-gauge` needs

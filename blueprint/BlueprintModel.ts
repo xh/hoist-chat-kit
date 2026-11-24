@@ -1,6 +1,6 @@
 import {HoistModel, type LoadSpec, type PlainObject, XH} from '@xh/hoist/core';
 import type {FilterSpec} from '@xh/hoist/data';
-import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observable, observableRef, runInAction} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {dropRight, isEmpty, isEqual, last, omitBy, pickBy, takeRight} from 'lodash';
 import type {
@@ -17,7 +17,7 @@ import {BlueprintSource} from './BlueprintSource';
 import {BlueprintVariable} from './BlueprintVariable';
 import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
-import {runAsyncChecksAsync} from './asyncChecks';
+import {changedCheckPaths, hasAsyncChecks, runAsyncChecksAsync} from './asyncChecks';
 import type {BlueprintLinkState} from './BlueprintLink';
 import type {BlueprintRepository} from './repository/BlueprintRepository';
 import {diffOps} from './diffOps';
@@ -198,8 +198,30 @@ export class BlueprintModel extends HoistModel {
         this.userActedAt = Date.now();
     }
 
-    /** The current blueprint's warnings. */
-    @observableRef accessor issues: BlueprintIssue[] = [];
+    /**
+     * The current blueprint's warnings, with what the async checks of design-mode edits found,
+     * which may be errors - see `WidgetSpec.checkAsync`. An error from a check does not undo the
+     * edit, but blocks a publish.
+     */
+    @computed
+    get issues(): BlueprintIssue[] {
+        const {validationIssues, checkIssues, blueprint} = this;
+        if (!checkIssues.length) return validationIssues;
+        const exists = (path: string) => {
+            const [, key, id] = path.split('/');
+            return !!getOwn((blueprint as PlainObject)?.[key], id);
+        };
+        return [...validationIssues, ...checkIssues.filter(it => exists(it.path))];
+    }
+
+    @observableRef private accessor validationIssues: BlueprintIssue[] = [];
+    @observableRef private accessor checkIssues: BlueprintIssue[] = [];
+    // The blueprint the latest finished checks ran against, and the run in flight.
+    private checkedBlueprint: Blueprint = null;
+    private checkRun = 0;
+    private checksPending: Promise<void> = null;
+    // The checks an applyEditAsync ran before applying, from the blueprint it ran them against.
+    private preChecked: {before: Blueprint; issues: BlueprintIssue[]} = null;
 
     /** Each variable, in declaration order. */
     @observableRef accessor variables: BlueprintVariable[] = [];
@@ -286,11 +308,12 @@ export class BlueprintModel extends HoistModel {
     @action
     setBlueprint(blueprint: Blueprint): BlueprintIssue[] {
         const bp = blueprint;
-        if (isEqual(bp, this.blueprint)) return this.issues;
+        if (isEqual(bp, this.blueprint)) return this.validationIssues;
         const issues = this.validate(bp);
         if (!hasErrors(issues)) {
             this.transientValues = {};
             this.commit(bp, issues);
+            this.resetChecks();
             this.history = [];
             this.undoStack = [];
             this.redoStack = [];
@@ -323,13 +346,14 @@ export class BlueprintModel extends HoistModel {
                 (artifacts && !isEqual(artifacts, this.artifacts));
         if (catalog) this.catalog = catalog;
         if (artifacts) this.artifacts = artifacts;
-        if (!isNewData && isEqual(bp, this.blueprint)) return this.issues;
+        if (!isNewData && isEqual(bp, this.blueprint)) return this.validationIssues;
         const issues = this.validate(bp, opts);
         if (!hasErrors(issues)) {
             this.transientValues = pickBy(this.transientValues, (_, path) =>
                 Object.hasOwn(bp.elements ?? {}, path.split('/')[2])
             );
             this.commit(bp, issues);
+            this.resetChecks();
         }
         return issues;
     }
@@ -347,7 +371,8 @@ export class BlueprintModel extends HoistModel {
         this.history = [];
         this.undoStack = [];
         this.redoStack = [];
-        this.issues = [];
+        this.validationIssues = [];
+        this.resetChecks();
         this.variables = [];
         this.sources = {};
         this.activePresets = {};
@@ -390,7 +415,9 @@ export class BlueprintModel extends HoistModel {
             if (hasErrors(issues)) return {issues};
             warnings = issues;
         }
+        this.preChecked = {before, issues: warnings};
         const ret = this.applyEdit({...edit, base: edit.base ?? base}, opts);
+        this.preChecked = null;
         return ret.version == null ? ret : {...ret, issues: [...ret.issues, ...warnings]};
     }
 
@@ -846,7 +873,9 @@ export class BlueprintModel extends HoistModel {
         if (refused) return {issues: [refused]};
         const {result, issue} = applyOps(this.blueprint ?? {}, edit.ops);
         if (issue) return {issues: [issue]};
-        if (isEqual(result, this.blueprint)) return {version: this.version, issues: this.issues};
+        if (isEqual(result, this.blueprint)) {
+            return {version: this.version, issues: this.validationIssues};
+        }
         const issues = this.validate(result);
         if (hasErrors(issues)) return {issues};
         // The Architect builds complete widgets, though a person may leave one unfinished.
@@ -868,7 +897,55 @@ export class BlueprintModel extends HoistModel {
             before,
             after: result
         });
+        this.checkAfterEdit();
         return {version: this.version, issues};
+    }
+
+    /** Wait for the async checks of the latest design-mode edit, and any edit after it. */
+    async whenChecksSettledAsync() {
+        let pending: Promise<void>;
+        while ((pending = this.checksPending)) {
+            await pending;
+            if (this.checksPending === pending) this.checksPending = null;
+        }
+    }
+
+    // Run the async checks of what changed since the latest finished checks. A newer edit's run
+    // supersedes one in flight, and covers both edits, as it starts from the same blueprint.
+    private checkAfterEdit() {
+        const run = ++this.checkRun,
+            before = this.checkedBlueprint ?? {},
+            after = this.blueprint,
+            {preChecked} = this,
+            done = (found: BlueprintIssue[]) => {
+                if (run !== this.checkRun || this.isDestroyed) return;
+                const changed = changedCheckPaths(before, after);
+                runInAction(() => {
+                    this.checkIssues = [
+                        ...this.checkIssues.filter(
+                            it => !changed.some(p => isAtOrUnder(it.path, p))
+                        ),
+                        ...found
+                    ];
+                });
+                this.checkedBlueprint = after;
+                this.checksPending = null;
+            };
+        if (!hasAsyncChecks(this.registry)) {
+            done([]);
+        } else if (preChecked && preChecked.before === before) {
+            done(preChecked.issues);
+        } else {
+            this.checksPending = runAsyncChecksAsync(before, after, this.registry).then(done);
+        }
+    }
+
+    @action
+    private resetChecks() {
+        this.checkRun++;
+        this.checkIssues = [];
+        this.checkedBlueprint = this.blueprint;
+        this.checksPending = null;
     }
 
     private commit(bp: Blueprint, issues: BlueprintIssue[]) {
@@ -880,7 +957,7 @@ export class BlueprintModel extends HoistModel {
             this.transientValues = {};
         }
         this.blueprint = bp;
-        this.issues = issues;
+        this.validationIssues = issues;
         this.version++;
         this.syncVariables();
         this.syncSources();

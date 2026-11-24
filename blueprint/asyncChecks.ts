@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isEqual, isPlainObject} from 'lodash';
+import {isEqual, isPlainObject, uniq} from 'lodash';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 
@@ -60,6 +60,36 @@ export async function runAsyncChecksAsync(
     });
 
     return (await Promise.all(checks)).flat();
+}
+
+/**
+ * The paths whose async check issues an edit from `before` to `after` replaces: each element whose
+ * component or config changed, and each variable whose declaration changed, gone ones included.
+ */
+export function changedCheckPaths(before: Blueprint, after: Blueprint): string[] {
+    const changed = (key: 'elements' | 'variables', same: (a: any, b: any) => boolean) => {
+        const a = before?.[key] ?? {},
+            b = after?.[key] ?? {};
+        return uniq([...Object.keys(a), ...Object.keys(b)])
+            .filter(it => !same(a[it], b[it]))
+            .map(it => `/${key}/${it}`);
+    };
+    return [
+        ...changed(
+            'elements',
+            (a, b) => a?.component === b?.component && isEqual(a?.config, b?.config)
+        ),
+        ...changed('variables', isEqual)
+    ];
+}
+
+/** True if a registry has any async check. */
+export function hasAsyncChecks(
+    registry: Pick<BlueprintRegistry, 'widgets' | 'variableTypes'>
+): boolean {
+    return [...Object.values(registry.widgets), ...Object.values(registry.variableTypes)].some(
+        it => !!it?.checkAsync
+    );
 }
 
 //------------------

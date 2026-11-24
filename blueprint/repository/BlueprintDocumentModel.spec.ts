@@ -118,6 +118,56 @@ describe('BlueprintDocumentModel', () => {
         expect(await repository.listPublishesAsync(id)).toEqual([]);
     });
 
+    it("saves a draft that an app's check finds an error in, and refuses to publish it", async () => {
+        const {repository, id} = await created(),
+            {blueprintModel, doc} = session(repository);
+        blueprintModel.registry.addWidgets({
+            name: 'acme.ticker',
+            version: 1,
+            label: 'Ticker',
+            guidance: 'One symbol.',
+            category: 'content',
+            config: {type: 'object', properties: {symbol: {type: 'string'}}},
+            checkAsync: async ({symbol}) =>
+                symbol === 'NVDA'
+                    ? []
+                    : [
+                          {
+                              code: 'acme.unknownSymbol',
+                              severity: 'error',
+                              path: '/symbol',
+                              message: 'no such symbol'
+                          }
+                      ]
+        });
+        await doc.openAsync(id, {as: 'draft'});
+        const parent = blueprintModel.blueprint.root,
+            setSymbol = (symbol: string) =>
+                blueprintModel.applyEdit({
+                    ops: [{op: 'set', path: '/elements/ticker/config/symbol', value: symbol}]
+                });
+        blueprintModel.applyEdit({
+            ops: [
+                {
+                    op: 'addElement',
+                    id: 'ticker',
+                    element: {component: 'acme.ticker', config: {symbol: 'ZZZZ'}},
+                    parent
+                }
+            ]
+        });
+        expect(errors(await doc.saveDraftAsync())).toEqual([]);
+
+        const refused = await doc.publishAsync();
+        expect(refused[0].message).toBe("Fix what the app's checks found before you publish.");
+        expect(errors(refused)).toContain('acme.unknownSymbol');
+        expect(await repository.listPublishesAsync(id)).toEqual([]);
+
+        setSymbol('NVDA');
+        expect(errors(await doc.publishAsync())).toEqual([]);
+        expect(await repository.listPublishesAsync(id)).toHaveLength(1);
+    });
+
     it('publishes the draft as the next number, saving it first, and leaves the draft', async () => {
         const {repository, id} = await created(),
             {blueprintModel, doc} = session(repository);
