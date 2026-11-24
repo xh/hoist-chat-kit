@@ -598,7 +598,7 @@ describe('blueprint desktop widgets', () => {
                 expect(grid.cubeGridModel.innerGridModel).toBe(gridModel);
             });
 
-            it('rebuilds the grid for a style it cannot change in place, keeping the selection', async () => {
+            it('changes its group rows in place, and rebuilds only to bind to the sizing mode, keeping the selection', async () => {
                 const model = open(loadBlueprint('p2-linked-dashboard.json')),
                     grid = widget(CubeGridWidgetModel, model, 'posGrid'),
                     before = grid.cubeGridModel.innerGridModel;
@@ -609,17 +609,20 @@ describe('blueprint desktop widgets', () => {
                 await before.selectAsync(trader);
 
                 setStyle(model, 'groupRowHeight', 44);
-                const after = grid.cubeGridModel.innerGridModel;
-                expect(after).not.toBe(before);
-                expect(after.groupRowHeight).toBe(44);
-                await vi.waitFor(() => expect(after.selectedIds).toEqual([trader.id]));
-
                 setStyle(model, 'showGroupRowCounts', false);
-                expect(grid.cubeGridModel.innerGridModel.showGroupRowCounts).toBe(false);
+                expect(grid.cubeGridModel.innerGridModel).toBe(before);
+                expect(before.groupRowHeight).toBe(44);
+                expect(before.showGroupRowCounts).toBe(false);
+
                 setStyle(model, 'sizingMode', 'large');
                 expect(grid.cubeGridModel.innerGridModel.sizingMode).toBe('large');
+                // Hoist binds a grid to the app's sizing mode only as it is built.
                 setStyle(model, 'sizingMode', null);
-                expect(grid.cubeGridModel.innerGridModel.sizingMode).toBe(XH.sizingMode);
+                const after = grid.cubeGridModel.innerGridModel;
+                expect(after).not.toBe(before);
+                expect(after.sizingMode).toBe(XH.sizingMode);
+                expect(after.groupRowHeight).toBe(44);
+                await vi.waitFor(() => expect(after.selectedIds).toEqual([trader.id]));
             });
         });
 

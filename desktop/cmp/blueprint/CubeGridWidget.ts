@@ -14,7 +14,8 @@ import {
     type FilterTestFn,
     parseFilter,
     type RecordActionSpec,
-    type StoreRecord
+    type StoreRecord,
+    type StoreRecordId
 } from '@xh/hoist/data';
 import {action, computed, observable, observableRef, when} from '@xh/hoist/mobx';
 import {useEffect, useRef} from 'react';
@@ -31,8 +32,7 @@ import {
     omitBy,
     pick,
     sortBy,
-    uniq,
-    without
+    uniq
 } from 'lodash';
 import {
     BlueprintWidgetModel,
@@ -52,9 +52,7 @@ import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers
  * is the `selection` output, as a filter of the selected row's group path, and the `selected`
  * output, as the selected row's data.
  */
-// GridModel takes these styles only as it is built. It changes the rest in place.
-const BUILT_STYLES = ['groupRowHeight', 'showGroupRowCounts'],
-    LIVE_STYLES = without(CUBE_GRID_STYLES, ...BUILT_STYLES);
+const LIVE_STYLES = [...CUBE_GRID_STYLES];
 
 // Hoist sets its row and header heights on AgGrid, untyped.
 const AG_GRID = AgGrid as any,
@@ -150,14 +148,9 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 equals: 'structural'
             },
             {
-                // GridModel takes these only as it is built, and binds to the app's sizing mode
-                // only when built without one.
-                track: () => {
-                    const cfg = this.resolvedConfig;
-                    return [cfg.groupRowHeight, cfg.showGroupRowCounts, cfg.sizingMode == null];
-                },
-                run: () => this.rebuildGrid(),
-                equals: 'structural'
+                // GridModel binds to the app's sizing mode only when built without one.
+                track: () => this.resolvedConfig.sizingMode == null,
+                run: () => this.rebuildGrid()
             },
             {
                 track: () => this.resolvedConfig.expandLevel,
@@ -263,17 +256,26 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
     private async rebuildGrid() {
         const prev = this.gridModel;
         if (!prev) return;
-        const {selectedIds, expandState} = prev;
+        // A rebuild during another keeps what the first one has yet to restore.
+        const state = (this.restoring ??= {
+            selectedIds: prev.selectedIds,
+            expandState: prev.expandState
+        });
         this.buildGrid();
         const {gridModel} = this;
         await when(() => gridModel.store.count > 0, {timeout: 5_000}).catch(() => null);
         if (gridModel !== this.gridModel) return;
-        if (selectedIds.length) await gridModel.selectAsync(selectedIds, {ensureVisible: false});
+        if (state.selectedIds.length) {
+            await gridModel.selectAsync(state.selectedIds, {ensureVisible: false});
+        }
         // Rows expand only once ag-Grid has drawn the new grid.
         if ((await gridModel.whenReadyAsync()) && gridModel === this.gridModel) {
-            gridModel.setExpandState(expandState);
+            gridModel.setExpandState(state.expandState);
+            this.restoring = null;
         }
     }
+
+    private restoring: {selectedIds: StoreRecordId[]; expandState: PlainObject} = null;
 
     /** Set each style GridModel can change in place, or its default where the config sets none. */
     private applyLiveStyles() {
@@ -288,6 +290,8 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         gridModel.setCellBorders(style('cellBorders'));
         gridModel.setShowHover(style('showHover'));
         gridModel.setHideHeaders(style('hideHeaders'));
+        gridModel.showGroupRowCounts = style('showGroupRowCounts');
+        gridModel.groupRowHeight = cfg.groupRowHeight ?? null;
         if (cfg.sizingMode != null) gridModel.setSizingMode(cfg.sizingMode);
     }
 
