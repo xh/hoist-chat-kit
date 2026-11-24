@@ -381,9 +381,8 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     @computed
     private get element() {
-        const {effective} = this.designModel.blueprintModel,
-            id = this.designModel.selectedElementId ?? this.designModel.selectedViewId;
-        return id && Object.hasOwn(effective?.elements ?? {}, id) ? effective.elements[id] : null;
+        const id = this.designModel.selectedElementId ?? this.designModel.selectedViewId;
+        return this.designModel.blueprintModel.effectiveElement(id);
     }
 
     // The same spec across edits to the element, so what is built from it stays the same too.

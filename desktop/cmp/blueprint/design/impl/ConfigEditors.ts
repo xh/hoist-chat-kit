@@ -18,6 +18,7 @@ import {
     textInput
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {compareStructural, computed} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {
@@ -907,31 +908,16 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
                         const more = impl.isItemOpen(`${scope}/more`, key),
                             itemScope = `${scope}/${key}`,
                             mapped = mappedOf(entry),
-                            inherited = impl.inheritedDisplay(entry.field),
                             mappedRow = (setting: EditorNode) =>
-                                propertyRow({
+                                drawerSetting({
                                     key: `${settingsIn.key}:${setting.key}`,
+                                    impl,
                                     node: setting,
                                     value: mapped[setting.key],
-                                    commit: v =>
-                                        impl.commitItemSetting(
-                                            settingsIn.key,
-                                            entry.field,
-                                            setting.key,
-                                            v
-                                        ),
-                                    ctx: {
-                                        ...ctx,
-                                        key: settingsIn.key,
-                                        scope: itemScope,
-                                        inherited,
-                                        fieldType: impl.fieldType(entry.field)
-                                    },
-                                    issues: impl.itemSettingIssues(
-                                        settingsIn.key,
-                                        entry.field,
-                                        setting.key
-                                    )
+                                    listKey: settingsIn.key,
+                                    scope: itemScope,
+                                    field: entry.field,
+                                    locked: ctx.locked
                                 });
                         return div({
                             className: `${CLS}__settings`,
@@ -940,12 +926,16 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
                                     mappedRow
                                 ),
                                 ...node.settings.map(setting =>
-                                    propertyRow({
+                                    drawerSetting({
                                         key: setting.key,
+                                        impl,
                                         node: setting,
                                         value: entry[setting.key],
-                                        commit: v => ops.current.set(key, setting.key, v),
-                                        ctx: {...ctx, scope: itemScope}
+                                        listKey: ctx.key,
+                                        scope: itemScope,
+                                        rowKey: key,
+                                        ops,
+                                        locked: ctx.locked
                                     })
                                 ),
                                 settingsIn?.settings.length > settingsIn?.shown
@@ -995,6 +985,56 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {ki
         }
     }
 );
+
+/**
+ * One setting in a field list entry's drawer, which draws again only as its own value or issues
+ * change: of the entry itself, set through `ops` by the row's key, or with `field`, of the entry's
+ * settings map, such as a column's format in `columns`.
+ */
+const drawerSetting = hoistCmp.factory<
+    HoistProps & {
+        impl: ConfigEditorModel;
+        node: EditorNode;
+        value: unknown;
+        listKey: string;
+        scope: string;
+        field?: string;
+        rowKey?: string;
+        ops?: {readonly current: {set: (key: string, settingKey: string, v: unknown) => void}};
+        locked?: boolean;
+    }
+>({
+    displayName: 'BlueprintDrawerSetting',
+    model: false,
+    render({impl, node, value, listKey, scope, field, rowKey, ops, locked}) {
+        const issues = useMemo(
+            () =>
+                computed(() => (field ? impl.itemSettingIssues(listKey, field, node.key) : []), {
+                    equals: compareStructural
+                }),
+            [impl, listKey, field, node.key]
+        ).get();
+        return propertyRow({
+            node,
+            value,
+            commit: v =>
+                field
+                    ? impl.commitItemSetting(listKey, field, node.key, v)
+                    : ops.current.set(rowKey, node.key, v),
+            ctx: field
+                ? {
+                      impl,
+                      key: listKey,
+                      scope,
+                      locked,
+                      inherited: impl.inheritedDisplay(field),
+                      fieldType: impl.fieldType(field)
+                  }
+                : {impl, key: listKey, scope, locked},
+            issues
+        });
+    }
+});
 
 // Rows that keep their identity while they hold the same, so a SortableList's memoized row draws
 // again only when its own row changes.
