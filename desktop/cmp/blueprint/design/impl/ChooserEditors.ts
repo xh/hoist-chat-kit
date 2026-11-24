@@ -113,7 +113,14 @@ export const filterEditor = hoistCmp.factory<FilterEditorModel>({
                         children: describe(clause, labelOf)
                     })
                 ),
-                filterChooser({model: model.chooserModel, disabled, placeholder, width: '100%'})
+                // With clauses bound, an empty chooser adds to the filter, not stands for none.
+                filterChooser({
+                    model: model.chooserModel,
+                    disabled,
+                    placeholder: bound.length ? 'And…' : placeholder,
+                    width: null,
+                    flex: 1
+                })
             ]
         });
     }

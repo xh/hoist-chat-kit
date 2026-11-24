@@ -1989,6 +1989,16 @@ describe('ElementInspector', () => {
         expect(config()).not.toHaveProperty('stripeRows');
     });
 
+    it('reads a filter whose clauses are bound as adding to them, not as all rows', () => {
+        const {design} = open();
+        design.setConfig('posGrid', '/filter', {field: 'symbol', op: '=', value: {$var: 'symbol'}});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            filter = container.querySelector('[data-config-key="filter"]');
+        expect(filter.querySelector('.xh-blueprint-element-inspector__chip')).not.toBeNull();
+        expect(filter.textContent).toContain('And…');
+        expect(filter.textContent).not.toContain('All rows');
+    });
+
     it('draws a labelled form field per property, a required one marked', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

@@ -2,6 +2,11 @@
 // On body, where Hoist sets its theme, so menus and tooltips in portals take it too.
 body {
   --xh-blueprint-inspector-muted: color-mix(in srgb, var(--xh-text-color) 72%, var(--xh-bg));
+  --xh-blueprint-inspector-border-soft: color-mix(
+    in srgb,
+    var(--xh-border-color) 65%,
+    var(--xh-bg)
+  );
 }
 
 // The design panes' chips and placeholders, at 4.5:1 or better in both themes.
@@ -352,6 +357,7 @@ body {
   // their own, so every control ends at one edge.
   &__form-row {
     --xh-form-field-margin: 0;
+    --xh-form-field-padding: 0;
     --xh-form-field-label-font-size: 11.5px;
     --xh-form-field-label-font-weight: 400;
     --xh-form-field-label-text-color: var(--xh-blueprint-inspector-muted);
@@ -362,7 +368,9 @@ body {
 
     overflow: visible !important;
 
+    // Outranks the inspector row's column, which a stacked row keeps.
     &.xh-form-field--inline {
+      flex-direction: row;
       align-items: center;
       min-height: 30px;
     }
@@ -372,6 +380,11 @@ body {
       display: flex;
       align-items: center;
       min-width: 0;
+    }
+
+    // A flex label drops the space Hoist puts before its star.
+    .xh-form-field__required-indicator {
+      margin-left: 0.25em;
     }
 
     // The label's own text takes the field label's color and size.
@@ -389,19 +402,67 @@ body {
       gap: 0;
     }
 
-    .xh-form-field__right-items &__reset.xh-button {
+    .xh-form-field__right-items .xh-blueprint-element-inspector__reset.xh-button {
       position: static;
       width: 26px;
       min-width: 26px;
       transform: none;
     }
 
-    &__bind-button.xh-button,
-    .xh-form-field__right-items &__bind-button.xh-button {
+    .xh-form-field__right-items .xh-blueprint-element-inspector__bind-button.xh-button {
       width: 26px;
       min-width: 26px;
       padding: 0;
     }
+  }
+
+  // A cell's caption stays muted when set, its dot marking it.
+  &__form-cell#{&}__row--set > .xh-form-field__label {
+    --xh-form-field-label-text-color: var(--xh-blueprint-inspector-muted);
+  }
+
+  // A hand-built stacked row ends its control at the form rows' edge.
+  &__labelled {
+    padding-right: calc(52px + var(--xh-spacing-half));
+  }
+
+  // Lists sit in a soft frame. Each Add row reads alike: flush, muted, led by a primary +.
+  --xh-sortable-list-border-color: var(--xh-blueprint-inspector-border-soft);
+  --xh-sortable-list-border-radius: 3px;
+
+  .xh-sortable-list__add {
+    min-height: 28px;
+    padding: 0 8px;
+    color: var(--xh-blueprint-inspector-muted);
+
+    > .xh-icon {
+      color: var(--xh-intent-primary-text-color);
+    }
+  }
+
+  .xh-sortable-list__add--custom {
+    padding: 0;
+  }
+
+  &__add-picker .xh-select__control {
+    min-height: 28px;
+    padding-left: 4px;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+
+  &__add-picker .xh-select__control .xh-icon,
+  &__add-button.xh-button .xh-icon {
+    color: var(--xh-intent-primary-text-color);
+  }
+
+  &__add-button.xh-button {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 28px;
+    padding: 0 8px;
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   // Settings that share a row, such as a column's Width, Min and Max: the row's label, then each
@@ -983,14 +1044,16 @@ body {
     padding: var(--xh-spacing-half) var(--xh-spacing-half) var(--xh-spacing) var(--xh-spacing);
   }
 
+  // Bound clauses' chips lead the chooser on its line, which wraps when they crowd it.
   &__filter {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: var(--xh-spacing-half);
-  }
+    align-items: center;
 
-  &__chip {
-    align-self: flex-start;
+    > .xh-filter-chooser {
+      min-width: 120px;
+    }
   }
 
   &__key {

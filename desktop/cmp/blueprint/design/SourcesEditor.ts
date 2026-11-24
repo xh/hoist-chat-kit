@@ -34,6 +34,7 @@ import {
     onItemDelete,
     type Option,
     pageBar,
+    addPicker,
     propertyRow,
     settingsForm,
     refocusAdd
@@ -531,12 +532,11 @@ function frameList(opts: {
         compact: true,
         itemRenderer,
         addRenderer: ({disabled: off}) =>
-            select({
+            addPicker({
                 key: items.length,
                 placeholder: picker.placeholder,
                 options: picker.options as any[],
                 disabled: off || !picker.options.length,
-                width: '100%',
                 onCommit: (value: string) => {
                     if (!value) return;
                     picker.onPick(value);

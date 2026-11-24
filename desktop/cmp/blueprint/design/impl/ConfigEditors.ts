@@ -17,6 +17,7 @@ import {
     radioCardInput,
     segmentedControl,
     select,
+    type SelectProps,
     textArea,
     textInput
 } from '@xh/hoist/desktop/cmp/input';
@@ -647,6 +648,8 @@ function editorFor(
                     })),
                     disabled,
                     compact: true,
+                    intent: 'primary',
+                    fill: false,
                     className: classNames(implied && `${CLS}__implied`)
                 });
             }
@@ -666,6 +669,8 @@ function editorFor(
                     ],
                     disabled,
                     compact: true,
+                    intent: 'primary',
+                    fill: false,
                     className: classNames(implied && `${CLS}__implied`)
                 });
             }
@@ -1272,6 +1277,17 @@ function usePageFocus(ref: {current: HTMLElement}, itemKey: string) {
     }, [ref, itemKey]);
 }
 
+/** A list's Add row as a picker of what to add: flush in the row, led by a +. */
+export function addPicker(props: SelectProps & {key?: string | number}) {
+    return select({
+        className: `${CLS}__add-picker`,
+        leftIcon: Icon.add(),
+        hideDropdownIndicator: true,
+        width: '100%',
+        ...props
+    });
+}
+
 /** Focus a list's add control again after it remounts for an add, so another add follows. */
 export function refocusAdd(list: HTMLElement) {
     wait().then(() =>
@@ -1706,12 +1722,11 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                     ...(canPage ? {isItemExpandable: () => false} : {}),
                     // A picker of the fields it lacks, in the list's own Add row.
                     addRenderer: ({add, disabled: off}) =>
-                        select({
+                        addPicker({
                             key: entries.length,
                             placeholder: addPlaceholder,
                             options: addOptions,
                             disabled: off,
-                            width: '100%',
                             onCommit: (field: string) => {
                                 if (!field) return;
                                 const n = entries.filter(it => it.field === field).length + 1;
@@ -2796,7 +2811,7 @@ export function labelled(
 ) {
     return div({
         key: label,
-        className: `${CLS}__row`,
+        className: `${CLS}__row ${CLS}__labelled`,
         children: [
             div({className: `${CLS}__label`, children: label}),
             hint ? div({className: `${CLS}__hint`, children: hint}) : null,

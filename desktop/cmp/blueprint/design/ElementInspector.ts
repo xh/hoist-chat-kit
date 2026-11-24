@@ -29,7 +29,7 @@ import {
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {
-    booleanEditor,
+    nodeOf,
     CLS,
     countLabel,
     fieldItemPage,
@@ -1061,31 +1061,23 @@ function viewCards(impl: ElementInspectorModel) {
 
 // Whether a dashboard view shows its header, and its title there.
 function viewHeaderRows(impl: ElementInspectorModel) {
-    const hidden = !!impl.placementValues.hideHeader;
     return [
-        div({
+        propertyRow({
             key: 'hideHeader',
-            className: `${CLS}__row ${CLS}__row--inline`,
-            ...({'data-config-key': 'hideHeader'} as object),
-            children: [
-                div({className: `${CLS}__label`, children: 'Header'}),
-                div({
-                    className: `${CLS}__row-body`,
-                    children: booleanEditor({
-                        value: hidden,
-                        labels: [
-                            {value: false, label: 'Show'},
-                            {value: true, label: 'Hide'}
-                        ],
-                        disabled: impl.readOnly,
-                        onCommit: v => impl.commitPlacement('hideHeader', v || undefined)
-                    })
-                })
-            ]
+            node: HEADER_NODE,
+            value: impl.placementValues.hideHeader,
+            commit: v => impl.commitPlacement('hideHeader', v || undefined),
+            ctx: {impl, key: placementKey('hideHeader')}
         }),
         ...placementRows(impl, it => it.key === 'title')
     ];
 }
+
+const HEADER_NODE = nodeOf('hideHeader', {
+    type: 'boolean',
+    title: 'Header',
+    'x-labels': {false: 'Show', true: 'Hide'}
+});
 
 // A dashboard cell's grid numbers share one row, and its other settings take rows of their own.
 const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>
@@ -1234,8 +1226,8 @@ function setsEditor(impl: ElementInspectorModel) {
 function addPanelRow(text: string, open: () => void) {
     return ({disabled}: {disabled: boolean}) =>
         button({
+            className: `${CLS}__add-button`,
             icon: Icon.add(),
-            intent: 'primary',
             text,
             minimal: true,
             disabled,
