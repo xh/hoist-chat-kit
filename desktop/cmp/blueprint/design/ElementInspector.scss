@@ -29,8 +29,8 @@ body {
   }
 
   .xh-segmented-control .bp6-button {
-    min-height: 26px;
-    height: 26px;
+    min-height: 0;
+    height: 100%;
     padding: 0 10px;
     font-size: 11.5px;
   }
@@ -571,7 +571,7 @@ body {
     --xh-radio-card-input-gap: 6px;
 
     .xh-radio-card-input__card {
-      min-height: 0;
+      min-height: 46px;
       padding: 4px;
       gap: 3px;
     }
@@ -579,6 +579,10 @@ body {
     .xh-radio-card-input__label {
       font-size: 10.5px;
     }
+  }
+
+  &__pictures--many.xh-radio-card-input .xh-radio-card-input__card {
+    min-height: 0;
   }
 
   &__pictures--many.xh-radio-card-input .xh-radio-card-input__label {
@@ -776,9 +780,11 @@ body {
     .xh-button.xh-blueprint-element-inspector__page-back {
       min-height: 0;
       padding: 2px 4px;
-      font-family: var(--xh-font-family-mono);
-      font-size: 11px;
-      font-weight: 500;
+
+      // On the text, clear of the theme's own button font rules.
+      .bp6-button-text {
+        font: 500 11px var(--xh-font-family-mono);
+      }
 
       &,
       .bp6-button-text,
