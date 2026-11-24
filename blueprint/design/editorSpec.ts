@@ -98,7 +98,13 @@ export function toEditorSpec(schema: PlainObject): EditorNode[] {
             map = key ? ret.find(it => it.key === key) : null,
             item = map?.kind === 'map' && map.value.kind === 'group' ? map.value : null,
             entry = item?.kind === 'group' ? item.children : null;
-        if (node.kind !== 'fieldList' || !entry) return node;
+        if (!entry) return node;
+        // A list of fields with settings for each, such as a chart's series by y, edits as a field
+        // list though its items are plain names.
+        if (node.kind === 'field' && node.multiple) {
+            node = {...node, kind: 'fieldList', role: node.role, settings: []} as EditorNode;
+        }
+        if (node.kind !== 'fieldList') return node;
         const shown = sortBy(
             entry.filter(it => show.includes(it.key)),
             it => show.indexOf(it.key)

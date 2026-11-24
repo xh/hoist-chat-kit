@@ -62,6 +62,22 @@ describe('BlueprintInspector', () => {
         await vi.waitFor(() => expect(model.history.length).toBe(edits + 1));
     });
 
+    it('opens Find a setting from its magnifier, and Escape returns focus to it', async () => {
+        const {design} = open();
+        design.select({kind: 'element', id: 'posGrid'});
+        const {container} = render(blueprintInspector({designModel: design}) as ReactElement),
+            magnifier = () =>
+                container.querySelector<HTMLElement>(
+                    '.xh-blueprint-inspector__header [aria-label="Find a setting"]'
+                );
+        fireEvent.click(magnifier());
+        expect(design.findOpen).toBe(true);
+        const input = container.querySelector('.xh-blueprint-element-inspector__find input');
+        fireEvent.keyDown(input, {key: 'Escape'});
+        expect(design.findOpen).toBe(false);
+        await vi.waitFor(() => expect(document.activeElement).toBe(magnifier()));
+    });
+
     it('adds inside the root from +, as nothing comes after it', () => {
         const {design} = open();
         design.select({kind: 'element', id: 'page'});

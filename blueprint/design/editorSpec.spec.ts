@@ -24,6 +24,18 @@ describe('toEditorSpec', () => {
         expect(columnState.settingsIn.summary).toEqual(['format', 'pinned', 'width']);
     });
 
+    it("edits a chart's y as a field list whose rows hold each measure's series settings", () => {
+        const y = byKey(toEditorSpec(configOf('chart'))).y as any;
+        expect(y.kind).toBe('fieldList');
+        expect(y.settingsIn.key).toBe('series');
+        expect(y.settingsIn.settings.map((it: any) => it.key)).toEqual([
+            'name',
+            'color',
+            'type',
+            'hidden'
+        ]);
+    });
+
     it("edits a dashboard's gap as a pair of numbers, and its packing as picture cards", () => {
         const nodes = byKey(toEditorSpec(configOf('dashboard')));
         expect(nodes.margin).toMatchObject({kind: 'pair', default: [10, 10]});
@@ -116,7 +128,7 @@ describe('toEditorSpec', () => {
         const chart = byKey(toEditorSpec(configOf('chart')));
         expect(chart.source.kind).toBe('source');
         expect(chart.x).toMatchObject({kind: 'field', role: 'any', multiple: false});
-        expect(chart.y).toMatchObject({kind: 'field', role: 'measure', multiple: true});
+        expect(chart.y2).toMatchObject({kind: 'field', role: 'measure', multiple: true});
         expect(chart.filter.kind).toBe('filter');
     });
 

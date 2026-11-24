@@ -634,6 +634,10 @@ function findBox(impl: ElementInspectorModel): ReactNode {
             e.preventDefault();
             e.stopPropagation();
             close();
+            // Focus returns to the magnifier that opens it.
+            wait().then(() =>
+                document.querySelector<HTMLElement>('[aria-label="Find a setting"]')?.focus()
+            );
         },
         children: [
             textInput({
