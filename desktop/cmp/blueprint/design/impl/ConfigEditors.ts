@@ -2628,8 +2628,8 @@ function actionEditor(
                       })
                   )),
             button({
+                className: `${CLS}__add-button`,
                 icon: Icon.add(),
-                intent: 'primary',
                 text: steps.length ? 'Add a step' : 'Add an action',
                 minimal: true,
                 disabled: disabled || steps.length >= MAX_STEPS || !impl.defaultActionType,

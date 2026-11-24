@@ -277,8 +277,11 @@ body {
     display: none;
   }
 
-  &__card-body > &__form-row:only-child:has(&__field-list) > .xh-form-field__label {
-    display: none;
+  &__card-body > &__form-row:only-child:has(&__field-list) {
+    > .xh-form-field__label,
+    > .xh-form-field__right-items {
+      display: none;
+    }
   }
 
   // A dashboard cell's X, Y, W and H, or a box child's flex and size, side by side.
@@ -421,6 +424,16 @@ body {
     --xh-form-field-label-text-color: var(--xh-blueprint-inspector-muted);
   }
 
+  // A view's header inputs end at the form rows' edge, each row's type and select at its end.
+  &__header-items {
+    margin-right: calc(52px + var(--xh-spacing-half));
+  }
+
+  &__header-item-id {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   // A hand-built stacked row ends its control at the form rows' edge.
   &__labelled {
     padding-right: calc(52px + var(--xh-spacing-half));
@@ -431,6 +444,7 @@ body {
   --xh-sortable-list-border-radius: 3px;
 
   .xh-sortable-list__add {
+    box-sizing: border-box;
     min-height: 28px;
     padding: 0 8px;
     color: var(--xh-blueprint-inspector-muted);
@@ -462,7 +476,11 @@ body {
     width: 100%;
     min-height: 28px;
     padding: 0 8px;
-    color: var(--xh-blueprint-inspector-muted);
+
+    // The theme colors a minimal button's text, so the text sets its own.
+    .bp6-button-text {
+      color: var(--xh-blueprint-inspector-muted);
+    }
   }
 
   // Settings that share a row, such as a column's Width, Min and Max: the row's label, then each
@@ -470,7 +488,8 @@ body {
   &__row-group {
     display: grid;
     grid-template-columns: 104px minmax(0, 1fr);
-    column-gap: var(--xh-spacing-half);
+    // An inline field's label pads and spaces its control by half a spacing each.
+    column-gap: var(--xh-spacing);
     align-items: end;
 
     > .xh-blueprint-element-inspector__label {
@@ -584,6 +603,7 @@ body {
 
   &__row--missing &__row-body .bp6-input,
   &__row--missing &__row-body .xh-select__control {
+    background-color: var(--xh-intent-warning-trans1);
     box-shadow: inset 0 0 0 1px var(--xh-intent-warning);
   }
 
@@ -699,8 +719,8 @@ body {
   &__columns {
     --xh-sortable-list-row-gap: var(--xh-spacing-half);
 
-    border: var(--xh-border-solid);
-    border-radius: 4px;
+    border: var(--xh-border-width) solid var(--xh-blueprint-inspector-border-soft);
+    border-radius: 3px;
 
     .xh-blueprint-element-inspector__item-header {
       flex: 1 1 auto;
@@ -924,8 +944,13 @@ body {
   }
 
   &__all-settings.xh-button {
-    align-self: flex-start;
+    align-self: flex-end;
     font-size: 12px;
+
+    .bp6-button-text,
+    .xh-icon {
+      color: var(--xh-intent-primary-text-color);
+    }
   }
 
   // Find a setting: its box, then its matches, each with where it sits.

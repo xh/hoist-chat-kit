@@ -997,7 +997,7 @@ function viewCards(impl: ElementInspectorModel) {
                 }),
                 sortableList({
                     key: 'items',
-                    className: `${CLS}__columns`,
+                    className: `${CLS}__columns ${CLS}__header-items`,
                     variant: 'divided',
                     addRenderer: impl.readOnly
                         ? null
