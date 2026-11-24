@@ -116,20 +116,35 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
     });
 
-    it("groups a grid's properties in sections, its style folded until opened", () => {
-        const {inspector} = open('p3-morning-report.json', 'posGrid'),
-            sections = () => inspector.sections.map(it => [it.label, it.collapsed]);
-        expect(sections()).toEqual([
+    it("groups a grid's settings in its sections, folding its unset advanced ones behind N more", () => {
+        const {model, inspector} = open('p3-morning-report.json', 'posGrid'),
+            section = (group: string) => inspector.sections.find(it => it.group === group);
+        expect(inspector.sections.map(it => [it.label, it.collapsed])).toEqual([
             ['Data', false],
-            ['Display', false],
             ['Columns', false],
-            ['Interaction', false],
-            ['Style', true]
+            ['Content', false],
+            ['Appearance', false],
+            ['Behavior', false]
         ]);
-        expect(inspector.sections[4].nodes.map(it => it.key)).toContain('treeStyle');
-        expect(inspector.sections[0].nodes[0].key).toBe('source');
-        inspector.toggleSection('Style');
-        expect(inspector.sections[4].collapsed).toBe(false);
+        expect(section('data').nodes[0].key).toBe('source');
+        // Only an advanced setting that is unset folds, and a section shows it again on request.
+        const config = model.blueprint.elements.posGrid.config;
+        expect(section('appearance').folded.map(it => it.key)).toContain('treeStyle');
+        section('appearance').folded.forEach(it => {
+            expect(it.schema['x-advanced']).toBe(true);
+            expect(config[it.key]).toBeUndefined();
+        });
+        expect(section('appearance').nodes.map(it => it.key)).not.toContain('treeStyle');
+        inspector.toggleSection('more:appearance');
+        expect(section('appearance').nodes.map(it => it.key)).toContain('treeStyle');
+        // Fold state belongs to the widget type: a grid's leaves other widgets' alone.
+        inspector.toggleSection('appearance');
+        expect(section('appearance').collapsed).toBe(true);
+        expect(inspector.isToggled('appearance')).toBe(true);
+        expect(inspector.toggled).toEqual({
+            'cubeGrid.more:appearance': true,
+            'cubeGrid.appearance': true
+        });
     });
 
     it('opens one column of a field list at a time, in a drawer', () => {
@@ -672,7 +687,7 @@ describe('ElementInspector', () => {
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = () => container.querySelector('[data-config-key="hideHeaders"]'),
             segments = () => [...row().querySelectorAll('[aria-checked]')];
-        fireEvent.click(screen.getByText('Style'));
+        showMore(container, 'Column headers');
         expect(row().firstElementChild.textContent).toBe('Column headers');
         expect(segments().map(it => [it.textContent, it.getAttribute('aria-checked')])).toEqual([
             ['Show', 'true'],
@@ -693,7 +708,6 @@ describe('ElementInspector', () => {
                     container.querySelector('[data-config-key="stripeRows"] [aria-checked]')
                 ),
             config = () => model.blueprint.elements.posGrid.config;
-        fireEvent.click(screen.getByText('Style'));
         flip();
         expect(config().stripeRows).toBe(false);
         flip();
@@ -754,8 +768,9 @@ describe('ElementInspector', () => {
                 [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
                     it => it.firstElementChild?.textContent === label
                 );
-        expect(row('Stripe rows')).toBeUndefined();
-        fireEvent.click(screen.getByText('Style'));
+        // An advanced setting folds behind its section's N more row until opened.
+        expect(row('Tree style')).toBeUndefined();
+        showMore(container, 'Tree style');
         expect(row('Stripe rows').querySelector('[aria-checked="true"]').textContent).toBe('On');
         expect(row('Show hover').querySelector('[aria-checked="true"]').textContent).toBe('Off');
         // Its default marked more quietly than a value set.
@@ -1136,10 +1151,10 @@ describe('ElementInspector', () => {
         expect(model.history.at(-1).description).toBe('posGrid view: hide header');
     });
 
-    it("folds a widget's canvas view settings into a section, with a way to select the view", () => {
+    it("folds a widget's canvas view settings into its Layout section, with a way to select the view", () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement);
-        fireEvent.click(screen.getByText('View'));
+        fireEvent.click(screen.getByText('Layout'));
         expect(container.querySelector('[data-config-key="hideHeader"]')).not.toBeNull();
         fireEvent.click(screen.getByText('Select the view'));
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'positions'});
@@ -1192,6 +1207,7 @@ describe('ElementInspector', () => {
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             row = (key: string) => container.querySelector(`[data-config-key="${key}"]`),
             config = () => model.blueprint.elements.overview.config ?? {};
+        showMore(container, 'Packing');
         expect(row('compact').textContent).toContain('Free');
         expect(row('rowHeight').querySelector('input').placeholder).toBe('50');
         expect(row('compact').querySelectorAll('.xh-blueprint-preview')).toHaveLength(3);
@@ -1408,13 +1424,13 @@ describe('ElementInspector', () => {
         // filter. A band with nothing set shows no count.
         expect(bandsOf(container)).toEqual([
             'Data 4',
-            'Display',
             'Columns 4 Preset · P&L view',
-            'Interaction',
-            'Style',
-            'View'
+            'Content',
+            'Appearance',
+            'Behavior',
+            'Layout'
         ]);
-        // A dashboard cell's place sits in its View card, folded until opened.
+        // A dashboard cell's place sits in its Layout section, folded until opened.
         expect(
             container.querySelectorAll(
                 '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__row'
@@ -1423,7 +1439,7 @@ describe('ElementInspector', () => {
         // Delete is in the header's ⋯, not at the end.
         expect(container.querySelector('.xh-blueprint-element-inspector__remove')).toBeNull();
         expect(row('Title').className).toContain('__row--inline');
-        expect(row('Column state').className).not.toContain('__row--inline');
+        expect(row('Columns').className).not.toContain('__row--inline');
     });
 
     it('folds a section from anywhere on its band, by click, Enter or Space, and says if it is open', () => {
@@ -1432,22 +1448,26 @@ describe('ElementInspector', () => {
             band = () =>
                 [
                     ...container.querySelectorAll('.xh-blueprint-element-inspector__card-header')
-                ].find(it => it.textContent.startsWith('Style')),
+                ].find(it => it.textContent.startsWith('Appearance')),
             toggle = () => band().querySelector('.xh-blueprint-element-inspector__card-toggle'),
             styleRow = () => container.querySelector('[data-config-key="stripeRows"]');
         expect(band().getAttribute('role')).toBeNull();
         expect(toggle().getAttribute('role')).toBe('button');
-        expect(toggle().getAttribute('aria-expanded')).toBe('false');
-        fireEvent.click(band().querySelector('.xh-blueprint-element-inspector__card-chevron'));
         expect(toggle().getAttribute('aria-expanded')).toBe('true');
-        expect(styleRow()).not.toBeNull();
         // Each row is a group named for its property, so its controls read with it.
         expect(styleRow().getAttribute('role')).toBe('group');
         expect(styleRow().getAttribute('aria-label')).toBe('Stripe rows');
-        fireEvent.keyDown(toggle(), {key: 'Enter'});
+        fireEvent.click(band().querySelector('.xh-blueprint-element-inspector__card-chevron'));
+        expect(toggle().getAttribute('aria-expanded')).toBe('false');
         expect(styleRow()).toBeNull();
-        fireEvent.keyDown(toggle(), {key: ' '});
+        // Folded, it says what it has set.
+        expect(
+            band().querySelector('.xh-blueprint-element-inspector__card-summary')
+        ).not.toBeNull();
+        fireEvent.keyDown(toggle(), {key: 'Enter'});
         expect(styleRow()).not.toBeNull();
+        fireEvent.keyDown(toggle(), {key: ' '});
+        expect(styleRow()).toBeNull();
     });
 
     it('shows a bound field as its variable with a way to unbind, and offers to bind the rest', async () => {
@@ -1466,7 +1486,7 @@ describe('ElementInspector', () => {
                 it =>
                     it.closest('.xh-blueprint-element-inspector__row').firstElementChild.textContent
             )
-        ).toEqual(['Summary row', 'Title']);
+        ).toEqual(['Title', 'Empty text', 'Summary row']);
         // The chip says how to unbind, and its visible × or Delete unbinds, in one edit.
         expect(chip.getAttribute('aria-keyshortcuts')).toBe('Delete Backspace');
         expect(chip.getAttribute('aria-label')).toMatch(/Delete unbinds\.$/);
@@ -1517,12 +1537,15 @@ describe('ElementInspector', () => {
     it('places a tab by its title and icon in one row, with an icon picker', () => {
         const {design} = open();
         design.select({kind: 'element', id: 'overview'});
-        const {container} = render(elementInspector({designModel: design}) as ReactElement),
-            labels = [
-                ...container.querySelectorAll(
-                    '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__label'
-                )
-            ].map(it => it.textContent);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        // Layout comes last, folded to a line saying where it sits.
+        expect(screen.getByText(/^In tabs/)).toBeTruthy();
+        fireEvent.click(screen.getByText('Layout'));
+        const labels = [
+            ...container.querySelectorAll(
+                '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__label'
+            )
+        ].map(it => it.textContent);
         expect(labels).toEqual(['Title*', 'Icon']);
         expect(container.querySelector('[data-config-key="icon"] .xh-icon-picker')).toBeTruthy();
     });
@@ -1539,6 +1562,15 @@ describe('ElementInspector', () => {
 });
 
 // The chevron that opens a list item's settings, from anything in its row.
+// Open the N more row of the section that folds a setting, by its label.
+function showMore(container: Element, label: string) {
+    fireEvent.click(
+        [...container.querySelectorAll('.xh-blueprint-element-inspector__more')].find(it =>
+            it.textContent.includes(label)
+        )
+    );
+}
+
 function chevronOf(el: Element): HTMLElement {
     return el.closest('.xh-sortable-list__item').querySelector('.xh-sortable-list__expander');
 }

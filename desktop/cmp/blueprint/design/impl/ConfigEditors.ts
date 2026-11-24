@@ -1827,6 +1827,7 @@ export function sectionCard({
     countTitle,
     badge,
     collapsed = false,
+    summary,
     onToggle,
     children
 }: {
@@ -1839,6 +1840,8 @@ export function sectionCard({
     /** A link beside the title, such as to the preset group a path in the card belongs to. */
     badge?: {text: string; onClick: () => void};
     collapsed?: boolean;
+    /** One line of what the card holds, shown in place of its body while it is folded. */
+    summary?: string;
     onToggle?: () => void;
     children: ReactNode[];
 }) {
@@ -1872,6 +1875,9 @@ export function sectionCard({
                         ...toggle,
                         children: [
                             span({className: `${CLS}__card-title`, children: title}),
+                            collapsed && summary
+                                ? span({className: `${CLS}__card-summary`, children: summary})
+                                : null,
                             count
                                 ? hoistBadge({
                                       className: `${CLS}__card-count`,

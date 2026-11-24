@@ -65,18 +65,55 @@
     height: 28px;
     margin: 0 calc(-1 * var(--xh-spacing));
     padding: 0 var(--xh-spacing);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--xh-text-color);
-    background-color: var(--xh-bg-alt);
+    background-color: var(--xh-bg);
     border-top: var(--xh-border-solid);
-    border-bottom: var(--xh-border-solid);
 
     &--toggle {
       cursor: pointer;
     }
+  }
+
+  // What a folded section has set, after its title.
+  &__card-summary {
+    overflow: hidden;
+    font-weight: normal;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--xh-text-color-muted);
+  }
+
+  // A section's "N more" row, naming the advanced settings it folds.
+  &__more-box {
+    display: flex;
+    min-width: 0;
+  }
+
+  &__more.xh-button {
+    justify-content: flex-start;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    color: var(--xh-text-color-muted);
+
+    .bp6-button-text {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+
+  &__more-tip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+    max-width: 320px;
+  }
+
+  &__more-tip-label {
+    font-weight: 600;
   }
 
   // The title and count, which take the band's free width and its focus.

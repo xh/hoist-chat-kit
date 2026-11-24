@@ -4,14 +4,17 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
+import {tooltip} from '@xh/hoist/kit/blueprint';
 import {action, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {castArray, isEqual, isString, without} from 'lodash';
-import {useEffect, useMemo, useRef} from 'react';
+import {castArray, isArray, isEqual, isPlainObject, isString, without} from 'lodash';
+import {type ReactNode, useEffect, useMemo, useRef} from 'react';
 import {
     type BlueprintDesignModel,
     type EditorNode,
     labelOf,
+    SETTING_GROUPS,
+    type SettingGroup,
     toEditorSpec
 } from '../../../../blueprint';
 import {
@@ -112,36 +115,52 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return this.widgetSpec?.label ?? this.element?.component;
     }
 
-    /** Sections toggled from how they start, by label. */
+    /** Sections and their "N more" rows toggled from how they start, by widget type and key. */
     @observableRef accessor toggled: Record<string, boolean> = {};
 
     /**
-     * The element's editors in sections: the keys no section of its widget lists, untitled, then
-     * each section in order, folded or not.
+     * The element's editors in its widget's sections, in order: Data, its list, Content,
+     * Appearance and Behavior, each by its properties' `x-group`. A section of more than four
+     * settings folds its advanced ones that are unset behind its "N more" row.
      */
     @computed
-    get sections(): {label: string; nodes: EditorNode[]; collapsed: boolean}[] {
-        const {nodes} = this,
-            sections = this.widgetSpec?.sections ?? [],
-            listed = new Set(sections.flatMap(it => it.keys)),
-            ret = [
+    get sections(): InspectorSection[] {
+        const {nodes} = this;
+        return SETTING_GROUPS.filter(it => it !== 'layout').flatMap(group => {
+            const inGroup = nodes.filter(it => groupOf(it) === group);
+            if (!inGroup.length) return [];
+            const folded =
+                    inGroup.length > 4
+                        ? inGroup.filter(
+                              it =>
+                                  it.schema['x-advanced'] &&
+                                  this.values[it.key] === undefined &&
+                                  !this.presetFor(it.key)
+                          )
+                        : [],
+                moreOpen = this.isToggled(`more:${group}`);
+            return [
                 {
-                    label: null as string,
-                    nodes: nodes.filter(it => !listed.has(it.key)),
-                    collapsed: false
+                    group,
+                    label: group === 'list' ? inGroup[0].label : SECTION_LABELS[group],
+                    nodes: moreOpen ? inGroup : without(inGroup, ...folded),
+                    folded,
+                    moreOpen,
+                    collapsed: this.isToggled(group)
                 }
             ];
-        sections.forEach(({label, keys, collapsed = false}) => {
-            const inSection = nodes.filter(it => keys.includes(it.key));
-            if (!inSection.length) return;
-            ret.push({label, nodes: inSection, collapsed: collapsed !== !!this.toggled[label]});
         });
-        return ret.filter(it => it.nodes.length);
+    }
+
+    /** True if a section, or its "N more" row, is toggled from how it starts, for this widget. */
+    isToggled(key: string): boolean {
+        return !!this.toggled[`${this.element?.component}.${key}`];
     }
 
     @action
-    toggleSection(label: string) {
-        this.toggled = {...this.toggled, [label]: !this.toggled[label]};
+    toggleSection(key: string) {
+        const at = `${this.element?.component}.${key}`;
+        this.toggled = {...this.toggled, [at]: !this.toggled[at]};
     }
 
     /**
@@ -403,6 +422,37 @@ function refuseMessage(designModel: BlueprintDesignModel, message: string) {
 }
 
 // The key a refusal of the element itself, such as its removal, goes under.
+/** A section of the element's settings, as {@link ElementInspectorModel.sections} gives it. */
+export interface InspectorSection {
+    group: SettingGroup;
+    label: string;
+    /** The settings it shows: all of them, or all but those folded while its "N more" is shut. */
+    nodes: EditorNode[];
+    /** The unset advanced settings its "N more" row holds. */
+    folded: EditorNode[];
+    moreOpen: boolean;
+    collapsed: boolean;
+}
+
+const SECTION_LABELS: Record<SettingGroup, string> = {
+    data: 'Data',
+    list: 'List',
+    content: 'Content',
+    appearance: 'Appearance',
+    behavior: 'Behavior',
+    layout: 'Layout'
+};
+
+// A property's section: its x-group, or for an app's widget that names none, Data for what reads
+// the source and Content for the rest.
+function groupOf(node: EditorNode): SettingGroup {
+    const group = node.schema['x-group'];
+    if (SETTING_GROUPS.includes(group)) return group;
+    return ['source', 'field', 'fieldList', 'filter', 'sort'].includes(node.kind)
+        ? 'data'
+        : 'content';
+}
+
 const ELEMENT_KEY = '';
 
 // A slot as the inspector's slot picker names it.
@@ -465,89 +515,148 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
                     div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),
-                ...(impl.isView ? viewCards(impl) : []),
-                !impl.isView && impl.tabs ? tabsEditor(impl) : null,
-                !impl.isView && impl.setsOptions ? setsEditor(impl) : null,
-                ...(impl.isView ? [] : (impl.sections.find(it => !it.label)?.nodes ?? [])).map(
-                    node => configRow(impl, node)
-                ),
-                ...impl.sections
-                    .filter(it => it.label && !impl.isView)
-                    .map(section => {
-                        const preset = section.nodes
-                            .map(it => impl.presetFor(it.key))
-                            .find(Boolean);
-                        return sectionCard({
-                            key: `section:${section.label}`,
-                            title: section.label,
-                            ...impl.countOf(section.nodes),
-                            badge: preset
-                                ? {
-                                      text: `Preset · ${preset.itemLabel}`,
-                                      onClick: () =>
-                                          impl.designModel.select({
-                                              kind: 'preset',
-                                              id: preset.group
-                                          })
-                                  }
-                                : null,
-                            collapsed: section.collapsed,
-                            onToggle: () => impl.toggleSection(section.label),
-                            children: section.nodes.map(node => configRow(impl, node))
-                        });
-                    }),
-                !impl.isView && impl.childIds ? childrenCard(impl) : null,
-                // A widget in a dashboard cell shows its view's settings folded, with a way there.
-                !impl.isView && impl.dashboardId
-                    ? sectionCard({
-                          key: 'view-card',
-                          title: 'View',
-                          collapsed: !impl.toggled[VIEW_CARD],
-                          onToggle: () => impl.toggleSection(VIEW_CARD),
-                          children: [
-                              ...viewHeaderRows(impl),
-                              div({
-                                  className: `${CLS}__placement-row`,
-                                  children: placementRows(impl, it => it.kind === 'number')
-                              }),
-                              button({
-                                  className: `${CLS}__select-view`,
-                                  icon: Icon.arrowRight(),
-                                  text: 'Select the view',
-                                  minimal: true,
-                                  onClick: () =>
-                                      impl.designModel.select({
-                                          kind: 'view',
-                                          id: impl.elementId,
-                                          of: impl.dashboardId
-                                      })
-                              })
-                          ]
-                      })
-                    : null,
-                !impl.isView &&
-                !impl.dashboardId &&
-                (impl.placementNodes.length || impl.slotOptions.length > 1)
-                    ? sectionCard({
-                          key: 'placement',
-                          title: `Placement in ${impl.parentId}`,
-                          children: [
-                              impl.slotOptions.length > 1 ? slotEditor(impl) : null,
-                              div({
-                                  className: `${CLS}__placement-row`,
-                                  children: placementRows(impl, it => inPlacementRow(impl, it))
-                              }),
-                              ...placementRows(impl, it => !inPlacementRow(impl, it))
-                          ]
-                      })
-                    : null
+                ...(impl.isView
+                    ? viewCards(impl)
+                    : [
+                          impl.setsOptions ? setsEditor(impl) : null,
+                          ...sectionCards(impl),
+                          layoutCard(impl)
+                      ])
             ]
         });
     }
 });
 
-const LIST_KINDS = ['fieldList', 'list', 'stringList'],
-    VIEW_CARD = 'View';
+const LIST_KINDS = ['fieldList', 'list', 'stringList'];
+
+// The element's sections in order, its tabs or children as its list where its config has none.
+function sectionCards(impl: ElementInspectorModel): ReactNode[] {
+    const {sections} = impl,
+        lists = [
+            impl.tabs ? tabsEditor(impl) : null,
+            impl.childIds ? childrenCard(impl) : null
+        ].filter(Boolean),
+        listAt = sections.findIndex(it => it.group !== 'data'),
+        cards = sections.map(section => configCard(impl, section));
+    cards.splice(listAt < 0 ? cards.length : listAt, 0, ...lists);
+    return cards;
+}
+
+function configCard(impl: ElementInspectorModel, section: InspectorSection): ReactNode {
+    const all = [...section.nodes, ...(section.moreOpen ? [] : section.folded)],
+        preset = all.map(it => impl.presetFor(it.key)).find(Boolean);
+    return sectionCard({
+        key: `section:${section.group}`,
+        title: section.label,
+        ...impl.countOf(all),
+        badge: preset
+            ? {
+                  text: `Preset · ${preset.itemLabel}`,
+                  onClick: () => impl.designModel.select({kind: 'preset', id: preset.group})
+              }
+            : null,
+        collapsed: section.collapsed,
+        summary: setSummary(impl, all),
+        onToggle: () => impl.toggleSection(section.group),
+        children: [...section.nodes.map(node => configRow(impl, node)), moreRow(impl, section)]
+    });
+}
+
+// The labels of what a folded section has set, or that it has none.
+function setSummary(impl: ElementInspectorModel, nodes: EditorNode[]): string {
+    const set = nodes.filter(it => impl.values[it.key] !== undefined || impl.presetFor(it.key));
+    return set.length ? set.map(it => it.label).join(', ') : 'Nothing set';
+}
+
+// A section's unset advanced settings, folded to one row that names them, or the way to fold them.
+function moreRow(impl: ElementInspectorModel, section: InspectorSection): ReactNode {
+    const {folded, moreOpen, group} = section;
+    if (!folded.length) return null;
+    const toggle = () => impl.toggleSection(`more:${group}`);
+    if (moreOpen) {
+        return button({
+            key: 'more',
+            className: `${CLS}__more`,
+            text: 'Fewer',
+            minimal: true,
+            small: true,
+            onClick: toggle
+        });
+    }
+    return tooltip({
+        key: 'more',
+        className: `${CLS}__more-box`,
+        content: div({
+            className: `${CLS}__more-tip`,
+            children: folded.map(it =>
+                div({
+                    key: it.key,
+                    children: [
+                        span({className: `${CLS}__more-tip-label`, children: it.label}),
+                        it.description ? ` ${firstSentence(it.description)}` : null
+                    ]
+                })
+            )
+        }),
+        item: button({
+            className: `${CLS}__more`,
+            text: `${folded.length} more · ${folded.map(it => it.label).join(', ')}`,
+            minimal: true,
+            small: true,
+            onClick: toggle
+        })
+    });
+}
+
+function firstSentence(text: string): string {
+    return text.match(/^.*?[.!?](\s|$)/)?.[0].trim() ?? text;
+}
+
+// Where the element sits in its parent, last and folded to one line: a dashboard cell's view
+// settings, with a way to the view, or its placement in any other container.
+function layoutCard(impl: ElementInspectorModel): ReactNode {
+    const {dashboardId, parentId} = impl;
+    if (!dashboardId && !impl.placementNodes.length && impl.slotOptions.length <= 1) return null;
+    const placed = Object.entries(impl.placementValues)
+            .filter(([k, v]) => v != null && !isPlainObject(v) && !isArray(v) && k !== 'title')
+            .map(([k, v]) => `${labelOf(k).toLowerCase()} ${v}`),
+        summary = [`In ${dashboardId ?? parentId}`, ...placed].join(' · ');
+    return sectionCard({
+        key: 'layout',
+        title: 'Layout',
+        collapsed: !impl.isToggled('layout'),
+        summary,
+        onToggle: () => impl.toggleSection('layout'),
+        children: dashboardId
+            ? [
+                  ...viewHeaderRows(impl),
+                  div({
+                      className: `${CLS}__placement-row`,
+                      children: placementRows(impl, it => it.kind === 'number')
+                  }),
+                  button({
+                      className: `${CLS}__select-view`,
+                      icon: Icon.arrowRight(),
+                      text: 'Select the view',
+                      minimal: true,
+                      onClick: () =>
+                          impl.designModel.select({
+                              kind: 'view',
+                              id: impl.elementId,
+                              of: dashboardId
+                          })
+                  })
+              ]
+            : [
+                  impl.slotOptions.length > 1 ? slotEditor(impl) : null,
+                  div({
+                      className: `${CLS}__placement-row`,
+                      children: placementRows(impl, it => inPlacementRow(impl, it))
+                  }),
+                  ...placementRows(impl, it => !inPlacementRow(impl, it))
+              ]
+    });
+}
 
 // A selected view's settings: a dashboard cell's header, the inputs in it and its place, or a dash
 // container view's title.

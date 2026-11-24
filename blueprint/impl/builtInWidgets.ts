@@ -676,6 +676,7 @@ const CUBE_GRID_SCHEMA = {
         },
         columnState: {
             'x-group': 'list',
+            title: 'Columns',
             type: 'array',
             maxItems: 60,
             'x-field': 'any',
