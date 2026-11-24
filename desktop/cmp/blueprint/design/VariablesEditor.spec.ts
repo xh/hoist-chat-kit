@@ -184,8 +184,11 @@ describe('VariablesEditor', () => {
                 it => it.textContent
             );
         expect(labels).toEqual(
-            expect.arrayContaining(['Name', 'Type*', 'Label', 'Set by', 'Compute', 'Default'])
+            expect.arrayContaining(['Name', 'Type', 'Label', 'Set by', 'Compute', 'Default'])
         );
+        expect(
+            container.querySelector('[data-config-key="type"] .xh-form-field__label').textContent
+        ).toBe('Type *');
         expect(container.textContent).not.toContain('No model found');
         expect(
             [...container.querySelectorAll('.xh-blueprint-element-inspector__hint')].map(

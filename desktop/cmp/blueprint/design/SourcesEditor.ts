@@ -13,6 +13,7 @@ import {
     variableTypeLabel,
     FIELD_OVERRIDE_SCHEMA,
     type DatasetDef,
+    type EditorNode,
     type FieldInstance,
     isFieldInstance,
     type JoinDecl,
@@ -34,6 +35,7 @@ import {
     type Option,
     pageBar,
     propertyRow,
+    settingsForm,
     refocusAdd
 } from './impl/ConfigEditors';
 
@@ -431,21 +433,32 @@ function declaration(impl: SourceEditorModel) {
             null,
             'The variable each parameter takes. A starred one is required.'
         ),
-        propertyRow({
-            key: `filter:${impl.resets.filter ?? 0}`,
-            node: FILTER_NODE,
-            value: decl.filter,
-            commit: v => impl.commit('filter', v),
-            ctx: {impl, key: 'filter'},
-            issues: impl.issuesFor('filter')
-        }),
-        propertyRow({
-            key: `fields:${impl.resets.fields ?? 0}`,
-            node: OVERRIDES_NODE,
-            value: overrides,
-            commit: v => commitFields({...instances, ...(v as PlainObject)}),
-            ctx: {impl, key: 'fields'},
-            issues: impl.issuesFor('fields')
+        settingsForm({
+            key: 'settings',
+            nodes: [FILTER_NODE, OVERRIDES_NODE],
+            values: {filter: decl.filter, fields: overrides},
+            commit: (key, v) =>
+                key === 'filter'
+                    ? impl.commit('filter', v)
+                    : commitFields({...instances, ...(v as PlainObject)}),
+            content: form => [
+                propertyRow({
+                    key: `filter:${impl.resets.filter ?? 0}`,
+                    node: FILTER_NODE,
+                    value: decl.filter,
+                    commit: v => impl.commit('filter', v),
+                    ctx: {impl, key: 'filter', form},
+                    issues: impl.issuesFor('filter')
+                }),
+                propertyRow({
+                    key: `fields:${impl.resets.fields ?? 0}`,
+                    node: OVERRIDES_NODE,
+                    value: overrides,
+                    commit: v => commitFields({...instances, ...(v as PlainObject)}),
+                    ctx: {impl, key: 'fields', form},
+                    issues: impl.issuesFor('fields')
+                })
+            ]
         }),
         labelled(
             'Field instances',
@@ -734,7 +747,19 @@ function instanceBody(
 ) {
     const inst = instances[name],
         commitInstance = (next: FieldInstance) =>
-            commitFields({...overrides, ...instances, [name]: next});
+            commitFields({...overrides, ...instances, [name]: next}),
+        setParam = (pn: string, v: unknown) =>
+            commitInstance({
+                ...inst,
+                params: v === undefined ? omit(inst.params, pn) : {...inst.params, [pn]: v}
+            }),
+        params = impl.fieldParams(inst.field).map(([key, pd]) => ({
+            key,
+            node: {
+                ...nodeOf(key, {...impl.valueSchema(pd.type), description: pd.description}),
+                bindable: true
+            } as EditorNode
+        }));
     return [
         labelled(
             'Field',
@@ -746,22 +771,22 @@ function instanceBody(
                 onCommit: (field: string) => commitInstance({...inst, field})
             })
         ),
-        ...impl.fieldParams(inst.field).map(([pn, pd]) =>
-            propertyRow({
-                key: pn,
-                node: {
-                    ...nodeOf(pn, {...impl.valueSchema(pd.type), description: pd.description}),
-                    bindable: true
-                },
-                value: inst.params?.[pn],
-                commit: v =>
-                    commitInstance({
-                        ...inst,
-                        params: v === undefined ? omit(inst.params, pn) : {...inst.params, [pn]: v}
-                    }),
-                ctx: {impl, key: 'fields'}
-            })
-        )
+        settingsForm({
+            key: 'params',
+            nodes: params.map(it => it.node),
+            values: inst.params ?? {},
+            commit: setParam,
+            content: form =>
+                params.map(({key, node}) =>
+                    propertyRow({
+                        key,
+                        node,
+                        value: inst.params?.[key],
+                        commit: v => setParam(key, v),
+                        ctx: {impl, key: 'fields', form}
+                    })
+                )
+        })
     ];
 }
 

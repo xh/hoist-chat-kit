@@ -186,12 +186,22 @@ export interface RowProps {
 }
 
 /**
- * A property's label, its editor, and its issues. A set value shows a dot before the label, which
- * hover turns to ↺ to reset it, as Delete on a focused control does. The label's tooltip and the
- * focused row's help line come from its schema.
+ * A property as a Hoist form field: its label, its editor, its issues, and at its end the menu that
+ * binds it and the ↺ that resets it, as Delete on a focused control does. A set value shows a dot
+ * before its label, whose tooltip comes from its schema. The row is the field of the form its
+ * context carries, else of a form of its own.
  */
 export function propertyRow(props: RowProps) {
-    return props.ctx.form?.fields[props.node.key] ? formRow(props) : legacyRow(props);
+    const {node, value, commit, ctx, key} = props;
+    if (ctx.form?.fields[node.key]) return formRow(props);
+    // A setting outside any set's form takes a form of its own.
+    return settingsForm({
+        key,
+        nodes: [node],
+        values: {[node.key]: value},
+        commit: (_, v) => commit(v),
+        content: form => [formRow({...props, key: null, ctx: {...ctx, form}})]
+    });
 }
 
 // A row as a Hoist form field: its label, its editor in place of the field's input, and its bind
@@ -374,69 +384,6 @@ const settingsFormBody = hoistCmp.factory<SettingsFormProps>({
         });
     }
 });
-
-function legacyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
-    const isSet = value !== undefined,
-        canReset = isSet && !badge && !ctx.impl.readOnly && !ctx.locked,
-        reset = () => commit(undefined);
-    return div({
-        key,
-        // Named for its label, so each control in it reads with the property it sets.
-        ...({'data-config-key': node.key, role: 'group', 'aria-label': node.label} as object),
-        // A one-line value sits beside its label. A structure takes the row's full width.
-        className: classNames(
-            `${CLS}__row`,
-            INLINE_KINDS.includes(node.kind) && !isMultiline(node) && `${CLS}__row--inline`,
-            isSet && `${CLS}__row--set`,
-            node.required && !isSet && !badge && `${CLS}__row--missing`
-        ),
-        onKeyDown: (e: React.KeyboardEvent) => {
-            const target = e.target as HTMLElement;
-            if (e.key !== 'Delete' || !canReset || isTextEntry(target)) return;
-            // A list's Delete removes its focused item, never the whole list.
-            if (LIST_EDITOR_KINDS.includes(node.kind)) return;
-            // Only for this row's own control, not one in a list or drawer inside it.
-            if (target.closest('[data-config-key]') !== e.currentTarget) return;
-            e.preventDefault();
-            e.stopPropagation();
-            reset();
-        },
-        children: [
-            div({
-                className: `${CLS}__label`,
-                children: [
-                    isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
-                    labelTooltip(node),
-                    node.required ? span({className: `${CLS}__req`, children: '*'}) : null,
-                    // At the label's end, clear of the control, shown on hover or focus.
-                    canReset
-                        ? button({
-                              className: `${CLS}__reset`,
-                              icon: Icon.reset(),
-                              minimal: true,
-                              small: true,
-                              title: `Reset ${node.label}`,
-                              'aria-label': `Reset ${node.label}`,
-                              onClick: reset
-                          })
-                        : null
-                ]
-            }),
-            div({
-                className: `${CLS}__row-body`,
-                children: [
-                    badge ? badgeOf(badge, ctx) : null,
-                    editorFor(node, value, commit, ctx),
-                    ...issueLines(issues)
-                ]
-            }),
-            node.kind === 'format' && !ctx.flatFormat
-                ? formatOptionsCard(value, commit, ctx, !!issues.length)
-                : null,
-            node.kind === 'sort' ? sortDrawer(node, value, commit, ctx) : null
-        ]
-    });
-}
 
 // The preset an edit changes, beside the label, which shows its group where it can.
 function badgeOf(badge: string, ctx: EditorContext) {
