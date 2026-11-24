@@ -365,15 +365,14 @@ const INLINE_KINDS = [
     'preset',
     'source',
     'field',
+    'filter',
     'icon',
     'blueprint'
 ];
 
 function isMultiline(node: EditorNode): boolean {
     return (
-        (node.kind === 'text' && node.multiline) ||
-        (node.kind === 'field' && node.multiple) ||
-        (node.kind === 'choice' && !!node.thumbnails)
+        (node.kind === 'text' && node.multiline) || (node.kind === 'choice' && !!node.thumbnails)
     );
 }
 
