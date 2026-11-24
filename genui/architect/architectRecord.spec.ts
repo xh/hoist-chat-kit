@@ -220,6 +220,23 @@ describe('Architect records', () => {
         });
     });
 
+    it("names the system prompt a turn started with, and none for a turn whose context wasn't kept", async () => {
+        let prompt = 'Version one.';
+        const capture = new ArchitectTurnCapture({systemPromptOf: () => prompt}),
+            [provider] = capture.wrap([{name: 'blueprint', getContext: () => ({version: 3})}]);
+        await provider.getContext({turnId: 'u1', stepIndex: 0} as any);
+        prompt = 'Version two.';
+        const opts = {
+                messages: conversation(),
+                contextOf: (id: string) => capture.get(id),
+                systemPrompt: prompt
+            },
+            first = architectTurnRecord('u1', opts),
+            second = architectTurnRecord('u2', opts);
+        expect(first.context.systemPrompt.hash).toBe(hashText('Version one.'));
+        expect(second.context.systemPrompt).toBeNull();
+    });
+
     it('records a whole conversation turn by turn', () => {
         const record = architectConversationRecord({messages: conversation(), now: T + 5000});
         expect(record.exportedAt).toBe(new Date(T + 5000).toISOString());

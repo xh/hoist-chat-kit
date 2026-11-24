@@ -24,6 +24,8 @@ export interface ArchitectTurnContext {
     providers?: Record<string, unknown>;
     /** The blueprint as it stood before the turn, for a harness scenario's host. */
     blueprintBefore?: Blueprint;
+    /** The system prompt as the turn started. */
+    systemPrompt?: string;
 }
 
 /** Tokens and cost for a turn, from the app's usage tracking. Every field is optional. */
@@ -111,7 +113,11 @@ export interface ArchitectRecordOptions {
     messages: ChatMessage[];
     /** The context each turn was sent with, by turn ID, as {@link ArchitectTurnCapture.get} gives it. */
     contextOf?: (turnId: string) => ArchitectTurnContext;
-    /** The Architect's system prompt, which the record names by its hash. */
+    /**
+     * The Architect's system prompt, which the record names by its hash, for a turn whose context
+     * kept none. Left out of a turn `contextOf` has no context for, as it may not be the prompt that
+     * turn saw.
+     */
     systemPrompt?: string;
     /** True to put the system prompt's whole text in the record. Default false, as it is large. */
     includeSystemPrompt?: boolean;
@@ -137,7 +143,7 @@ export function architectTurnRecord(
     turnId: string,
     opts: ArchitectRecordOptions
 ): ArchitectTurnRecord {
-    const {messages, contextOf, systemPrompt, includeSystemPrompt, effort, usageOf} = opts,
+    const {messages, contextOf, includeSystemPrompt, effort, usageOf} = opts,
         maxRows = opts.maxRows ?? DEFAULT_MAX_ROWS,
         start = messages.findIndex(it => it.id === turnId && it.role === 'user');
     if (start < 0) throw new Error(`There is no user message '${turnId}' in the conversation.`);
@@ -146,7 +152,9 @@ export function architectTurnRecord(
         replies = messages.slice(start + 1, next < 0 ? undefined : next),
         parts = replies.flatMap(it => it.parts),
         calls = parts.filter(it => it.type === 'toolCall') as ChatToolCallPart[],
-        context = contextOf?.(turnId) ?? {},
+        captured = contextOf?.(turnId),
+        context = captured ?? {},
+        systemPrompt = context.systemPrompt ?? (captured || !contextOf ? opts.systemPrompt : null),
         steps = replies.flatMap(it => (it.metadata?.usage as PlainObject[]) ?? []),
         last = replies.at(-1),
         toolCalls = calls.map(it => toolCallRecord(it, maxRows)),
@@ -220,10 +228,13 @@ export class ArchitectTurnCapture {
     /**
      * @param opts.blueprintOf - the blueprint and its document as they stand now, read as each
      *      turn starts.
+     * @param opts.systemPromptOf - the Architect's system prompt as it stands now, read as each
+     *      turn starts.
      */
     constructor(
         private readonly opts: {
             blueprintOf?: () => {blueprint?: Blueprint} & ArchitectRecordBlueprint;
+            systemPromptOf?: () => string;
         } = {}
     ) {}
 
@@ -252,10 +263,12 @@ export class ArchitectTurnCapture {
     private note(turnId: string, name: string, value: unknown) {
         let turn = this.turns.get(turnId);
         if (!turn) {
-            const {blueprint, ...doc} = this.opts.blueprintOf?.() ?? {};
+            const {blueprint, ...doc} = this.opts.blueprintOf?.() ?? {},
+                systemPrompt = this.opts.systemPromptOf?.();
             turn = {
                 capturedAt: Date.now(),
                 providers: {},
+                ...(systemPrompt ? {systemPrompt} : {}),
                 ...(blueprint ? {blueprintBefore: cloneDeep(blueprint)} : {}),
                 blueprint: doc
             };

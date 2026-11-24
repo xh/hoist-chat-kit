@@ -271,7 +271,8 @@ import {
 } from '@xh/hoist-chat-kit/genui/architect';
 
 const capture = new ArchitectTurnCapture({
-    blueprintOf: () => ({blueprint: blueprintModel.blueprint, id, type, name})
+    blueprintOf: () => ({blueprint: blueprintModel.blueprint, id, type, name}),
+    systemPromptOf: () => systemPrompt
 });
 // In the ChatModel's config:
 contextProviders: capture.wrap([blueprintContextProvider(blueprintModel), uiContextProvider(designModel)]);
@@ -289,7 +290,8 @@ const opts = {messages: chatModel.messages, contextOf: id => capture.get(id), sy
 - A query's data rows, under `rows` and `text`, keep their first rows, 5 by default. `totalRows`
   gives each list's full length by its JSON Pointer, and `redacted` says so. What the model read of
   the blueprint, registry and catalog stays whole. The system prompt shows as a hash, and its whole
-  text only with `includeSystemPrompt`.
+  text only with `includeSystemPrompt`. It is the prompt each turn started with, from
+  `systemPromptOf`. A turn the capture did not keep names no prompt.
 - Markdown heads each turn with its `turnNumber`, and folds a long tool result to its first 20
   lines, leaving the rest to the JSON record.
 - Tokens come from each reply's usage. `usageOf` adds the app's own figures, such as cost.
