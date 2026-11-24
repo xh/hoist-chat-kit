@@ -81,11 +81,6 @@ export interface WidgetSpec {
         variables?: Record<string, PlainObject>;
         presets?: Record<string, PlainObject>;
     };
-    /**
-     * Groups of config keys the inspector shows under a heading each, in order, after the keys no
-     * group lists. A group starts folded where `collapsed` is set.
-     */
-    sections?: {label: string; keys: string[]; collapsed?: boolean}[];
     /** Paths inside the config that a preset can set, such as `/columnState`. */
     presetPaths?: string[];
     outputs?: WidgetOutputSpec[];

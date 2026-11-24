@@ -138,7 +138,8 @@ editors what a value means:
 - `example` is a valid element, which the Architect copies and a registry browser can render.
   Give what the example names beyond itself in `exampleBlueprint`: a container's child
   elements by ID, and any variables or preset groups it reads, so the example renders on its own.
-- `sections` groups config keys under headings in the inspector.
+- Each config property's `x-group` puts it in an Inspector section, and `x-advanced` folds it while
+  unset. A property without `x-group` shows under Data if it reads the source, else Content.
 - `icon` names a Hoist `Icon` factory. `preview` is a small picture for Add tiles, registry rows
   and blueprint schematics: a kit glyph's name, such as `grid`, `chart`, `stat` or `input`, or a
   function that draws SVG shapes into a `{width, height}` box. Draw with the classes
