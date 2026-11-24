@@ -1,4 +1,4 @@
-import {uniq, uniqBy} from 'lodash';
+import {cloneDeep, uniq, uniqBy} from 'lodash';
 import type {Blueprint, BlueprintElement} from './Blueprint';
 import type {WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog} from './DataCatalog';
@@ -10,17 +10,19 @@ import {childIds} from './impl/elements';
  * A widget's `example` as a blueprint of its own, for a registry browser to render: the example as
  * the root, with what its `exampleBlueprint` names, a source over each dataset its elements read,
  * and a prompted variable, defaulting to today, for each required date parameter. Where a variable
- * is prompted, the root is a panel with a `variableInput` for each in its tbar, over the example.
+ * is prompted, the root is a panel with a `variableInput` for each in its tbar, over the example,
+ * or beside them in the tbar for a widget that fits a toolbar.
  *
  * @returns the blueprint, or null with the child references nothing gives, if any.
  */
 export function exampleBlueprintOf(
-    spec: Pick<WidgetSpec, 'name' | 'example' | 'exampleBlueprint'>,
+    spec: Pick<WidgetSpec, 'name' | 'example' | 'exampleBlueprint' | 'fits'>,
     catalog: Pick<DataCatalog, 'getDataset'>
 ): {blueprint: Blueprint; missing: string[]} {
     if (!spec?.example) return {blueprint: null, missing: []};
-    const {elements: extraElements = {}, ...extra} = spec.exampleBlueprint ?? {},
-        elements = {[spec.name]: spec.example, ...extraElements} as Record<
+    // A copy, so a caller that changes the blueprint never changes the registry's example.
+    const {elements: extraElements = {}, ...extra} = cloneDeep(spec.exampleBlueprint ?? {}),
+        elements = {[spec.name]: cloneDeep(spec.example), ...extraElements} as Record<
             string,
             BlueprintElement
         >,
@@ -79,14 +81,15 @@ export function exampleBlueprintOf(
               }
             : {})
     } as Blueprint;
-    return {blueprint: withInputs(ret), missing: []};
+    const inToolbar = !!spec.fits?.includes('toolbar') && !spec.fits.includes('content');
+    return {blueprint: withInputs(ret, inToolbar), missing: []};
 }
 
 //------------------
 // Implementation
 //------------------
 // The blueprint under a panel with an input for each prompted variable that none shows yet.
-function withInputs(bp: Blueprint): Blueprint {
+function withInputs(bp: Blueprint, inToolbar: boolean): Blueprint {
     const shown = new Set(
             Object.values(bp.elements)
                 .filter(it => it.component === 'variableInput')
@@ -103,8 +106,8 @@ function withInputs(bp: Blueprint): Blueprint {
         elements: {
             example: {
                 component: 'panel',
-                tbar: inputs.map(([id]) => ({id})),
-                children: [{id: bp.root}]
+                tbar: [...inputs.map(([id]) => ({id})), ...(inToolbar ? [{id: bp.root}] : [])],
+                children: inToolbar ? [] : [{id: bp.root}]
             },
             ...Object.fromEntries(
                 inputs.map(([id, variable]) => [

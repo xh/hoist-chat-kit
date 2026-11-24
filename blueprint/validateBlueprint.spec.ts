@@ -35,6 +35,14 @@ describe('validateBlueprint', () => {
         codes = (bp: Blueprint) => validate(bp).map(it => it.code),
         p2 = () => loadBlueprint('p2-linked-dashboard.json');
 
+    it('builds an example from a copy, so a caller that changes it leaves the registry alone', () => {
+        const spec = registry.widgets.variableInput,
+            before = structuredClone(spec.example);
+        delete exampleBlueprintOf(spec, portfolioCatalog).blueprint.elements.variableInput.config
+            .variable;
+        expect(spec.example).toEqual(before);
+    });
+
     it("shows an example's prompted variables in variableInputs, in a panel's tbar over it", () => {
         const {blueprint} = exampleBlueprintOf(registry.widgets.cubeGrid, portfolioCatalog),
             {root, elements} = blueprint;
@@ -56,6 +64,12 @@ describe('validateBlueprint', () => {
             const {blueprint, missing} = exampleBlueprintOf(spec, portfolioCatalog);
             expect(missing).toEqual([]);
             expect(validate(blueprint).filter(it => it.severity === 'error')).toEqual([]);
+            // Placed as a person should place it, with its inputs shown and in a toolbar.
+            expect(
+                validateBlueprint(blueprint, {catalog: portfolioCatalog, registry})
+                    .filter(it => PLACEMENT_HINTS.includes(it.code))
+                    .map(it => `${it.code} ${it.path}`)
+            ).toEqual([]);
             // An input shows its control, so a variable it sets is there.
             const unset = Object.entries(blueprint.elements)
                 .filter(([, el]) => registry.widgets[el.component]?.value)
