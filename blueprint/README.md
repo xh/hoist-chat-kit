@@ -255,6 +255,43 @@ Sonnet passed every run of the scenarios that need the most planning. Opus is wo
 cost where a miss costs more: it took fewer refused edits, and answered with UI more often where
 Sonnet answered in text. Low effort on Sonnet saved 11% with the same checks over one round.
 
+### Export the Architect's turns
+
+To improve the Architect, export what it did, turn by turn, as JSON, as Markdown, or as a scenario
+for its llm-test harness. Wrap the chat's context providers in an `ArchitectTurnCapture`, so each
+turn keeps what it was sent and the blueprint as it stood:
+
+```typescript
+import {
+    architectConversationRecord,
+    architectHarnessScenario,
+    architectRecordMarkdown,
+    architectTurnRecord,
+    ArchitectTurnCapture
+} from '@xh/hoist-chat-kit/genui/architect';
+
+const capture = new ArchitectTurnCapture({
+    blueprintOf: () => ({blueprint: blueprintModel.blueprint, id, type, name})
+});
+// In the ChatModel's config:
+contextProviders: capture.wrap([blueprintContextProvider(blueprintModel), uiContextProvider(designModel)]);
+
+const opts = {messages: chatModel.messages, contextOf: id => capture.get(id), systemPrompt},
+    record = architectTurnRecord(userMessageId, opts),
+    markdown = architectRecordMarkdown(architectConversationRecord(opts)),
+    {scenario, host, source} = architectHarnessScenario(record, {id: 'P30'});
+```
+
+- A turn is its user message, by ID, and the replies up to the next one.
+- A record holds the prompt, the model and effort, the context sent, each tool call with its result
+  and time, the reply's text and `show_ui` answers, and each edit applied or refused. A refused
+  edit names its code, such as `edit.notAllowed`.
+- A tool result's lists of rows keep their first rows, 5 by default. `totalRows` gives each list's
+  full length, and `redacted` says so. The system prompt shows as a hash, and its whole text only
+  with `includeSystemPrompt`.
+- Tokens come from each reply's usage. `usageOf` adds the app's own figures, such as cost.
+- A harness scenario leaves its checks as a TODO, for a person to say what the turn should do.
+
 ### Answer questions with blueprints in a chat
 
 Give the chat kit catalog the app's data, and `show_ui` takes an answer blueprint. See

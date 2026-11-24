@@ -5,3 +5,5 @@ export * from './readAnswer';
 export * from './requestDesignMode';
 export * from './requestFeature';
 export * from './uiContextProvider';
+export * from './architectRecord';
+export * from './architectRecordFormats';
