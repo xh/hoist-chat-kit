@@ -685,6 +685,21 @@ describe('ElementInspector', () => {
         expect(row().querySelector('.bp6-switch')).toBeNull();
     });
 
+    it('removes a boolean set back to its default, rather than writing the default', () => {
+        const {model, design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            flip = () =>
+                fireEvent.click(
+                    container.querySelector('[data-config-key="stripeRows"] [aria-checked]')
+                ),
+            config = () => model.blueprint.elements.posGrid.config;
+        fireEvent.click(screen.getByText('Style'));
+        flip();
+        expect(config().stripeRows).toBe(false);
+        flip();
+        expect(config()).not.toHaveProperty('stripeRows');
+    });
+
     it('puts a choice of pictures under its label, as it wraps over several lines', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

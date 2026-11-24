@@ -289,7 +289,7 @@ function editorFor(
                 labels: node.labels,
                 disabled,
                 implied,
-                onCommit: v => commit(v)
+                onCommit: v => commit(v === (node.default ?? false) ? undefined : v)
             });
         case 'choice':
             // A choice with pictures shows a card for each option.
