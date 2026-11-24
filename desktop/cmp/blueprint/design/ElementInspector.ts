@@ -654,7 +654,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                             settingsForm({
                                 key: 'settings',
                                 nodes: impl.schemaNodes,
-                                values: () => impl.values,
+                                values: impl.values,
                                 commit: (key, value) => impl.commit(key, value),
                                 content: form => [...sectionCards(impl, form), layoutCard(impl)]
                             })

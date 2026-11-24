@@ -1037,6 +1037,31 @@ describe('ElementInspector', () => {
         ).toContain('Add a measure…');
     });
 
+    it("edits a column's page through its form fields, its own and its mapped settings, as it steps", () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['pnlDay', 'mktVal']);
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'mktVal#1'}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            config = () => model.blueprint.elements.posGrid.config as any,
+            input = (key: string) =>
+                container.querySelector<HTMLInputElement>(`[data-config-key="${key}"] input`),
+            type = (key: string, text: string) => {
+                fireEvent.focus(input(key));
+                fireEvent.change(input(key), {target: {value: text}});
+                fireEvent.blur(input(key));
+            };
+        type('headerName', 'Value');
+        expect(config().columns.mktVal.headerName).toBe('Value');
+        type('width', '120');
+        expect(config().columnState[1]).toEqual({field: 'mktVal', width: 120});
+        // The next column's page shows its own values, and edits it, not the one before.
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'}));
+        expect(input('headerName').value).toBe('');
+        type('headerName', 'Day');
+        expect(config().columns.pnlDay.headerName).toBe('Day');
+        expect(config().columns.mktVal.headerName).toBe('Value');
+    });
+
     it("adds a style rule from its list's own Add row, starting as a valid test", async () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['pnlDay']);

@@ -1,6 +1,6 @@
 import {card} from '@xh/hoist/cmp/card';
 import {form, type FormModel} from '@xh/hoist/cmp/form';
-import {type SettingsFormConfig, SettingsFormModel} from './SettingsFormModel';
+import {SettingsFormModel} from './SettingsFormModel';
 import {choiceLabel, fromFieldValue, isShortChoice, toFieldValue} from './settingValues';
 import {formField} from '@xh/hoist/desktop/cmp/form';
 import {div, filler, hbox, span} from '@xh/hoist/cmp/layout';
@@ -22,7 +22,7 @@ import {
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {tooltip} from '@xh/hoist/kit/blueprint';
-import {compareStructural, computed} from '@xh/hoist/mobx';
+import {compareStructural, computed, observable, runInAction} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {
     castArray,
@@ -39,7 +39,16 @@ import {
 } from 'lodash';
 import classNames from 'classnames';
 import type React from 'react';
-import {type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef} from 'react';
+import {
+    type ReactElement,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState
+} from 'react';
 import {
     type BlueprintIssue,
     type EditorNode,
@@ -284,33 +293,46 @@ function isFieldInput(node: EditorNode): boolean {
     }
 }
 
+interface SettingsFormProps extends HoistProps {
+    /** The settings, a field each. */
+    nodes: EditorNode[];
+    /** The settings' values as the blueprint holds them, an unset one absent. */
+    values: PlainObject;
+    /** Apply one setting's change as one edit. `undefined` unsets it. */
+    commit: (key: string, value: unknown) => void;
+    /** The rows, given the form their context carries. */
+    content: (form: FormModel) => ReactNode[];
+}
+
 /**
- * A Hoist form over a set of settings, such as an element's config, for the rows it renders. Each
- * row whose context carries the form shows as the form's field for its setting.
+ * A Hoist form over a set of settings, such as an element's config or a list item's, for the rows
+ * it renders. Each row whose context carries the form shows as the form's field for its setting.
  */
-export const settingsForm = hoistCmp.factory<
-    HoistProps & SettingsFormConfig & {content: (form: FormModel) => ReactNode[]}
->({
+export const settingsForm = hoistCmp.factory<SettingsFormProps>({
     displayName: 'BlueprintSettingsForm',
     model: false,
-    render({nodes, values, commit, content}) {
+    render(props) {
         // A new set of settings takes a new form.
-        return settingsFormBody({
-            key: nodes.map(it => it.key).join('|'),
-            nodes,
-            values,
-            commit,
-            content
-        });
+        return settingsFormBody({...props, key: props.nodes.map(it => it.key).join('|')});
     }
 });
 
-const settingsFormBody = hoistCmp.factory<
-    HoistProps & SettingsFormConfig & {content: (form: FormModel) => ReactNode[]}
->({
+const settingsFormBody = hoistCmp.factory<SettingsFormProps>({
     model: false,
     render({nodes, values, commit, content}) {
-        const {formModel} = useLocalModel(() => new SettingsFormModel({nodes, values, commit}));
+        const latest = useRef(commit),
+            [source] = useState(() => observable.box(values, {deep: false})),
+            {formModel} = useLocalModel(
+                () =>
+                    new SettingsFormModel({
+                        nodes,
+                        values: () => source.get(),
+                        commit: (key, value) => latest.current(key, value)
+                    })
+            );
+        latest.current = commit;
+        // Before paint, so a change from outside never shows the old value.
+        useLayoutEffect(() => runInAction(() => source.set(values)), [source, values]);
         return form({
             model: formModel,
             fieldDefaults: {labelWidth: 104, rightItemsWidth: 52},
@@ -1480,7 +1502,8 @@ function entrySetting(
               rowKey: key,
               ops,
               locked: ctx.locked,
-              flatFormat
+              flatFormat,
+              form: ctx.form
           })
         : drawerSetting({
               key: `${node.settingsIn.key}:${setting.key}`,
@@ -1491,7 +1514,8 @@ function entrySetting(
               scope,
               field: entry.field,
               locked: ctx.locked,
-              flatFormat
+              flatFormat,
+              form: ctx.form
           });
 }
 
@@ -1928,52 +1952,79 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
                 of: entryLabel(impl, row.entry, mapped)
             });
         }
-        return pageView({
-            impl,
-            scope,
-            ref,
-            listLabel: node.label,
-            title: entryLabel(impl, row.entry, mapped),
-            meta: row.entry.field,
-            subtitle: [
-                `${singular(node.label)} of ${row.entry.field}`,
-                impl.fieldType(row.entry.field)
-            ]
-                .filter(Boolean)
-                .join(' · '),
-            common: node.settingsIn?.common,
-            index,
-            count: rows.length,
-            groups: node.settingsIn?.groups,
-            settings: entrySettings(node).flatMap(({setting, own}) => {
-                const value = own ? row.entry[setting.key] : mapped[setting.key],
-                    ret = {
-                        node: setting,
-                        value,
-                        row: entrySetting(node, setting, own, row, mapped, ctx, ops, true)
-                    };
-                if (setting.kind !== 'format') return [ret];
-                const commitFormat = (v: unknown) =>
-                    own
-                        ? ops.current.set(row.key, setting.key, v)
-                        : impl.commitItemSetting(node.settingsIn.key, field, setting.key, v);
-                return [
-                    ret,
-                    ...formatOptionSettings(setting, value, commitFormat, {
-                        impl,
-                        key: own ? ctx.key : node.settingsIn.key,
-                        scope: `${scope}/${row.key}`,
-                        inherited: impl.inheritedDisplay(field),
-                        fieldType: impl.fieldType(field)
-                    })
-                ];
-            }),
-            onStep: by => rows[index + by] && impl.openPage(ctx.key, rows[index + by].key),
-            onBack: () => {
-                impl.designModel.closeItemPage();
-                impl.setOpenItem(scope, itemKey);
-                focusItem(itemKey);
-            }
+        const settings = entrySettings(node),
+            ownKeys = settings.filter(it => it.own).map(it => it.setting.key),
+            commitSetting = (key: string, v: unknown) =>
+                ownKeys.includes(key)
+                    ? ops.current.set(row.key, key, v)
+                    : impl.commitItemSetting(node.settingsIn.key, field, key, v);
+        const page = (form: FormModel) =>
+            pageView({
+                impl,
+                scope,
+                ref,
+                listLabel: node.label,
+                title: entryLabel(impl, row.entry, mapped),
+                meta: row.entry.field,
+                subtitle: [
+                    `${singular(node.label)} of ${row.entry.field}`,
+                    impl.fieldType(row.entry.field)
+                ]
+                    .filter(Boolean)
+                    .join(' · '),
+                common: node.settingsIn?.common,
+                index,
+                count: rows.length,
+                groups: node.settingsIn?.groups,
+                settings: settings.flatMap(({setting, own}) => {
+                    const value = own ? row.entry[setting.key] : mapped[setting.key],
+                        ret = {
+                            node: setting,
+                            value,
+                            row: entrySetting(
+                                node,
+                                setting,
+                                own,
+                                row,
+                                mapped,
+                                {...ctx, form},
+                                ops,
+                                true
+                            )
+                        };
+                    if (setting.kind !== 'format') return [ret];
+                    const commitFormat = (v: unknown) =>
+                        own
+                            ? ops.current.set(row.key, setting.key, v)
+                            : impl.commitItemSetting(node.settingsIn.key, field, setting.key, v);
+                    return [
+                        ret,
+                        ...formatOptionSettings(setting, value, commitFormat, {
+                            impl,
+                            key: own ? ctx.key : node.settingsIn.key,
+                            scope: `${scope}/${row.key}`,
+                            inherited: impl.inheritedDisplay(field),
+                            fieldType: impl.fieldType(field)
+                        })
+                    ];
+                }),
+                onStep: by => rows[index + by] && impl.openPage(ctx.key, rows[index + by].key),
+                onBack: () => {
+                    impl.designModel.closeItemPage();
+                    impl.setOpenItem(scope, itemKey);
+                    focusItem(itemKey);
+                }
+            });
+        return settingsForm({
+            nodes: settings.map(it => it.setting),
+            values: Object.fromEntries(
+                settings.map(({setting, own}) => [
+                    setting.key,
+                    own ? row.entry[setting.key] : mapped[setting.key]
+                ])
+            ),
+            commit: commitSetting,
+            content: form => [page(form)]
         });
     }
 });
@@ -2004,43 +2055,50 @@ export const listItemPage = hoistCmp.factory<
                     j === index ? (v === undefined ? omit(value, key) : {...value, [key]: v}) : it
                 )
             );
-        return pageView({
-            impl,
-            scope,
-            ref,
-            listLabel: node.label,
-            title: itemLabel(value, index),
-            subtitle: of
-                ? `${singular(node.label)} ${index + 1} of ${of}'s ${node.label.toLowerCase()}`
-                : singular(node.label),
-            common: node.item.schema['x-common'],
-            index,
-            count: items.length,
-            groups: node.item.schema['x-groups'],
-            settings: itemSettings(node).map(setting => ({
-                node: setting,
-                value: value?.[setting.key],
-                row: propertyRow({
-                    key: setting.key,
+        const page = (form: FormModel) =>
+            pageView({
+                impl,
+                scope,
+                ref,
+                listLabel: node.label,
+                title: itemLabel(value, index),
+                subtitle: of
+                    ? `${singular(node.label)} ${index + 1} of ${of}'s ${node.label.toLowerCase()}`
+                    : singular(node.label),
+                common: node.item.schema['x-common'],
+                index,
+                count: items.length,
+                groups: node.item.schema['x-groups'],
+                settings: itemSettings(node).map(setting => ({
                     node: setting,
                     value: value?.[setting.key],
-                    commit: v => set(setting.key, v),
-                    ctx: {...ctx, scope: `${scope}/${itemKey}`}
-                })
-            })),
-            onStep: by => {
-                const to = keys[index + by],
-                    label = to && itemLabel(items[index + by], index + by);
-                if (!to) return;
-                if (inner) impl.designModel.openInnerPage({list: node.key, key: to, label});
-                else impl.openPage(ctx.key, to, label);
-            },
-            onBack: () => {
-                if (inner) impl.designModel.closeInnerPage();
-                else impl.designModel.closeItemPage();
-                impl.setOpenItem(scope, itemKey);
-                focusItem(itemKey);
-            }
+                    row: propertyRow({
+                        key: setting.key,
+                        node: setting,
+                        value: value?.[setting.key],
+                        commit: v => set(setting.key, v),
+                        ctx: {...ctx, scope: `${scope}/${itemKey}`, form}
+                    })
+                })),
+                onStep: by => {
+                    const to = keys[index + by],
+                        label = to && itemLabel(items[index + by], index + by);
+                    if (!to) return;
+                    if (inner) impl.designModel.openInnerPage({list: node.key, key: to, label});
+                    else impl.openPage(ctx.key, to, label);
+                },
+                onBack: () => {
+                    if (inner) impl.designModel.closeInnerPage();
+                    else impl.designModel.closeItemPage();
+                    impl.setOpenItem(scope, itemKey);
+                    focusItem(itemKey);
+                }
+            });
+        return settingsForm({
+            nodes: itemSettings(node),
+            values: value ?? {},
+            commit: set,
+            content: form => [page(form)]
         });
     }
 });
@@ -2062,11 +2120,12 @@ const drawerSetting = hoistCmp.factory<
         ops?: {readonly current: {set: (key: string, settingKey: string, v: unknown) => void}};
         locked?: boolean;
         flatFormat?: boolean;
+        form?: FormModel;
     }
 >({
     displayName: 'BlueprintDrawerSetting',
     model: false,
-    render({impl, node, value, listKey, scope, field, rowKey, ops, locked, flatFormat}) {
+    render({impl, node, value, listKey, scope, field, rowKey, ops, locked, flatFormat, form}) {
         const issues = useMemo(
             () =>
                 computed(() => (field ? impl.itemSettingIssues(listKey, field, node.key) : []), {
@@ -2088,11 +2147,12 @@ const drawerSetting = hoistCmp.factory<
                       scope,
                       locked,
                       flatFormat,
+                      form,
                       field,
                       inherited: impl.inheritedDisplay(field),
                       fieldType: impl.fieldType(field)
                   }
-                : {impl, key: listKey, scope, locked, flatFormat},
+                : {impl, key: listKey, scope, locked, flatFormat, form},
             issues
         });
     }
