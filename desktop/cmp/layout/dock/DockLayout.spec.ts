@@ -129,6 +129,14 @@ describe('dockLayout', () => {
         expect(tab(container, 'orders').getAttribute('draggable')).not.toBe('true');
     });
 
+    it('ties each view to its tab, so a screen reader names the panel by its tab', () => {
+        const {container} = renderLayout({}),
+            positions = tab(container, 'positions'),
+            panel = container.querySelector(`#${positions.getAttribute('aria-controls')}`);
+        expect(panel.getAttribute('role')).toBe('tabpanel');
+        expect(panel.getAttribute('aria-labelledby')).toBe(positions.id);
+    });
+
     it('reports which views no tab shows, for a selection to reveal', () => {
         const onHiddenChange = vi.fn(),
             {container} = renderLayout({onHiddenChange});

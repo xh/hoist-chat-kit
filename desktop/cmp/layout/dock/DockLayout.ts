@@ -159,6 +159,7 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
         const {editable, viewRenderer, viewTitle} = impl.props,
             views = (stack.content ?? []).map(it => it.id),
             active = impl.activeOf(stack),
+            drawn = views.filter(id => id === active || impl.mounted.includes(id)),
             first = views[0],
             setEl = (el: HTMLElement) => {
                 if (el) impl.stackEls.set(first, el);
@@ -185,6 +186,8 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
                                 impl.dragging === id && `${CLS}__tab--dragging`
                             ),
                             role: 'tab',
+                            id: tabId(impl, id),
+                            'aria-controls': drawn.includes(id) ? panelId(impl, id) : null,
                             tabIndex: id === active ? 0 : -1,
                             draggable: !!editable,
                             'aria-selected': id === active,
@@ -206,22 +209,26 @@ const dockStack = hoistCmp.factory<HoistProps & {impl: DockLayoutModel; stack: D
                     className: `${CLS}__body`,
                     onDragOver: e => onBodyDragOver(impl, e, first),
                     onDrop: e => onDrop(impl, e),
-                    children: views
-                        .filter(id => id === active || impl.mounted.includes(id))
-                        .map(id =>
-                            div({
-                                key: id,
-                                className: `${CLS}__view`,
-                                role: 'tabpanel',
-                                hidden: id !== active,
-                                children: viewRenderer(id)
-                            })
-                        )
+                    children: drawn.map(id =>
+                        div({
+                            key: id,
+                            className: `${CLS}__view`,
+                            role: 'tabpanel',
+                            id: panelId(impl, id),
+                            'aria-labelledby': tabId(impl, id),
+                            hidden: id !== active,
+                            children: viewRenderer(id)
+                        })
+                    )
                 })
             ]
         });
     }
 });
+
+// Ids that tie each view's panel to its tab, unique to the layout.
+const tabId = (impl: DockLayoutModel, view: string) => `${impl.xhId}-tab-${view}`,
+    panelId = (impl: DockLayoutModel, view: string) => `${impl.xhId}-panel-${view}`;
 
 function keyOf(item: DockItem): string {
     if (item.type === 'view') return item.id;
