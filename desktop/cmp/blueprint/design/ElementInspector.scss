@@ -419,6 +419,28 @@ body {
     }
   }
 
+  // A row within a row's editor, as a step's in a list item's drawer, ends at its drawer's edge
+  // and shows its bind and reset in the column beside it, so nesting adds no column of its own.
+  &__form-row &__form-row &__form-row {
+    &:not(.xh-form-field--inline) > .xh-form-field__inner {
+      padding-right: 0;
+    }
+
+    > .xh-form-field__inner > .xh-form-field__input-row {
+      position: relative;
+
+      > .xh-form-field__right-items {
+        position: absolute;
+        left: calc(100% + var(--xh-spacing-half));
+      }
+    }
+  }
+
+  // Side-by-side cells end at the control edge, as the rows around them do.
+  &__placement-row {
+    padding-right: calc(52px + var(--xh-spacing-half));
+  }
+
   // A cell's caption stays muted when set, its dot marking it.
   &__form-cell#{&}__row--set > .xh-form-field__label {
     --xh-form-field-label-text-color: var(--xh-blueprint-inspector-muted);
@@ -814,11 +836,12 @@ body {
 
   // The widget a view holds: a list row a click selects, framed as a list, with a chevron.
   &__held-list {
-    border: 1px solid var(--xh-border-color);
-    border-radius: 4px;
+    border: var(--xh-border-width) solid var(--xh-blueprint-inspector-border-soft);
+    border-radius: 3px;
   }
 
   &__held.xh-blueprint-element-inspector__item-header {
+    gap: var(--xh-spacing-half);
     min-height: 30px;
     padding: 0 4px 0 6px;
     cursor: pointer;
