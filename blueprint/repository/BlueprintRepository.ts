@@ -144,8 +144,8 @@ export interface BlueprintRepository {
 
 /** What may change on a publish: its note, its label, at most 50 characters, and its pin. */
 export interface BlueprintPublishChanges {
-    note?: string | null;
-    label?: string | null;
+    note?: string;
+    label?: string;
     pinned?: boolean;
 }
 

@@ -54,7 +54,7 @@ export interface BlueprintArtifactProvider {
      * provider that caps what it delivers returns fewer rows than `totalRows`, and the source then
      * shows the result as too large. Null for an artifact whose rows are no longer available.
      */
-    loadArtifactAsync(id: string): Promise<{rows: PlainObject[]; totalRows: number} | null>;
+    loadArtifactAsync(id: string): Promise<{rows: PlainObject[]; totalRows: number}>;
 }
 
 /**

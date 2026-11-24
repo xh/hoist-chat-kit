@@ -1,6 +1,6 @@
 import {HoistModel, XH} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
-import {throwIf} from '@xh/hoist/utils/js';
+import {logWarn, throwIf} from '@xh/hoist/utils/js';
 import {isEqual, uniq} from 'lodash';
 import {applyOps} from '../applyOps';
 import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../Blueprint';
@@ -729,9 +729,12 @@ function fallbackNotice(open: BlueprintOpenOptions, refused: BlueprintIssue[]): 
     if (refused.every(it => it.code === 'edit.notAllowed')) {
         return 'Showing the latest published version, as the link names one you may not open.';
     }
-    console.warn(
-        `Blueprints: the ${open.as === 'draft' ? 'draft' : 'version'} the link names did not open.`,
-        refused.map(it => `${it.code} at ${it.path || '/'}: ${it.message}`)
+    logWarn(
+        [
+            `The ${open.as === 'draft' ? 'draft' : 'version'} the link names did not open.`,
+            refused.map(it => `${it.code} at ${it.path || '/'}: ${it.message}`)
+        ],
+        'BlueprintDocumentModel'
     );
     const [first] = refused,
         what = open.as === 'draft' ? 'The draft' : `Version ${open.version}`;
