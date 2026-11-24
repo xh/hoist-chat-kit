@@ -2,25 +2,19 @@
     "schema": {
         "blueprint": 1,
         "widgets": {
+            "panel": 1,
+            "variableInput": 1,
             "tabContainer": 1,
             "dashboard": 1,
+            "buttonGroup": 1,
             "tileFrame": 1,
             "statCard": 1,
             "chart": 1,
             "groupingChooser": 1,
-            "buttonGroup": 1,
-            "cubeGrid": 1,
-            "panel": 1
+            "cubeGrid": 1
         },
-        "variableTypes": {
-            "fund": 1
-        },
-        "resolvers": {
-            "userFund": 1,
-            "previousBusinessDay": 1,
-            "dateOffset": 1,
-            "yearStart": 1
-        }
+        "variableTypes": {"fund": 1},
+        "resolvers": {"userFund": 1, "previousBusinessDay": 1, "dateOffset": 1, "yearStart": 1}
     },
     "formats": {
         "mv": {

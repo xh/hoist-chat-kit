@@ -407,7 +407,7 @@ export class BlueprintDocumentModel extends HoistModel {
             return target.createAsync({
                 name,
                 description: source.description,
-                blueprint: {...blueprint, schema: schemaMapOf(blueprint, registry)}
+                blueprint: stampSchemaVersions(blueprint, registry)
             });
         });
     }
@@ -665,7 +665,7 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     private withSchema(blueprint: Blueprint): Blueprint {
-        return {...blueprint, schema: schemaMapOf(blueprint, this.blueprintModel.registry)};
+        return stampSchemaVersions(blueprint, this.blueprintModel.registry);
     }
 }
 
@@ -681,6 +681,17 @@ export function schemaMapOf(blueprint: Blueprint, registry: Pick<BlueprintRegist
             .map(it => [it.name, it.version])
     );
     return {...blueprint.schema, blueprint: BLUEPRINT_FORMAT_VERSION, widgets};
+}
+
+/**
+ * A copy of a blueprint stamped with the versions it is saved with, as {@link schemaMapOf} gives
+ * them, such as for a seed written by hand. A save stamps them itself.
+ */
+export function stampSchemaVersions(
+    blueprint: Blueprint,
+    registry: Pick<BlueprintRegistry, 'widgets'>
+): Blueprint {
+    return {...blueprint, schema: schemaMapOf(blueprint, registry)};
 }
 
 //------------------
