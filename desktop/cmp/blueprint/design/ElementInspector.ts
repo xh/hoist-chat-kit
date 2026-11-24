@@ -377,6 +377,8 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return id && Object.hasOwn(effective?.elements ?? {}, id) ? effective.elements[id] : null;
     }
 
+    // The same spec across edits to the element, so what is built from it stays the same too.
+    @computed
     private get widgetSpec() {
         const component = this.element?.component;
         return component ? this.designModel.blueprintModel.registry.widgets[component] : null;

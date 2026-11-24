@@ -1,6 +1,7 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
+import {autorun} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -61,6 +62,18 @@ describe('ElementInspector', () => {
             {value: 'detail', label: 'Symbol detail'},
             {value: 'risk', label: 'Risk'}
         ]);
+    });
+
+    it('keeps each editor node across an edit, so the rows that did not change draw nothing new', () => {
+        const {inspector} = open();
+        let nodes: typeof inspector.nodes = [];
+        // Observed, as the Inspector's render observes them.
+        const dispose = autorun(() => (nodes = inspector.nodes));
+        onTestFinished(dispose);
+        const before = nodes;
+        inspector.commit('title', 'Positions');
+        expect(nodes.map(it => it.key)).toEqual(before.map(it => it.key));
+        nodes.forEach((it, idx) => expect(it).toBe(before[idx]));
     });
 
     it("edits the selected element's config, one property per edit, and removes a cleared one", () => {
