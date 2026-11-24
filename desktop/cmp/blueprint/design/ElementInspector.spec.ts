@@ -404,6 +404,23 @@ describe('ElementInspector', () => {
         });
     });
 
+    it('removes the column a row names, after another row goes, though that row drew nothing new', () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay', 'pnlMtd']);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            remove = (field: string) =>
+                fireEvent.click(
+                    container
+                        .querySelector(`[data-field="${field}"]`)
+                        .querySelector('[title="Remove"]')
+                ),
+            columns = () => model.blueprint.elements.posGrid.config.columnState;
+        remove('mktVal');
+        expect(columns()).toEqual(['pnlDay', 'pnlMtd']);
+        remove('pnlMtd');
+        expect(columns()).toEqual(['pnlDay']);
+    });
+
     describe('formats, renderers and actions', () => {
         it("offers the catalog's named formats, and marks those the blueprint redefines", () => {
             const {inspector} = open(),

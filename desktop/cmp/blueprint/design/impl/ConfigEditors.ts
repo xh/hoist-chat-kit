@@ -1,7 +1,7 @@
 import {badge as hoistBadge} from '@xh/hoist/cmp/badge';
 import {card} from '@xh/hoist/cmp/card';
 import {div, hbox, span} from '@xh/hoist/cmp/layout';
-import type {PlainObject} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
@@ -32,7 +32,7 @@ import {
 } from 'lodash';
 import classNames from 'classnames';
 import type React from 'react';
-import type {ReactElement, ReactNode} from 'react';
+import {type ReactElement, type ReactNode, useMemo, useRef} from 'react';
 import {
     type BlueprintIssue,
     type EditorNode,
@@ -446,7 +446,7 @@ function editorFor(
             });
         }
         case 'list':
-            return listEditor(node, (value as unknown[]) ?? [], commit, ctx);
+            return listEditor({node, list: (value as unknown[]) ?? [], commit, ctx});
         case 'filter':
             return filterEditor({
                 key: ctx.impl.values.source,
@@ -457,7 +457,7 @@ function editorFor(
                 onCommit: commit
             });
         case 'fieldList':
-            return fieldListEditor(node, (value as unknown[]) ?? [], commit, ctx);
+            return fieldListEditor({node, list: (value as unknown[]) ?? [], commit, ctx});
         case 'map':
             return mapEditor(node, (value as PlainObject) ?? {}, commit, ctx);
         case 'oneOf': {
@@ -612,77 +612,92 @@ function bindableEditor(
     });
 }
 
-function listEditor(
-    node: Extract<EditorNode, {kind: 'list'}>,
-    items: unknown[],
-    commit: (value: unknown) => void,
-    ctx: EditorContext
-) {
-    const {impl} = ctx,
-        scope = scopeOf(ctx),
-        disabled = impl.readOnly,
-        commitList = (list: unknown[]) =>
-            commit(isEmpty(list) && !node.required ? undefined : list),
-        keys = impl.keysFor(scope, items),
-        rows = items.map((value, index) => ({key: keys[index], index, value}));
-    return div({
-        className: `${CLS}__field-list`,
-        children: [
-            rows.length
-                ? sortableList({
-                      className: `${CLS}__columns`,
-                      value: rows,
-                      itemKey: 'key',
-                      getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
-                      disabled,
-                      compact: true,
-                      onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
-                      ...openItemOf(impl, scope),
-                      renderItem: (row: PlainObject) =>
-                          hbox({
-                              className: classNames(
-                                  `${CLS}__item-header`,
-                                  impl.isItemOpen(scope, row.key) && `${CLS}__column--open`
-                              ),
-                              children: [
-                                  span({
-                                      className: `${CLS}__column-label`,
-                                      children: itemLabel(row.value, row.index)
-                                  }),
-                                  removeItemButton('Remove', disabled, () =>
-                                      commitList(items.filter((_, j) => j !== row.index))
-                                  )
-                              ]
-                          }),
-                      renderDetail: (row: PlainObject) =>
-                          div({
-                              className: `${CLS}__settings`,
-                              children: editorFor(
-                                  node.item,
-                                  row.value,
-                                  v => commitList(items.map((it, j) => (j === row.index ? v : it))),
-                                  {...ctx, scope: `${scope}/${row.key}`}
-                              )
-                          })
-                  })
-                : null,
-            button({
-                icon: Icon.add(),
-                intent: 'primary',
-                text: 'Add',
-                minimal: true,
-                disabled,
-                onClick: () => {
-                    // A new item opens, for its settings.
-                    const item = impl.newValue(node.item.schema),
-                        key = impl.addKey(scope, item);
-                    commitList([...items, item]);
-                    impl.setOpenItem(scope, key);
-                }
-            })
-        ]
-    });
+interface ListEditorProps<N extends EditorNode> extends HoistProps {
+    node: N;
+    list: unknown[];
+    commit: (value: unknown) => void;
+    ctx: EditorContext;
 }
+
+const listEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {kind: 'list'}>>>({
+    displayName: 'BlueprintListEditor',
+    model: false,
+    render({node, list: items, commit, ctx}) {
+        const {impl} = ctx,
+            scope = scopeOf(ctx),
+            disabled = impl.readOnly,
+            commitList = (list: unknown[]) =>
+                commit(isEmpty(list) && !node.required ? undefined : list),
+            keys = impl.keysFor(scope, items),
+            rows = useStableRows(items.map((value, index) => ({key: keys[index], index, value}))),
+            // Called by key as a row acts, so a row that skipped drawing acts on the list as it is.
+            ops = useLatest({
+                remove: (key: string) => commitList(items.filter((_, j) => keys[j] !== key)),
+                set: (key: string, v: unknown) =>
+                    commitList(items.map((it, j) => (keys[j] === key ? v : it)))
+            }),
+            renderers = useStableRenderers({
+                renderItem: (row: PlainObject) =>
+                    hbox({
+                        className: classNames(
+                            `${CLS}__item-header`,
+                            impl.isItemOpen(scope, row.key) && `${CLS}__column--open`
+                        ),
+                        children: [
+                            span({
+                                className: `${CLS}__column-label`,
+                                children: itemLabel(row.value, row.index)
+                            }),
+                            removeItemButton('Remove', impl.readOnly, () =>
+                                ops.current.remove(row.key)
+                            )
+                        ]
+                    }),
+                renderDetail: (row: PlainObject) =>
+                    div({
+                        className: `${CLS}__settings`,
+                        children: editorFor(
+                            node.item,
+                            row.value,
+                            v => ops.current.set(row.key, v),
+                            {...ctx, scope: `${scope}/${row.key}`}
+                        )
+                    })
+            });
+        return div({
+            className: `${CLS}__field-list`,
+            children: [
+                rows.length
+                    ? sortableList({
+                          className: `${CLS}__columns`,
+                          value: rows,
+                          itemKey: 'key',
+                          getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
+                          disabled,
+                          compact: true,
+                          onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
+                          ...openItemOf(impl, scope),
+                          ...renderers
+                      })
+                    : null,
+                button({
+                    icon: Icon.add(),
+                    intent: 'primary',
+                    text: 'Add',
+                    minimal: true,
+                    disabled,
+                    onClick: () => {
+                        // A new item opens, for its settings.
+                        const item = impl.newValue(node.item.schema),
+                            key = impl.addKey(scope, item);
+                        commitList([...items, item]);
+                        impl.setOpenItem(scope, key);
+                    }
+                })
+            ]
+        });
+    }
+});
 
 /** A boolean as two segments, the positive state first, which a click anywhere flips. */
 export function booleanEditor({
@@ -814,142 +829,203 @@ function mapEditor(
 }
 
 // Fields in order, each a name, or an object with its field and settings when it has any.
-function fieldListEditor(
-    node: Extract<EditorNode, {kind: 'fieldList'}>,
-    items: unknown[],
-    commit: (value: unknown) => void,
-    ctx: EditorContext
-) {
-    const {impl} = ctx,
-        scope = scopeOf(ctx),
-        {settingsIn} = node,
-        disabled = impl.readOnly,
-        entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
-        fieldsOf = entries.map(it => it.field),
-        options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
-        commitList = (list: PlainObject[]) => {
-            const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
-            commit(isEmpty(ret) && !node.required ? undefined : ret);
-        },
-        // Keyed by field, and by place among the same field's, so a list with a repeated or a
-        // missing field still draws, for the user to fix.
-        seen: Record<string, number> = {},
-        rows = entries.map((entry, index) => {
-            const name = isString(entry.field) ? entry.field : '?',
-                n = (seen[name] = (seen[name] ?? 0) + 1);
-            return {key: `${name}#${n}`, index, entry};
-        }),
-        mappedOf = (entry: PlainObject): PlainObject =>
-            settingsIn ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {}) : {},
-        header = ({key, index: i, entry}: {key: string; index: number; entry: PlainObject}) => {
-            const open = impl.isItemOpen(scope, key),
-                mapped = mappedOf(entry);
-            return hbox({
-                className: classNames(`${CLS}__item-header`, open && `${CLS}__column--open`),
-                ...({'data-field': entry.field} as object),
-                children: [
-                    span({
-                        className: `${CLS}__column-label`,
-                        children: impl.fieldLabel(entry.field)
-                    }),
-                    span({
-                        className: `${CLS}__column-meta`,
-                        children: columnMeta(
-                            mapped,
-                            impl.inheritedDisplay(entry.field),
-                            settingsCount(entry, mapped)
+const fieldListEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {kind: 'fieldList'}>>>(
+    {
+        displayName: 'BlueprintFieldListEditor',
+        model: false,
+        render({node, list: items, commit, ctx}) {
+            const {impl} = ctx,
+                scope = scopeOf(ctx),
+                {settingsIn} = node,
+                disabled = impl.readOnly,
+                entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
+                fieldsOf = entries.map(it => it.field),
+                options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
+                commitList = (list: PlainObject[]) => {
+                    const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
+                    commit(isEmpty(ret) && !node.required ? undefined : ret);
+                },
+                // Keyed by field, and by place among the same field's, so a list with a repeated or a
+                // missing field still draws, for the user to fix.
+                seen: Record<string, number> = {},
+                rows = useStableRows(
+                    entries.map(entry => {
+                        const name = isString(entry.field) ? entry.field : '?',
+                            n = (seen[name] = (seen[name] ?? 0) + 1);
+                        return {key: `${name}#${n}`, entry};
+                    })
+                ),
+                // Called by key as a row acts, so a row that skipped drawing acts on the list as it is.
+                ops = useLatest({
+                    remove: (key: string) =>
+                        commitList(entries.filter((_, j) => rows[j].key !== key)),
+                    set: (key: string, settingKey: string, v: unknown) =>
+                        commitList(
+                            entries.map((it, j) =>
+                                rows[j].key !== key
+                                    ? it
+                                    : v === undefined
+                                      ? omit(it, settingKey)
+                                      : {...it, [settingKey]: v}
+                            )
                         )
-                    }),
-                    removeItemButton('Remove', disabled, () =>
-                        commitList(entries.filter((_, j) => j !== i))
-                    )
-                ]
-            });
-        },
-        drawer = ({key, index: i, entry}: {key: string; index: number; entry: PlainObject}) => {
-            const more = impl.isItemOpen(`${scope}/more`, key),
-                itemScope = `${scope}/${key}`,
-                mapped = mappedOf(entry),
-                inherited = impl.inheritedDisplay(entry.field),
-                mappedRow = (setting: EditorNode) =>
-                    propertyRow({
-                        key: `${settingsIn.key}:${setting.key}`,
-                        node: setting,
-                        value: mapped[setting.key],
-                        commit: v =>
-                            impl.commitItemSetting(settingsIn.key, entry.field, setting.key, v),
-                        ctx: {
-                            ...ctx,
-                            key: settingsIn.key,
-                            scope: itemScope,
-                            inherited,
-                            fieldType: impl.fieldType(entry.field)
-                        },
-                        issues: impl.itemSettingIssues(settingsIn.key, entry.field, setting.key)
-                    });
-            return div({
-                className: `${CLS}__settings`,
-                children: [
-                    ...(settingsIn?.settings.slice(0, settingsIn.shown) ?? []).map(mappedRow),
-                    ...node.settings.map(setting =>
-                        propertyRow({
-                            key: setting.key,
-                            node: setting,
-                            value: entry[setting.key],
-                            commit: v =>
-                                commitList(
-                                    entries.map((it, j) =>
-                                        j !== i
-                                            ? it
-                                            : v === undefined
-                                              ? omit(it, setting.key)
-                                              : {...it, [setting.key]: v}
+                }),
+                mappedOf = (entry: PlainObject): PlainObject =>
+                    settingsIn ? (getOwn(impl.values[settingsIn.key], entry.field) ?? {}) : {},
+                renderers = useStableRenderers({
+                    renderItem: ({key, entry}: PlainObject) => {
+                        const open = impl.isItemOpen(scope, key),
+                            mapped = mappedOf(entry);
+                        return hbox({
+                            className: classNames(
+                                `${CLS}__item-header`,
+                                open && `${CLS}__column--open`
+                            ),
+                            ...({'data-field': entry.field} as object),
+                            children: [
+                                span({
+                                    className: `${CLS}__column-label`,
+                                    children: impl.fieldLabel(entry.field)
+                                }),
+                                span({
+                                    className: `${CLS}__column-meta`,
+                                    children: columnMeta(
+                                        mapped,
+                                        impl.inheritedDisplay(entry.field),
+                                        settingsCount(entry, mapped)
                                     )
+                                }),
+                                removeItemButton('Remove', impl.readOnly, () =>
+                                    ops.current.remove(key)
+                                )
+                            ]
+                        });
+                    },
+                    renderDetail: ({key, entry}: PlainObject) => {
+                        const more = impl.isItemOpen(`${scope}/more`, key),
+                            itemScope = `${scope}/${key}`,
+                            mapped = mappedOf(entry),
+                            inherited = impl.inheritedDisplay(entry.field),
+                            mappedRow = (setting: EditorNode) =>
+                                propertyRow({
+                                    key: `${settingsIn.key}:${setting.key}`,
+                                    node: setting,
+                                    value: mapped[setting.key],
+                                    commit: v =>
+                                        impl.commitItemSetting(
+                                            settingsIn.key,
+                                            entry.field,
+                                            setting.key,
+                                            v
+                                        ),
+                                    ctx: {
+                                        ...ctx,
+                                        key: settingsIn.key,
+                                        scope: itemScope,
+                                        inherited,
+                                        fieldType: impl.fieldType(entry.field)
+                                    },
+                                    issues: impl.itemSettingIssues(
+                                        settingsIn.key,
+                                        entry.field,
+                                        setting.key
+                                    )
+                                });
+                        return div({
+                            className: `${CLS}__settings`,
+                            children: [
+                                ...(settingsIn?.settings.slice(0, settingsIn.shown) ?? []).map(
+                                    mappedRow
                                 ),
-                            ctx: {...ctx, scope: itemScope}
-                        })
-                    ),
-                    settingsIn?.settings.length > settingsIn?.shown
-                        ? button({
-                              key: '_more',
-                              className: `${CLS}__more`,
-                              text: more ? 'Fewer settings' : 'More settings',
-                              icon: more ? Icon.chevronUp() : Icon.chevronDown(),
-                              minimal: true,
-                              onClick: () => impl.toggleItem(`${scope}/more`, key)
+                                ...node.settings.map(setting =>
+                                    propertyRow({
+                                        key: setting.key,
+                                        node: setting,
+                                        value: entry[setting.key],
+                                        commit: v => ops.current.set(key, setting.key, v),
+                                        ctx: {...ctx, scope: itemScope}
+                                    })
+                                ),
+                                settingsIn?.settings.length > settingsIn?.shown
+                                    ? button({
+                                          key: '_more',
+                                          className: `${CLS}__more`,
+                                          text: more ? 'Fewer settings' : 'More settings',
+                                          icon: more ? Icon.chevronUp() : Icon.chevronDown(),
+                                          minimal: true,
+                                          onClick: () => impl.toggleItem(`${scope}/more`, key)
+                                      })
+                                    : null,
+                                ...(more
+                                    ? settingsIn.settings.slice(settingsIn.shown).map(mappedRow)
+                                    : [])
+                            ]
+                        });
+                    }
+                });
+            return div({
+                className: `${CLS}__field-list`,
+                children: [
+                    entries.length
+                        ? sortableList({
+                              className: `${CLS}__columns`,
+                              value: rows,
+                              itemKey: 'key',
+                              getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
+                              disabled,
+                              compact: true,
+                              onReorder: e =>
+                                  commitList(e.items.map((it: PlainObject) => it.entry)),
+                              ...openItemOf(impl, scope),
+                              ...renderers
                           })
                         : null,
-                    ...(more ? settingsIn.settings.slice(settingsIn.shown).map(mappedRow) : [])
+                    select({
+                        key: entries.length,
+                        placeholder: 'Add a field…',
+                        options: options.filter(it => !fieldsOf.includes(it.value)),
+                        disabled,
+                        width: '100%',
+                        onCommit: (field: string) => field && commitList([...entries, {field}])
+                    })
                 ]
             });
-        };
-    return div({
-        className: `${CLS}__field-list`,
-        children: [
-            entries.length
-                ? sortableList({
-                      className: `${CLS}__columns`,
-                      value: rows,
-                      itemKey: 'key',
-                      getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
-                      disabled,
-                      compact: true,
-                      onReorder: e => commitList(e.items.map((it: PlainObject) => it.entry)),
-                      ...openItemOf(impl, scope),
-                      renderItem: (row: any) => header(row),
-                      renderDetail: (row: any) => drawer(row)
-                  })
-                : null,
-            select({
-                key: entries.length,
-                placeholder: 'Add a field…',
-                options: options.filter(it => !fieldsOf.includes(it.value)),
-                disabled,
-                width: '100%',
-                onCommit: (field: string) => field && commitList([...entries, {field}])
-            })
-        ]
-    });
+        }
+    }
+);
+
+// Rows that keep their identity while they hold the same, so a SortableList's memoized row draws
+// again only when its own row changes.
+function useStableRows<T extends {key: string}>(rows: T[]): T[] {
+    const prev = useRef(new Map<string, T>()),
+        ret = rows.map(row => {
+            const was = prev.current.get(row.key);
+            return was && isEqual(was, row) ? was : row;
+        });
+    prev.current = new Map(ret.map(it => [it.key, it]));
+    return ret;
+}
+
+// A ref that always holds the latest value given.
+function useLatest<T>(value: T): {readonly current: T} {
+    const ret = useRef(value);
+    ret.current = value;
+    return ret;
+}
+
+// renderItem and renderDetail that keep their identity and call the latest functions given.
+function useStableRenderers<R>(fns: {
+    renderItem: (row: R) => ReactNode;
+    renderDetail: (row: R) => ReactNode;
+}) {
+    const latest = useLatest(fns);
+    return useMemo(
+        () => ({
+            renderItem: (row: R) => latest.current.renderItem(row),
+            renderDetail: (row: R) => latest.current.renderDetail(row)
+        }),
+        [latest]
+    );
 }
 
 // How many settings a field list entry sets beside its field, with those of its settings map entry,
