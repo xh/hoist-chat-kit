@@ -3,6 +3,7 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} fr
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {wait} from '@xh/hoist/promise';
 import {type KeyboardEvent, useEffect, useRef} from 'react';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
@@ -311,10 +312,13 @@ const sourcesBody = hoistCmp.factory<SourceEditorModel>({
             pageKey = impl.page ? `${impl.page.list}/${impl.page.key}` : null;
         // A page takes focus as it opens or steps, so its keys work at once.
         useEffect(() => {
-            const page = ref.current?.querySelector<HTMLElement>(`.${CLS}__page`);
-            if (page && !page.contains(document.activeElement)) {
-                page.querySelector<HTMLElement>('button')?.focus();
-            }
+            // After the key or click that opened it, so its activation never lands on Back.
+            wait().then(() => {
+                const page = ref.current?.querySelector<HTMLElement>(`.${CLS}__page`);
+                if (page && !page.contains(document.activeElement)) {
+                    page.querySelector<HTMLElement>('button')?.focus();
+                }
+            });
         }, [pageKey]);
         return div({
             ref,
@@ -563,7 +567,8 @@ function itemRow(key: string, label: string, chips: string[], openPage: () => vo
         tabIndex: 0,
         ...({'data-row-key': key} as object),
         onKeyDown: (e: KeyboardEvent) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
+            // Its › opens the page on its own click.
+            if ((e.key !== 'Enter' && e.key !== ' ') || e.target !== e.currentTarget) return;
             e.preventDefault();
             openPage();
         },

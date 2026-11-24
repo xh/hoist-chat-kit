@@ -73,7 +73,7 @@ describe('SourcesEditor', () => {
             expect(model.blueprint.sources.positions.joins).toBeUndefined();
         });
 
-        it('lists each join as a row, opened on its page, and removes it on Delete', () => {
+        it('lists each join as a row, opened on its page, and removes it on Delete', async () => {
             const {model, design} = open();
             design.blueprintModel.applyEdit({
                 ops: [
@@ -95,6 +95,10 @@ describe('SourcesEditor', () => {
             expect(page().textContent).toContain('Fields');
             fireEvent.keyDown(page(), {key: 'Escape'});
             expect(page()).toBeNull();
+            // Enter on the row opens the page, which takes focus once the key is done.
+            fireEvent.keyDown(row(), {key: 'Enter'});
+            await vi.waitFor(() => expect(page().contains(document.activeElement)).toBe(true));
+            fireEvent.keyDown(page(), {key: 'Escape'});
             fireEvent.keyDown(row(), {key: 'Delete'});
             expect(model.blueprint.sources.positions.joins).toBeUndefined();
         });

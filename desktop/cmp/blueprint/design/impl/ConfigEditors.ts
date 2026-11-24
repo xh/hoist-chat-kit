@@ -977,6 +977,7 @@ export function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => vo
     const target = e.target as HTMLElement;
     if (e.key !== 'Delete' || isTextEntry(target)) return;
     const list = e.currentTarget as HTMLElement,
+        anchor = list.parentElement?.closest<HTMLElement>('[data-config-key]'),
         key = itemOf(target, list)?.row.getAttribute('data-row-key');
     if (!key) return;
     e.preventDefault();
@@ -989,7 +990,7 @@ export function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => vo
         next = keys[at + 1] ?? keys[at - 1];
     remove(key);
     if (next) {
-        focusItem(next, list);
+        focusItem(next, [list, anchor]);
     } else {
         wait().then(() =>
             list
@@ -1019,26 +1020,34 @@ function itemOf(el: HTMLElement, list: HTMLElement): {item: HTMLElement; row: HT
 }
 
 /** Focus a list item's handle by its row's key, as a page closes, so the keyboard stays there. */
-function focusItem(key: string, fallback?: HTMLElement) {
+function focusItem(key: string, fallbacks: HTMLElement[] = []) {
     wait().then(() => {
         const row = document.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(key)}"]`),
             list = row?.closest<HTMLElement>(`.${CLS}__field-list`),
-            item = row && list ? itemOf(row, list)?.item : null;
-        // A list that now draws its one item without rows, such as a lone step, takes focus itself.
-        (
-            item?.querySelector<HTMLElement>('[class*="handle"]') ??
-            row ??
-            fallback?.querySelector<HTMLElement>('input, button, [tabindex="0"]')
-        )?.focus();
+            item = row && list ? itemOf(row, list)?.item : null,
+            handle = item?.querySelector<HTMLElement>('[class*="handle"]'),
+            // A list that now draws its one item without rows, such as a lone step, gives focus to
+            // the first control still drawn around it.
+            around = fallbacks
+                .filter(it => it?.isConnected)
+                .map(it => it.querySelector<HTMLElement>(FOCUSABLE))
+                .find(Boolean);
+        (handle ?? (row?.tabIndex >= 0 ? row : null) ?? around)?.focus();
     });
 }
+
+const FOCUSABLE = 'input, button:not([disabled]), [tabindex="0"]';
 
 /** Focus a page's back button as it opens or steps, unless focus is already in it. */
 function usePageFocus(ref: {current: HTMLElement}, itemKey: string) {
     useEffect(() => {
-        const el = ref.current;
-        if (el && !el.contains(document.activeElement))
-            el.querySelector<HTMLElement>('button')?.focus();
+        // After the key or click that opened it, so its activation never lands on Back.
+        wait().then(() => {
+            const el = ref.current;
+            if (el && !el.contains(document.activeElement)) {
+                el.querySelector<HTMLElement>('button')?.focus();
+            }
+        });
     }, [ref, itemKey]);
 }
 

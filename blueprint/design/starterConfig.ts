@@ -85,6 +85,15 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
         return ctx.source;
     }
     if (schema['x-action']) return {type: 'refresh'};
+    // A filter, such as a style rule's test, starts as one clause: a measure below 0, as for a loss.
+    if (schema['x-filter'] && schema.type === 'object') {
+        const [measure] = fieldsFor('measure', ctx.fields, false),
+            field = measure ?? ctx.fields[0];
+        if (!field) return undefined;
+        return measure
+            ? {field: field.name, op: '<', value: 0}
+            : {field: field.name, op: '!=', value: ''};
+    }
     const role = schema['x-field'];
     // A map keyed by field, such as a grid's columns, starts empty.
     if (role && schema.type !== 'object') {

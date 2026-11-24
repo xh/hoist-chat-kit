@@ -979,6 +979,20 @@ describe('ElementInspector', () => {
         expect(design.itemPage.inner).toBeUndefined();
     });
 
+    it("adds a style rule on a column's page that starts as a valid test", () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['pnlDay']);
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            styles = container.querySelector('[data-config-key="styles"]');
+        fireEvent.click(
+            [...styles.querySelectorAll('button')].find(it => it.textContent === 'Add')
+        );
+        const [rule] = (model.blueprint.elements.posGrid.config.columns as any).pnlDay.styles;
+        expect(rule.when).toMatchObject({op: '<', value: 0});
+        expect(model.issues.filter(it => it.severity === 'error')).toEqual([]);
+    });
+
     it("shows a column's format options as rows of its page, the less used folded", () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['mktVal']);
@@ -1136,7 +1150,7 @@ describe('ElementInspector', () => {
         expect(page()).toBeNull();
     });
 
-    it('shows every step of an action open, with no chevron to fold one', () => {
+    it('shows every step of an action open, with no chevron to fold one', async () => {
         const {design} = open('p2-linked-dashboard.json');
         design.setConfig('posGrid', '/rowActions', [
             {label: 'A', action: [{type: 'refresh', sources: ['positions']}, {type: 'refresh'}]}
@@ -1148,9 +1162,10 @@ describe('ElementInspector', () => {
         const steps = container.querySelector('.xh-blueprint-element-inspector__steps');
         expect(steps.querySelectorAll('.xh-blueprint-element-inspector__step')).toHaveLength(2);
         expect(steps.querySelector('.xh-sortable-list__expander')).toBeNull();
-        // Delete on a step removes that step alone.
+        // Delete on a step removes that step alone, and focus stays in the action.
         expect(steps.querySelector('[title="Remove"]')).toBeNull();
         fireEvent.keyDown(steps.querySelector('[data-row-key]'), {key: 'Delete'});
+        await vi.waitFor(() => expect(document.activeElement).not.toBe(document.body));
         expect(
             (design.blueprintModel.blueprint.elements.posGrid.config.rowActions as any)[0].action
         ).toEqual({
