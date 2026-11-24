@@ -5,7 +5,8 @@ import type {
     BlueprintDataProvider,
     BlueprintDataRequest,
     BlueprintDataResult,
-    BlueprintDataUpdate
+    BlueprintDataUpdate,
+    BlueprintLoadOptions
 } from '../../blueprint';
 import type {ChatModel} from '../../core';
 import {getCallBudget, type OpenUiCallBudget} from './callBudget';
@@ -65,8 +66,8 @@ export class AnswerLoadGate extends HoistBase implements BlueprintDataProvider {
 
         if (provider.subscribe) this.subscribe = (req, push) => this.subscribeGated(req, push);
         if (provider.loadAggregatesAsync) {
-            this.loadAggregatesAsync = req =>
-                this.whenAllowedAsync(() => provider.loadAggregatesAsync(req));
+            this.loadAggregatesAsync = (req, loadSpec, opts) =>
+                this.whenAllowedAsync(() => provider.loadAggregatesAsync(req, loadSpec, opts));
         }
         this.addReaction({
             track: () => this.isLatest,
@@ -108,9 +109,13 @@ export class AnswerLoadGate extends HoistBase implements BlueprintDataProvider {
         this.releaseAll();
     }
 
-    loadAsync(req: BlueprintDataRequest, loadSpec?: LoadSpec): Promise<BlueprintDataResult> {
+    loadAsync(
+        req: BlueprintDataRequest,
+        loadSpec?: LoadSpec,
+        opts?: BlueprintLoadOptions
+    ): Promise<BlueprintDataResult> {
         return this.whenAllowedAsync(async () => {
-            const ret = await this.provider.loadAsync(req, loadSpec);
+            const ret = await this.provider.loadAsync(req, loadSpec, opts);
             this.noteLoaded();
             return ret;
         });

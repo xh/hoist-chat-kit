@@ -119,7 +119,9 @@ blueprintView({model});
 ```
 
 `dataProvider` implements `BlueprintDataProvider`: `loadAsync()` for each request, or
-`subscribe()` for live rows. See `BlueprintDataProvider.ts`. For tests and demos,
+`subscribe()` for live rows. See `BlueprintDataProvider.ts`. Each load also takes an optional
+`signal`, which aborts once a bound parameter changes or the blueprint closes, and an
+`onProgress` callback, whose latest report the widget's loading mask shows. For tests and demos,
 `@xh/hoist-chat-kit/blueprint/demo` holds `FakeBlueprintDataProvider`, which gives repeatable rows
 from the catalog alone, and `exampleBlueprintOf()`, which builds a blueprint around one widget. The
 main entry point leaves them out, so an app does not ship them.

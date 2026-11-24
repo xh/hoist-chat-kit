@@ -22,7 +22,8 @@ import type {Blueprint} from './Blueprint';
 import type {
     BlueprintDataProvider,
     BlueprintDataRequest,
-    BlueprintDataUpdate
+    BlueprintDataUpdate,
+    BlueprintLoadOptions
 } from './BlueprintDataProvider';
 import {BlueprintModel} from './BlueprintModel';
 import {BlueprintWidgetModel} from './BlueprintWidgetModel';
@@ -47,7 +48,7 @@ describe('BlueprintModel', () => {
             isOpen: boolean;
         }[] = [];
         loadAsync = vi.fn(async () => ({rows: []}));
-        loadAggregatesAsync = vi.fn(async (req: BlueprintDataRequest) => ({
+        loadAggregatesAsync = vi.fn(async (req: BlueprintDataRequest, ...rest: unknown[]) => ({
             aggregates: req.groupBy.map(set => ({dims: {}, values: {var95: set.length}}))
         }));
 
@@ -800,6 +801,40 @@ describe('BlueprintModel', () => {
             expect(provider.loadAsync).toHaveBeenCalledOnce();
         });
 
+        it('aborts a load in flight when a parameter changes or the blueprint closes, and shows its progress', async () => {
+            const calls: {opts: BlueprintLoadOptions; resolve: (r: object) => void}[] = [],
+                provider = {
+                    loadAsync: vi.fn(
+                        (req, loadSpec, opts: BlueprintLoadOptions) =>
+                            new Promise<any>(resolve => calls.push({opts, resolve}))
+                    )
+                },
+                model = await opened(p1(), provider),
+                source = model.getSource('positions'),
+                [first] = calls;
+
+            first.opts.onProgress({fraction: 0.4, message: 'Reading positions'});
+            expect(source.progress).toEqual({fraction: 0.4, message: 'Reading positions'});
+
+            model.setVariable('asOf', '2026-07-01');
+            expect(first.opts.signal.aborted).toBe(true);
+            expect(source.progress).toBeNull();
+            // A late report from the run it aborted changes nothing.
+            first.opts.onProgress({fraction: 0.9});
+            expect(source.progress).toBeNull();
+
+            const second = calls[1];
+            second.opts.onProgress({fraction: 0.5});
+            second.resolve({rows: [{id: 'a', sector: 'Energy', symbol: 'XOM', mktVal: 1}]});
+            await vi.waitFor(() => expect(source.hasLoaded).toBe(true));
+            expect(source.progress).toBeNull();
+            expect(second.opts.signal.aborted).toBe(false);
+
+            model.setVariable('asOf', '2026-07-02');
+            model.destroy();
+            expect(calls[2].opts.signal.aborted).toBe(true);
+        });
+
         it('subscribes again when a parameter changes, and ends the old subscription', async () => {
             const provider = new RecordingProvider(),
                 model = await opened(p1(), provider),
@@ -1095,6 +1130,18 @@ describe('BlueprintModel', () => {
             expect(views[0].result.rows[0].children[0].var95).toBe(24);
             expect(provider.subs).toHaveLength(1);
             expect(provider.loadAggregatesAsync).not.toHaveBeenCalled();
+        });
+
+        it('aborts a fetch of sets in flight when the source loads again', async () => {
+            const provider = new RecordingProvider(),
+                {model} = await openWithViews(provider, [['sector']]);
+            view(model, ['sector', 'symbol']);
+            await vi.waitFor(() => expect(provider.loadAggregatesAsync).toHaveBeenCalledTimes(1));
+            const {signal} = provider.loadAggregatesAsync.mock.calls[0][2] as BlueprintLoadOptions;
+            expect(signal.aborted).toBe(false);
+
+            model.setVariable('asOf', '2026-07-01');
+            expect(signal.aborted).toBe(true);
         });
 
         it('fetches only the sets it lacks, keeping its subscription', async () => {

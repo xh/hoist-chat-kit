@@ -40,7 +40,8 @@ import type {
     BlueprintArtifactProvider,
     BlueprintDataProvider,
     BlueprintDataRequest,
-    BlueprintDataUpdate
+    BlueprintDataUpdate,
+    BlueprintLoadProgress
 } from './BlueprintDataProvider';
 import type {BlueprintRegistry, WidgetDemand} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
@@ -111,6 +112,9 @@ export class BlueprintSource extends HoistBase {
 
     @observableRef accessor lastError: unknown = null;
 
+    /** The latest progress its provider reported for the load in flight, or null. */
+    @observableRef accessor progress: BlueprintLoadProgress = null;
+
     /** The Views of the source's widgets, each with the fields its widget shows. */
     @observableRef private accessor views: {view: View; fields: () => string[]}[] = [];
 
@@ -120,6 +124,7 @@ export class BlueprintSource extends HoistBase {
     private readonly context: BlueprintSourceContext;
     private readonly initialDecl: SourceDecl;
     private unsubscribe: () => void = null;
+    private runController: AbortController = null;
     private loadCount = 0;
     private loadedRequest: BlueprintDataRequest = null;
     private loadedSets: string[][] = [];
@@ -577,8 +582,11 @@ export class BlueprintSource extends HoistBase {
                 if (isCurrent()) this.applyUpdateAsync(u);
             });
         } else {
+            this.runController = new AbortController();
+            const onProgress = (p: BlueprintLoadProgress) =>
+                isCurrent() && this.isLoading && runInAction(() => (this.progress = p ?? null));
             dataProvider
-                .loadAsync(req, loadSpec)
+                .loadAsync(req, loadSpec, {signal: this.runController.signal, onProgress})
                 .then(
                     ({rows, aggregates}) =>
                         isCurrent() && this.applyUpdateAsync({replace: rows, aggregates})
@@ -605,8 +613,11 @@ export class BlueprintSource extends HoistBase {
         this.pendingSets = [...this.pendingSets, ...missing];
         const settle = () =>
             (this.pendingSets = this.pendingSets.filter(it => !missing.includes(it)));
+        this.runController ??= new AbortController();
         dataProvider
-            .loadAggregatesAsync({...req, groupBy: missing})
+            .loadAggregatesAsync({...req, groupBy: missing}, undefined, {
+                signal: this.runController.signal
+            })
             .then(({aggregates}) => {
                 settle();
                 if (!isCurrent()) return;
@@ -627,9 +638,13 @@ export class BlueprintSource extends HoistBase {
             });
     }
 
+    @action
     private stop() {
         this.unsubscribe?.();
         this.unsubscribe = null;
+        this.runController?.abort();
+        this.runController = null;
+        this.progress = null;
     }
 
     private async applyUpdateAsync({
@@ -660,6 +675,7 @@ export class BlueprintSource extends HoistBase {
                 runInAction(() => {
                     this.isLoading = false;
                     this.hasLoaded = true;
+                    this.progress = null;
                 });
                 // A snapshot replaces every supplied value, but carries only the sets subscribed
                 // with, so fetch any others again, unless a fetch for them is still on its way.
@@ -711,6 +727,7 @@ export class BlueprintSource extends HoistBase {
     @action
     private fail(e: unknown) {
         this.isLoading = false;
+        this.progress = null;
         this.lastError = e;
         this.logError(`Source '${this.name}' failed to load`, e);
     }

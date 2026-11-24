@@ -8,9 +8,10 @@ import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
 import {compareStructural, computed} from '@xh/hoist/mobx';
 import type React from 'react';
 import type {ReactNode} from 'react';
-import {uniq} from 'lodash';
+import {clamp, isFinite, uniq} from 'lodash';
 import {
     type BlueprintDesignModel,
+    type BlueprintLoadProgress,
     type BlueprintSelection,
     type BlueprintWidgetModel,
     isIncomplete,
@@ -353,7 +354,12 @@ function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode
                       inPlay.length ? `No rows for ${listOf(inPlay)}.` : 'No rows to show.'
                   )
                 : body,
-            mask({key: 'mask', isDisplayed: source.isLoading, spinner: true})
+            mask({
+                key: 'mask',
+                isDisplayed: source.isLoading,
+                spinner: true,
+                message: progressText(source.progress)
+            })
         ]
     });
 }
@@ -450,3 +456,11 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
 
 // The height of a dashboard row, so a panel in a reply is as tall as its default size there.
 const ANSWER_ROW_HEIGHT = 50;
+
+// A provider's report of a load in flight, such as "Reading trades · 40%".
+function progressText(progress: BlueprintLoadProgress): string {
+    if (!progress) return null;
+    const {fraction, message} = progress,
+        pct = isFinite(fraction) ? `${Math.round(clamp(fraction, 0, 1) * 100)}%` : null;
+    return [message, pct].filter(Boolean).join(' · ') || null;
+}

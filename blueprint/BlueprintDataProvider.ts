@@ -45,6 +45,23 @@ export interface BlueprintDataResult {
 }
 
 /**
+ * What a source passes with a load, for a provider that can use it. A provider that ignores both
+ * still works: the source drops the result of a run it no longer wants.
+ */
+export interface BlueprintLoadOptions {
+    /** Aborts once the source no longer wants the run, as when a bound parameter changes. */
+    signal?: AbortSignal;
+    /** Report how far the run has got. The source shows the latest report while it runs. */
+    onProgress?: (progress: BlueprintLoadProgress) => void;
+}
+
+/** How far a load has got: a fraction done from 0 to 1, a message for the user, or both. */
+export interface BlueprintLoadProgress {
+    fraction?: number;
+    message?: string;
+}
+
+/**
  * The rows of the artifacts a chat answer reads, such as the results of the Architect's queries.
  * The chat that holds the answer supplies it.
  */
@@ -63,7 +80,11 @@ export interface BlueprintArtifactProvider {
  */
 export interface BlueprintDataProvider {
     /** Load leaf rows for a request. Used when the provider cannot `subscribe`. */
-    loadAsync(req: BlueprintDataRequest, loadSpec?: LoadSpec): Promise<BlueprintDataResult>;
+    loadAsync(
+        req: BlueprintDataRequest,
+        loadSpec?: LoadSpec,
+        opts?: BlueprintLoadOptions
+    ): Promise<BlueprintDataResult>;
 
     /**
      * Stream a request's rows. The first update is `{replace: rows}`, the whole snapshot, and
@@ -81,6 +102,7 @@ export interface BlueprintDataProvider {
      */
     loadAggregatesAsync?(
         req: BlueprintDataRequest,
-        loadSpec?: LoadSpec
+        loadSpec?: LoadSpec,
+        opts?: BlueprintLoadOptions
     ): Promise<{aggregates: SuppliedAggregate[]}>;
 }

@@ -458,6 +458,7 @@ describe('show_ui with answer blueprints', () => {
             await vi.waitFor(() =>
                 expect(provider.loadAsync).toHaveBeenCalledWith(
                     expect.objectContaining({dataset: 'positions', fields: ['mktVal']}),
+                    undefined,
                     undefined
                 )
             );
