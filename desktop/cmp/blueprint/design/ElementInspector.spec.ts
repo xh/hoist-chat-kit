@@ -372,6 +372,21 @@ describe('ElementInspector', () => {
         expect(used).not.toContain(added.field);
     });
 
+    it('starts a new list item with its required text empty, and numbers at their default', () => {
+        const {inspector} = open('p2-linked-dashboard.json', 'posGrid');
+        expect(
+            inspector.newValue({
+                type: 'object',
+                required: ['symbol', 'weight', 'name'],
+                properties: {
+                    symbol: {type: 'string'},
+                    weight: {type: 'number'},
+                    name: {type: 'string', examples: ['Apple']}
+                }
+            })
+        ).toEqual({symbol: '', weight: 0, name: ''});
+    });
+
     it('is read-only outside design mode', () => {
         const {model, inspector} = open();
         expect(inspector.readOnly).toBe(false);

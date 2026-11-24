@@ -563,7 +563,8 @@ function editorFor(
             return (node.multiline ? textArea : textInput)({
                 ...binding,
                 inputRef: named(node.label),
-                placeholder,
+                // Empty text names what it is for, as a new list item's does.
+                placeholder: placeholder ?? node.label,
                 disabled,
                 width: '100%'
             });

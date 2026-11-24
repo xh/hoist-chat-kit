@@ -28,8 +28,8 @@ export function starterConfig(
 
 /**
  * A value a part of a config can start with, such as a new item of a list, filled as
- * {@link starterConfig} fills a config. Its fields come from the source named, else the
- * blueprint's first dataset source, and are none of those named in `used`.
+ * {@link starterConfig} fills a config, but with its text empty. Its fields come from the source
+ * named, else the blueprint's first dataset source, and are none of those named in `used`.
  */
 export function starterValue(
     schema: PlainObject,
@@ -42,7 +42,8 @@ export function starterValue(
         field?: string;
     }
 ): unknown {
-    return fill(schema ?? {}, '', fillContext(ctx));
+    // A new item's text starts empty, for the user to write: a label as text would read as theirs.
+    return fill(schema ?? {}, '', {...fillContext(ctx), emptyText: true});
 }
 
 /** True if a field can fill an `x-field` role: a dimension, a measure (a number), or any. */
@@ -63,6 +64,7 @@ interface FillContext {
     // Numbers the texts of a list's items, so each item differs.
     suffix: string;
     field?: string;
+    emptyText?: boolean;
 }
 
 function fillContext(ctx: {
@@ -146,6 +148,7 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
                 fill(schema.items ?? {}, key, {...ctx, suffix: ` ${i + 1}`})
             );
         case 'string':
+            if (ctx.emptyText) return '';
             return schema.examples?.[0] ?? startCase(key) + ctx.suffix;
         case 'number':
         case 'integer':
