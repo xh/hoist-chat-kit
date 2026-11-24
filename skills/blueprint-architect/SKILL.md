@@ -19,7 +19,7 @@ the kit's root. With the Hoist Docs MCP server, read a doc by its id, such as
 2. Read the app's `DataCatalog`: each dataset's params, `key` and fields, with their types, kinds,
    dimensions and guidance. Never guess a field name.
 3. Read the schema and guidance of each widget you use. Built-ins are in
-   `blueprint/impl/builtInWidgets.ts`, one `WidgetSpec` each. An app's are in its
+   `blueprint/builtInWidgets.ts`, one `WidgetSpec` each. An app's are in its
    `BlueprintRegistry` config, under dotted names such as `acme.ticker`.
 4. Read the Architect's rules in `blueprint/architect/architectPrompt.ts`: the `FORMAT`,
    `EDITING` and `ANSWERS` sections. They bind you as they bind the Architect, and stay the one

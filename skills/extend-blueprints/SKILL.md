@@ -57,7 +57,7 @@ Write its hand-written answer, run `pnpm selftest`, and run the scenario on both
 
 A built-in is not done until each of these is:
 
-- Registered: `BUILT_IN_WIDGETS` in `blueprint/impl/builtInWidgets.ts`, `BlueprintViewModel`'s
+- Registered: `BUILT_IN_WIDGETS` in `blueprint/builtInWidgets.ts`, `BlueprintViewModel`'s
   map, the package index, and the config type exported from `blueprint/index.ts`.
 - Listed: the "Built-in Widgets" table in `docs/blueprint-format.md`, and `WIDGETS` in
   `docs/planning/blueprints/tools/check-blueprints.py`.
