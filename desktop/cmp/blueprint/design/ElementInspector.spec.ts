@@ -1492,6 +1492,18 @@ describe('ElementInspector', () => {
         expect(design.selection).toEqual({kind: 'element', id: 'posGrid'});
     });
 
+    it("adds a canvas view's header inputs from its list's own Add row, which opens Add for that slot", () => {
+        const {design} = open();
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        fireEvent.click(
+            [...container.querySelectorAll('.xh-sortable-list__add button')].find(
+                it => it.textContent === 'Add an input…'
+            )
+        );
+        expect(design.addTarget).toMatchObject({slot: 'headerItems', of: 'posGrid'});
+    });
+
     it("folds a widget's canvas view settings into its Layout section, with a way to select the view", () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement);
@@ -1576,6 +1588,9 @@ describe('ElementInspector', () => {
                 );
         expect(bandsOf(container)).toContain('Children 2 children');
         expect(rows()).toEqual([a, b]);
+        expect(
+            container.querySelector('.xh-sortable-list__items + .xh-sortable-list__add').textContent
+        ).toBe('Add a widget…');
         const edits = model.history.length;
         await altDown(
             container

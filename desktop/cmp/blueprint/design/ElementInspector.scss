@@ -681,17 +681,6 @@ body {
     font-family: var(--xh-font-family-mono);
   }
 
-  // Children a layout places, listed in no order to change, so with no handle to pad them.
-  &__columns--fixed {
-    > div + div {
-      border-top: var(--xh-border-solid);
-    }
-
-    > div {
-      padding: 0 var(--xh-spacing-half);
-    }
-  }
-
   &__sort-chips {
     display: flex;
     flex: 1 1 auto;

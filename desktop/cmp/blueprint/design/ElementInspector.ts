@@ -7,6 +7,7 @@ import {Icon} from '@xh/hoist/icon';
 import {tooltip} from '@xh/hoist/kit/blueprint';
 import {action, bindable, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
+import classNames from 'classnames';
 import {castArray, isArray, isEqual, isNumber, isPlainObject, isString, without} from 'lodash';
 import {type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useMemo} from 'react';
 import {
@@ -975,55 +976,46 @@ function viewCards(impl: ElementInspectorModel) {
                     className: `${CLS}__label`,
                     children: `Header items · ${impl.headerItemIds.length ? countLabel(impl.headerItemIds.length, 'item') : 'none'}`
                 }),
-                impl.headerItemIds.length
-                    ? sortableList({
-                          key: 'items',
-                          className: `${CLS}__columns`,
-                          value: impl.headerItemIds.map(id => ({id})),
-                          getItemLabel: (it: {id: string}) => it.id,
-                          disabled: impl.readOnly,
-                          compact: true,
-                          onReorder: e =>
-                              refuse(
-                                  designModel,
-                                  designModel.reorder(e.item.id, e.toIndex - e.fromIndex).issues
-                              ),
-                          itemRenderer: ({id}: {id: string}) =>
-                              hbox({
-                                  className: `${CLS}__item-header ${CLS}__header-item`,
-                                  children: [
-                                      div({className: `${CLS}__header-item-id`, children: id}),
-                                      div({
-                                          className: `${CLS}__header-item-meta`,
-                                          children:
-                                              registry.widgets[blueprint.elements[id]?.component]
-                                                  ?.label
-                                      }),
-                                      button({
-                                          icon: Icon.arrowRight(),
-                                          title: `Select ${id}`,
-                                          minimal: true,
-                                          onClick: () => designModel.select({kind: 'element', id})
-                                      }),
-                                      impl.readOnly
-                                          ? null
-                                          : removeItemButton(`Remove ${id}`, false, () =>
-                                                removeElementAsync(designModel, id)
-                                            )
-                                  ]
-                              })
-                      })
-                    : null,
-                impl.readOnly
-                    ? null
-                    : button({
-                          key: '_add',
-                          icon: Icon.add(),
-                          intent: 'primary',
-                          text: 'Add an input',
-                          minimal: true,
-                          onClick: () => impl.addHeaderItem()
-                      })
+                sortableList({
+                    key: 'items',
+                    className: `${CLS}__columns`,
+                    variant: 'divided',
+                    addRenderer: impl.readOnly
+                        ? null
+                        : addPanelRow('Add an input…', () => impl.addHeaderItem()),
+                    value: impl.headerItemIds.map(id => ({id})),
+                    getItemLabel: (it: {id: string}) => it.id,
+                    disabled: impl.readOnly,
+                    compact: true,
+                    onReorder: e =>
+                        refuse(
+                            designModel,
+                            designModel.reorder(e.item.id, e.toIndex - e.fromIndex).issues
+                        ),
+                    itemRenderer: ({id}: {id: string}) =>
+                        hbox({
+                            className: `${CLS}__item-header ${CLS}__header-item`,
+                            children: [
+                                div({className: `${CLS}__header-item-id`, children: id}),
+                                div({
+                                    className: `${CLS}__header-item-meta`,
+                                    children:
+                                        registry.widgets[blueprint.elements[id]?.component]?.label
+                                }),
+                                button({
+                                    icon: Icon.arrowRight(),
+                                    title: `Select ${id}`,
+                                    minimal: true,
+                                    onClick: () => designModel.select({kind: 'element', id})
+                                }),
+                                impl.readOnly
+                                    ? null
+                                    : removeItemButton(`Remove ${id}`, false, () =>
+                                          removeElementAsync(designModel, id)
+                                      )
+                            ]
+                        })
+                })
             ]
         }),
         sectionCard({
@@ -1193,6 +1185,19 @@ function setsEditor(impl: ElementInspectorModel) {
 
 // A container's children: each by its glyph, id and kind, selected on a click, reordered by drag
 // or Alt+arrows where the list sets their order, and removed, with a way to add one at the end.
+// A list's Add row that opens the Add panel, which adds the widget chosen there.
+function addPanelRow(text: string, open: () => void) {
+    return ({disabled}: {disabled: boolean}) =>
+        button({
+            icon: Icon.add(),
+            intent: 'primary',
+            text,
+            minimal: true,
+            disabled,
+            onClick: open
+        });
+}
+
 function childrenCard(impl: ElementInspectorModel) {
     const {designModel, childIds, readOnly: disabled} = impl,
         {registry, blueprint} = designModel.blueprintModel,
@@ -1232,35 +1237,24 @@ function childrenCard(impl: ElementInspectorModel) {
         collapsed: impl.isToggled('children'),
         onToggle: () => impl.toggleSection('children'),
         children: [
-            childIds.length
-                ? impl.ordersChildren
-                    ? sortableList({
-                          key: 'list',
-                          className: `${CLS}__columns`,
-                          value: childIds.map(id => ({id})),
-                          itemKey: 'id',
-                          getItemLabel: (it: {id: string}) => it.id,
-                          disabled,
-                          compact: true,
-                          onReorder: e => impl.moveChild(e.item.id, e.fromIndex, e.toIndex),
-                          itemRenderer: (it: {id: string}) => row(it.id)
-                      })
-                    : div({
-                          key: 'list',
-                          className: `${CLS}__columns ${CLS}__columns--fixed`,
-                          children: childIds.map(id => div({key: id, children: row(id)}))
-                      })
-                : null,
-            disabled
-                ? null
-                : button({
-                      key: '_add',
-                      icon: Icon.add(),
-                      intent: 'primary',
-                      text: 'Add a widget…',
-                      minimal: true,
-                      onClick: () => impl.addChild()
-                  })
+            sortableList({
+                key: 'list',
+                className: classNames(
+                    `${CLS}__columns`,
+                    !impl.ordersChildren && `${CLS}__columns--fixed`
+                ),
+                value: childIds.map(id => ({id})),
+                itemKey: 'id',
+                getItemLabel: (it: {id: string}) => it.id,
+                disabled,
+                compact: true,
+                variant: 'divided',
+                // Children a layout places have no order to change, so no handle.
+                ...(impl.ordersChildren ? {} : {handle: 'custom' as const}),
+                onReorder: e => impl.moveChild(e.item.id, e.fromIndex, e.toIndex),
+                itemRenderer: (it: {id: string}) => row(it.id),
+                addRenderer: disabled ? null : addPanelRow('Add a widget…', () => impl.addChild())
+            })
         ]
     });
 }
