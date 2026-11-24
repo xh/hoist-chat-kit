@@ -384,8 +384,8 @@ pressed in a widget's own grid, button or input stays with that control. An empt
 offers to add a widget: give `blueprintView` an `onAddWidget(place)` to open the host's palette
 there, and an `onAskArchitect()` for the empty dashboard's second button. Set the design model's
 `onRequestAdd` to open that palette from the `/` key; the palette then focuses its search. Give
-`blueprintMap` an `onOpenElement(id)` to show an element on the dashboard from a double-click. `wiringFor(blueprint,
-selection)` lists what a selection reads and sets, and what reads and sets it.
+`blueprintMap` an `onOpenElement(id)` to show an element on the dashboard from a double-click.
+`wiringFor(blueprint, selection)` lists what a selection reads and sets, and what reads and sets it.
 
 ### Picture widgets and blueprints
 
