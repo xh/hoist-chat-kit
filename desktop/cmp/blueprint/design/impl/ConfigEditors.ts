@@ -1607,7 +1607,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
             {entries, rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
             namedRef = useNamedInputs(),
             fieldsOf = entries.map(it => it.field),
-            addOptions = impl.addFieldOptions(node.role, fieldsOf),
+            addOptions = impl.addFieldOptions(scope, node.role, fieldsOf),
             addField = useCallback((field: string) => ops.current.add(field), [ops]),
             addPlaceholder =
                 node.role === 'measure'
