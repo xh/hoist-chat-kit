@@ -433,6 +433,8 @@ body {
         position: absolute;
         top: 0;
         left: calc(100% + var(--xh-spacing-half));
+        justify-content: flex-end;
+        width: 52px;
       }
     }
 
