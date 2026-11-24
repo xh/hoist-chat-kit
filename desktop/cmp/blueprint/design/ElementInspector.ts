@@ -561,10 +561,20 @@ function groupOf(node: EditorNode): SettingGroup {
 // A dashboard cell's place as the mockup names it: a column and a row counted from 1, a width in
 // columns and a height in rows.
 const DASHBOARD_PLACES: Record<string, Partial<EditorNode>> = {
-    x: {label: 'Column', description: 'The column the view starts in, from 1.', min: 1} as any,
-    y: {label: 'Row', description: 'The row the view starts in, from 1.', min: 1} as any,
-    w: {label: 'Width', description: 'How many of the 12 columns the view spans.'},
-    h: {label: 'Height', description: 'How many rows the view spans.'}
+    x: {
+        label: 'Column',
+        description: 'The column the view starts in, from 1.',
+        min: 1,
+        required: false
+    } as any,
+    y: {
+        label: 'Row',
+        description: 'The row the view starts in, from 1.',
+        min: 1,
+        required: false
+    } as any,
+    w: {label: 'Width', description: 'How many of the 12 columns the view spans.', required: false},
+    h: {label: 'Height', description: 'How many rows the view spans.', required: false}
 };
 
 // A number moved by an offset, as a placement shows or stores it. Anything else as it is.
@@ -1019,6 +1029,11 @@ function viewCards(impl: ElementInspectorModel) {
                     key: 'row',
                     className: `${CLS}__placement-row`,
                     children: placementRows(impl, it => it.kind === 'number')
+                }),
+                div({
+                    key: 'hint',
+                    className: `${CLS}__hint`,
+                    children: 'Drag the view on the canvas to move it; its edges resize it.'
                 })
             ]
         }),

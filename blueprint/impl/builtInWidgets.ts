@@ -782,7 +782,18 @@ const CUBE_GRID_SCHEMA = {
                     {id: 'styles', label: 'Conditional styles'},
                     {id: 'chooser', label: 'Chooser and export', collapsed: true}
                 ],
-                'x-common': ['headerName', 'format', 'width', 'hidden'],
+                // In the order its page leads each section with them, as the mockup has it.
+                'x-common': [
+                    'headerName',
+                    'headerTooltip',
+                    'headerAlign',
+                    'format',
+                    'width',
+                    'minWidth',
+                    'maxWidth',
+                    'pinned',
+                    'hidden'
+                ],
                 'x-summary': ['format', 'pinned', 'width'],
                 properties: {
                     styles: {...CELL_STYLE_RULES, 'x-group': 'styles'},
@@ -805,6 +816,7 @@ const CUBE_GRID_SCHEMA = {
                     },
                     headerAlign: {
                         'x-group': 'header',
+                        title: 'Align',
                         enum: ['left', 'center', 'right'],
                         description: 'How the header aligns. Default as its cells.'
                     },
@@ -1105,7 +1117,7 @@ const CHART_SCHEMA = {
             type: 'string',
             maxLength: 100,
             'x-binding': true,
-            'x-unset': "The field's label, for one y",
+            'x-unset': "The series' label",
             description: "Title of the y-axis. Default the y field's label, if there is one y."
         },
         x: {
@@ -1146,7 +1158,7 @@ const CHART_SCHEMA = {
             type: 'string',
             maxLength: 100,
             'x-binding': true,
-            'x-unset': "The field's label, for one y2",
+            'x-unset': "The series' label",
             description: "Title of the second axis. Default the y2 field's label, if there is one."
         },
         groupBy: {
@@ -1891,6 +1903,7 @@ const dashboard: WidgetSpec = {
                     type: 'string',
                     maxLength: 60,
                     'x-template': 'variables',
+                    'x-unset': "The widget's title",
                     description: "The cell header's title, in place of the widget's own."
                 },
                 hideHeader: {

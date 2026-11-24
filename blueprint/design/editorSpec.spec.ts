@@ -20,7 +20,17 @@ describe('toEditorSpec', () => {
             'styles',
             'chooser'
         ]);
-        expect(columnState.settingsIn.common).toEqual(['headerName', 'format', 'width', 'hidden']);
+        expect(columnState.settingsIn.common).toEqual([
+            'headerName',
+            'headerTooltip',
+            'headerAlign',
+            'format',
+            'width',
+            'minWidth',
+            'maxWidth',
+            'pinned',
+            'hidden'
+        ]);
         expect(columnState.settingsIn.summary).toEqual(['format', 'pinned', 'width']);
     });
 

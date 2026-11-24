@@ -1343,6 +1343,17 @@ describe('ElementInspector', () => {
         expect(drawerInput('width').placeholder).toBe('Auto');
         // Its page reads like the mockup: Header first, its common setting leading.
         expect(firstSection()).toEqual(['headerName', 'headerTooltip', 'headerAlign']);
+        // Size and position reads Width, Min, Max, Pinned, Visible, as the mockup has it.
+        const size = [
+            ...[
+                ...container.querySelectorAll(
+                    '.xh-blueprint-element-inspector__page .xh-blueprint-element-inspector__card'
+                )
+            ]
+                .find(it => it.textContent.startsWith('Size and position'))
+                .querySelectorAll('[data-config-key]')
+        ].map(it => it.getAttribute('data-config-key'));
+        expect(size).toEqual(['width', 'minWidth', 'maxWidth', 'pinned', 'hidden']);
 
         const before = model.history.length;
         inspector.commitItemSetting('columns', 'mktVal', 'headerName', 'MV');
