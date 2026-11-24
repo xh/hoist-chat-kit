@@ -61,13 +61,13 @@
 
   &__crumb-icon {
     width: 12px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__crumb-kind {
     font-family: var(--xh-font-family);
     font-size: 10.5px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__crumb-sep {
@@ -75,7 +75,7 @@
     flex: none;
     padding: 0 3px;
     font-size: 13px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
 
     // A chevron after a container opens a menu of its children.
     &--menu {
@@ -186,7 +186,7 @@
       font-family: var(--xh-font-family-mono);
       font-size: 11px;
       padding: 0 var(--xh-spacing-half);
-      color: var(--xh-text-color-muted);
+      color: var(--xh-blueprint-inspector-muted);
     }
   }
 
@@ -206,7 +206,7 @@
 
   &__summary-counts {
     font-size: 12px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__body {
@@ -245,5 +245,5 @@
 .xh-blueprint-menu-shortcut {
   margin-left: var(--xh-spacing-double);
   font-size: 11px;
-  color: var(--xh-text-color-muted);
+  color: var(--xh-blueprint-inspector-muted);
 }

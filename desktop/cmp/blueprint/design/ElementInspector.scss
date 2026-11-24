@@ -50,7 +50,7 @@ body {
 
   &__widget {
     font-weight: normal;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   // The element's ID, an identifier, as the app shell shows identifiers.
@@ -64,7 +64,7 @@ body {
     font-size: var(--xh-font-size-small);
     font-weight: 600;
     letter-spacing: 0.04em;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     text-transform: uppercase;
 
     &:first-child {
@@ -203,7 +203,7 @@ body {
 
   &__card-chevron {
     display: inline-flex;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__editing {
@@ -225,7 +225,7 @@ body {
   &__hint {
     margin-top: calc(var(--xh-spacing-half) * -1);
     font-size: var(--xh-font-size-small);
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__row {
@@ -473,7 +473,7 @@ body {
     opacity: 0;
 
     svg {
-      color: var(--xh-text-color-muted);
+      color: var(--xh-blueprint-inspector-muted);
     }
 
     &:hover svg {
@@ -483,7 +483,7 @@ body {
 
   &__bound-note {
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__row:hover &__bind-button,
@@ -636,7 +636,7 @@ body {
   &__child-icon {
     flex: none;
     width: 12px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__child-id {
@@ -664,7 +664,7 @@ body {
 
   &__sort-none {
     font-size: 11.5px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   // The drawer spans the row under it, on the Inspector's ground.
@@ -689,7 +689,7 @@ body {
     padding: 0 4px;
     font-family: var(--xh-font-family-mono);
     font-size: 10.5px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     background-color: var(--xh-bg-alt);
     border-radius: 3px;
   }
@@ -728,7 +728,7 @@ body {
   // A hidden column, struck through, so the list previews the column chooser.
   &__column--hidden &__column-label {
     text-decoration: line-through;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__page-link.xh-button {
@@ -778,7 +778,7 @@ body {
   &__find-where,
   &__find-none {
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__find-none {
@@ -870,7 +870,7 @@ body {
   &__key {
     margin-left: var(--xh-spacing-half);
     font-weight: normal;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   // Blueprint's numeric input keeps its inner group at a fixed width, so it ignores ours.
@@ -889,7 +889,7 @@ body {
     margin-left: 6px;
     font-family: var(--xh-font-family-mono);
     font-size: 10.5px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__renderer,
@@ -902,7 +902,7 @@ body {
   &__description {
     font-size: var(--xh-font-size-small);
     font-style: italic;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__tab {
