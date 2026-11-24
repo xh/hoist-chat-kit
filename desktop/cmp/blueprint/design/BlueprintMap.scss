@@ -67,7 +67,7 @@
     transition: opacity 0.15s;
 
     &--source .xh-blueprint-map__node-id {
-      color: var(--xh-intent-success-text-color, var(--xh-intent-success));
+      color: color-mix(in oklab, var(--xh-intent-success-text-color) 60%, var(--xh-text-color));
     }
 
     &--preset .xh-blueprint-map__node-id {
@@ -96,10 +96,16 @@
       border-style: solid;
       border-color: var(--xh-blueprint-map-up);
       box-shadow: inset 0 0 0 1px var(--xh-blueprint-map-up);
+
+      // On the highlight, the detail reads in the text color.
+      .xh-blueprint-map__node-detail {
+        color: var(--xh-text-color);
+      }
     }
 
+    // Set back but still readable, so the context stays legible.
     &--dim {
-      opacity: 0.4;
+      opacity: 0.65;
     }
   }
 

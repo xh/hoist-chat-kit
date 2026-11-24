@@ -4,11 +4,16 @@ body {
   --xh-blueprint-inspector-muted: color-mix(in srgb, var(--xh-text-color) 72%, var(--xh-bg));
 }
 
-// The design panes' chips, placeholders and selected segments, at 4.5:1 or better in both themes.
+// The design panes' chips and placeholders, at 4.5:1 or better in both themes.
 .xh-blueprint-inspector,
 .xh-blueprint-element-inspector,
 .xh-blueprint-structure,
-.xh-blueprint-map {
+.xh-blueprint-map,
+.xh-blueprint-widget-palette {
+  // A placeholder that says what happens is content: inputs, selects and pickers read it from
+  // Hoist's own variable.
+  --xh-input-placeholder-text-color: var(--xh-blueprint-inspector-muted);
+
   // An intent chip's text mixed toward the text color, as Hoist mixes a chip of its own color.
   @each $intent in (primary, success, warning, danger) {
     .xh-chip--intent-#{$intent} {
@@ -18,14 +23,6 @@ body {
         var(--xh-text-color)
       );
     }
-  }
-
-  // A placeholder that says what happens is content, so it reads as muted text, not a hint.
-  input::placeholder,
-  textarea::placeholder,
-  .xh-select__placeholder {
-    color: var(--xh-blueprint-inspector-muted);
-    opacity: 1;
   }
 }
 
