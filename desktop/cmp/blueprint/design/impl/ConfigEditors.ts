@@ -447,33 +447,25 @@ function defaultText(node: EditorNode): string {
 }
 
 /**
- * A section's "N more" line, naming the settings it folds, or "Fewer" to fold them again: quiet
- * text, its count in the intent, that a click, Enter or Space toggles.
+ * A section's "N more" line, naming the settings it folds, or "Fewer" to fold them again: a
+ * minimal button read as quiet text, its count in the intent.
  */
 export function moreLine(open: boolean, count: number, names: string[], toggle: () => void) {
-    return div({
+    return button({
         key: '_more',
         className: `${CLS}__more`,
-        role: 'button',
-        tabIndex: 0,
-        'aria-expanded': open,
-        onClick: toggle,
-        onKeyDown: (e: React.KeyboardEvent) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
-            e.preventDefault();
-            toggle();
-        },
-        children: open
-            ? [
-                  Icon.chevronDown({key: 'i', className: `${CLS}__more-icon`}),
-                  span({key: 'n', className: `${CLS}__more-n`, children: 'Fewer'})
-              ]
+        minimal: true,
+        small: true,
+        icon: (open ? Icon.chevronDown : Icon.chevronRight)({className: `${CLS}__more-icon`}),
+        text: open
+            ? span({className: `${CLS}__more-n`, children: 'Fewer'})
             : [
-                  Icon.chevronRight({key: 'i', className: `${CLS}__more-icon`}),
                   span({key: 'n', className: `${CLS}__more-n`, children: `${count} more`}),
                   span({key: 'names', className: `${CLS}__more-names`, children: names.join(', ')})
-              ]
-    } as object);
+              ],
+        domAttrs: {'aria-expanded': open},
+        onClick: toggle
+    });
 }
 
 /** The first sentence of a description, for a line of help. */

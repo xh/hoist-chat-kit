@@ -16,7 +16,7 @@ import {useHotkeys} from '@xh/hoist/desktop/hooks';
 import {useOnResize} from '@xh/hoist/utils/react';
 import {isString, sum} from 'lodash';
 import type React from 'react';
-import {useEffect, useRef, useState} from 'react';
+import {type ReactElement, type ReactNode, useEffect, useRef, useState} from 'react';
 import {
     type BlueprintDesignModel,
     type BlueprintDocumentModel,
@@ -463,30 +463,22 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                           : null
                                   ]
                               })
-                            : span({
+                            : crumbLink({
                                   key: keyOf(step),
-                                  className: `${CLS}__crumb ${CLS}__crumb--link`,
-                                  role: 'button',
-                                  tabIndex: 0,
                                   title: `Select ${step.id}${step.kind === 'view' ? ' view' : ''}`,
+                                  icon: icon(step),
                                   onClick: () => select(step),
-                                  onKeyDown: (e: React.KeyboardEvent) => {
-                                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      select(step);
-                                  },
-                                  children: [
-                                      icon(step),
+                                  text: [
                                       step.id,
                                       step.kind === 'view'
                                           ? span({
+                                                key: 'kind',
                                                 className: `${CLS}__crumb-kind`,
                                                 children: 'view'
                                             })
                                           : null
                                   ]
-                              } as object),
+                              }),
                     // The steps folded away sit between the first and the rest, in a menu.
                     fold =
                         at === 1 && hidden.length
@@ -522,26 +514,20 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
         const pageSteps = page
             ? [
                   separator('_list-sep'),
-                  span({
+                  crumbLink({
                       key: '_list',
-                      className: `${CLS}__crumb ${CLS}__crumb--link`,
-                      role: 'button',
-                      tabIndex: 0,
                       title: `Back to ${page.list}`,
                       onClick: () => designModel.closeItemPage(),
-                      children: page.list
-                  } as object),
+                      text: page.list
+                  }),
                   separator('_item-sep'),
                   page.inner
-                      ? span({
+                      ? crumbLink({
                             key: '_item',
-                            className: `${CLS}__crumb ${CLS}__crumb--link`,
-                            role: 'button',
-                            tabIndex: 0,
                             title: `Back to ${page.item}`,
                             onClick: () => designModel.closeInnerPage(),
-                            children: page.item
-                        } as object)
+                            text: page.item
+                        })
                       : span({
                             key: '_item',
                             className: `${CLS}__crumb ${CLS}__crumb--current`,
@@ -891,3 +877,19 @@ const issueRow = hoistCmp.factory<
         });
     }
 });
+
+// A step of the path that goes to it, as a minimal Hoist button.
+function crumbLink(props: {
+    key: string;
+    title: string;
+    icon?: ReactElement;
+    text: ReactNode;
+    onClick: () => void;
+}) {
+    return button({
+        ...props,
+        className: `${CLS}__crumb ${CLS}__crumb--link`,
+        minimal: true,
+        small: true
+    });
+}

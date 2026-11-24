@@ -166,18 +166,24 @@ body {
     min-width: 0;
   }
 
-  &__more {
-    display: flex;
-    gap: 6px;
-    align-items: center;
+  // A minimal Hoist button, which handles keys and focus, read as a quiet line of text.
+  &__more.xh-button {
+    justify-content: flex-start;
     min-width: 0;
     min-height: 24px;
-    font-size: 11px;
-    color: var(--xh-blueprint-inspector-muted);
-    cursor: pointer;
+    padding: 0;
 
-    &:focus-visible {
-      outline: var(--xh-focus-outline);
+    .bp6-button-text {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+      font-size: 11px;
+      color: var(--xh-blueprint-inspector-muted);
+    }
+
+    &:hover {
+      background: none;
     }
   }
 

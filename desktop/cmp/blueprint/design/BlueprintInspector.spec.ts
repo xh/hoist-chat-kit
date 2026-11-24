@@ -233,11 +233,14 @@ describe('BlueprintInspector', () => {
         );
         // The editor's own header gives way to the frame's.
         expect(container.querySelector('.xh-blueprint-element-inspector__header')).toBeNull();
-        fireEvent.click(
-            [
-                ...container.querySelectorAll('.xh-blueprint-inspector__breadcrumb [role=button]')
-            ].find(it => it.textContent === 'positions')
-        );
+        const crumb = [
+            ...container.querySelectorAll<HTMLButtonElement>(
+                '.xh-blueprint-inspector__breadcrumb button'
+            )
+        ].find(it => it.textContent === 'positions');
+        // A step is a real button, which Tab reaches and Enter or Space presses.
+        expect(crumb.tagName).toBe('BUTTON');
+        fireEvent.click(crumb);
         expect(design.selectedElementId).toBe('positions');
         design.select({kind: 'variable', id: 'asOf'});
         await vi.waitFor(() =>

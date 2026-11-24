@@ -21,15 +21,24 @@
     color: var(--xh-text-color);
     border-radius: 4px;
 
-    &--link {
-      cursor: pointer;
+    // A minimal Hoist button, which handles keys and focus, in the crumb's own type and size.
+    &--link.xh-button {
+      gap: 6px;
+      min-width: 0;
+      min-height: 0;
+      padding: 3px 7px;
+
+      .bp6-button-text {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        font-family: var(--xh-font-family-mono);
+        font-size: 11px;
+        color: var(--xh-text-color);
+      }
 
       &:hover {
         background-color: var(--xh-bg-alt);
-      }
-
-      &:focus-visible {
-        outline: var(--xh-focus-outline);
       }
     }
 
