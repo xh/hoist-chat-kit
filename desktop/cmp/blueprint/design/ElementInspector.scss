@@ -23,7 +23,7 @@ body {
     font-size: 12px;
   }
 
-  .xh-segmented-control.bp6-segmented-control {
+  .xh-segmented-control .bp6-segmented-control {
     align-items: stretch;
     height: 26px;
   }
@@ -232,6 +232,11 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--xh-spacing-half);
+  }
+
+  // A section's or a page section's one list is named by its header alone.
+  &__card-body > &__row:only-child:has(> &__row-body > &__field-list) > &__label {
+    display: none;
   }
 
   // A dashboard cell's X, Y, W and H, or a box child's flex and size, side by side.
@@ -759,7 +764,7 @@ body {
     flex-direction: column;
     gap: 2px;
     padding: 0 var(--xh-spacing) var(--xh-spacing);
-    background-color: var(--xh-intent-primary-trans1);
+    background-color: color-mix(in srgb, var(--xh-intent-primary) 8%, var(--xh-bg));
     border-bottom: 2px solid var(--xh-intent-primary);
   }
 
@@ -768,11 +773,18 @@ body {
     align-items: center;
     height: 32px;
 
-    > .xh-button:first-child {
+    .xh-button.xh-blueprint-element-inspector__page-back {
+      min-height: 0;
+      padding: 2px 4px;
       font-family: var(--xh-font-family-mono);
       font-size: 11px;
       font-weight: 500;
-      color: var(--xh-intent-primary-text-color);
+
+      &,
+      .bp6-button-text,
+      svg {
+        color: var(--xh-intent-primary-text-color);
+      }
     }
   }
 

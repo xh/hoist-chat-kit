@@ -168,8 +168,6 @@ export interface RowProps {
     ctx: EditorContext;
     issues?: BlueprintIssue[];
     key?: string;
-    /** True to draw no label, where the row's section names it, as for a section's one list. */
-    bare?: boolean;
 }
 
 /**
@@ -177,7 +175,7 @@ export interface RowProps {
  * hover turns to ↺ to reset it, as Delete on a focused control does. The label's tooltip and the
  * focused row's help line come from its schema.
  */
-export function propertyRow({node, value, commit, ctx, issues = [], key, badge, bare}: RowProps) {
+export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
     const isSet = value !== undefined,
         canReset = isSet && !badge && !ctx.impl.readOnly && !ctx.locked,
         reset = () => commit(undefined);
@@ -205,7 +203,6 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge, 
         },
         children: [
             div({
-                omit: bare,
                 className: `${CLS}__label`,
                 children: [
                     isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
@@ -1684,6 +1681,7 @@ export function pageBar(opts: {
         className: `${CLS}__page-bar`,
         children: [
             button({
+                className: `${CLS}__page-back`,
                 icon: Icon.arrowLeft(),
                 text: listLabel,
                 minimal: true,
@@ -1761,7 +1759,8 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
                     fieldType: impl.fieldType(field)
                 },
                 itemKey: inner.key,
-                inner: true
+                inner: true,
+                of: entryLabel(impl, row.entry, mapped)
             });
         }
         return pageView({
@@ -1816,11 +1815,16 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
 
 /** A list item's page, as {@link pageView} draws it, such as a grid row action's. */
 export const listItemPage = hoistCmp.factory<
-    ListEditorProps<ListNode> & {itemKey: string; inner?: boolean}
+    ListEditorProps<ListNode> & {
+        itemKey: string;
+        inner?: boolean;
+        /** The item whose list holds this one, for a page within its page, such as a column's. */
+        of?: string;
+    }
 >({
     displayName: 'BlueprintListItemPage',
     model: false,
-    render({node, list: items, commit, ctx, itemKey, inner}) {
+    render({node, list: items, commit, ctx, itemKey, inner, of}) {
         const {impl} = ctx,
             scope = scopeOf(ctx),
             keys = impl.keysFor(scope, items),
@@ -1841,7 +1845,9 @@ export const listItemPage = hoistCmp.factory<
             ref,
             listLabel: node.label,
             title: itemLabel(value, index),
-            subtitle: singular(node.label),
+            subtitle: of
+                ? `${singular(node.label)} ${index + 1} of ${of}'s ${node.label.toLowerCase()}`
+                : singular(node.label),
             common: node.item.schema['x-common'],
             index,
             count: items.length,

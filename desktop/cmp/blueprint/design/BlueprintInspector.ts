@@ -133,8 +133,11 @@ export class BlueprintInspectorModel extends HoistModel {
     @computed
     /** True while a list item's page of the selected element shows in the body. */
     get onItemPage(): boolean {
-        const {itemPage, selection} = this.designModel;
-        return !!itemPage && selection?.kind === 'element' && itemPage.element === selection.id;
+        const {itemPage, sourcePage, selection} = this.designModel;
+        return (
+            (!!itemPage && selection?.kind === 'element' && itemPage.element === selection.id) ||
+            (!!sourcePage && selection?.kind === 'source' && sourcePage.source === selection.id)
+        );
     }
 
     get breadcrumb(): BlueprintSelection[] {

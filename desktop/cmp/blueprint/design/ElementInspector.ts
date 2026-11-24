@@ -751,9 +751,7 @@ function configCard(impl: ElementInspectorModel, section: InspectorSection): Rea
         children: [
             isValue ? setsEditor(impl) : null,
             // A section's one list, such as Columns, is named by the section's header alone.
-            ...section.nodes.map(node =>
-                configRow(impl, node, section.group === 'list' && section.nodes.length === 1)
-            ),
+            ...section.nodes.map(node => configRow(impl, node)),
             moreRow(impl, section)
         ]
     });
@@ -980,8 +978,8 @@ function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) =
 }
 
 // One config property's row, with its issues and preset badge.
-function configRow(impl: ElementInspectorModel, node: EditorNode, bare = false) {
-    return inspectorRow({impl, node, bare, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
+function configRow(impl: ElementInspectorModel, node: EditorNode) {
+    return inspectorRow({impl, node, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
 }
 
 /**
@@ -993,13 +991,11 @@ const inspectorRow = hoistCmp.factory<
         impl: ElementInspectorModel;
         node: EditorNode;
         placement?: boolean;
-        /** True for a row its section's header names, such as a section's one list. */
-        bare?: boolean;
     }
 >({
     displayName: 'ElementInspectorRow',
     model: false,
-    render({impl, node, placement, bare}) {
+    render({impl, node, placement}) {
         const key = placement ? placementKey(node.key) : node.key,
             state = useMemo(
                 () =>
@@ -1021,8 +1017,7 @@ const inspectorRow = hoistCmp.factory<
             commit: v => (placement ? impl.commitPlacement(node.key, v) : impl.commit(node.key, v)),
             ctx: {impl, key},
             issues: state.issues,
-            badge: state.badge,
-            bare
+            badge: state.badge
         });
     }
 });

@@ -5,10 +5,10 @@ import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {wait} from '@xh/hoist/promise';
 import {type KeyboardEvent, useEffect, useRef} from 'react';
-import {action, observableRef} from '@xh/hoist/mobx';
 import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
 import {
     type BlueprintDesignModel,
+    type SourcePage,
     FIELD_OVERRIDE_SCHEMA,
     type DatasetDef,
     type FieldInstance,
@@ -60,11 +60,12 @@ export const [SourcesEditor, sourcesEditor] = hoistCmp.withFactory<SourcesEditor
 /** @internal */
 export class SourceEditorModel extends ConfigEditorModel {
     /** The join or field instance whose page shows in place of the source's settings, or null. */
-    @observableRef accessor page: {source: string; list: 'joins' | 'instances'; key: string} = null;
+    get page(): SourcePage {
+        return this.designModel.sourcePage;
+    }
 
-    @action
     setPage(page: {list: 'joins' | 'instances'; key: string}) {
-        this.page = page ? {source: this.name, ...page} : null;
+        this.designModel.setSourcePage(page ? {source: this.name, ...page} : null);
     }
 
     /** The selected source's name, or null. */

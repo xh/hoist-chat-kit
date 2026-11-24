@@ -12,6 +12,7 @@ import type {
     BlueprintDesignModel,
     BlueprintEditResult,
     BlueprintIssue,
+    BlueprintRegistry,
     EditorNode
 } from '../../../../../blueprint';
 import {fieldHasRole, starterValue} from '../../../../../blueprint/design/starterConfig';
@@ -382,18 +383,16 @@ export abstract class ConfigEditorModel extends HoistModel {
         const {registry} = this.designModel.blueprintModel,
             want = bindingTypesOf(node.schema);
         // What the setting takes, in words: one of its choices, or a kind of value.
-        const takes = node.schema.enum
+        const phrase = (type: string) => typePhrase(registry, type),
+            takes = node.schema.enum
                 ? 'one of its choices'
-                : uniq((want ?? []).map(it => variableTypeLabel(registry, it).toLowerCase())).join(
-                      ' or '
-                  ),
-            label = (type: string) => variableTypeLabel(registry, type).toLowerCase();
+                : uniq((want ?? []).map(phrase)).join(' or ');
         return Object.entries(this.variables).map(([name, it]) => {
             if (!want) return {name, reason: 'This setting takes no variable.'};
             if (!want.some(type => variableTypeMatches(registry, it.type, type))) {
                 return {
                     name,
-                    reason: `It holds ${withArticle(label(it.type))}, but this takes ${node.schema.enum ? takes : withArticle(takes)}.`
+                    reason: `It holds ${phrase(it.type)}, but this takes ${takes}.`
                 };
             }
             const values = boundValues(it);
@@ -632,8 +631,28 @@ function walkStrings(value: unknown, fn: (s: string) => void) {
         Object.values(value).forEach(it => walkStrings(it, fn));
 }
 
-// A noun with its article, as "an int" or "a date".
-const withArticle = (noun: string) => `${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun}`;
+// A variable type as a reason names it: "text", "a date", "on or off", or an app type's label.
+function typePhrase(registry: Pick<BlueprintRegistry, 'variableTypes'>, type: string): string {
+    const builtIn = TYPE_PHRASES[type];
+    if (builtIn) return builtIn;
+    if (type?.endsWith('[]')) {
+        return `a list of ${typePhrase(registry, type.slice(0, -2)).replace(/^an? /, '')}`;
+    }
+    const label = variableTypeLabel(registry, type).toLowerCase();
+    return `${/^[aeiou]/.test(label) ? 'an' : 'a'} ${label}`;
+}
+
+const TYPE_PHRASES: Record<string, string> = {
+    string: 'text',
+    number: 'a number',
+    int: 'a whole number',
+    bool: 'on or off',
+    date: 'a date and time',
+    localDate: 'a date',
+    filter: 'a filter',
+    dateRange: 'a date range',
+    period: 'a period'
+};
 
 function visibleOptions(specs: Record<string, {name: string; reserved?: boolean}>): Option[] {
     return Object.values(specs)

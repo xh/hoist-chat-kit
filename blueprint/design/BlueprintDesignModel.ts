@@ -67,6 +67,14 @@ export interface ItemPage {
     inner?: {list: string; key: string; label?: string};
 }
 
+/** A source's join or field instance whose page the Inspector shows. */
+export interface SourcePage {
+    source: string;
+    list: 'joins' | 'instances';
+    /** The join's source, or the instance's name. */
+    key: string;
+}
+
 export interface AddPlace {
     parent: string;
     /** Default `children`. */
@@ -180,6 +188,7 @@ export class BlueprintDesignModel extends HoistModel {
         this.slotTarget = null;
         this.itemPage = null;
         this.openListItem = null;
+        this.sourcePage = null;
     }
 
     /**
@@ -214,6 +223,14 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** True while the Inspector's Find a setting is open. */
     @bindable accessor findOpen = false;
+
+    /** A source's join or field instance whose page the Inspector shows, or null. */
+    @observableRef accessor sourcePage: SourcePage = null;
+
+    @action
+    setSourcePage(page: SourcePage) {
+        this.sourcePage = page;
+    }
 
     /** The list item whose row is open in the Inspector, or null. */
     @observableRef accessor openListItem: ItemPage = null;

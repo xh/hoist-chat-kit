@@ -151,7 +151,7 @@ describe('ElementInspector', () => {
         expect(odd.reason).toMatch(/"nope"/);
         expect(
             inspector.bindChoices(node('stripeRows')).find(it => it.name === 'asOf').reason
-        ).toBe('It holds a local date, but this takes a yes or no.');
+        ).toBe('It holds a date, but this takes on or off.');
         // A setting no variable type fits offers none, rather than all.
         expect(inspector.variablesFor({...node('stripeRows'), schema: {type: 'object'}})).toEqual(
             []
@@ -1693,8 +1693,8 @@ describe('ElementInspector', () => {
         // Delete is in the header's ⋯, not at the end.
         expect(container.querySelector('.xh-blueprint-element-inspector__remove')).toBeNull();
         expect(row('Title').className).toContain('__row--inline');
-        // The Columns section's list is named by its header alone.
-        expect(row('Columns')).toBeUndefined();
+        // The Columns section's list stands alone in it, which hides its label for the header.
+        expect(row('Columns').parentElement.children).toHaveLength(1);
     });
 
     it('folds a section from anywhere on its band, by click, Enter or Space, and says if it is open', () => {
