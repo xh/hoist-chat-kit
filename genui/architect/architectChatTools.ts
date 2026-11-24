@@ -3,7 +3,8 @@ import {keepArtifactRows} from '../../impl/ArtifactRows';
 import {
     type ArchitectArtifact,
     type ArchitectTarget,
-    availableArchitectTools
+    availableArchitectTools,
+    normalizeToolInput
 } from '../../blueprint';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import {readAnswerTool} from './readAnswer';
@@ -42,10 +43,13 @@ export function architectChatTools(
                     : output;
             }
         }));
-    return [
-        ...tools,
+    const chatOnly = [
         ...(target.setMode ? [requestDesignModeTool(target as DesignModeTarget)] : []),
         ...(catalog ? [readAnswerTool(catalog, target)] : []),
         ...(featureRequests ? [requestFeatureTool(featureRequests)] : [])
-    ];
+    ].map(it => ({
+        ...it,
+        execute: (input, ctx) => it.execute(normalizeToolInput(it.parameters, input), ctx)
+    }));
+    return [...tools, ...chatOnly];
 }

@@ -221,6 +221,12 @@ cache point, so it costs a few tokens a step and keeps the cache.
 | `read_answer` | Reads an answer of the chat, to add it to the blueprint |
 | `request_feature` | Sends the app a request for a capability the registry lacks, once the user approves it |
 
+Each tool drops an optional property with no value, such as `fields: []`, before it reads its
+input. For a model that must send every property, as under OpenAI's strict mode, send
+`strictToolSchema(parameters)`. It closes every object, makes optional properties nullable, and
+takes open values, such as `params` or an op, as JSON text. Read that input back with
+`normalizeToolInput(parameters, input, {strict: true})`.
+
 `architectChatTools()` adds `read_answer` only with the chat's `catalog`, `request_design_mode`
 only for a target that can change its mode, `request_feature` only with a `featureRequests` sink,
 and `list_blueprints` only for a model that a `BlueprintDocumentModel` holds, whose repository it
