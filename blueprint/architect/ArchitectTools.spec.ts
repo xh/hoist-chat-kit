@@ -461,7 +461,8 @@ describe('Architect tools', () => {
         const model = open(),
             prompt = architectPrompt(model);
         expect(prompt).toMatch(/- positions \(Portfolio\): Positions\./);
-        expect(prompt).toMatch(/^Data:\n(- .*\n)*- cubeGrid \(Grid\): The grid/m);
+        expect(prompt).toMatch(/^Data:\n(- .*\n)*- cubeGrid \(Grid, fits content\): The grid/m);
+        expect(prompt).toMatch(/^- groupingChooser \(Grouping chooser, fits toolbar\): /m);
         expect(prompt).not.toMatch(/Keep the grid's default style unless the user asks/);
         expect(prompt).not.toMatch(/show_ui/);
         expect(prompt).toMatch(

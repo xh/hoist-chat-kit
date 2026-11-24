@@ -319,10 +319,10 @@ describe('BlueprintStructure', () => {
         structure.endDrag();
 
         structure.startDrag('priceChart');
-        expect(structure.dropVerdict('element:groupChooser', 0.1)).toEqual({where: 'before'});
-        structure.drop('element:groupChooser', 0.1);
+        expect(structure.dropVerdict('element:pnlButtons', 0.1)).toEqual({where: 'before'});
+        structure.drop('element:pnlButtons', 0.1);
         const ids = model.blueprint.elements.positions.children.map(it => it.id);
-        expect(ids.indexOf('priceChart')).toBe(ids.indexOf('groupChooser') - 1);
+        expect(ids.indexOf('priceChart')).toBe(ids.indexOf('pnlButtons') - 1);
         expect(structure.dropVerdict('section:source', 0.5)).toBeNull();
         structure.endDrag();
     });

@@ -42,7 +42,8 @@
             "id": "priceRangePicker",
             "element": {"component": "dateRangePicker", "config": {}},
             "parent": "positions",
-            "child": {"x": 8, "y": 10, "w": 4, "h": 1}
+            "slot": "headerItems",
+            "of": "priceChart"
         }
     ]
 }

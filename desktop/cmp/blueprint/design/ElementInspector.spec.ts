@@ -148,7 +148,7 @@ describe('ElementInspector', () => {
 
         inspector.moveToSlot('headerItems:priceChart');
         expect(cell('priceChart').headerItems).toEqual([{id: 'posViewsSelector'}]);
-        expect(cell('posGrid')).not.toHaveProperty('headerItems');
+        expect(cell('posGrid').headerItems).toEqual([{id: 'groupChooser'}]);
 
         inspector.moveToSlot('children');
         expect(inspector.slot).toBe('children');
@@ -204,7 +204,14 @@ describe('ElementInspector', () => {
         inspector.commitPlacement('w', 6);
         // A change of placement keeps the cell's header items.
         expect(model.blueprint.elements.positions.children.find(it => it.id === 'posGrid')).toEqual(
-            {id: 'posGrid', x: 0, y: 1, w: 6, h: 9, headerItems: [{id: 'posViewsSelector'}]}
+            {
+                id: 'posGrid',
+                x: 0,
+                y: 1,
+                w: 6,
+                h: 9,
+                headerItems: [{id: 'groupChooser'}, {id: 'posViewsSelector'}]
+            }
         );
         expect(model.history.at(-1).description).toBe('posGrid view: w');
 
@@ -1049,7 +1056,7 @@ describe('ElementInspector', () => {
             titles = bandsOf(container),
             cell = () =>
                 model.blueprint.elements.positions.children.find(it => it.id === 'posGrid') as any;
-        expect(titles).toEqual(['Header', 'Header items 1', 'Placement in positions']);
+        expect(titles).toEqual(['Header', 'Header items 2', 'Placement in positions']);
         expect(container.textContent).toContain('posViewsSelector');
         expect(
             container.querySelectorAll(
@@ -1066,7 +1073,7 @@ describe('ElementInspector', () => {
             )
         );
         expect(cell().hideHeader).toBe(true);
-        expect(cell().headerItems).toEqual([{id: 'posViewsSelector'}]);
+        expect(cell().headerItems).toEqual([{id: 'groupChooser'}, {id: 'posViewsSelector'}]);
         expect(model.history.length).toBe(before + 1);
         expect(model.history.at(-1).description).toBe('posGrid view: hide header');
         expect(container.querySelector('.xh-blueprint-element-inspector__remove').textContent).toBe(

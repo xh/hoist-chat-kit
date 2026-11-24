@@ -364,7 +364,7 @@ describe('BlueprintLink', () => {
 //------------------
 // Test data
 //------------------
-// Each shows in a variableInput, in a toolbar over the grid.
+// Each shows in a variableInput, in a toolbar over the grid, with the preset selector.
 const PROMPTED = [
     'asOf',
     'fund',
@@ -420,9 +420,12 @@ const BLUEPRINT: Blueprint = {
         page: {
             component: 'box',
             config: {direction: 'column'},
-            children: [{id: 'inputs'}, {id: 'views'}, {id: 'posGrid'}]
+            children: [{id: 'inputs'}, {id: 'posGrid'}]
         },
-        inputs: {component: 'toolbar', children: PROMPTED.map(it => ({id: `${it}Input`}))},
+        inputs: {
+            component: 'toolbar',
+            children: [...PROMPTED.map(it => ({id: `${it}Input`})), {id: 'views'}]
+        },
         ...Object.fromEntries(
             PROMPTED.map(it => [`${it}Input`, {component: 'variableInput', config: {variable: it}}])
         ),

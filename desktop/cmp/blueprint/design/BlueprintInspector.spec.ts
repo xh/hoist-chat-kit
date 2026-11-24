@@ -297,7 +297,9 @@ describe('BlueprintInspector', () => {
                 ).toContain('posGrid')
             );
             openMenu(chevrons(container).at(-1));
-            await vi.waitFor(() => expect(itemIds()).toEqual(['posGrid', 'posViewsSelector']));
+            await vi.waitFor(() =>
+                expect(itemIds()).toEqual(['posGrid', 'groupChooser', 'posViewsSelector'])
+            );
             const headings = [
                 ...document.querySelectorAll('.xh-blueprint-inspector__crumb-menu .bp6-menu-header')
             ].map(it => it.textContent);

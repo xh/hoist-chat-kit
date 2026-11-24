@@ -62,23 +62,27 @@ describe('BlueprintDesignModel', () => {
         expect(design.selectedViewId).toBe('posGrid');
         expect(design.selectedElementId).toBeNull();
 
-        // Removing the element takes its cell, so the selection goes.
-        design.removeElement('posGrid');
+        // Removing the element takes its cell, and what the cell's header holds, so the selection
+        // goes.
+        expect(design.describeRemoval('posGrid').elements).toEqual(
+            expect.arrayContaining(['posGrid', 'groupChooser', 'posViewsSelector'])
+        );
+        expect(errors(design.removeElement('posGrid'))).toEqual([]);
         expect(model.blueprint.elements).not.toHaveProperty('posGrid');
+        expect(model.blueprint.elements).not.toHaveProperty('groupChooser');
         expect(design.selection).toBeNull();
     });
 
     it('moves an element any number of places in its slot list, as a drag in a list does', () => {
         const {design, model} = open(loadBlueprint('p3-morning-report.json'));
-        design.reorder('groupChooser', 2);
+        design.reorder('pnlButtons', 2);
         expect(model.blueprint.elements.positions.children.map(it => it.id)).toEqual([
-            'pnlButtons',
             'posGrid',
-            'groupChooser',
-            'priceChart'
+            'priceChart',
+            'pnlButtons'
         ]);
-        design.reorder('groupChooser', -2);
-        expect(model.blueprint.elements.positions.children[0].id).toBe('groupChooser');
+        design.reorder('pnlButtons', -2);
+        expect(model.blueprint.elements.positions.children[0].id).toBe('pnlButtons');
     });
 
     describe('editing calls for the dashboard', () => {
@@ -180,7 +184,7 @@ describe('BlueprintDesignModel', () => {
                 y: 1,
                 w: 8,
                 h: 9,
-                headerItems: [{id: 'posViewsSelector'}]
+                headerItems: [{id: 'groupChooser'}, {id: 'posViewsSelector'}]
             });
             expect(design.selectedElementId).toBe(id);
             model.undo();
@@ -265,7 +269,7 @@ describe('BlueprintDesignModel', () => {
             expect(design.canMoveTo('positions', 'posGrid', 'into').map(it => it.code)).toEqual([
                 'edit.refused'
             ]);
-            expect(design.canMoveTo('priceChart', 'groupChooser', 'before')).toEqual([]);
+            expect(design.canMoveTo('priceChart', 'pnlButtons', 'before')).toEqual([]);
             expect(model.history).toHaveLength(0);
         });
 
@@ -331,25 +335,16 @@ describe('BlueprintDesignModel', () => {
         'cubeGrid',
         'chart',
         'statCard',
-        'groupingChooser',
         'buttonGroup',
-        'buttonGroupInput',
         'dashboard',
         'tabContainer',
         'tileFrame',
         'toolbar',
-        'select',
-        'dateInput',
-        'numberInput',
-        'textInput',
-        'switchInput',
-        'slider',
-        'filterChooser',
         'treemap',
         'propertyTable',
         'heatmap',
         'panes'
-    ])('adds a %s that starts valid, on the first free place of the root canvas', component => {
+    ])('adds a %s that starts valid, on the first free place of the root dashboard', component => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             result = design.addWidget(component);
         expect(errors(result)).toEqual([]);
@@ -357,6 +352,35 @@ describe('BlueprintDesignModel', () => {
         const ref = model.blueprint.elements.dashboard.children.find(it => it.id === result.id);
         expect(ref).toMatchObject({x: expect.any(Number), y: expect.any(Number)});
         expect(model.history.at(-1)).toMatchObject({author: 'user'});
+    });
+
+    it.each([
+        'groupingChooser',
+        'buttonGroupInput',
+        'select',
+        'dateInput',
+        'numberInput',
+        'textInput',
+        'switchInput',
+        'slider',
+        'filterChooser'
+    ])("adds a %s that starts valid, in the root panel's tbar, as it fits a toolbar", component => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            result = design.addWidget(component);
+        expect(errors(result)).toEqual([]);
+        expect(model.blueprint.elements.page.tbar).toContainEqual({id: result.id});
+    });
+
+    it("adds a toolbar-only widget to the selected widget's cell header, or its panel's tbar", () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
+        design.select({kind: 'element', id: 'posGrid'});
+        const {id} = design.addWidget('groupingChooser'),
+            cell = model.blueprint.elements.dashboard.children.find(it => it.id === 'posGrid');
+        expect(cell.headerItems).toEqual([{id}]);
+        // A slot picked to add to wins.
+        design.selectSlot({parent: 'dashboard'});
+        const {id: other} = design.addWidget('select');
+        expect(model.blueprint.elements.dashboard.children.map(it => it.id)).toContain(other);
     });
 
     it('starts widgets with configs that show data: distinct values, fields used once, totals', () => {
@@ -461,9 +485,9 @@ describe('BlueprintDesignModel', () => {
         const {model, design} = open(loadBlueprint('p3-morning-report.json')),
             ids = (parent: string) => model.blueprint.elements[parent].children.map(it => it.id);
 
-        expect(design.moveTo('priceChart', 'groupChooser', 'before').issues).toEqual([]);
+        expect(design.moveTo('priceChart', 'pnlButtons', 'before').issues).toEqual([]);
         expect(ids('positions').indexOf('priceChart')).toBe(
-            ids('positions').indexOf('groupChooser') - 1
+            ids('positions').indexOf('pnlButtons') - 1
         );
         expect(
             model.blueprint.elements.positions.children.find(it => it.id === 'priceChart')
@@ -535,7 +559,7 @@ describe('BlueprintDesignModel', () => {
             const cell = model.blueprint.elements.positions.children.find(
                 it => it.id === 'posGrid'
             );
-            expect(cell.headerItems).toEqual([{id}]);
+            expect(cell.headerItems).toEqual([{id: 'groupChooser'}, {id}]);
         });
     });
 

@@ -1,0 +1,24 @@
+{
+    "schema": {"blueprint": 1},
+    "variables": {
+        "asOf": {"type": "localDate", "label": "As of", "setBy": "prompt", "default": {"resolver": "today"}},
+        "grouping": {"type": "string[]", "label": "Group by", "setBy": {"element": "groupChooser"}, "default": {"value": ["sector", "symbol"]}}
+    },
+    "sources": {
+        "positions": {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}}}
+    },
+    "root": "page",
+    "elements": {
+        "page": {"component": "panel", "tbar": [{"id": "asOfInput"}], "children": [{"id": "dashboard"}]},
+        "asOfInput": {"component": "variableInput", "config": {"variable": "asOf"}},
+        "dashboard": {
+            "component": "dashboard",
+            "children": [
+                {"id": "groupChooser", "x": 0, "y": 0, "w": 4, "h": 1},
+                {"id": "posGrid", "x": 0, "y": 1, "w": 12, "h": 9}
+            ]
+        },
+        "groupChooser": {"component": "groupingChooser", "config": {"dimensions": ["sector", "region", "strategy", "trader", "symbol"]}},
+        "posGrid": {"component": "cubeGrid", "config": {"source": "positions", "groupBy": {"$var": "grouping"}, "columnState": ["mktVal", "pnlDay", "pnlMtd"]}}
+    }
+}

@@ -489,7 +489,7 @@ export class BlueprintDesignModel extends HoistModel {
                 ? {parent: parentId, slot: opts.slot, of: opts.of, after: opts.after}
                 : opts.after
                   ? this.placeAfter(opts.after)
-                  : this.addTarget;
+                  : (this.toolbarPlace(spec) ?? this.addTarget);
         if (!place) {
             if (blueprint?.root) return refused('Select a container to add the widget to.');
             return {description: `Add ${spec.label}`, ops: [{op: 'addElement', id, element}], id};
@@ -820,6 +820,31 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
+     * Where a toolbar-only widget goes when no slot is picked: the toolbar of the selected widget,
+     * its dashboard cell's header or its panel's tbar, else the root panel's tbar. Null for any
+     * other widget, or where there is no such toolbar.
+     */
+    toolbarPlace(spec: WidgetSpec): AddPlace {
+        if (!spec?.fits?.includes('toolbar') || spec.fits.includes('content')) return null;
+        if (this.slotTarget) return null;
+        const {blueprint} = this.blueprintModel,
+            elements = blueprint?.elements ?? {},
+            selected = this.selectedElementId,
+            at = selected ? locate(elements, selected) : null,
+            parent = at ? getOwn(elements, at.parent) : null,
+            takesInputs = (place: AddPlace) => !this.addRefusal(spec.name, place);
+        if (at?.slot === 'children') {
+            const cell: AddPlace = {parent: at.parent, slot: 'headerItems', of: selected},
+                bar: AddPlace = {parent: at.parent, slot: 'tbar'};
+            if (parent.component === 'dashboard' && takesInputs(cell)) return cell;
+            if (parent.component === 'panel' && takesInputs(bar)) return bar;
+        }
+        const root = getOwn(elements, blueprint?.root),
+            rootBar: AddPlace = {parent: blueprint?.root, slot: 'tbar'};
+        return root?.component === 'panel' && takesInputs(rootBar) ? rootBar : null;
+    }
+
+    /**
      * Where a blueprint's content starts: the root, or the one container in its children where the
      * root is a panel that holds its inputs in a toolbar over it.
      */
@@ -843,7 +868,7 @@ export class BlueprintDesignModel extends HoistModel {
     // What removing elements together takes with them, as describeRemoval() describes one.
     private describeRemovalOf(ids: string[]): BlueprintRemoval {
         const blueprint = this.blueprintModel.blueprint ?? {},
-            elements = uniq(ids.flatMap(id => this.subtree(id))),
+            elements = uniq(ids.flatMap(id => this.subtree(id, true))),
             gone = new Set(elements),
             removedVariables: string[] = [],
             unboundVariables: string[] = [];
@@ -2129,10 +2154,17 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     // An element and every element inside it, depth first.
-    private subtree(id: string): string[] {
-        const el = getOwn(this.blueprintModel.blueprint?.elements, id);
+    // An element and everything inside it, and with `withCell`, what its cell holds, such as its
+    // header items, which go with the cell when the element does.
+    private subtree(id: string, withCell = false): string[] {
+        const elements = this.blueprintModel.blueprint?.elements,
+            el = getOwn(elements, id);
         if (!el) return [];
-        return [id, ...childIds(el).flatMap(it => this.subtree(it))];
+        const parent = withCell ? getOwn(elements, parentOf(elements, id)) : null,
+            cellItems = slotLists(parent)
+                .filter(it => it.of === id)
+                .flatMap(it => it.refs.map(ref => ref.id));
+        return [id, ...[...childIds(el), ...cellItems].flatMap(it => this.subtree(it, withCell))];
     }
 
     // True if anything outside the removed elements reads the variable.

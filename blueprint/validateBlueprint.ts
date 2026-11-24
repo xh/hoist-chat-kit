@@ -321,6 +321,17 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                             `${at}/${i}/id`,
                             `${el.component} cannot hold '${ch.id}', a ${childSpec.name}, in ${slot}. It takes ${describeAccepts(rule)}.`
                         );
+                    } else if (
+                        !isAnswer &&
+                        isToolbarOnly(childSpec) &&
+                        !rule?.categories?.includes('input')
+                    ) {
+                        // A slot for inputs, such as a tbar or header items, is a toolbar.
+                        warn(
+                            'widget.fitsToolbar',
+                            `${at}/${i}/id`,
+                            `'${ch.id}' is a ${childSpec.label}, which goes in the toolbar of the widget it drives: its view's header items or its panel's tbar, or the root's tbar when it drives several.`
+                        );
                     }
                 }
             }
@@ -1391,6 +1402,10 @@ function checkResolverCycles(
         state[name] = 'done';
     };
     Object.keys(variables).forEach(it => visit(it, []));
+}
+
+function isToolbarOnly(spec: WidgetSpec): boolean {
+    return !!spec?.fits?.includes('toolbar') && !spec.fits.includes('content');
 }
 
 function accepts(rule: SlotAccepts, child: WidgetSpec): boolean {

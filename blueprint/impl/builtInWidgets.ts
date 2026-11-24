@@ -9,6 +9,7 @@ import type {
     ResolverSpec,
     SlotAccepts,
     WidgetDemand,
+    WidgetFit,
     WidgetSpec
 } from '../BlueprintRegistry';
 import {parentOf} from './elements';
@@ -2896,6 +2897,30 @@ const exampleBlueprintFor = (spec: WidgetSpec): WidgetSpec['exampleBlueprint'] =
 };
 
 // The kit glyph that pictures each built-in. See `widgetPreview`.
+// Where each widget belongs, and the line its guidance gains for a toolbar.
+const FITS: Record<string, WidgetFit[]> = {
+    ...Object.fromEntries(
+        [
+            'select',
+            'dateInput',
+            'dateRangePicker',
+            'numberInput',
+            'textInput',
+            'switchInput',
+            'slider',
+            'variableInput',
+            'filterChooser',
+            'groupingChooser',
+            'buttonGroupInput',
+            'presetSelector'
+        ].map(it => [it, ['toolbar']])
+    ),
+    ...Object.fromEntries(['cubeGrid', 'chart', 'heatmap', 'treemap'].map(it => [it, ['content']]))
+};
+
+const TOOLBAR_GUIDANCE =
+    "Goes in the toolbar of the widget it drives (its view's header items or its panel's tbar), or the root's tbar when it drives several.";
+
 const PREVIEWS: Record<string, string> = {
     dashboard: 'dashboard',
     panes: 'dashboard',
@@ -2932,8 +2957,11 @@ const PREVIEWS: Record<string, string> = {
 
 export const BUILT_IN_WIDGETS: WidgetSpec[] = WIDGET_SPECS.map(it => {
     const exampleBlueprint = it.example ? exampleBlueprintFor(it) : null;
+    const fits = FITS[it.name];
     return {
         ...it,
+        ...(fits ? {fits} : {}),
+        ...(fits?.includes('toolbar') ? {guidance: `${it.guidance} ${TOOLBAR_GUIDANCE}`} : {}),
         ...(PREVIEWS[it.name] ? {preview: PREVIEWS[it.name]} : {}),
         ...(exampleBlueprint ? {exampleBlueprint} : {}),
         ...(DEMANDS[it.name] ? {demand: DEMANDS[it.name]} : {}),

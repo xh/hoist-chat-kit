@@ -31,6 +31,9 @@ import {BUILT_IN_ACTIONS, BUILT_IN_WIDGETS} from './impl/builtInWidgets';
  */
 export type WidgetCategory = 'container' | 'layout' | 'content' | 'data' | 'input' | 'action';
 
+/** Where a widget belongs: in a toolbar, or in content. See `WidgetSpec.fits`. */
+export type WidgetFit = 'toolbar' | 'content';
+
 /** Draws a widget's picture as SVG shapes in a box of the size given, with `0, 0` at top left. */
 export type WidgetGlyph = (size: {width: number; height: number}) => ReactElement;
 
@@ -51,6 +54,13 @@ export interface WidgetSpec {
      */
     summary?: string;
     category: WidgetCategory;
+    /**
+     * Where it belongs. `toolbar`: an input that drives another widget, in that widget's header
+     * items or its panel's tbar, or the root panel's tbar when it drives several. `content`: a
+     * widget that shows data, in a layout. Validation warns of a toolbar-only widget in content.
+     * Default either.
+     */
+    fits?: WidgetFit[];
     /** The name of a Hoist `Icon` factory that pictures it, such as `grid`. Default by category. */
     icon?: string;
     /**

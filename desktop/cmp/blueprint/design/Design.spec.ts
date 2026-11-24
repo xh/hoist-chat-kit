@@ -98,9 +98,9 @@ describe('design mode selection', () => {
         expect(outline.whereFor('posGrid', 0.8)).toBe('after');
         expect(outline.whereFor('positions', 0.1)).toBe('before');
 
-        outline.drop('priceChart', 'groupChooser', 'before');
+        outline.drop('priceChart', 'pnlButtons', 'before');
         const ids = model.blueprint.elements.positions.children.map(it => it.id);
-        expect(ids.indexOf('priceChart')).toBe(ids.indexOf('groupChooser') - 1);
+        expect(ids.indexOf('priceChart')).toBe(ids.indexOf('pnlButtons') - 1);
     });
 
     it('shows a refused move as a danger toast, whose Show selects the element it names', () => {

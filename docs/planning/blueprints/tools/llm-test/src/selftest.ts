@@ -32,6 +32,7 @@ const p3 = loadBlueprint('p3-morning-report.json'),
         'p10-edit.json applied to p3': applyOps(p3, loadBlueprint('p10-edit.json').ops),
         'p11-edit.json applied to p2': applyOps(p2, loadBlueprint('p11-edit.json').ops),
         'p12-edit.json applied to p12-host': applyOps(loadBlueprint('p12-host.json'), loadBlueprint('p12-edit.json').ops),
+        'p19-edit.json applied to p19-host': applyOps(loadBlueprint('p19-host.json'), loadBlueprint('p19-edit.json').ops),
         'p13-edit.json applied to p2': applyOps(p2, loadBlueprint('p13-edit.json').ops),
         'p14-edit.json applied to p2': applyOps(p2, loadBlueprint('p14-edit.json').ops),
         'p15-edit.json applied to p2': applyOps(p2, loadBlueprint('p15-edit.json').ops),
@@ -115,6 +116,12 @@ const expected_: Record<string, any> = {
     },
     U2: {blueprint: p2, segments: [], replies: ['Which widget should I make taller?'], calls: []},
     P12: {blueprint: applied['p12-edit.json applied to p12-host'].result, segments: [], replies: ['']},
+    P18: {
+        blueprint: loadBlueprint('p1-one-grid.json'),
+        segments: [],
+        replies: ['You can group by sector, region, strategy, trader and symbol, and show market value, P&L and exposure.']
+    },
+    P19: {blueprint: applied['p19-edit.json applied to p19-host'].result, segments: [], replies: ['']},
     P11o: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}
 };

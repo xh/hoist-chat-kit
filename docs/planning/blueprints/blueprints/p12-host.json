@@ -214,9 +214,34 @@
     },
     "root": "page",
     "elements": {
-        "page": {"component": "panel", "tbar": [{"id": "fundInput"}, {"id": "asOfInput"}], "children": [{"id": "tabs"}]},
-        "fundInput": {"component": "variableInput", "config": {"variable": "fund"}},
-        "asOfInput": {"component": "variableInput", "config": {"variable": "asOf"}},
+        "page": {
+            "component": "panel",
+            "tbar": [
+                {
+                    "id": "fundInput"
+                },
+                {
+                    "id": "asOfInput"
+                }
+            ],
+            "children": [
+                {
+                    "id": "tabs"
+                }
+            ]
+        },
+        "fundInput": {
+            "component": "variableInput",
+            "config": {
+                "variable": "fund"
+            }
+        },
+        "asOfInput": {
+            "component": "variableInput",
+            "config": {
+                "variable": "asOf"
+            }
+        },
         "tabs": {
             "component": "tabContainer",
             "children": [
@@ -361,13 +386,6 @@
             "component": "dashboard",
             "children": [
                 {
-                    "id": "groupChooser",
-                    "x": 0,
-                    "y": 0,
-                    "w": 4,
-                    "h": 1
-                },
-                {
                     "id": "pnlButtons",
                     "x": 4,
                     "y": 0,
@@ -379,7 +397,12 @@
                     "x": 0,
                     "y": 1,
                     "w": 8,
-                    "h": 9
+                    "h": 9,
+                    "headerItems": [
+                        {
+                            "id": "groupChooser"
+                        }
+                    ]
                 },
                 {
                     "id": "priceChart",

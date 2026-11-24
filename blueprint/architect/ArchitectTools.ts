@@ -224,6 +224,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                     name,
                     label: e.label,
                     category: e.category,
+                    ...(e.fits ? {fits: e.fits} : {}),
                     // A widget's guidance is long, so its list line gives its summary.
                     ...(e.config ? {summary: summaryOf(e)} : {guidance: e.guidance}),
                     returns: e.returns,

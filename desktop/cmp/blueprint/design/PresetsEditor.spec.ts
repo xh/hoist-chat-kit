@@ -56,7 +56,7 @@ describe('PresetsEditor', () => {
         );
         expect(el.config).toEqual({group: 'posViews', display: 'toggle'});
         const cell = model.blueprint.elements.positions.children.find(it => it.id === 'posGrid');
-        expect(cell.headerItems).toEqual([{id}]);
+        expect(cell.headerItems).toEqual([{id: 'groupChooser'}, {id}]);
         expect(editor.hasSelector).toBe(true);
         expect(model.issues.map(it => it.code)).not.toContain('preset.noSelector');
     });

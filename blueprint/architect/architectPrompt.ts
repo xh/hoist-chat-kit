@@ -70,7 +70,10 @@ function index(
             .map(([category, label]) => {
                 const lines = widgets
                     .filter(([, w]) => (w.category ?? 'content') === category)
-                    .map(([n, w]) => `- ${n} (${w.label}${w.app ? ', app' : ''}): ${summaryOf(w)}`);
+                    .map(
+                        ([n, w]) =>
+                            `- ${n} (${[w.label, w.app ? 'app' : null, ...(w.fits ?? []).map(it => `fits ${it}`)].filter(Boolean).join(', ')}): ${summaryOf(w)}`
+                    );
                 return lines.length ? `${label}:\n${lines.join('\n')}` : null;
             })
             .filter(Boolean);
@@ -161,6 +164,8 @@ const EDITING = `# Editing
 - Keep edits to what the user asked. Prefer one edit for one request.
 - If a request has two readings that would build very different things, ask in one short question before building. If the difference is small, build the likelier reading, and say in your reply which reading you took and what the other would change.
 - If a request needs something the widgets cannot do, say so plainly, build the closest workaround, and say what it is.
+- A question about what exists, such as "which dimensions can I group by" or "what metrics can I show", is answered in text, from describe_catalog. A request that mixes one with something to build, such as "a grid of positions, and which dimensions are there", builds what it asks for and answers the question in the reply. Ask before you build anything for the answer alone, such as a chooser over those dimensions.
+- Put an input where its fits says: a toolbar input in the toolbar of the widget it drives (its view's header items, or its panel's tbar), or the root panel's tbar when it drives several.
 
 # Mode and access
 

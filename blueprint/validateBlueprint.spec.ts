@@ -15,20 +15,23 @@ import {DataCatalog} from './DataCatalog';
 import {exampleBlueprintOf} from './exampleBlueprint';
 import {validateBlueprint} from './validateBlueprint';
 
+const PLACEMENT_HINTS = ['variable.noInput', 'widget.fitsToolbar'];
+
 /**
  * The validator is the only gate between what an LLM or a person writes and what renders. It must
  * pass every hand-written scenario, and refuse each mistake with a stable code and a path.
  */
 describe('validateBlueprint', () => {
     const registry = scenarioRegistry(),
-        // A blueprint written for one rule shows no inputs: the variableInput spec checks that rule.
+        // A blueprint written for one rule places its inputs anywhere: the rules for where they
+        // go have specs of their own.
         validate = (bp: Blueprint, isAnswer = false) =>
             validateBlueprint(bp, {
                 catalog: portfolioCatalog,
                 registry,
                 artifacts: ARTIFACTS,
                 isAnswer
-            }).filter(it => it.code !== 'variable.noInput'),
+            }).filter(it => !PLACEMENT_HINTS.includes(it.code)),
         codes = (bp: Blueprint) => validate(bp).map(it => it.code),
         p2 = () => loadBlueprint('p2-linked-dashboard.json');
 
@@ -901,13 +904,14 @@ describe('validateBlueprint', () => {
 
         it('warns of header items in a cell whose header is hidden, since they never show', () => {
             const bp = loadBlueprint('p3-morning-report.json'),
-                cell = bp.elements.positions.children[2] as PlainObject;
-            cell.hideHeader = true;
+                cells = bp.elements.positions.children,
+                index = cells.findIndex(it => it.id === 'posGrid');
+            (cells[index] as PlainObject).hideHeader = true;
             expect(validate(bp).map(it => [it.code, it.severity, it.path])).toEqual([
                 [
                     'layout.hiddenHeaderItems',
                     'warning',
-                    '/elements/positions/children/2/headerItems'
+                    `/elements/positions/children/${index}/headerItems`
                 ]
             ]);
         });
@@ -1394,10 +1398,32 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    it('warns of a toolbar-only widget in content, but not in a header, a tbar or a toolbar', () => {
+        const hints = (bp: Blueprint) =>
+                validateBlueprint(bp, {catalog: portfolioCatalog, registry})
+                    .filter(it => it.code === 'widget.fitsToolbar')
+                    .map(it => it.path),
+            bp = loadBlueprint('p3-morning-report.json');
+        expect(hints(bp)).toEqual([]);
+        // Out of posGrid's header into a cell of its own.
+        bp.elements.positions.children.find(it => it.id === 'posGrid').headerItems = [
+            {id: 'posViewsSelector'}
+        ];
+        bp.elements.positions.children.push({id: 'groupChooser', x: 0, y: 20, w: 4, h: 1});
+        expect(hints(bp)).toEqual([
+            `/elements/positions/children/${bp.elements.positions.children.length - 1}/id`
+        ]);
+        expect(registry.widgets.groupingChooser.fits).toEqual(['toolbar']);
+        expect(registry.widgets.groupingChooser.guidance).toMatch(/Goes in the toolbar/);
+        expect(registry.widgets.cubeGrid.fits).toEqual(['content']);
+    });
+
     it('warns of a preset group with no selector, which stays at its default', () => {
         const bp = loadBlueprint('p3-morning-report.json');
         delete bp.elements.posViewsSelector;
-        delete bp.elements.positions.children.find(it => it.id === 'posGrid').headerItems;
+        bp.elements.positions.children.find(it => it.id === 'posGrid').headerItems = [
+            {id: 'groupChooser'}
+        ];
         expect(validate(bp).map(it => [it.code, it.path])).toEqual([
             ['preset.noSelector', '/presets/posViews']
         ]);

@@ -431,6 +431,34 @@ export const SCENARIOS: Scenario[] = [
         ]
     },
     {
+        id: 'P18',
+        title: 'A grid, with a question about what it can show',
+        context: BUILD,
+        steps: [{prompt: 'I want a grid showing positions, which dimensions are available for grouping, and what metrics can I show.'}],
+        checks: [
+            ['a cubeGrid over positions', o => cfg(o.blueprint, 'cubeGrid', c => dataset(o.blueprint, c) === 'positions').length],
+            ['names the dimensions in its reply', o => (o.replies.join(' ').match(/\b(sector|region|strategy|trader|fund|country|industry)\b/gi) ?? []).length >= 3],
+            ['names the metrics in its reply', o => /market value|mktVal/i.test(o.replies.join(' ')) && /p&l|pnl/i.test(o.replies.join(' '))],
+            ['builds no chooser it was not asked for', o => !els(o.blueprint, 'groupingChooser').length]
+        ]
+    },
+    {
+        id: 'P19',
+        title: 'A grouping chooser moved into the toolbar',
+        host: 'p19-host.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [{prompt: 'Move that grouping chooser up into the toolbar.'}],
+        checks: [
+            ["the chooser sits in the grid's header or a panel's tbar", o => {
+                const isChooser = (e: any) => e.component === 'groupingChooser',
+                    cell = (o.blueprint.elements?.dashboard?.children ?? []).find((it: any) => it.id === 'posGrid');
+                return (cell?.headerItems ?? []).some((it: any) => isChooser(o.blueprint.elements[it.id])) || slotHolds(o.blueprint, 'page', 'tbar', isChooser);
+            }],
+            ['no cell holds it any more', o => !(o.blueprint.elements?.dashboard?.children ?? []).some((it: any) => o.blueprint.elements[it.id]?.component === 'groupingChooser')],
+            ['still drives the grid', o => o.blueprint.variables?.grouping?.setBy?.element === 'groupChooser']
+        ]
+    },
+    {
         id: 'P13',
         title: 'Exposure against a limit',
         host: 'p2-linked-dashboard.json',

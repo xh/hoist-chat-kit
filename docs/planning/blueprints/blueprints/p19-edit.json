@@ -1,0 +1,7 @@
+{
+    "base": 0,
+    "description": "Move the grouping chooser into the grid's header",
+    "ops": [
+        {"op": "moveElement", "id": "groupChooser", "parent": "dashboard", "slot": "headerItems", "of": "posGrid"}
+    ]
+}

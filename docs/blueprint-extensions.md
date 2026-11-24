@@ -125,6 +125,10 @@ editors what a value means:
   and the mistakes to avoid. Say when to choose a sibling instead.
 - `category` places it in the palette and in the index: `container`, `layout`, `content`,
   `data`, `input` or `action`.
+- `fits` says where it belongs: `['toolbar']` for an input that drives another widget, which
+  goes in that widget's header items or its panel's tbar, or `['content']` for a widget that
+  shows data. The index and `describe_registry` show it, validation warns of a toolbar-only
+  widget in content, and Add puts one in the selected widget's toolbar.
 - `example` is a valid element, which the Architect copies and a registry browser can render.
   Give what the example names beyond itself in `exampleBlueprint`: a container's child
   elements by ID, and any variables or preset groups it reads, so the example renders on its own.
