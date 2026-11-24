@@ -15,6 +15,7 @@ export * from './BlueprintWidgetModel';
 export * from './architect/architectPrompt';
 export * from './architect/ArchitectTools';
 export * from './architect/hostSource';
+export * from './architect/modelValues';
 export * from './architect/toolSchemas';
 export type {
     BoxWidgetConfig,
