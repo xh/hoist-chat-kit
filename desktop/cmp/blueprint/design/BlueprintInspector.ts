@@ -118,7 +118,10 @@ export class BlueprintInspectorModel extends HoistModel {
             list = toEditorSpec(spec?.config).find(it => it.key === page.list),
             field = page.key.replace(/#\d+$/, ''),
             source = blueprintModel.getSource(element?.config?.source);
-        return {list: list?.label ?? page.list, item: source?.fieldLabel(field) ?? field};
+        return {
+            list: list?.label ?? page.list,
+            item: page.label ?? source?.fieldLabel(field) ?? field
+        };
     }
 
     /**

@@ -942,6 +942,48 @@ describe('ElementInspector', () => {
         expect(row('mktVal').querySelector('[title="Remove"]')).toBeNull();
     });
 
+    it('removes only the focused column on Delete, from its handle too, and never the whole list', () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay', 'pnlMtd']);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            columns = () => model.blueprint.elements.posGrid.config.columnState,
+            row = (field: string) => container.querySelector(`[data-field="${field}"]`),
+            handleOf = (field: string) => {
+                let at = row(field).parentElement;
+                while (at && at.querySelectorAll('[data-row-key]').length === 1) {
+                    const handle = at.querySelector<HTMLElement>('[class*="handle"]');
+                    if (handle) return handle;
+                    at = at.parentElement;
+                }
+                return row(field);
+            };
+        fireEvent.keyDown(handleOf('pnlDay'), {key: 'Delete'});
+        expect(columns()).toEqual(['mktVal', 'pnlMtd']);
+        // Delete on the list's own row resets nothing.
+        fireEvent.keyDown(container.querySelector('[data-config-key="columnState"]'), {
+            key: 'Delete'
+        });
+        expect(columns()).toEqual(['mktVal', 'pnlMtd']);
+    });
+
+    it("opens a row action's page, as its action holds steps, named in the path by its label", () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/rowActions', [
+            {label: 'Open', action: {type: 'setVariable', variable: 'asOf', value: '2026-01-02'}},
+            {label: 'Clear', action: {type: 'resetVariable', variable: 'asOf'}}
+        ]);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            page = () =>
+                container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page');
+        fireEvent.click(container.querySelector('[aria-label="All settings of Open"]'));
+        expect(design.itemPage).toMatchObject({list: 'rowActions', label: 'Open'});
+        expect(page().textContent).toContain('1 of 2');
+        fireEvent.keyDown(page(), {key: 'ArrowDown', altKey: true});
+        expect(design.itemPage.label).toBe('Clear');
+        fireEvent.keyDown(page(), {key: 'Escape'});
+        expect(page()).toBeNull();
+    });
+
     it("opens a column's page from its row, steps through the list, and goes back to it", () => {
         const {design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay', 'pnlMtd']);

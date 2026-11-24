@@ -61,6 +61,8 @@ export interface ItemPage {
     list: string;
     /** The item's key in the list's editor, such as `nav#1`. */
     key: string;
+    /** What the breadcrumb calls the item, where its key does not say. */
+    label?: string;
 }
 
 export interface AddPlace {

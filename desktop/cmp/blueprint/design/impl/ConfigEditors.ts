@@ -173,6 +173,8 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
         onKeyDown: (e: React.KeyboardEvent) => {
             const target = e.target as HTMLElement;
             if (e.key !== 'Delete' || !canReset || isTextEntry(target)) return;
+            // A list's Delete removes its focused item, never the whole list.
+            if (LIST_EDITOR_KINDS.includes(node.kind)) return;
             // Only for this row's own control, not one in a list or drawer inside it.
             if (target.closest('[data-config-key]') !== e.currentTarget) return;
             e.preventDefault();
@@ -276,6 +278,8 @@ function defaultText(node: EditorNode): string {
 export function firstSentence(text: string): string {
     return text.match(/^.*?[.!?](\s|$)/)?.[0].trim() ?? text;
 }
+
+const LIST_EDITOR_KINDS = ['fieldList', 'list', 'stringList', 'map'];
 
 // True where Delete edits text rather than resetting the setting.
 function isTextEntry(el: HTMLElement): boolean {
@@ -743,7 +747,26 @@ interface ListEditorProps<N extends EditorNode> extends HoistProps {
     ctx: EditorContext;
 }
 
-const listEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {kind: 'list'}>>>({
+type ListNode = Extract<EditorNode, {kind: 'list'}>;
+
+// A list item's settings, for an item that is an object.
+const itemSettings = (node: ListNode): EditorNode[] =>
+    node.item.kind === 'group' ? node.item.children : [];
+
+// True if a list's items get pages: an item of more than six settings or with a list inside, as
+// an action's steps are, unless its schema's `x-page` says otherwise.
+function itemsGetPages(node: ListNode, impl: ConfigEditorModel): boolean {
+    const page = node.item.schema['x-page'],
+        settings = itemSettings(node);
+    if (!impl.pageElement || !settings.length || page === false) return false;
+    return (
+        page === true ||
+        settings.length > 6 ||
+        settings.some(it => LIST_EDITOR_KINDS.includes(it.kind) || it.kind === 'action')
+    );
+}
+
+const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
     displayName: 'BlueprintListEditor',
     model: false,
     render({node, list: items, commit, ctx}) {
@@ -754,6 +777,20 @@ const listEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {kind: '
                 commit(isEmpty(list) && !node.required ? undefined : list),
             keys = impl.keysFor(scope, items),
             rows = useStableRows(items.map((value, index) => ({key: keys[index], index, value}))),
+            namedRef = useNamedInputs(),
+            settings = itemSettings(node),
+            {schema} = node.item,
+            canPage = !scope.includes('/') && itemsGetPages(node, impl),
+            summary = sortBy(
+                settings.filter(it => schema['x-summary']?.includes(it.key)),
+                it => schema['x-summary'].indexOf(it.key)
+            ),
+            common = schema['x-common']
+                ? sortBy(
+                      settings.filter(it => schema['x-common'].includes(it.key)),
+                      it => schema['x-common'].indexOf(it.key)
+                  )
+                : null,
             // Called by key as a row acts, so a row that skipped drawing acts on the list as it is.
             ops = useLatest({
                 remove: (key: string) => commitList(items.filter((_, j) => keys[j] !== key)),
@@ -761,35 +798,94 @@ const listEditor = hoistCmp.factory<ListEditorProps<Extract<EditorNode, {kind: '
                     commitList(items.map((it, j) => (keys[j] === key ? v : it)))
             }),
             renderers = useStableRenderers({
-                renderItem: (row: PlainObject) =>
-                    hbox({
+                renderItem: (row: PlainObject) => {
+                    const label = itemLabel(row.value, row.index),
+                        chips = summary
+                            .map(it => chipText(it, (row.value as PlainObject)?.[it.key]))
+                            .filter(Boolean);
+                    return hbox({
                         className: classNames(
                             `${CLS}__item-header`,
                             impl.isItemOpen(scope, row.key) && `${CLS}__column--open`
                         ),
+                        ...({'data-row-key': row.key} as object),
                         children: [
-                            span({
-                                className: `${CLS}__column-label`,
-                                children: itemLabel(row.value, row.index)
-                            }),
-                            removeItemButton('Remove', impl.readOnly, () =>
-                                ops.current.remove(row.key)
-                            )
+                            span({className: `${CLS}__column-label`, children: label}),
+                            ...chips.map((it, idx) =>
+                                span({key: idx, className: `${CLS}__chip-text`, children: it})
+                            ),
+                            canPage
+                                ? button({
+                                      className: `${CLS}__page-link`,
+                                      icon: Icon.chevronRight(),
+                                      minimal: true,
+                                      small: true,
+                                      title: `All settings of ${label}`,
+                                      'aria-label': `All settings of ${label}`,
+                                      onClick: (e: React.MouseEvent) => {
+                                          e.stopPropagation();
+                                          impl.openPage(ctx.key, row.key, label);
+                                      }
+                                  })
+                                : null
                         ]
-                    }),
-                renderDetail: (row: PlainObject) =>
-                    div({
+                    });
+                },
+                // An opened row shows its common settings where it has a page, else them all.
+                renderDetail: (row: PlainObject) => {
+                    const itemScope = `${scope}/${row.key}`,
+                        value = row.value as PlainObject;
+                    if (!canPage || !common) {
+                        return div({
+                            className: `${CLS}__settings`,
+                            children: editorFor(
+                                node.item,
+                                row.value,
+                                v => ops.current.set(row.key, v),
+                                {
+                                    ...ctx,
+                                    scope: itemScope
+                                }
+                            )
+                        });
+                    }
+                    return div({
                         className: `${CLS}__settings`,
-                        children: editorFor(
-                            node.item,
-                            row.value,
-                            v => ops.current.set(row.key, v),
-                            {...ctx, scope: `${scope}/${row.key}`}
-                        )
-                    })
+                        children: [
+                            ...common.map(setting =>
+                                propertyRow({
+                                    key: setting.key,
+                                    node: setting,
+                                    value: value?.[setting.key],
+                                    commit: v =>
+                                        ops.current.set(
+                                            row.key,
+                                            v === undefined
+                                                ? omit(value, setting.key)
+                                                : {...value, [setting.key]: v}
+                                        ),
+                                    ctx: {...ctx, scope: itemScope}
+                                })
+                            ),
+                            button({
+                                key: '_all',
+                                className: `${CLS}__all-settings`,
+                                text: `All ${settings.length} settings`,
+                                rightIcon: Icon.arrowRight(),
+                                minimal: true,
+                                small: true,
+                                onClick: () =>
+                                    impl.openPage(ctx.key, row.key, itemLabel(row.value, row.index))
+                            })
+                        ]
+                    });
+                }
             });
         return div({
+            ref: namedRef,
             className: `${CLS}__field-list`,
+            onKeyDown: (e: React.KeyboardEvent) =>
+                !disabled && onItemDelete(e, key => ops.current.remove(key)),
             children: [
                 rows.length
                     ? sortableList({
@@ -848,6 +944,44 @@ export function booleanEditor({
         compact: true,
         disabled,
         onCommit
+    });
+}
+
+// Delete on a list item, its handle or its row, removes that item, not the list's row.
+function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => void) {
+    const target = e.target as HTMLElement;
+    if (e.key !== 'Delete' || isTextEntry(target)) return;
+    const key = itemOf(target, e.currentTarget as HTMLElement)?.row.getAttribute('data-row-key');
+    if (!key) return;
+    e.preventDefault();
+    e.stopPropagation();
+    remove(key);
+}
+
+// The list item an element sits in, within a list: its wrapper, which holds its handle beside the
+// row drawn for it, and that row.
+function itemOf(el: HTMLElement, list: HTMLElement): {item: HTMLElement; row: HTMLElement} {
+    const own = el.closest<HTMLElement>('[data-row-key]');
+    let item: HTMLElement = null,
+        row: HTMLElement = own;
+    for (let at = own ?? el; at && at !== list; at = at.parentElement) {
+        const rows = at.querySelectorAll<HTMLElement>('[data-row-key]');
+        if (rows.length > 1) break;
+        if (rows.length === 1 || at === own) {
+            item = at;
+            row = rows[0] ?? own;
+        }
+    }
+    return row ? {item, row} : null;
+}
+
+/** Focus a list item's handle by its row's key, as a page closes, so the keyboard stays there. */
+function focusItem(key: string) {
+    wait().then(() => {
+        const row = document.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(key)}"]`),
+            list = row?.closest<HTMLElement>(`.${CLS}__field-list`),
+            item = row && list ? itemOf(row, list)?.item : null;
+        (item?.querySelector<HTMLElement>('[class*="handle"]') ?? row)?.focus();
     });
 }
 
@@ -1112,15 +1246,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                             impl.isItemOpen(scope, key) && `${CLS}__column--open`,
                             entry.hidden && `${CLS}__column--hidden`
                         ),
-                        ...({'data-field': entry.field} as object),
-                        // Delete on the row removes the item.
-                        onKeyDown: (e: React.KeyboardEvent) => {
-                            if (e.key !== 'Delete' || disabled) return;
-                            if ((e.target as HTMLElement).closest('input, textarea')) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            ops.current.remove(key);
-                        },
+                        ...({'data-field': entry.field, 'data-row-key': key} as object),
                         children: [
                             span({
                                 className: `${CLS}__column-label`,
@@ -1175,6 +1301,8 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
         return div({
             ref: namedRef,
             className: `${CLS}__field-list`,
+            onKeyDown: (e: React.KeyboardEvent) =>
+                !disabled && onItemDelete(e, key => ops.current.remove(key)),
             children: [
                 entries.length
                     ? sortableList({
@@ -1203,139 +1331,214 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
     }
 });
 
+/** A setting on an item's page: its editor, its value, and its row. */
+interface PageSetting {
+    node: EditorNode;
+    value: unknown;
+    row: ReactNode;
+}
+
 /**
- * A field list item's page, in place of its element's settings: a bar that goes back and steps
- * through the list, then the item's settings in its sections, each folding its unset advanced
- * ones. Alt+↑ and Alt+↓ step, and Escape goes back.
+ * A list item's page, in place of its element's settings: a bar that goes back and steps through
+ * the list, then the item's settings in its sections, each folding its unset advanced ones.
+ * Alt+↑ and Alt+↓ step, and Escape goes back.
  */
+function pageView(opts: {
+    impl: ConfigEditorModel;
+    scope: string;
+    ref: React.Ref<HTMLDivElement>;
+    listLabel: string;
+    title: string;
+    meta?: string;
+    index: number;
+    count: number;
+    groups: {id: string; label: string; collapsed?: boolean}[];
+    settings: PageSetting[];
+    onStep: (by: number) => void;
+    onBack: () => void;
+}): ReactNode {
+    const {impl, scope, listLabel, title, meta, index, count, settings, onStep, onBack} = opts,
+        groups = opts.groups ?? [{id: null, label: null}];
+    return div({
+        ref: opts.ref,
+        className: `${CLS}__page`,
+        onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                onStep(e.key === 'ArrowUp' ? -1 : 1);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                onBack();
+            }
+        },
+        children: [
+            hbox({
+                className: `${CLS}__page-bar`,
+                children: [
+                    button({
+                        icon: Icon.arrowLeft(),
+                        text: listLabel,
+                        minimal: true,
+                        small: true,
+                        title: `Back to ${listLabel}`,
+                        onClick: onBack
+                    }),
+                    div({
+                        className: `${CLS}__page-title`,
+                        children: [
+                            span({children: title}),
+                            meta ? span({className: `${CLS}__column-field`, children: meta}) : null
+                        ]
+                    }),
+                    span({className: `${CLS}__page-count`, children: `${index + 1} of ${count}`}),
+                    button({
+                        icon: Icon.chevronUp(),
+                        minimal: true,
+                        small: true,
+                        disabled: index === 0,
+                        title: 'Previous · Alt+↑',
+                        'aria-label': 'Previous',
+                        onClick: () => onStep(-1)
+                    }),
+                    button({
+                        icon: Icon.chevronDown(),
+                        minimal: true,
+                        small: true,
+                        disabled: index === count - 1,
+                        title: 'Next · Alt+↓',
+                        'aria-label': 'Next',
+                        onClick: () => onStep(1)
+                    })
+                ]
+            }),
+            ...groups.map(group => {
+                const inGroup = settings.filter(
+                        it => group.id == null || it.node.schema['x-group'] === group.id
+                    ),
+                    moreScope = `${scope}/page-more`,
+                    moreOpen = impl.isItemOpen(moreScope, group.id),
+                    folded =
+                        inGroup.length > 4
+                            ? inGroup.filter(
+                                  it => it.node.schema['x-advanced'] && it.value === undefined
+                              )
+                            : [],
+                    shown = [...without(inGroup, ...folded), ...(moreOpen ? folded : [])],
+                    foldScope = `${scope}/page-fold`,
+                    collapsed = impl.isItemOpen(foldScope, group.id) !== !!group.collapsed,
+                    set = inGroup.filter(it => it.value !== undefined).length;
+                if (!inGroup.length) return null;
+                return sectionCard({
+                    key: group.id ?? 'all',
+                    title: group.label ?? title,
+                    count: set ? `${set} set` : null,
+                    collapsed,
+                    onToggle: () => impl.toggleItem(foldScope, group.id),
+                    children: [
+                        ...shown.map(it => it.row),
+                        folded.length
+                            ? button({
+                                  key: '_more',
+                                  className: `${CLS}__more`,
+                                  text: moreOpen
+                                      ? 'Fewer'
+                                      : `${folded.length} more · ${folded.map(it => it.node.label).join(', ')}`,
+                                  minimal: true,
+                                  small: true,
+                                  onClick: () => impl.toggleItem(moreScope, group.id)
+                              })
+                            : null
+                    ]
+                });
+            })
+        ]
+    });
+}
+
+/** A field list item's page, as {@link pageView} draws it, such as a grid column's. */
 export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {itemKey: string}>({
     displayName: 'BlueprintFieldItemPage',
     model: false,
     render({node, list: items, commit, ctx, itemKey}) {
         const {impl} = ctx,
-            {designModel} = impl,
             scope = scopeOf(ctx),
             {rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
-            namedRef = useNamedInputs(),
+            ref = useNamedInputs(),
             index = rows.findIndex(it => it.key === itemKey),
-            row = rows[index],
-            step = (by: number) => {
-                const to = rows[index + by];
-                if (to) impl.openPage(ctx.key, to.key);
-            },
-            back = () => {
-                designModel.closeItemPage();
-                impl.setOpenItem(scope, itemKey);
-            };
+            row = rows[index];
         if (!row) return null;
-        const mapped = mappedOf(row.entry),
-            label = impl.fieldLabel(row.entry.field),
-            all = entrySettings(node),
-            groups = node.settingsIn?.groups ?? [{id: null, label: null}],
-            valueOf = ({setting, own}: {setting: EditorNode; own: boolean}) =>
-                own ? row.entry[setting.key] : mapped[setting.key];
-        return div({
-            ref: namedRef,
-            className: `${CLS}__page`,
-            onKeyDown: (e: React.KeyboardEvent) => {
-                if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                    e.preventDefault();
-                    step(e.key === 'ArrowUp' ? -1 : 1);
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    back();
-                }
-            },
-            children: [
-                hbox({
-                    className: `${CLS}__page-bar`,
-                    children: [
-                        button({
-                            icon: Icon.arrowLeft(),
-                            text: node.label,
-                            minimal: true,
-                            small: true,
-                            title: `Back to ${node.label}`,
-                            onClick: back
-                        }),
-                        div({
-                            className: `${CLS}__page-title`,
-                            children: [
-                                span({children: label}),
-                                span({className: `${CLS}__column-field`, children: row.entry.field})
-                            ]
-                        }),
-                        span({
-                            className: `${CLS}__page-count`,
-                            children: `${index + 1} of ${rows.length}`
-                        }),
-                        button({
-                            icon: Icon.chevronUp(),
-                            minimal: true,
-                            small: true,
-                            disabled: index === 0,
-                            title: 'Previous · Alt+↑',
-                            'aria-label': 'Previous',
-                            onClick: () => step(-1)
-                        }),
-                        button({
-                            icon: Icon.chevronDown(),
-                            minimal: true,
-                            small: true,
-                            disabled: index === rows.length - 1,
-                            title: 'Next · Alt+↓',
-                            'aria-label': 'Next',
-                            onClick: () => step(1)
-                        })
-                    ]
-                }),
-                ...groups.map(group => {
-                    const inGroup = all.filter(
-                            it => group.id == null || it.setting.schema['x-group'] === group.id
-                        ),
-                        moreScope = `${scope}/page-more`,
-                        moreOpen = impl.isItemOpen(moreScope, group.id),
-                        folded =
-                            inGroup.length > 4
-                                ? inGroup.filter(
-                                      it =>
-                                          it.setting.schema['x-advanced'] &&
-                                          valueOf(it) === undefined
-                                  )
-                                : [],
-                        shown = [...without(inGroup, ...folded), ...(moreOpen ? folded : [])],
-                        foldScope = `${scope}/page-fold`,
-                        collapsed = impl.isItemOpen(foldScope, group.id) !== !!group.collapsed;
-                    if (!inGroup.length) return null;
-                    return sectionCard({
-                        key: group.id ?? 'all',
-                        title: group.label ?? label,
-                        count: (() => {
-                            const n = inGroup.filter(it => valueOf(it) !== undefined).length;
-                            return n ? `${n} set` : null;
-                        })(),
-                        collapsed,
-                        onToggle: () => impl.toggleItem(foldScope, group.id),
-                        children: [
-                            ...shown.map(it =>
-                                entrySetting(node, it.setting, it.own, row, mapped, ctx, ops)
-                            ),
-                            folded.length
-                                ? button({
-                                      key: '_more',
-                                      className: `${CLS}__more`,
-                                      text: moreOpen
-                                          ? 'Fewer'
-                                          : `${folded.length} more · ${folded.map(it => it.setting.label).join(', ')}`,
-                                      minimal: true,
-                                      small: true,
-                                      onClick: () => impl.toggleItem(moreScope, group.id)
-                                  })
-                                : null
-                        ]
-                    });
+        const mapped = mappedOf(row.entry);
+        return pageView({
+            impl,
+            scope,
+            ref,
+            listLabel: node.label,
+            title: impl.fieldLabel(row.entry.field),
+            meta: row.entry.field,
+            index,
+            count: rows.length,
+            groups: node.settingsIn?.groups,
+            settings: entrySettings(node).map(({setting, own}) => ({
+                node: setting,
+                value: own ? row.entry[setting.key] : mapped[setting.key],
+                row: entrySetting(node, setting, own, row, mapped, ctx, ops)
+            })),
+            onStep: by => rows[index + by] && impl.openPage(ctx.key, rows[index + by].key),
+            onBack: () => {
+                impl.designModel.closeItemPage();
+                impl.setOpenItem(scope, itemKey);
+                focusItem(itemKey);
+            }
+        });
+    }
+});
+
+/** A list item's page, as {@link pageView} draws it, such as a grid row action's. */
+export const listItemPage = hoistCmp.factory<ListEditorProps<ListNode> & {itemKey: string}>({
+    displayName: 'BlueprintListItemPage',
+    model: false,
+    render({node, list: items, commit, ctx, itemKey}) {
+        const {impl} = ctx,
+            scope = scopeOf(ctx),
+            keys = impl.keysFor(scope, items),
+            ref = useNamedInputs(),
+            index = keys.indexOf(itemKey),
+            value = items[index] as PlainObject;
+        if (index < 0) return null;
+        const set = (key: string, v: unknown) =>
+            commit(
+                items.map((it, j) =>
+                    j === index ? (v === undefined ? omit(value, key) : {...value, [key]: v}) : it
+                )
+            );
+        return pageView({
+            impl,
+            scope,
+            ref,
+            listLabel: node.label,
+            title: itemLabel(value, index),
+            index,
+            count: items.length,
+            groups: node.item.schema['x-groups'],
+            settings: itemSettings(node).map(setting => ({
+                node: setting,
+                value: value?.[setting.key],
+                row: propertyRow({
+                    key: setting.key,
+                    node: setting,
+                    value: value?.[setting.key],
+                    commit: v => set(setting.key, v),
+                    ctx: {...ctx, scope: `${scope}/${itemKey}`}
                 })
-            ]
+            })),
+            onStep: by =>
+                keys[index + by] &&
+                impl.openPage(ctx.key, keys[index + by], itemLabel(items[index + by], index + by)),
+            onBack: () => {
+                impl.designModel.closeItemPage();
+                impl.setOpenItem(scope, itemKey);
+                focusItem(itemKey);
+            }
         });
     }
 });

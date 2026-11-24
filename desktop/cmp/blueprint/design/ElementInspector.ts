@@ -32,6 +32,7 @@ import {
     countLabel,
     fieldItemPage,
     firstSentence,
+    listItemPage,
     propertyRow,
     removeItemButton,
     sectionCard,
@@ -122,11 +123,11 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return this.isView ? null : this.elementId;
     }
 
-    /** The field list whose item's page is open, or null. */
-    get pageNode(): Extract<EditorNode, {kind: 'fieldList'}> {
+    /** The list whose item's page is open, or null. */
+    get pageNode(): Extract<EditorNode, {kind: 'fieldList' | 'list'}> {
         const list = this.designModel.itemPage?.list,
             node = list && this.pageKey(list) ? this.nodes.find(it => it.key === list) : null;
-        return node?.kind === 'fieldList' ? node : null;
+        return node?.kind === 'fieldList' || node?.kind === 'list' ? node : null;
     }
 
     /** Sections and their "N more" rows toggled from how they start, by widget type and key. */
@@ -534,16 +535,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...(impl.isView
                     ? viewCards(impl)
                     : impl.pageNode
-                      ? [
-                            fieldItemPage({
-                                key: 'page',
-                                node: impl.pageNode,
-                                list: castArray(impl.values[impl.pageNode.key] ?? []),
-                                commit: v => impl.commit(impl.pageNode.key, v),
-                                ctx: {impl, key: impl.pageNode.key},
-                                itemKey: impl.pageKey(impl.pageNode.key)
-                            })
-                        ]
+                      ? [itemPage(impl)]
                       : [...sectionCards(impl), layoutCard(impl)])
             ]
         });
@@ -551,6 +543,21 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
 });
 
 const LIST_KINDS = ['fieldList', 'list', 'stringList'];
+
+// The open item's page, for a field list such as a grid's columns or a list such as its actions.
+function itemPage(impl: ElementInspectorModel): ReactNode {
+    const node = impl.pageNode,
+        props = {
+            key: 'page',
+            list: castArray(impl.values[node.key] ?? []),
+            commit: (v: unknown) => impl.commit(node.key, v),
+            ctx: {impl, key: node.key},
+            itemKey: impl.pageKey(node.key)
+        };
+    return node.kind === 'fieldList'
+        ? fieldItemPage({...props, node})
+        : listItemPage({...props, node});
+}
 
 // The element's sections in order, its tabs or children as its list where its config has none.
 function sectionCards(impl: ElementInspectorModel): ReactNode[] {

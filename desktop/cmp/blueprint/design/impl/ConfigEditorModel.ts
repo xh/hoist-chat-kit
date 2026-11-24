@@ -74,8 +74,8 @@ export abstract class ConfigEditorModel extends HoistModel {
     }
 
     /** Open an item's page, by its list's config key and its key there. */
-    openPage(list: string, key: string) {
-        this.designModel.openItemPage({element: this.pageElement, list, key});
+    openPage(list: string, key: string, label?: string) {
+        this.designModel.openItemPage({element: this.pageElement, list, key, label});
     }
 
     @action

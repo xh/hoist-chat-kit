@@ -203,9 +203,14 @@
     padding-right: calc(26px + var(--xh-spacing-half));
   }
 
-  // Its bind menu sits in that column, as an inline row's does.
+  // Its bind menu sits in that column, as an inline row's does, the control keeping the edge.
   &__row:not(&__row--inline) > &__row-body > &__bindable {
-    margin-right: calc(-26px - var(--xh-spacing-half));
+    position: relative;
+
+    > :last-child:not(.xh-blueprint-element-inspector__value) {
+      position: absolute;
+      right: calc(-26px - var(--xh-spacing-half));
+    }
   }
 
   // A one-line value beside its label: a label column, the control, and an action column for
