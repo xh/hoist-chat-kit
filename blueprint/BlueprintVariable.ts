@@ -8,7 +8,7 @@ import {andFilters} from './impl/bindings';
 
 /** What can set a variable, as its `setBy` names it. */
 export interface BlueprintVariableWriter {
-    kind: 'prompt' | 'resolver' | 'action' | 'element' | 'output';
+    kind: 'prompt' | 'resolver' | 'action' | 'host' | 'element' | 'output';
     element?: string;
     output?: string;
     field?: string;
@@ -91,6 +91,11 @@ export class BlueprintVariable extends HoistBase {
         return writers.length === 1 && ['prompt', 'action', 'element'].includes(writers[0].kind);
     }
 
+    /** True if only the app that hosts the blueprint sets the variable, through its model. */
+    get isHostSet(): boolean {
+        return this.decl.setBy === 'host';
+    }
+
     /** The value from the declared default. */
     @computed
     get defaultValue(): unknown {
@@ -99,10 +104,13 @@ export class BlueprintVariable extends HoistBase {
         return 'value' in def ? def.value : this.context.runResolver(def);
     }
 
-    /** Set the value, as a prompt, an action or a widget that shows it. */
+    /** Set the value, as a prompt, an action, a widget that shows it, or the host for its own. */
     @action
-    set(value: unknown) {
-        throwIf(!this.isSettable, `Variable '${this.name}' cannot be set directly.`);
+    set(value: unknown, {host = false}: {host?: boolean} = {}) {
+        throwIf(
+            host ? !this.isHostSet : !this.isSettable,
+            `Variable '${this.name}' cannot be set directly.`
+        );
         this.setValue = value;
     }
 

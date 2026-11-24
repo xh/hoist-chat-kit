@@ -41,6 +41,7 @@ BlueprintModel
     ├── setBlueprint()            # Open a blueprint, which must have no errors
     ├── applyEdit()               # Apply operations as one unit, in design mode
     ├── setVariable()             # Set a variable that a prompt, action or the Architect sets
+    ├── setHostVariable()         # Set a variable that only the app sets (setBy "host")
     ├── setMode()                 # Switch mode. Design mode needs write access
     └── runActionsAsync()         # Run an action, or a list of up to 8 as steps
 ```

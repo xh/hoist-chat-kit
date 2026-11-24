@@ -208,9 +208,11 @@ export class BlueprintMapModel extends HoistModel {
                       ? 'Computed'
                       : decl.setBy === 'action'
                         ? 'Set by actions'
-                        : decl.setBy
-                          ? 'Set by widgets'
-                          : 'Constants';
+                        : decl.setBy === 'host'
+                          ? 'Set by the app'
+                          : decl.setBy
+                            ? 'Set by widgets'
+                            : 'Constants';
             (variableGroups[group] ??= []).push({
                 key: `variable:${id}`,
                 kind: 'variable',
@@ -423,7 +425,7 @@ export class BlueprintMapModel extends HoistModel {
             ).setBy;
             return `← ${writers.map(it => it.id).join(', ')}`;
         }
-        if (decl.setBy && decl.setBy !== 'prompt') {
+        if (decl.setBy && decl.setBy !== 'prompt' && decl.setBy !== 'host') {
             const writers = castArray(decl.setBy) as {element: string; output?: string}[];
             return `← ${writers.map(it => [it.element, it.output].filter(Boolean).join(' ')).join(', ')}`;
         }

@@ -710,6 +710,19 @@ describe('validateBlueprint', () => {
             expect(issues[0].message).toMatch(/a -> b -> a/);
         });
 
+        it('takes a host variable that no input shows, and refuses to make it personalizable', () => {
+            const bp = p2();
+            bp.variables.desk = {type: 'string', setBy: 'host', default: {value: 'Macro'}};
+            expect(
+                validateBlueprint(bp, {catalog: portfolioCatalog, registry, artifacts: ARTIFACTS})
+            ).toEqual([]);
+
+            bp.variables.desk.default.personalizable = true;
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+                ['variable.notPersonalizable', '/variables/desk/default/personalizable']
+            ]);
+        });
+
         it("takes options from a list or a source's field, and refuses any other form", () => {
             const check = (options: object) => {
                 const bp = p2();

@@ -325,6 +325,31 @@ describe('BlueprintModel', () => {
             expect(model.getVariable('symbol').value).toBe('Fred Corn');
         });
 
+        it('takes a host variable only from app code, never from a link or setVariable', () => {
+            const bp = p1();
+            bp.variables.desk = {type: 'string', setBy: 'host', default: {value: 'Macro'}};
+            const model = open(bp),
+                desk = model.getVariable('desk');
+
+            expect(desk.isSettable).toBe(false);
+            expect(() => model.setVariable('desk', 'Credit')).toThrow();
+            expect(
+                model.applyLinkState({
+                    id: null,
+                    open: null,
+                    presets: {},
+                    values: {desk: 'Credit'},
+                    problems: []
+                })
+            ).toEqual(["A link cannot set 'desk'."]);
+            expect(desk.value).toBe('Macro');
+
+            expect(model.setHostVariable('desk', 'Credit')).toBe('Credit');
+            expect(desk.value).toBe('Credit');
+            expect(() => model.setHostVariable('asOf', '2026-07-01')).toThrow();
+            expect(() => model.setHostVariable('desk', 7)).toThrow();
+        });
+
         it('keeps a value through an edit that leaves its declaration alone', () => {
             const model = open(p1());
             model.setVariable('asOf', '2026-07-01');

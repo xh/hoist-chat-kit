@@ -617,6 +617,20 @@ export class BlueprintModel extends HoistModel {
         return v.value;
     }
 
+    /**
+     * Set a variable that only the host sets (`setBy: "host"`), from app code. Not a user action.
+     * Throws for any other variable, or a value that does not match its type or options.
+     * @returns its value once set.
+     */
+    setHostVariable(name: string, value: unknown): unknown {
+        const v = this.getVariable(name);
+        throwIf(!v?.isHostSet, `'${name}' is not a variable the host sets.`);
+        const problem = checkVariableValue(name, v.decl, value, this.registry);
+        throwIf(problem, problem);
+        v.set(value, {host: true});
+        return v.value;
+    }
+
     /** Restore a variable's default. */
     resetVariable(name: string) {
         this.noteUserAction();

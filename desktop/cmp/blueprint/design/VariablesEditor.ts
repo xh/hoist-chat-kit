@@ -130,7 +130,7 @@ export class VariableEditorModel extends ConfigEditorModel {
         }));
     }
 
-    /** Who sets the variable: no one, the user, a resolver, an action, or widgets. */
+    /** Who sets the variable: no one, the user, a resolver, an action, widgets, or the app. */
     get setByKind(): SetByKind {
         const setBy = this.values?.setBy;
         if (setBy == null) return 'none';
@@ -226,7 +226,7 @@ export class VariableEditorModel extends ConfigEditorModel {
 //------------------
 // Implementation
 //------------------
-type SetByKind = 'none' | 'prompt' | 'resolver' | 'action' | 'widgets';
+type SetByKind = 'none' | 'prompt' | 'resolver' | 'action' | 'host' | 'widgets';
 
 // The key a refusal of the variable itself, such as its removal, goes under.
 const VARIABLE_KEY = '';
@@ -236,7 +236,8 @@ const SET_BY_OPTIONS: Option[] = [
     {value: 'prompt', label: 'The user'},
     {value: 'resolver', label: 'A resolver'},
     {value: 'action', label: 'Actions'},
-    {value: 'widgets', label: 'Widgets'}
+    {value: 'widgets', label: 'Widgets'},
+    {value: 'host', label: 'The app'}
 ];
 
 const variablesBody = hoistCmp.factory<VariableEditorModel>({

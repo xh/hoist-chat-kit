@@ -189,13 +189,15 @@ export class BlueprintInspectorModel extends HoistModel {
             setBy =
                 decl.setBy === 'prompt'
                     ? 'prompt'
-                    : decl.setBy === 'resolver'
-                      ? `computed by ${decl.compute?.resolver}`
-                      : writers.length
-                        ? `set by ${writers.join(', ')}`
-                        : decl.setBy
-                          ? null
-                          : 'constant';
+                    : decl.setBy === 'host'
+                      ? 'set by the app'
+                      : decl.setBy === 'resolver'
+                        ? `computed by ${decl.compute?.resolver}`
+                        : writers.length
+                          ? `set by ${writers.join(', ')}`
+                          : decl.setBy
+                            ? null
+                            : 'constant';
         return [variableTypeLabel(registry, decl.type), setBy].filter(Boolean).join(' · ');
     }
 

@@ -122,6 +122,7 @@ so an `acme.fund` binds wherever a `string` fits.
 | `{"element": id, "output": name}` | A widget's runtime state, such as a grid's `selection`. An output can take an argument, such as `"field": "symbol"` | No |
 | `"resolver"` | Its `compute`, run again whenever its inputs change | No |
 | `"action"` | Actions, such as buttons for MTD and YTD | Yes |
+| `"host"` | App code, through `BlueprintModel.setHostVariable()`, for a blueprint hosted inside an app. Never personalizable | No |
 | Absent | Nothing. The variable is a constant | No |
 
 - Only a `filter` variable takes several writers. Their filters join with AND, and a writer with

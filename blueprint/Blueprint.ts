@@ -59,7 +59,8 @@ export interface VariableDecl {
     asOf?: VarBinding;
 }
 
-export type VariableSetBy = 'prompt' | 'resolver' | 'action' | ElementWriter | ElementWriter[];
+export type VariableSetBy =
+    'prompt' | 'resolver' | 'action' | 'host' | ElementWriter | ElementWriter[];
 
 /** A widget that sets a variable: its shown value, or one of its outputs. */
 export interface ElementWriter {

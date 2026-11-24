@@ -416,11 +416,11 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         const sb = v.setBy,
             writers = getWriters(v);
-        if (isString(sb) && !['prompt', 'resolver', 'action'].includes(sb)) {
+        if (isString(sb) && !['prompt', 'resolver', 'action', 'host'].includes(sb)) {
             err(
                 'variable.badSetBy',
                 `${p}/setBy`,
-                'setBy must be "prompt", "resolver", "action", {"element": id} or {"element": id, "output": name}'
+                'setBy must be "prompt", "resolver", "action", "host", {"element": id} or {"element": id, "output": name}'
             );
         }
         if (sb === 'resolver' && !v.compute) {
@@ -519,11 +519,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 'only a filter variable can have several writers'
             );
         }
-        if (v.default?.personalizable && (sb === 'resolver' || writers.some(w => w.output))) {
+        if (
+            v.default?.personalizable &&
+            (sb === 'resolver' || sb === 'host' || writers.some(w => w.output))
+        ) {
             err(
                 'variable.notPersonalizable',
                 `${p}/default/personalizable`,
-                'a variable set by an output or a resolver cannot be personalizable'
+                'a variable set by an output, a resolver or the host cannot be personalizable'
             );
         }
     }
