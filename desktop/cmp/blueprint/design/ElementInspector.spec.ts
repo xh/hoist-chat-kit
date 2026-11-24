@@ -700,6 +700,59 @@ describe('ElementInspector', () => {
         expect(row().querySelector('.bp6-switch')).toBeNull();
     });
 
+    it('marks a set value, which ↺ or Delete on its control resets, and names and explains each row', () => {
+        const {model, design} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (key: string) => container.querySelector(`[data-config-key="${key}"]`),
+            segment = () => row('stripeRows').querySelector('[aria-checked]'),
+            config = () => model.blueprint.elements.posGrid.config;
+        expect(row('stripeRows').className).not.toContain('__row--set');
+        fireEvent.click(segment());
+        expect(config().stripeRows).toBe(false);
+        expect(row('stripeRows').className).toContain('__row--set');
+        fireEvent.click(row('stripeRows').querySelector('[aria-label="Reset Stripe rows"]'));
+        expect(config()).not.toHaveProperty('stripeRows');
+        fireEvent.click(segment());
+        fireEvent.keyDown(segment(), {key: 'Delete'});
+        expect(config()).not.toHaveProperty('stripeRows');
+        // In a text box, Delete edits the text.
+        act(() => {
+            design.setConfig('posGrid', '/title', 'Positions');
+        });
+        const title = row('title').querySelector('input');
+        expect(title.getAttribute('aria-label')).toBe('Title');
+        fireEvent.keyDown(title, {key: 'Delete'});
+        expect(config().title).toBe('Positions');
+        // Help comes from the schema: a tooltip on the label, and a first sentence under the control.
+        expect(row('stripeRows').querySelector('[title]')).toBeNull();
+        expect(
+            row('title').querySelector('.xh-blueprint-element-inspector__help').textContent
+        ).toBe('The title in its header.');
+    });
+
+    it('pictures four options or fewer as cards, and more as a select', () => {
+        const {design} = open(),
+            id = design.addWidget('chart', 'positions').id;
+        act(() => design.select({kind: 'element', id}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector('[data-config-key="type"]');
+        expect(row.querySelector('[role=radio]')).toBeNull();
+        expect(row.querySelector('.xh-select')).not.toBeNull();
+    });
+
+    it('tints a required setting while it is unset', () => {
+        const {design} = open(),
+            id = design.addWidget('statCard', 'positions').id;
+        act(() => {
+            design.setConfig(id, '/source', undefined);
+            design.select({kind: 'element', id});
+        });
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(container.querySelector('[data-config-key="source"]').className).toContain(
+            '__row--missing'
+        );
+    });
+
     it('removes a boolean set back to its default, rather than writing the default', () => {
         const {model, design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

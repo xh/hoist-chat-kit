@@ -18,11 +18,13 @@ import {
     textInput
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {tooltip} from '@xh/hoist/kit/blueprint';
 import {compareStructural, computed} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {
     castArray,
+    isArray,
     isEmpty,
     isEqual,
     isNumber,
@@ -147,8 +149,15 @@ export interface RowProps {
     key?: string;
 }
 
-/** A property's label, its editor, and its issues. */
+/**
+ * A property's label, its editor, and its issues. A set value shows a dot before the label, which
+ * hover turns to ↺ to reset it, as Delete on a focused control does. The label's tooltip and the
+ * focused row's help line come from its schema.
+ */
 export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
+    const isSet = value !== undefined,
+        canReset = isSet && !badge && !ctx.impl.readOnly && !ctx.locked,
+        reset = () => commit(undefined);
     return div({
         key,
         // Named for its label, so each control in it reads with the property it sets.
@@ -156,14 +165,34 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
         // A one-line value sits beside its label. A structure takes the row's full width.
         className: classNames(
             `${CLS}__row`,
-            INLINE_KINDS.includes(node.kind) && !isMultiline(node) && `${CLS}__row--inline`
+            INLINE_KINDS.includes(node.kind) && !isMultiline(node) && `${CLS}__row--inline`,
+            isSet && `${CLS}__row--set`,
+            node.required && !isSet && !badge && `${CLS}__row--missing`
         ),
+        onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key !== 'Delete' || !canReset || isTextEntry(e.target as HTMLElement)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            reset();
+        },
         children: [
             div({
                 className: `${CLS}__label`,
-                title: node.description,
                 children: [
-                    node.label,
+                    canReset
+                        ? button({
+                              className: `${CLS}__reset`,
+                              icon: Icon.reset(),
+                              minimal: true,
+                              small: true,
+                              title: `Reset ${node.label}`,
+                              'aria-label': `Reset ${node.label}`,
+                              onClick: reset
+                          })
+                        : isSet
+                          ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object)
+                          : null,
+                    labelTooltip(node),
                     node.required ? span({className: `${CLS}__req`, children: '*'}) : null
                 ]
             }),
@@ -191,7 +220,13 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                             ),
                             children: it.message
                         })
-                    )
+                    ),
+                    node.description
+                        ? div({
+                              className: `${CLS}__help`,
+                              children: firstSentence(node.description)
+                          })
+                        : null
                 ]
             }),
             node.kind === 'format' ? formatOptionsCard(value, commit, ctx, !!issues.length) : null,
@@ -199,6 +234,53 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
         ]
     });
 }
+
+// The label, with a tooltip of the property's description, its default, whether it binds, and
+// the key the JSON and the Architect use.
+function labelTooltip(node: EditorNode): ReactNode {
+    const {description, default: dflt, bindable, key} = node;
+    return tooltip({
+        className: `${CLS}__label-text`,
+        popoverClassName: `${CLS}__label-tip`,
+        hoverOpenDelay: 500,
+        content: div({
+            children: [
+                description ? div({children: description}) : null,
+                dflt !== undefined
+                    ? div({
+                          className: `${CLS}__label-tip-fact`,
+                          children: `Default ${defaultText(node)}`
+                      })
+                    : null,
+                bindable
+                    ? div({className: `${CLS}__label-tip-fact`, children: 'Can bind to a variable'})
+                    : null,
+                div({className: `${CLS}__label-tip-key`, children: key})
+            ]
+        }),
+        item: span({tabIndex: 0, children: node.label})
+    });
+}
+
+function defaultText(node: EditorNode): string {
+    const dflt = node.default;
+    if (node.kind === 'boolean' || node.kind === 'choice')
+        return choiceLabel(node, dflt === true ? 'true' : dflt);
+    return isArray(dflt) ? (dflt as unknown[]).join(', ') : String(dflt);
+}
+
+/** The first sentence of a description, for a line of help. */
+export function firstSentence(text: string): string {
+    return text.match(/^.*?[.!?](\s|$)/)?.[0].trim() ?? text;
+}
+
+// True where Delete edits text rather than resetting the setting.
+function isTextEntry(el: HTMLElement): boolean {
+    return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT' || el?.isContentEditable;
+}
+
+// A ref that names an input for assistive tech, as Hoist's inputs take no aria-label.
+const named = (name: string) => (el: HTMLElement) => el?.setAttribute('aria-label', name);
 
 const INLINE_KINDS = [
     'text',
@@ -258,6 +340,7 @@ function editorFor(
         case 'text':
             return (node.multiline ? textArea : textInput)({
                 value: (value as string) ?? null,
+                inputRef: named(node.label),
                 placeholder,
                 disabled,
                 width: '100%',
@@ -275,6 +358,7 @@ function editorFor(
         case 'number':
             return numberInput({
                 value: isNumber(value) ? value : null,
+                inputRef: named(node.label),
                 min: node.min,
                 max: node.max,
                 precision: node.integer ? 0 : 4,
@@ -292,8 +376,9 @@ function editorFor(
                 onCommit: v => commit(v === (node.default ?? false) ? undefined : v)
             });
         case 'choice':
-            // A choice with pictures shows a card for each option.
-            if (node.thumbnails) {
+            // A choice of four pictures or fewer shows a card for each. A longer one is a select
+            // with a small picture per option.
+            if (node.thumbnails && node.options.filter(it => it !== true).length <= 4) {
                 const options = node.options.filter(it => it !== true);
                 return radioCardInput({
                     value: value === true ? options[0] : (value ?? node.default ?? null),
@@ -331,6 +416,21 @@ function editorFor(
             return select({
                 value: value ?? null,
                 options: choiceOptions(node),
+                ...(node.thumbnails
+                    ? {
+                          optionRenderer: (opt: Option) =>
+                              hbox({
+                                  className: `${CLS}__pictured-option`,
+                                  children: [
+                                      thumbnailPreview(node.thumbnails[String(opt.value)], {
+                                          width: 30,
+                                          height: 18
+                                      }),
+                                      span(opt.label)
+                                  ]
+                              })
+                      }
+                    : {}),
                 enableClear: !node.required,
                 placeholder: choicePlaceholder,
                 ...(isDecided ? {title: 'The widget decides as it draws, when unset.'} : {}),

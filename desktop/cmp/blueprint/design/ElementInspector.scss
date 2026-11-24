@@ -257,10 +257,92 @@
     gap: var(--xh-spacing-half);
   }
 
+  // The label, after the dot of a set value, which hover or focus turns to its reset.
   &__label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
     font-size: 11.5px;
     font-weight: 500;
     color: var(--xh-text-color);
+  }
+
+  &__label-text {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    > span:focus-visible {
+      outline: var(--xh-focus-outline);
+    }
+  }
+
+  &__dot {
+    position: absolute;
+    left: -7px;
+    width: 4px;
+    height: 4px;
+    background-color: var(--xh-intent-primary);
+    border-radius: 50%;
+  }
+
+  &__reset.xh-button {
+    position: absolute;
+    left: -9px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    color: var(--xh-intent-primary-text-color);
+    opacity: 0;
+
+    svg {
+      width: 9px;
+      height: 9px;
+    }
+  }
+
+  &__row--set:is(:hover, :focus-within) &__reset.xh-button,
+  &__reset.xh-button:focus-visible {
+    opacity: 1;
+  }
+
+  // Required and unset: the widget's Needs setup focuses it.
+  &__row--missing > &__label {
+    color: var(--xh-intent-warning-text-color);
+  }
+
+  &__row--missing &__row-body .bp6-input,
+  &__row--missing &__row-body .xh-select__control {
+    box-shadow: inset 0 0 0 1px var(--xh-intent-warning);
+  }
+
+  // The focused row's first sentence of help, muted under its control. One row at a time.
+  &__help {
+    display: none;
+    font-size: 11px;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__row:focus-within > &__row-body > &__help {
+    display: block;
+  }
+
+  &__label-tip {
+    max-width: 320px;
+    font-size: 12px;
+  }
+
+  &__label-tip-fact {
+    margin-top: var(--xh-spacing-half);
+    opacity: 0.8;
+  }
+
+  &__label-tip-key {
+    margin-top: var(--xh-spacing-half);
+    font-family: var(--xh-font-family-mono);
+    opacity: 0.8;
   }
 
   &__req {
@@ -401,9 +483,18 @@
     gap: 6px;
   }
 
-  // A default shown while unset, its choice marked more quietly than one set.
-  &__implied [aria-checked='true'] {
-    opacity: 0.6;
+  // A default shown while unset: its option outlined in the intent, unfilled, so it reads apart
+  // from a value set and from the options not chosen.
+  &__implied [aria-checked='true'].bp6-button {
+    color: var(--xh-intent-primary-text-color) !important;
+    background: none !important;
+    box-shadow: inset 0 0 0 1px var(--xh-intent-primary) !important;
+  }
+
+  // A select's option with its picture, for a choice of more than four.
+  &__pictured-option {
+    gap: var(--xh-spacing);
+    align-items: center;
   }
 
   // A container's child: a click selects it.

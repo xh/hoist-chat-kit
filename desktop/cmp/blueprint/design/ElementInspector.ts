@@ -30,6 +30,7 @@ import {
     booleanEditor,
     CLS,
     countLabel,
+    firstSentence,
     propertyRow,
     removeItemButton,
     sectionCard
@@ -606,10 +607,6 @@ function moreRow(impl: ElementInspectorModel, section: InspectorSection): ReactN
             onClick: toggle
         })
     });
-}
-
-function firstSentence(text: string): string {
-    return text.match(/^.*?[.!?](\s|$)/)?.[0].trim() ?? text;
 }
 
 // Where the element sits in its parent, last and folded to one line: a dashboard cell's view
