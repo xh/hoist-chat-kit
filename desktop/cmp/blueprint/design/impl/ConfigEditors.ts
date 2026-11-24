@@ -26,6 +26,7 @@ import {compareStructural, computed, observable, runInAction} from '@xh/hoist/mo
 import {wait} from '@xh/hoist/promise';
 import {
     castArray,
+    groupBy,
     isArray,
     isEmpty,
     isEqual,
@@ -204,23 +205,27 @@ function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) 
         // The form field binds a single input, and every other editor stands in for one.
         own = {...ctx, form: undefined},
         unbound = {...node, bindable: false},
-        input = isFieldInput(node) && !bound;
+        input = isFieldInput(node) && !bound,
+        // In a row it shares, a setting stacks under its caption.
+        caption = node.schema['x-caption'] as string;
     return formField({
         key,
         field: node.key,
         className: classNames(
             `${CLS}__row`,
             `${CLS}__form-row`,
+            caption && `${CLS}__form-cell`,
             isSet && `${CLS}__row--set`,
             node.required && !isSet && !badge && `${CLS}__row--missing`
         ),
-        inline: INLINE_KINDS.includes(node.kind) && !isMultiline(node),
+        inline: !caption && INLINE_KINDS.includes(node.kind) && !isMultiline(node),
         clickableLabel: false,
         label: span({
             className: `${CLS}__label`,
+            title: caption ? node.label : null,
             children: [
                 isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
-                labelTooltip(node)
+                caption ?? labelTooltip(node)
             ]
         }),
         domAttrs: {'data-config-key': node.key, role: 'group', 'aria-label': node.label},
@@ -268,6 +273,35 @@ function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) 
                 ]
             }),
         item: input ? editorFor(unbound, value, commit, own, true) : textInput()
+    });
+}
+
+/**
+ * Rows whose settings name one `x-row` as a single row under its label, at the first one's place,
+ * each setting in it under its `x-caption`. Every other row stays as it is.
+ */
+export function joinRows<T>(
+    items: T[],
+    nodeOf: (it: T) => EditorNode,
+    rowOf: (it: T) => ReactNode
+): ReactNode[] {
+    const rowLabel = (it: T) => nodeOf(it).schema['x-row'] as string,
+        shared = groupBy(items.filter(rowLabel), rowLabel);
+    return items.flatMap((it): ReactNode[] => {
+        const label = rowLabel(it);
+        if (!label) return [rowOf(it)];
+        if (nodeOf(shared[label][0]) !== nodeOf(it)) return [];
+        return [
+            div({
+                key: `row:${label}`,
+                className: `${CLS}__row ${CLS}__row-group`,
+                ...({role: 'group', 'aria-label': label} as object),
+                children: [
+                    div({className: `${CLS}__label`, children: label}),
+                    div({className: `${CLS}__row-cells`, children: shared[label].map(rowOf)})
+                ]
+            })
+        ];
     });
 }
 
@@ -1840,7 +1874,11 @@ function pageView(opts: {
                     collapsed,
                     onToggle: () => impl.toggleItem(foldScope, group.id),
                     children: [
-                        ...shown.map(it => it.row),
+                        ...joinRows(
+                            shown,
+                            it => it.node,
+                            it => it.row
+                        ),
                         folded.length
                             ? moreLine(
                                   moreOpen,

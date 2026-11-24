@@ -112,6 +112,7 @@ editors what a value means:
 | `x-common` | On a list item, the settings its row shows when opened. A key may name a setting of the list's `x-settings` partner, as a column's `width` sits in `columnState` | |
 | `x-summary` | On a list item, the settings whose values its row shows as chips | |
 | `x-page` | On a list item, `true` for a page of its own, `false` for none. By default an item with more than six settings, or a list inside, gets one | |
+| `x-row`, `x-caption` | The label of a row that settings share, such as `Width`, and each setting's short name in it, such as `Min` | Shows the settings side by side in one row at the first one's place, each under its caption |
 
 - Give a property JSON Schema's `title` when its label should differ from its key, as a column's
   `headerName` reads "Header".

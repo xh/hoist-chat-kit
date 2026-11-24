@@ -79,8 +79,8 @@ export function withEffectiveBindings(config: PlainObject): PlainObject {
 /**
  * A config schema as the Architect reads it: a property marked `x-binding: true` that would bind
  * by default loses the mark, as the prompt states the default once. What only people read goes:
- * `x-thumbnails`, `x-labels` and `x-unset` everywhere, list items' `x-groups`, `x-common`,
- * `x-summary` and `x-page`, and the `x-group` of a list item's property.
+ * `x-thumbnails`, `x-labels`, `x-unset`, `x-row` and `x-caption` everywhere, list items' `x-groups`,
+ * `x-common`, `x-summary` and `x-page`, and the `x-group` of a list item's property.
  */
 export function withDefaultBindingsImplied(config: PlainObject): PlainObject {
     if (!isPlainObject(config?.properties)) return config;
@@ -115,7 +115,9 @@ const FOR_PEOPLE = [
     'x-groups',
     'x-common',
     'x-summary',
-    'x-page'
+    'x-page',
+    'x-row',
+    'x-caption'
 ];
 
 const REFERENCES = [

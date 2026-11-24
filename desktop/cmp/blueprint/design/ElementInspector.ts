@@ -36,6 +36,7 @@ import {
     firstSentence,
     listItemPage,
     moreLine,
+    joinRows,
     propertyRow,
     settingsForm,
     removeItemButton,
@@ -802,7 +803,11 @@ function configCard(
             isValue ? setsEditor(impl) : null,
             isValue ? optionsRow(impl) : null,
             // A section's one list, such as Columns, is named by the section's header alone.
-            ...section.nodes.map(node => configRow(impl, node, form)),
+            ...joinRows(
+                section.nodes,
+                node => node,
+                node => configRow(impl, node, form)
+            ),
             moreRow(impl, section)
         ]
     });

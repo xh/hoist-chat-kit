@@ -1062,6 +1062,35 @@ describe('ElementInspector', () => {
         expect(config().columns.mktVal.headerName).toBe('Value');
     });
 
+    it("joins a column's Width, Min and Max in one row, each under its caption", () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal']);
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'mktVal#1'}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector('[role="group"][aria-label="Width"]'),
+            captions = [...row.querySelectorAll('.xh-form-field__label')].map(it => it.textContent);
+        expect(captions).toEqual(['Width', 'Min', 'Max']);
+        const min = row.querySelector<HTMLInputElement>('[data-config-key="minWidth"] input');
+        fireEvent.focus(min);
+        fireEvent.change(min, {target: {value: '60'}});
+        fireEvent.blur(min);
+        expect((model.blueprint.elements.posGrid.config as any).columns.mktVal.minWidth).toBe(60);
+    });
+
+    it("joins a chart's axis titles in one row, at the first one's place", () => {
+        const {design} = open('p3-morning-report.json', 'priceChart'),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector('[role="group"][aria-label="Axis titles"]');
+        expect(
+            [...row.querySelectorAll('.xh-form-field__label')].map(it => it.textContent)
+        ).toEqual(['X', 'Y', 'Y2']);
+        expect(
+            container
+                .querySelector('[data-config-key="xTitle"]')
+                .closest('[aria-label="Axis titles"]')
+        ).toBe(row);
+    });
+
     it("adds a style rule from its list's own Add row, starting as a valid test", async () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['pnlDay']);

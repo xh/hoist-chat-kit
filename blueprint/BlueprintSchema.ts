@@ -80,6 +80,13 @@ export type BlueprintSchemaExtension = {
      * more than six settings, or a list inside, gets one.
      */
     'x-page'?: boolean;
+    /**
+     * The row a setting shares with others that name it, as a column's Width, Min and Max do. The
+     * row shows at the first one's place, under this label, each setting under its `x-caption`.
+     */
+    'x-row'?: string;
+    /** The short name a setting shows under in its `x-row`, such as `Min`. */
+    'x-caption'?: string;
 };
 
 /**

@@ -171,7 +171,16 @@ describe('Architect tools', () => {
             column = properties.columns.additionalProperties,
             text = JSON.stringify(properties);
         expect(column.properties.headerName).toBeTruthy();
-        for (const key of ['x-groups', 'x-common', 'x-summary', 'x-page', 'x-labels', 'x-unset']) {
+        for (const key of [
+            'x-groups',
+            'x-common',
+            'x-summary',
+            'x-page',
+            'x-labels',
+            'x-unset',
+            'x-row',
+            'x-caption'
+        ]) {
             expect(text, key).not.toContain(`"${key}"`);
         }
         expect(column.properties.headerName['x-group']).toBeUndefined();

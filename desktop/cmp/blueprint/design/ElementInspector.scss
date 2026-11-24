@@ -404,6 +404,37 @@ body {
     }
   }
 
+  // Settings that share a row, such as a column's Width, Min and Max: the row's label, then each
+  // setting under its caption, the controls ending at the inline rows' edge.
+  &__row-group {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    column-gap: var(--xh-spacing-half);
+    align-items: end;
+
+    > .xh-blueprint-element-inspector__label {
+      min-height: 30px;
+    }
+  }
+
+  &__row-cells {
+    display: flex;
+    gap: var(--xh-spacing-half);
+    min-width: 0;
+    padding-right: calc(52px + var(--xh-spacing-half));
+  }
+
+  &__form-cell.xh-form-field {
+    --xh-form-field-label-font-size: 10.5px;
+
+    flex: 1 1 0;
+    min-width: 0;
+
+    > .xh-form-field__inner {
+      padding-right: 0;
+    }
+  }
+
   &__row--set.xh-form-field > .xh-form-field__label {
     --xh-form-field-label-text-color: var(--xh-text-color);
   }

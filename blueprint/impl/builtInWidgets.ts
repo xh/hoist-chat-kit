@@ -713,6 +713,8 @@ const CUBE_GRID_SCHEMA = {
                             },
                             width: {
                                 'x-group': 'size',
+                                'x-row': 'Width',
+                                'x-caption': 'Width',
                                 type: 'integer',
                                 minimum: 30,
                                 maximum: 800,
@@ -840,6 +842,8 @@ const CUBE_GRID_SCHEMA = {
                     },
                     minWidth: {
                         'x-group': 'size',
+                        'x-row': 'Width',
+                        'x-caption': 'Min',
                         type: 'integer',
                         minimum: 20,
                         'x-unset': '20',
@@ -848,6 +852,8 @@ const CUBE_GRID_SCHEMA = {
                     },
                     maxWidth: {
                         'x-group': 'size',
+                        'x-row': 'Width',
+                        'x-caption': 'Max',
                         type: 'integer',
                         minimum: 20,
                         'x-unset': 'None',
@@ -1106,6 +1112,8 @@ const CHART_SCHEMA = {
         },
         xTitle: {
             'x-group': 'content',
+            'x-row': 'Axis titles',
+            'x-caption': 'X',
             type: 'string',
             maxLength: 100,
             'x-binding': true,
@@ -1114,6 +1122,8 @@ const CHART_SCHEMA = {
         },
         yTitle: {
             'x-group': 'content',
+            'x-row': 'Axis titles',
+            'x-caption': 'Y',
             type: 'string',
             maxLength: 100,
             'x-binding': true,
@@ -1153,6 +1163,8 @@ const CHART_SCHEMA = {
         },
         y2Title: {
             'x-group': 'content',
+            'x-row': 'Axis titles',
+            'x-caption': 'Y2',
             title: 'Y2 title',
             'x-advanced': true,
             type: 'string',
