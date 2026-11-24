@@ -1,8 +1,9 @@
 import {FormModel} from '@xh/hoist/cmp/form';
 import {HoistModel, managed, type PlainObject} from '@xh/hoist/core';
 import {required} from '@xh/hoist/data';
-import {isEqual, mapValues} from 'lodash';
+import {isEqual} from 'lodash';
 import type {EditorNode} from '../../../../../blueprint';
+import {fromFieldValue, toFieldValue} from './settingValues';
 
 export interface SettingsFormConfig {
     /** The settings, a field each. */
@@ -16,7 +17,8 @@ export interface SettingsFormConfig {
 /**
  * A Hoist form over a set of blueprint settings, such as an element's config: a field per setting,
  * each change committed as one edit, and the fields following the blueprint as it changes from
- * outside, by undo, a preset or the Architect, with no edit echoed back.
+ * outside, by undo, a preset or the Architect, with no edit echoed back. A field holds its value as
+ * its input shows it, an unset one at its default, and a value set to its default commits as unset.
  */
 export class SettingsFormModel extends HoistModel {
     @managed readonly formModel: FormModel;
@@ -54,9 +56,10 @@ export class SettingsFormModel extends HoistModel {
                 run: data => {
                     if (this.syncing) return;
                     const current = this.fieldValues();
-                    Object.entries(data).forEach(([key, value]) => {
-                        if (!isEqual(value, current[key])) {
-                            this.cfg.commit(key, value == null || value === '' ? undefined : value);
+                    this.cfg.nodes.forEach(node => {
+                        const value = data[node.key];
+                        if (!isEqual(value, current[node.key])) {
+                            this.cfg.commit(node.key, fromFieldValue(node, value));
                         }
                     });
                 },
@@ -65,12 +68,11 @@ export class SettingsFormModel extends HoistModel {
         );
     }
 
-    // The blueprint's values as fields hold them: an unset setting null.
+    // The blueprint's values as the fields hold them.
     private fieldValues(): PlainObject {
         const values = this.cfg.values() ?? {};
-        return mapValues(
-            Object.fromEntries(this.cfg.nodes.map(it => [it.key, null])),
-            (_, key) => values[key] ?? null
+        return Object.fromEntries(
+            this.cfg.nodes.map(node => [node.key, toFieldValue(node, values[node.key])])
         );
     }
 }

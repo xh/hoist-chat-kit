@@ -1,6 +1,7 @@
 import {card} from '@xh/hoist/cmp/card';
 import {form, type FormModel} from '@xh/hoist/cmp/form';
 import {type SettingsFormConfig, SettingsFormModel} from './SettingsFormModel';
+import {choiceLabel, fromFieldValue, isShortChoice, toFieldValue} from './settingValues';
 import {formField} from '@xh/hoist/desktop/cmp/form';
 import {div, filler, hbox, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel} from '@xh/hoist/core';
@@ -23,7 +24,6 @@ import {Icon} from '@xh/hoist/icon';
 import {tooltip} from '@xh/hoist/kit/blueprint';
 import {compareStructural, computed} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {LocalDate} from '@xh/hoist/utils/datetime';
 import {
     castArray,
     isArray,
@@ -191,7 +191,11 @@ function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) 
         locked = ctx.impl.readOnly || !!ctx.locked,
         canReset = isSet && !badge && !locked,
         reset = () => commit(undefined),
-        bound = node.bindable && isVarBinding(value);
+        bound = node.bindable && isVarBinding(value),
+        // The form field binds a single input, and every other editor stands in for one.
+        own = {...ctx, form: undefined},
+        unbound = {...node, bindable: false},
+        input = isFieldInput(node) && !bound;
     return formField({
         key,
         field: node.key,
@@ -227,7 +231,7 @@ function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) 
                         })
                       : null
               ].filter(Boolean),
-        inputRenderer: () =>
+        inputRenderer: boundInput =>
             div({
                 className: `${CLS}__row-body`,
                 onKeyDown: (e: React.KeyboardEvent) => {
@@ -243,18 +247,41 @@ function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) 
                 children: [
                     badge ? badgeOf(badge, ctx) : null,
                     bound
-                        ? boundEditor(node, value, commit, ctx)
-                        : editorFor({...node, bindable: false}, value, commit, ctx),
+                        ? boundEditor(node, value, commit, own)
+                        : input
+                          ? boundInput
+                          : editorFor(unbound, value, commit, own),
                     ...issueLines(issues),
                     node.kind === 'format' && !ctx.flatFormat
-                        ? formatOptionsCard(value, commit, ctx, !!issues.length)
+                        ? formatOptionsCard(value, commit, own, !!issues.length)
                         : null,
-                    node.kind === 'sort' ? sortDrawer(node, value, commit, ctx) : null
+                    node.kind === 'sort' ? sortDrawer(node, value, commit, own) : null
                 ]
             }),
-        // The input the editor stands in for, never shown.
-        item: textInput()
+        item: input ? editorFor(unbound, value, commit, own, true) : textInput()
     });
+}
+
+// True for a setting whose editor is one Hoist input, which its form field binds.
+function isFieldInput(node: EditorNode): boolean {
+    switch (node.kind) {
+        case 'text':
+        case 'date':
+        case 'number':
+        case 'boolean':
+        case 'choice':
+        case 'icon':
+        case 'preset':
+        case 'variable':
+        case 'blueprint':
+        case 'source':
+        case 'stringList':
+            return true;
+        case 'field':
+            return !(node.multiple && node.role === 'dimension');
+        default:
+            return false;
+    }
 }
 
 /**
@@ -506,10 +533,14 @@ function editorFor(
     node: EditorNode,
     value: unknown,
     commit: (value: unknown) => void,
-    ctx: EditorContext
+    ctx: EditorContext,
+    // True where a form field binds the input, which then takes no value or commit of its own.
+    fieldBound = false
 ): ReactElement {
-    const disabled = ctx.impl.readOnly || !!ctx.locked,
-        optional = (v: unknown) => (v == null || v === '' ? undefined : v),
+    const binding: {value?: any; onCommit?: (v: any) => void} = fieldBound
+            ? {}
+            : {value: toFieldValue(node, value), onCommit: v => commit(fromFieldValue(node, v))},
+        disabled = ctx.impl.readOnly || !!ctx.locked,
         unset = node.schema['x-unset'] as string,
         // While unset, a value shows its default, else what it takes from its field, else what
         // unset means.
@@ -534,41 +565,37 @@ function editorFor(
     switch (node.kind) {
         case 'text':
             return (node.multiline ? textArea : textInput)({
-                value: (value as string) ?? null,
+                ...binding,
                 inputRef: named(node.label),
                 placeholder,
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'date':
             return dateInput({
-                value: isString(value) && value ? LocalDate.get(value) : null,
+                ...binding,
                 valueType: 'localDate',
                 placeholder,
                 disabled,
-                width: '100%',
-                onCommit: (d: LocalDate) => commit(d?.isoString ?? undefined)
+                width: '100%'
             });
         case 'number':
             return numberInput({
-                value: isNumber(value) ? value : null,
+                ...binding,
                 inputRef: named(node.label),
                 min: node.min,
                 max: node.max,
                 precision: node.integer ? 0 : 4,
                 placeholder,
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'boolean':
             return booleanEditor({
-                value: !!(value ?? node.default),
+                ...binding,
                 labels: node.labels,
                 disabled,
-                implied,
-                onCommit: v => commit(v === (node.default ?? false) ? undefined : v)
+                implied
             });
         case 'choice':
             // A choice with pictures shows them inline: a small card each for four or fewer, a row
@@ -577,7 +604,7 @@ function editorFor(
                 const options = node.options.filter(it => it !== true),
                     many = options.length > 4;
                 return radioCardInput({
-                    value: value === true ? options[0] : (value ?? node.default ?? null),
+                    ...binding,
                     options: [
                         ...(node.required || node.default !== undefined
                             ? []
@@ -603,23 +630,21 @@ function editorFor(
                         `${CLS}__pictures`,
                         many && `${CLS}__pictures--many`,
                         implied && `${CLS}__implied`
-                    ),
-                    onCommit: v => commit(v === node.default || v == null ? undefined : v)
+                    )
                 });
             }
             // A choice with an off state, such as a summary row's place, shows every option at once.
             if (node.options.includes(false)) {
                 const options = node.options.filter(it => it !== true);
                 return segmentedControl({
-                    value: value === true ? options[0] : (value ?? node.default ?? false),
+                    ...binding,
                     options: options.map(it => ({
                         value: it as any,
                         label: choiceLabel(node, it)
                     })),
                     disabled,
                     compact: true,
-                    className: classNames(implied && `${CLS}__implied`),
-                    onCommit: v => commit(v === node.default ? undefined : v)
+                    className: classNames(implied && `${CLS}__implied`)
                 });
             }
             // A few short options, such as an alignment or a pin, show all at once. One with no
@@ -628,7 +653,7 @@ function editorFor(
                 const unsettable = node.default === undefined && !node.required,
                     withNone = unsettable && node.options.length < 3;
                 return segmentedControl({
-                    value: (value ?? node.default ?? null) as any,
+                    ...binding,
                     options: [
                         ...(withNone ? [{value: null, label: 'None'}] : []),
                         ...node.options.map(it => ({
@@ -638,69 +663,62 @@ function editorFor(
                     ],
                     disabled,
                     compact: true,
-                    className: classNames(implied && `${CLS}__implied`),
-                    onCommit: v => commit(v === node.default || v == null ? undefined : v)
+                    className: classNames(implied && `${CLS}__implied`)
                 });
             }
             return select({
-                value: value ?? null,
+                ...binding,
                 options: choiceOptions(node),
                 enableClear: !node.required,
                 placeholder: choicePlaceholder,
                 ...(isDecided ? {title: 'The widget decides as it draws, when unset.'} : {}),
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'icon':
             return iconPicker({
-                value: (value as string) ?? null,
+                ...binding,
                 enableClear: !node.required,
                 placeholder: unset ?? 'None',
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'preset':
             return select({
-                value: value ?? null,
+                ...binding,
                 options: withCurrent(
                     Object.keys(ctx.impl.presets).map(it => ({value: it, label: it})),
                     value
                 ),
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'variable':
             return select({
-                value: value ?? null,
+                ...binding,
                 options: withCurrent(ctx.impl.settableVariables, value),
                 enableClear: !node.required,
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'blueprint': {
             const {impl} = ctx;
             if (!impl.blueprintOptions) impl.loadBlueprintOptionsAsync().catchDefault();
             return select({
-                value: value ?? null,
+                ...binding,
                 options: withCurrent(impl.blueprintOptions ?? [], value),
                 enableClear: !node.required,
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         }
         case 'source':
             return select({
-                value: value ?? null,
+                ...binding,
                 options: ctx.impl.sourceOptions,
                 enableClear: !node.required,
                 disabled,
-                width: '100%',
-                onCommit: v => commit(optional(v))
+                width: '100%'
             });
         case 'field': {
             const options = withCurrent(ctx.impl.fieldOptions(node.role), value);
@@ -714,33 +732,30 @@ function editorFor(
             }
             return node.multiple
                 ? select({
-                      value: (value as string[]) ?? [],
+                      ...binding,
                       options,
                       enableMulti: true,
                       placeholder: unset ?? 'None',
                       disabled,
-                      width: '100%',
-                      onCommit: v => commit(isEmpty(v) && !node.required ? undefined : v)
+                      width: '100%'
                   })
                 : select({
-                      value: value ?? null,
+                      ...binding,
                       options,
                       enableClear: !node.required,
                       placeholder: unset ?? (node.required ? 'Pick a field…' : 'None'),
                       disabled,
-                      width: '100%',
-                      onCommit: v => commit(optional(v))
+                      width: '100%'
                   });
         }
         case 'stringList':
             return select({
-                value: (value as string[]) ?? [],
+                ...binding,
                 options: (node.options ?? (value as string[]) ?? []) as any[],
                 enableMulti: true,
                 enableCreate: !node.options,
                 disabled,
-                width: '100%',
-                onCommit: v => commit(isEmpty(v) && !node.required ? undefined : v)
+                width: '100%'
             });
         case 'group': {
             const obj = (value ?? {}) as PlainObject;
@@ -1149,23 +1164,23 @@ export function booleanEditor({
     implied = false,
     onCommit
 }: {
-    value: boolean;
+    /** The value, unless a form field binds the control. */
+    value?: boolean;
     labels: {value: boolean; label: string}[];
     disabled: boolean;
     /** True while unset, which marks the default it shows more quietly than a value set. */
     implied?: boolean;
-    onCommit: (value: boolean) => void;
+    onCommit?: (value: boolean) => void;
 }) {
     return segmentedControl({
         className: classNames(implied && `${CLS}__implied`),
-        value,
+        ...(onCommit ? {value, onCommit} : {}),
         options: labels,
         intent: 'primary',
         toggleOnClick: true,
         fill: false,
         compact: true,
-        disabled,
-        onCommit
+        disabled
     });
 }
 
@@ -2186,13 +2201,6 @@ function formatOptionsCard(
 // A choice's label: its `x-labels` entry, else Off for false, else its value in words.
 // A choice's options, built once per node, so its select keeps the same props as it draws again.
 // A choice of three or fewer short words, which a segmented control shows better than a select.
-function isShortChoice(node: Extract<EditorNode, {kind: 'choice'}>): boolean {
-    return (
-        node.options.length <= 3 &&
-        node.options.every(it => isString(it) && choiceLabel(node, it).length <= 10)
-    );
-}
-
 const choiceOptionsCache = new WeakMap<EditorNode, Option[]>();
 
 function choiceOptions(node: Extract<EditorNode, {kind: 'choice'}>): Option[] {
@@ -2205,13 +2213,6 @@ function choiceOptions(node: Extract<EditorNode, {kind: 'choice'}>): Option[] {
         choiceOptionsCache.set(node, ret);
     }
     return ret;
-}
-
-function choiceLabel(node: EditorNode, value: unknown): string {
-    return (
-        node.schema['x-labels']?.[String(value)] ??
-        (value === false ? 'Off' : labelOf(String(value)))
-    );
 }
 
 // Two numbers side by side, across then down, each showing its default while unset. Setting one

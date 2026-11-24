@@ -36,9 +36,9 @@ function open(initial: PlainObject) {
 describe('SettingsFormModel', () => {
     beforeAll(() => initTestAppAsync());
 
-    it('holds a field per setting, at its config value, with an unset one null', () => {
+    it('holds a field per setting as its input shows it, an unset one at its default', () => {
         const {form} = open({source: 'positions'});
-        expect(form.getData()).toEqual({source: 'positions', title: null, stripeRows: null});
+        expect(form.getData()).toEqual({source: 'positions', title: null, stripeRows: true});
         expect(form.getField('source').isRequired).toBe(true);
         expect(form.getField('title').displayName).toBe('Title');
     });
@@ -59,5 +59,12 @@ describe('SettingsFormModel', () => {
         expect(form.getData()).toEqual({source: 'orders', title: null, stripeRows: false});
         expect(commits).toEqual([]);
         expect(form.isDirty).toBe(false);
+    });
+
+    it('commits a value set to its default as unset', () => {
+        const {form, commits, config} = open({source: 'positions', stripeRows: false});
+        form.setValues({stripeRows: true});
+        expect(commits).toEqual([['stripeRows', undefined]]);
+        expect(config.get()).toEqual({source: 'positions'});
     });
 });

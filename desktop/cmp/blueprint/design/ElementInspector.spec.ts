@@ -1910,6 +1910,31 @@ describe('ElementInspector', () => {
         expect(container.querySelector('[data-config-key="icon"] .xh-icon-picker')).toBeTruthy();
     });
 
+    it('edits a setting through its form field, each change one edit, and its default as unset', () => {
+        const {design, model} = open(),
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            config = () => model.blueprint.elements.posGrid.config,
+            title = container.querySelector<HTMLInputElement>('[data-config-key="title"] input'),
+            stripe = (label: string) =>
+                [...container.querySelectorAll('[data-config-key="stripeRows"] button')].find(
+                    it => it.textContent === label
+                ),
+            before = model.history.length;
+        fireEvent.focus(title);
+        fireEvent.change(title, {target: {value: 'Book'}});
+        fireEvent.blur(title);
+        expect(config().title).toBe('Book');
+        expect(model.history.length).toBe(before + 1);
+        fireEvent.focus(title);
+        fireEvent.change(title, {target: {value: ''}});
+        fireEvent.blur(title);
+        expect(config()).not.toHaveProperty('title');
+        const stripes = config().stripeRows;
+        fireEvent.click(stripe(stripes === false ? 'On' : 'Off'));
+        fireEvent.click(stripe(stripes === false ? 'Off' : 'On'));
+        expect(config()).not.toHaveProperty('stripeRows');
+    });
+
     it('draws a labelled form field per property, a required one marked', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
