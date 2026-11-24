@@ -594,6 +594,28 @@ body {
     white-space: nowrap;
   }
 
+  // The widget a view holds: a row a click selects, with a chevron toward it.
+  &__held {
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--xh-intent-primary-trans1);
+    }
+
+    &:focus-visible {
+      outline: var(--xh-focus-outline);
+    }
+  }
+
+  &__held-go {
+    color: var(--xh-blueprint-inspector-muted);
+  }
+
+  &__options-link.xh-button {
+    justify-content: flex-start;
+    color: var(--xh-intent-primary-text-color);
+  }
+
   // A container's child: a click selects it.
   &__child {
     cursor: pointer;

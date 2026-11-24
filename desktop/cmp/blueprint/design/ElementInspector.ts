@@ -497,9 +497,9 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return this.designModel.blueprintModel.effectiveElement(id);
     }
 
-    // The same spec across edits to the element, so what is built from it stays the same too.
+    /** The selected element's widget spec, the same across edits to the element. */
     @computed
-    private get widgetSpec() {
+    get widgetSpec() {
         const component = this.element?.component;
         return component ? this.designModel.blueprintModel.registry.widgets[component] : null;
     }
@@ -743,7 +743,7 @@ function sectionCards(impl: ElementInspectorModel): ReactNode[] {
                 title: 'Value',
                 collapsed: impl.isToggled('data'),
                 onToggle: () => impl.toggleSection('data'),
-                children: [setsEditor(impl)]
+                children: [setsEditor(impl), optionsRow(impl)]
             })
         );
         return insertLists(cards, lists, 1);
@@ -775,6 +775,7 @@ function configCard(impl: ElementInspectorModel, section: InspectorSection): Rea
         onToggle: () => impl.toggleSection(section.group),
         children: [
             isValue ? setsEditor(impl) : null,
+            isValue ? optionsRow(impl) : null,
             // A section's one list, such as Columns, is named by the section's header alone.
             ...section.nodes.map(node => configRow(impl, node)),
             moreRow(impl, section)
@@ -859,6 +860,71 @@ function layoutCard(impl: ElementInspectorModel): ReactNode {
                   }),
                   ...placementRows(impl, it => !inPlacementRow(impl, it))
               ]
+    });
+}
+
+// The widget a selected view holds, a row a click selects.
+function holdsCard(impl: ElementInspectorModel): ReactNode {
+    const {designModel, elementId} = impl,
+        spec = impl.widgetSpec,
+        select = () => designModel.select({kind: 'element', id: elementId});
+    return sectionCard({
+        key: 'holds',
+        title: 'Holds',
+        children: [
+            hbox({
+                key: 'held',
+                className: `${CLS}__item-header ${CLS}__held`,
+                role: 'button',
+                tabIndex: 0,
+                title: `Select ${elementId}`,
+                onClick: select,
+                onKeyDown: (e: ReactKeyboardEvent) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    select();
+                },
+                children: [
+                    spec ? widgetIcon(spec, {className: `${CLS}__child-icon`}) : null,
+                    span({className: `${CLS}__column-label ${CLS}__child-id`, children: elementId}),
+                    span({className: `${CLS}__column-meta`, children: spec?.label}),
+                    Icon.chevronRight({className: `${CLS}__held-go`})
+                ]
+            } as object)
+        ]
+    });
+}
+
+// Where an input's options come from: its variable's own values, a field's values over a source,
+// or anything, with a way to the variable.
+function optionsRow(impl: ElementInspectorModel): ReactNode {
+    const name = impl.setsVariable,
+        decl = name ? impl.designModel.blueprintModel.blueprint?.variables?.[name] : null;
+    if (!decl) return null;
+    const options = decl.options as PlainObject,
+        text = isArray(options?.values)
+            ? countLabel(options.values.length, 'value')
+            : options?.source
+              ? `From ${options.source}'s ${options.field ?? 'values'}`
+              : `From ${name}'s values`;
+    return div({
+        key: 'options',
+        className: `${CLS}__row ${CLS}__row--inline`,
+        ...({'data-config-key': 'options', role: 'group', 'aria-label': 'Options'} as object),
+        children: [
+            div({className: `${CLS}__label`, children: 'Options'}),
+            div({
+                className: `${CLS}__row-body`,
+                children: button({
+                    className: `${CLS}__options-link`,
+                    text,
+                    minimal: true,
+                    small: true,
+                    title: `Show variable ${name}`,
+                    onClick: () => impl.designModel.select({kind: 'variable', id: name})
+                })
+            })
+        ]
     });
 }
 
@@ -955,7 +1021,8 @@ function viewCards(impl: ElementInspectorModel) {
                     children: placementRows(impl, it => it.kind === 'number')
                 })
             ]
-        })
+        }),
+        holdsCard(impl)
     ];
 }
 

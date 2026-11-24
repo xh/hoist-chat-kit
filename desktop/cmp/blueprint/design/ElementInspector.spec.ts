@@ -814,6 +814,26 @@ describe('ElementInspector', () => {
         expect(cell().y).toBe(40);
     });
 
+    it("shows an input's options under its variable, with a way to the variable", () => {
+        const {design, model} = open(),
+            id = design.addWidget('select', 'positions').id;
+        model.applyEdit({
+            ops: [
+                {
+                    op: 'set',
+                    path: '/variables/pick',
+                    value: {type: 'string', setBy: {element: id}, options: {values: ['a', 'b']}}
+                }
+            ]
+        });
+        act(() => design.select({kind: 'element', id}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = container.querySelector('[data-config-key="options"]');
+        expect(row.textContent).toBe('Options2 values');
+        fireEvent.click(row.querySelector('button'));
+        expect(design.selection).toEqual({kind: 'variable', id: 'pick'});
+    });
+
     it('tints a required setting while it is unset', () => {
         const {design} = open(),
             id = design.addWidget('statCard', 'positions').id;
@@ -1414,7 +1434,7 @@ describe('ElementInspector', () => {
             cell = () =>
                 model.blueprint.elements.positions.children.find(it => it.id === 'posGrid') as any;
         // Its View, with the header and the inputs in it, then its Position, both open.
-        expect(titles).toEqual(['View', 'Position']);
+        expect(titles).toEqual(['View', 'Position', 'Holds']);
         expect(container.textContent).toContain('posViewsSelector');
         expect(
             container.querySelectorAll(
@@ -1434,6 +1454,9 @@ describe('ElementInspector', () => {
         expect(cell().headerItems).toEqual([{id: 'groupChooser'}, {id: 'posViewsSelector'}]);
         expect(model.history.length).toBe(before + 1);
         expect(model.history.at(-1).description).toBe('posGrid view: hide header');
+        // Holds names the widget, and a click selects it.
+        fireEvent.click(container.querySelector('.xh-blueprint-element-inspector__held'));
+        expect(design.selection).toEqual({kind: 'element', id: 'posGrid'});
     });
 
     it("folds a widget's canvas view settings into its Layout section, with a way to select the view", () => {
