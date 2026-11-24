@@ -1,15 +1,23 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isPlainObject, mapValues, uniq} from 'lodash';
+import {isArray, isPlainObject, mapValues, uniq} from 'lodash';
 
 /**
  * The variable types a bound property takes, from its schema, or null where its schema says
  * nothing a variable type matches, as for an object.
  */
 export function bindingTypesOf(schema: PlainObject): string[] {
+    if (!isPlainObject(schema)) return null;
+    if (schema['x-filter']) return ['filter'];
+    // A value of one of several shapes, such as a sort that is one key or a list, takes any of theirs.
+    const alternatives = schema.anyOf ?? schema.oneOf;
+    if (isArray(alternatives)) {
+        const types = uniq(alternatives.flatMap((it: PlainObject) => bindingTypesOf(it) ?? []));
+        return types.length ? types : null;
+    }
     if (schema.enum) {
-        return uniq(
-            schema.enum.map((it: unknown) => (typeof it === 'boolean' ? 'bool' : 'string'))
-        );
+        // A choice of mixed kinds, such as a place or false for none, takes a variable of each.
+        const types = uniq(schema.enum.map(enumType)).filter(Boolean) as string[];
+        return types.length ? types : null;
     }
     switch (schema.type) {
         case 'boolean':
@@ -19,12 +27,24 @@ export function bindingTypesOf(schema: PlainObject): string[] {
         case 'number':
             return ['number', 'int'];
         case 'string':
+            if (schema.format === 'date') return ['localDate'];
+            if (schema.format === 'date-time') return ['date'];
             return ['string', 'localDate'];
-        case 'array':
-            return schema.items?.type === 'string' ? ['string[]'] : null;
+        case 'array': {
+            const items = bindingTypesOf(schema.items);
+            return items?.includes('string') ? ['string[]'] : null;
+        }
         default:
             return null;
     }
+}
+
+// The variable type an enum's option takes, or null for one no variable type holds.
+function enumType(it: unknown): string {
+    if (typeof it === 'boolean') return 'bool';
+    if (typeof it === 'string') return 'string';
+    if (typeof it === 'number') return Number.isInteger(it) ? 'int' : 'number';
+    return null;
 }
 
 /**

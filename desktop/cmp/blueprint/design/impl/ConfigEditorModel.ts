@@ -15,6 +15,12 @@ import type {
     EditorNode
 } from '../../../../../blueprint';
 import {fieldHasRole, starterValue} from '../../../../../blueprint/design/starterConfig';
+import {bindingTypesOf} from '../../../../../blueprint/impl/bindable';
+import {
+    boundValues,
+    fitsProp,
+    variableTypeMatches
+} from '../../../../../blueprint/validateBlueprint';
 import type {Option} from './ConfigEditors';
 
 /**
@@ -357,17 +363,37 @@ export abstract class ConfigEditorModel extends HoistModel {
         );
     }
 
-    /** The variables a property can bind, by the type its schema takes. */
+    /**
+     * The variables a property can bind: each whose type its schema takes and whose values fit it.
+     * None where its schema says no type a variable holds.
+     */
     variablesFor(node: EditorNode): string[] {
+        return this.bindChoices(node)
+            .filter(it => !it.reason)
+            .map(it => it.name);
+    }
+
+    /**
+     * Every variable, each with why a property cannot bind it, or null where it can: a type its
+     * schema does not take, or a value outside its choices or range.
+     */
+    bindChoices(node: EditorNode): {name: string; reason: string}[] {
         const {registry} = this.designModel.blueprintModel,
-            want = variableTypeOf(node.schema),
-            fits = (type: string) =>
-                type === want ||
-                registry.variableTypes[type]?.matches === want ||
-                (want === 'number' && type === 'int');
-        return Object.entries(this.variables)
-            .filter(([, it]) => !want || fits(it.type))
-            .map(([name]) => name);
+            want = bindingTypesOf(node.schema);
+        return Object.entries(this.variables).map(([name, it]) => {
+            if (!want) return {name, reason: 'This setting takes no variable.'};
+            if (!want.some(type => variableTypeMatches(registry, it.type, type))) {
+                return {name, reason: `A ${it.type}, but this takes a ${want.join(' or ')}.`};
+            }
+            const bad = boundValues(it).find(v => !fitsProp(v, node.schema));
+            return {
+                name,
+                reason:
+                    bad !== undefined
+                        ? `It may hold ${JSON.stringify(bad)}, which this does not take.`
+                        : null
+            };
+        });
     }
 
     /**
@@ -588,17 +614,6 @@ function walkStrings(value: unknown, fn: (s: string) => void) {
     if (isString(value)) return fn(value);
     if (value != null && typeof value === 'object')
         Object.values(value).forEach(it => walkStrings(it, fn));
-}
-
-// The variable type a schema takes: a filter, a plain type, or a list of strings.
-function variableTypeOf(schema: PlainObject): string {
-    if (schema['x-filter']) return 'filter';
-    if (schema.type === 'string' && schema.format === 'date') return 'localDate';
-    if (schema.type === 'string' && schema.format === 'date-time') return 'date';
-    if (schema.type === 'array') return schema.items?.type === 'string' ? 'string[]' : null;
-    return (
-        {string: 'string', number: 'number', integer: 'int', boolean: 'bool'}[schema.type] ?? null
-    );
 }
 
 function visibleOptions(specs: Record<string, {name: string; reserved?: boolean}>): Option[] {

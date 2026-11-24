@@ -692,7 +692,7 @@ function bindableEditor(
 ) {
     const {impl} = ctx,
         disabled = impl.readOnly,
-        variables = impl.variablesFor(node),
+        choices = impl.bindChoices(node),
         bound = isVarBinding(value) ? value.$var : null;
     if (bound != null) {
         return div({
@@ -751,7 +751,7 @@ function bindableEditor(
                 className: `${CLS}__value`,
                 children: editorFor({...node, bindable: false}, value, commit, ctx)
             }),
-            disabled || !variables.length
+            disabled || !choices.some(it => !it.reason)
                 ? null
                 : tooltip({
                       content: 'Bind to a variable',
@@ -761,10 +761,12 @@ function bindableEditor(
                           icon: Icon.link(),
                           minimal: true,
                           'aria-label': `Bind ${node.label} to a variable`,
+                          // Those it cannot bind show too, disabled, each saying why.
                           menuItems: [
-                              ...variables.map(it => ({
-                                  text: it,
-                                  actionFn: () => commit({$var: it})
+                              ...sortBy(choices, it => !!it.reason).map(({name, reason}) => ({
+                                  text: reason ? span({title: reason, children: name}) : name,
+                                  disabled: !!reason,
+                                  actionFn: () => commit({$var: name})
                               })),
                               ...(impl.isPersonalizable(ctx.key)
                                   ? [

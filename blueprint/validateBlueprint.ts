@@ -1485,7 +1485,8 @@ function walk(o: any, fn: (v: any, path: string) => void, path = '') {
 }
 
 // The values a variable is known to take: its options list and its literal default.
-function boundValues(v: VariableDecl): unknown[] {
+/** The values a variable may hold, as far as its declaration says: its options and its default. */
+export function boundValues(v: VariableDecl): unknown[] {
     const options = v.options as PlainObject,
         def = v.default as PlainObject;
     return [

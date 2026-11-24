@@ -116,6 +116,48 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
     });
 
+    it('offers to bind only the variables a setting takes, the rest disabled with the reason', () => {
+        const {model, inspector} = open('p2-linked-dashboard.json', 'posGrid');
+        model.applyEdit({
+            ops: [
+                {
+                    op: 'set',
+                    path: '/variables/dims',
+                    value: {type: 'string[]', default: {value: ['sector']}}
+                },
+                {op: 'set', path: '/variables/flag', value: {type: 'bool', default: {value: true}}},
+                {
+                    op: 'set',
+                    path: '/variables/style',
+                    value: {type: 'string', default: {value: 'colors'}}
+                },
+                {
+                    op: 'set',
+                    path: '/variables/odd',
+                    value: {type: 'string', default: {value: 'nope'}}
+                }
+            ]
+        });
+        const node = (key: string) => inspector.nodes.find(it => it.key === key),
+            offered = (key: string) => inspector.variablesFor(node(key));
+        // A list of fields takes a list of strings; a filter, a filter.
+        expect(offered('groupBy')).toEqual(['dims']);
+        expect(offered('filter')).toEqual(['selection']);
+        // A boolean takes a bool.
+        expect(offered('stripeRows')).toEqual(['flag']);
+        // A choice takes a string whose values it holds.
+        expect(offered('treeStyle')).toEqual(['style']);
+        const odd = inspector.bindChoices(node('treeStyle')).find(it => it.name === 'odd');
+        expect(odd.reason).toMatch(/"nope"/);
+        expect(
+            inspector.bindChoices(node('stripeRows')).find(it => it.name === 'asOf').reason
+        ).toBe('A localDate, but this takes a bool.');
+        // A setting no variable type fits offers none, rather than all.
+        expect(inspector.variablesFor({...node('stripeRows'), schema: {type: 'object'}})).toEqual(
+            []
+        );
+    });
+
     it("groups a grid's settings in its sections, folding its unset advanced ones behind N more", () => {
         const {model, inspector} = open('p3-morning-report.json', 'posGrid'),
             section = (group: string) => inspector.sections.find(it => it.group === group);
@@ -371,7 +413,9 @@ describe('ElementInspector', () => {
             expect(inspector.variablesFor(nodeOf(inspector, 'title'))).toEqual(
                 expect.arrayContaining(['symbol', 'fund'])
             );
-            expect(inspector.variablesFor(nodeOf(inspector, 'title'))).not.toContain('asOf');
+            // Text takes a date variable too, as the validator accepts one.
+            expect(inspector.variablesFor(nodeOf(inspector, 'title'))).toContain('asOf');
+            expect(inspector.variablesFor(nodeOf(inspector, 'title'))).not.toContain('selection');
         });
 
         it('binds a property to a variable, and back to a value', () => {
