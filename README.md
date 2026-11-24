@@ -110,7 +110,8 @@ tasks to the right doc.
 ## Development
 
 This repo uses [pnpm](https://pnpm.io), pinned via the `packageManager` field in `package.json`.
-Run `corepack enable pnpm` once so Corepack provides the right version.
+Install any recent pnpm (see [pnpm.io/installation](https://pnpm.io/installation)), and it switches
+to the pinned version automatically.
 
 ```bash
 pnpm install     # needs a Font Awesome Pro registry token in ~/.npmrc
