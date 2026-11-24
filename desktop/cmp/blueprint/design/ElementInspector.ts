@@ -8,7 +8,7 @@ import {tooltip} from '@xh/hoist/kit/blueprint';
 import {action, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isArray, isEqual, isPlainObject, isString, without} from 'lodash';
-import {type ReactNode, useEffect, useMemo, useRef} from 'react';
+import {type ReactNode, useEffect, useMemo} from 'react';
 import {
     type BlueprintDesignModel,
     type EditorNode,
@@ -34,7 +34,8 @@ import {
     firstSentence,
     propertyRow,
     removeItemButton,
-    sectionCard
+    sectionCard,
+    useNamedInputs
 } from './impl/ConfigEditors';
 import {refuse, removeElementAsync} from './impl/designActions';
 import {widgetIcon} from './impl/icons';
@@ -491,7 +492,7 @@ export const NEW_VARIABLE = '$new';
 const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
     model: uses(ElementInspectorModel),
     render({model: impl, className}) {
-        const ref = useRef<HTMLDivElement>(null),
+        const ref = useNamedInputs(),
             {designModel, elementId} = impl,
             {fieldFocus} = designModel;
         // A widget that needs a field set asks for it, and its editor takes focus.
@@ -505,7 +506,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                     ?.focus();
                 designModel.clearFieldFocus();
             });
-        }, [designModel, fieldFocus, elementId]);
+        }, [designModel, fieldFocus, elementId, ref]);
         if (!impl.elementId) return placeholder('Select an element to edit its config.');
         return div({
             ref,

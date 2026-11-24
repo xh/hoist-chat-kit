@@ -198,6 +198,16 @@
     min-width: 0;
   }
 
+  // A stacked row keeps the inline rows' action column clear, so every control ends at one edge.
+  &__row:not(&__row--inline) > &__row-body {
+    padding-right: calc(26px + var(--xh-spacing-half));
+  }
+
+  // Its bind menu sits in that column, as an inline row's does.
+  &__row:not(&__row--inline) > &__row-body > &__bindable {
+    margin-right: calc(-26px - var(--xh-spacing-half));
+  }
+
   // A one-line value beside its label: a label column, the control, and an action column for
   // bind or remove, so every row's control shares the same edges.
   &__row--inline {
@@ -299,6 +309,10 @@
   &__row--set:is(:hover, :focus-within) &__reset.xh-button,
   &__reset.xh-button:focus-visible {
     opacity: 1;
+  }
+
+  &__row--set:is(:hover, :focus-within) > &__label:has(&__reset) > &__dot {
+    opacity: 0;
   }
 
   // Required and unset: the widget's Needs setup focuses it.

@@ -712,6 +712,11 @@ describe('ElementInspector', () => {
         fireEvent.click(segment());
         expect(config().stripeRows).toBe(false);
         expect(row('stripeRows').className).toContain('__row--set');
+        expect(
+            row('stripeRows').querySelector('.xh-blueprint-element-inspector__dot')
+        ).not.toBeNull();
+        // A select is named for its row too.
+        expect(row('source').querySelector('input').getAttribute('aria-label')).toBe('Source');
         fireEvent.click(row('stripeRows').querySelector('[aria-label="Reset Stripe rows"]'));
         expect(config()).not.toHaveProperty('stripeRows');
         fireEvent.click(segment());

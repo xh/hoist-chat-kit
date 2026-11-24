@@ -36,7 +36,7 @@ import {
 } from 'lodash';
 import classNames from 'classnames';
 import type React from 'react';
-import {type ReactElement, type ReactNode, useCallback, useMemo, useRef} from 'react';
+import {type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef} from 'react';
 import {
     type BlueprintIssue,
     type EditorNode,
@@ -183,6 +183,7 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
             div({
                 className: `${CLS}__label`,
                 children: [
+                    isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
                     canReset
                         ? button({
                               className: `${CLS}__reset`,
@@ -193,9 +194,7 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                               'aria-label': `Reset ${node.label}`,
                               onClick: reset
                           })
-                        : isSet
-                          ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object)
-                          : null,
+                        : null,
                     labelTooltip(node),
                     node.required ? span({className: `${CLS}__req`, children: '*'}) : null
                 ]
@@ -285,6 +284,26 @@ function isTextEntry(el: HTMLElement): boolean {
 
 // A ref that names an input for assistive tech, as Hoist's inputs take no aria-label.
 const named = (name: string) => (el: HTMLElement) => el?.setAttribute('aria-label', name);
+
+/**
+ * A ref for a host of property rows that names each row's unnamed inputs, such as a select's, by
+ * the row's label, after every draw.
+ */
+export function useNamedInputs() {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        ref.current
+            ?.querySelectorAll<HTMLElement>('[data-config-key][aria-label]')
+            .forEach(row =>
+                row
+                    .querySelectorAll(
+                        'input:not([aria-label]), [role="combobox"]:not([aria-label])'
+                    )
+                    .forEach(it => it.setAttribute('aria-label', row.getAttribute('aria-label')))
+            );
+    });
+    return ref;
+}
 
 const INLINE_KINDS = [
     'text',
@@ -687,28 +706,31 @@ function bindableEditor(
             }),
             disabled || !variables.length
                 ? null
-                : menuButton({
-                      className: `${CLS}__bind-button`,
-                      icon: Icon.link(),
-                      minimal: true,
-                      title: 'Bind to a variable',
-                      'aria-label': `Bind ${node.label} to a variable`,
-                      menuItems: [
-                          ...variables.map(it => ({
-                              text: it,
-                              actionFn: () => commit({$var: it})
-                          })),
-                          ...(impl.isPersonalizable(ctx.key)
-                              ? [
-                                    '-' as const,
-                                    {
-                                        text: 'Binding moves user changes to the variable.',
-                                        className: `${CLS}__menu-note`,
-                                        disabled: true
-                                    }
-                                ]
-                              : [])
-                      ]
+                : tooltip({
+                      content: 'Bind to a variable',
+                      hoverOpenDelay: 500,
+                      item: menuButton({
+                          className: `${CLS}__bind-button`,
+                          icon: Icon.link(),
+                          minimal: true,
+                          'aria-label': `Bind ${node.label} to a variable`,
+                          menuItems: [
+                              ...variables.map(it => ({
+                                  text: it,
+                                  actionFn: () => commit({$var: it})
+                              })),
+                              ...(impl.isPersonalizable(ctx.key)
+                                  ? [
+                                        '-' as const,
+                                        {
+                                            text: 'Binding moves user changes to the variable.',
+                                            className: `${CLS}__menu-note`,
+                                            disabled: true
+                                        }
+                                    ]
+                                  : [])
+                          ]
+                      })
                   })
         ]
     });
@@ -1063,6 +1085,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
             ),
             addField = useCallback((field: string) => ops.current.add(field), [ops]),
             all = entrySettings(node),
+            namedRef = useNamedInputs(),
             canPage = !!impl.pageElement && all.length > 6,
             summary = sortBy(
                 all.filter(it => settingsIn?.summary?.includes(it.setting.key)),
@@ -1150,6 +1173,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                 }
             });
         return div({
+            ref: namedRef,
             className: `${CLS}__field-list`,
             children: [
                 entries.length
@@ -1192,6 +1216,7 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             {designModel} = impl,
             scope = scopeOf(ctx),
             {rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
+            namedRef = useNamedInputs(),
             index = rows.findIndex(it => it.key === itemKey),
             row = rows[index],
             step = (by: number) => {
@@ -1210,6 +1235,7 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             valueOf = ({setting, own}: {setting: EditorNode; own: boolean}) =>
                 own ? row.entry[setting.key] : mapped[setting.key];
         return div({
+            ref: namedRef,
             className: `${CLS}__page`,
             onKeyDown: (e: React.KeyboardEvent) => {
                 if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
