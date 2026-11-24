@@ -192,6 +192,10 @@ the source's Cube through its own `View`.
 - **Server rollups.** A field whose aggregator is `server` shows the totals the server computes
   for each group. A widget filter that cannot fold into those groups blanks them, and the
   validator warns (`filter.cannotFold`).
+- **When it runs.** `"run": "manual"` keeps a source's rows when what it needs changes, marks its
+  widgets stale, and runs it from their Run button. The default, `"auto"`, runs again at once.
+  `"live": false` loads a snapshot from a provider that could push changes. An app sets the
+  defaults for every source with `BlueprintSource.defaults`.
 
 A source is one of three kinds, and widgets do not know which they read:
 

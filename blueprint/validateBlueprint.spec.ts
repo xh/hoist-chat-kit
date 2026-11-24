@@ -695,6 +695,17 @@ describe('validateBlueprint', () => {
         });
     });
 
+    it("takes a source's run and live, and refuses any other value", () => {
+        const bp = p2();
+        Object.assign(bp.sources.positions, {run: 'manual', live: false});
+        expect(codes(bp)).toEqual([]);
+        Object.assign(bp.sources.positions, {run: 'later', live: 'yes'});
+        expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+            ['source.badValue', '/sources/positions/run'],
+            ['source.badValue', '/sources/positions/live']
+        ]);
+    });
+
     describe('variables', () => {
         it('refuses resolver arguments that read each other in a cycle, naming its path', () => {
             const bp = p2(),

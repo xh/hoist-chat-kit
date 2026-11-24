@@ -325,8 +325,8 @@ export function designEmpty(id: string, viewModel: BlueprintViewModel) {
     });
 }
 
-// A data widget over its source: masked while it loads, and naming the values in play when it
-// has no rows.
+// A data widget over its source: masked while it loads, marked while a manual source is stale, and
+// naming the values in play when it has no rows.
 function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode) {
     const {source, blueprintModel} = model;
     if (category !== 'data' || !source) return body;
@@ -359,7 +359,25 @@ function dataBody(model: BlueprintWidgetModel, category: string, body: ReactNode
                 isDisplayed: source.isLoading,
                 spinner: true,
                 message: progressText(source.progress)
-            })
+            }),
+            source.isStale && !source.isLoading
+                ? div({
+                      key: 'stale',
+                      className: 'xh-blueprint-view__stale',
+                      items: [
+                          'Inputs changed',
+                          button({
+                              text: 'Run',
+                              icon: Icon.play(),
+                              intent: 'primary',
+                              onClick: (e: React.MouseEvent) => {
+                                  e.stopPropagation();
+                                  source.reloadAsync().catchDefault();
+                              }
+                          })
+                      ]
+                  })
+                : null
         ]
     });
 }

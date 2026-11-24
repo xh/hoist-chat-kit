@@ -2,6 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {
     castArray,
     isArray,
+    isBoolean,
     isEmpty,
     isEqual,
     isNumber,
@@ -545,6 +546,12 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     const keyedFields: Record<string, Set<string>> = toLookup({});
     for (const [sn, s] of Object.entries(sources)) {
         const p = `/sources/${sn}`;
+        if (s.run != null && !['auto', 'manual'].includes(s.run)) {
+            err('source.badValue', `${p}/run`, "run is 'auto' or 'manual'");
+        }
+        if (s.live != null && !isBoolean(s.live)) {
+            err('source.badValue', `${p}/live`, 'live is true or false');
+        }
         if (s.dataset) {
             const ds = catalog.getDataset(s.dataset);
             if (!ds) {

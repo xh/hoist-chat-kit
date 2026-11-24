@@ -79,7 +79,7 @@ export interface BlueprintArtifactProvider {
  * app: queries, joins, server aggregation and caching.
  */
 export interface BlueprintDataProvider {
-    /** Load leaf rows for a request. Used when the provider cannot `subscribe`. */
+    /** Load leaf rows for a request. Used when the provider cannot `subscribe`, or the source is not live. */
     loadAsync(
         req: BlueprintDataRequest,
         loadSpec?: LoadSpec,
@@ -88,7 +88,7 @@ export interface BlueprintDataProvider {
 
     /**
      * Stream a request's rows. The first update is `{replace: rows}`, the whole snapshot, and
-     * changes follow. A provider may send `replace` again at any time, as after a reconnect. A
+     * changes follow. A provider may send `replace` again at any time, as after a reconnect. A live
      * source with a subscribing provider never calls `loadAsync`.
      *
      * @returns a function that ends the subscription.

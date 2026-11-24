@@ -39,6 +39,23 @@
   min-width: 0;
 }
 
+// A manual source's rows are for inputs no longer set, until Run.
+.xh-blueprint-view__stale {
+  position: absolute;
+  top: var(--xh-spacing-half);
+  right: var(--xh-spacing-half);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--xh-spacing-half);
+  padding-left: var(--xh-spacing);
+  border: var(--xh-border-solid);
+  border-radius: var(--xh-border-radius);
+  background: var(--xh-bg);
+  color: var(--xh-text-color-muted);
+  font-size: var(--xh-font-size-small);
+}
+
 // An empty container's one empty state, in the overlay over its surface. Only its buttons take the
 // pointer, so the container under it still takes a drop.
 .xh-blueprint-view__design-empty {

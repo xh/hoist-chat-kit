@@ -93,6 +93,16 @@ export interface SourceDecl {
     inline?: {fields: PlainObject[]; rows: PlainObject[]};
     /** Other sources whose fields this one takes, keyed on fields they share. Left joins. */
     joins?: JoinDecl[];
+    /**
+     * When a dataset source loads again: `auto` as soon as what it needs changes, or `manual` on
+     * Run, marking it stale meanwhile. Default `BlueprintSource.defaults.run`.
+     */
+    run?: 'auto' | 'manual';
+    /**
+     * True to keep taking pushes after a run, from a provider that can subscribe. Default
+     * `BlueprintSource.defaults.live`.
+     */
+    live?: boolean;
 }
 
 /** A join of one dataset source onto another - see `joins-design.md` in the planning docs. */

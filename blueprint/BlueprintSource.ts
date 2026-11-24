@@ -83,6 +83,13 @@ export interface BlueprintSourceContext {
  * to it, again when its parameters or filter change, or a widget needs a field it has not loaded.
  */
 export class BlueprintSource extends HoistBase {
+    /**
+     * App-wide `run` and `live` for each source that sets neither, after the pattern of Hoist's
+     * `GridModel.defaults`. Set once at startup, such as `BlueprintSource.defaults.run = 'manual'`
+     * to have every source wait for Run.
+     */
+    static defaults: {run: 'auto' | 'manual'; live: boolean} = {run: 'auto', live: true};
+
     readonly name: string;
     /** The fields of the source: its dataset's fields, its field instances and its joined fields. */
     readonly fields: Record<string, FieldDef>;
@@ -97,6 +104,12 @@ export class BlueprintSource extends HoistBase {
 
     /** True while a required parameter has no value, so the source does not load. */
     @observable accessor isWaiting: boolean = false;
+
+    /**
+     * True for a manual source whose inputs changed since it ran, so it shows rows for inputs no
+     * longer set. Cleared by Run, which is {@link reloadAsync}.
+     */
+    @observable accessor isStale: boolean = false;
 
     /** True until the first rows of the current request arrive. */
     @observable accessor isLoading: boolean = false;
@@ -161,9 +174,7 @@ export class BlueprintSource extends HoistBase {
                 if (this.isDestroyed) return;
                 this.addReaction({
                     track: () => this.request,
-                    run: req => {
-                        if (!this.covers(req)) this.start(req);
-                    },
+                    run: req => this.onRequestChange(req),
                     equals: 'structural',
                     fireImmediately: true
                 });
@@ -275,9 +286,19 @@ export class BlueprintSource extends HoistBase {
         return {...ret, formats: [...ret.formats, {label: isString(label) ? label : ''}]};
     }
 
-    /** Load the source again, as on a refresh. */
+    /** Load the source again, as on a refresh, or Run for a manual source. */
     async reloadAsync(loadSpec?: LoadSpec) {
         if (this.decl.dataset) this.start(this.request, loadSpec);
+    }
+
+    /** When the source loads again - see {@link SourceDecl.run}. */
+    get runMode(): 'auto' | 'manual' {
+        return this.decl.run ?? BlueprintSource.defaults.run;
+    }
+
+    /** True to subscribe, when the provider can - see {@link SourceDecl.live}. */
+    get isLive(): boolean {
+        return this.decl.live ?? BlueprintSource.defaults.live;
     }
 
     /**
@@ -557,9 +578,22 @@ export class BlueprintSource extends HoistBase {
         );
     }
 
+    // A manual source that has run waits for Run, unless the request is back to what it ran with.
+    @action
+    private onRequestChange(req: BlueprintDataRequest) {
+        if (this.covers(req)) {
+            this.isStale = false;
+        } else if (req && this.loadedRequest && this.runMode === 'manual') {
+            this.isStale = true;
+        } else {
+            this.start(req);
+        }
+    }
+
     @action
     private start(req: BlueprintDataRequest, loadSpec?: LoadSpec) {
         this.stop();
+        this.isStale = false;
         const loadId = ++this.loadCount,
             isCurrent = () => loadId === this.loadCount && !this.isDestroyed;
 
@@ -577,7 +611,7 @@ export class BlueprintSource extends HoistBase {
 
         this.isLoading = true;
         const {dataProvider} = this.context;
-        if (dataProvider.subscribe) {
+        if (dataProvider.subscribe && this.isLive) {
             this.unsubscribe = dataProvider.subscribe(req, u => {
                 if (isCurrent()) this.applyUpdateAsync(u);
             });

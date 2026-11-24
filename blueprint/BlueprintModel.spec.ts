@@ -26,6 +26,7 @@ import type {
     BlueprintLoadOptions
 } from './BlueprintDataProvider';
 import {BlueprintModel} from './BlueprintModel';
+import {BlueprintSource} from './BlueprintSource';
 import {BlueprintWidgetModel} from './BlueprintWidgetModel';
 import {FakeBlueprintDataProvider} from './demo/FakeBlueprintDataProvider';
 
@@ -833,6 +834,74 @@ describe('BlueprintModel', () => {
             model.setVariable('asOf', '2026-07-02');
             model.destroy();
             expect(calls[2].opts.signal.aborted).toBe(true);
+        });
+
+        describe('run and live', () => {
+            const manual = () => {
+                const bp = p1();
+                bp.sources.positions.run = 'manual';
+                return bp;
+            };
+
+            it('marks a manual source stale when what it needs changes, and keeps its rows until Run', async () => {
+                const provider = new RecordingProvider(),
+                    model = await opened(manual(), provider),
+                    source = model.getSource('positions'),
+                    first = provider.last;
+                expect(source.isStale).toBe(false);
+
+                model.setVariable('asOf', '2026-07-01');
+                expect(source.isStale).toBe(true);
+                expect(provider.subs).toHaveLength(1);
+                expect(first.isOpen).toBe(true);
+
+                await source.reloadAsync();
+                expect(source.isStale).toBe(false);
+                expect(provider.subs).toHaveLength(2);
+                expect(provider.last.req.params).toEqual({asOf: '2026-07-01'});
+                expect(first.isOpen).toBe(false);
+
+                // Back to what it ran with, it is no longer stale.
+                model.setVariable('asOf', '2026-07-02');
+                model.setVariable('asOf', '2026-07-01');
+                expect(source.isStale).toBe(false);
+            });
+
+            it('still waits for a manual source whose required parameter has no value', async () => {
+                const provider = new RecordingProvider(),
+                    model = await opened(manual(), provider),
+                    source = model.getSource('positions');
+                model.setVariable('asOf', null);
+                expect(source.isWaiting).toBe(true);
+                expect(source.isStale).toBe(false);
+                expect(provider.last.isOpen).toBe(false);
+            });
+
+            it('loads a source that is not live once, though its provider can subscribe', async () => {
+                const provider = new RecordingProvider(),
+                    bp = p1();
+                bp.sources.positions.live = false;
+                await opened(bp, provider);
+                expect(provider.subs).toHaveLength(0);
+                expect(provider.loadAsync).toHaveBeenCalledOnce();
+            });
+
+            it("takes the app's defaults for a source that sets neither", async () => {
+                Object.assign(BlueprintSource.defaults, {run: 'manual', live: false});
+                onTestFinished(() => {
+                    Object.assign(BlueprintSource.defaults, {run: 'auto', live: true});
+                });
+                const provider = new RecordingProvider(),
+                    model = await opened(p1(), provider);
+                expect(provider.loadAsync).toHaveBeenCalledOnce();
+                model.setVariable('asOf', '2026-07-01');
+                expect(model.getSource('positions').isStale).toBe(true);
+
+                const bp = p1();
+                Object.assign(bp.sources.positions, {run: 'auto', live: true});
+                await opened(bp, provider);
+                expect(provider.subs).toHaveLength(1);
+            });
         });
 
         it('subscribes again when a parameter changes, and ends the old subscription', async () => {
