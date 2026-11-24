@@ -18,17 +18,6 @@ body {
   // A placeholder that says what happens is content: inputs, selects and pickers read it from
   // Hoist's own variable.
   --xh-input-placeholder-text-color: var(--xh-blueprint-inspector-muted);
-
-  // An intent chip's text mixed toward the text color, as Hoist mixes a chip of its own color.
-  @each $intent in (primary, success, warning, danger) {
-    .xh-chip--intent-#{$intent} {
-      --chip-text: color-mix(
-        in oklab,
-        var(--xh-intent-#{$intent}-text-color) 60%,
-        var(--xh-text-color)
-      );
-    }
-  }
 }
 
 // A selected segment's white text needs a deeper fill in dark.
