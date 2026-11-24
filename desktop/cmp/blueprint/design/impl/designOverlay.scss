@@ -17,6 +17,12 @@
       border: 1px dashed var(--xh-intent-primary-trans2);
     }
 
+    // A list item open in the Inspector, such as a grid column by its header.
+    &--item {
+      border: 2px solid var(--xh-intent-primary);
+      background-color: var(--xh-intent-primary-trans1);
+    }
+
     // A dashboard view, its whole cell tinted under the outline.
     &--view {
       border: 2px solid var(--xh-intent-primary);

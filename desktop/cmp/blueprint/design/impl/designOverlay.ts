@@ -56,6 +56,16 @@ export function designMarks(
             render: () => outline('selected')
         });
     }
+    // The grid column whose row is open or whose page shows, by its header.
+    const item = designModel.outlinedItem;
+    if (item && item.element === selected && elements?.[selected]?.component === 'cubeGrid') {
+        const field = item.key.replace(/#\d+$/, '');
+        ret.push({
+            key: 'item',
+            target: `${elementTarget(selected)} .ag-header-cell[col-id="${CSS.escape(field)}"]`,
+            render: () => outline('item')
+        });
+    }
     return ret;
 }
 

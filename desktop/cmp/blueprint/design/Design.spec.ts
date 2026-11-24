@@ -201,6 +201,23 @@ describe('design mode selection', () => {
         expect(sel()).toEqual({kind: 'element', id: first});
     });
 
+    it('outlines the grid column whose row is open or whose page shows, by its header', () => {
+        const {design} = open('p3-morning-report.json'),
+            overlay = new OverlayModel();
+        onTestFinished(() => overlay.destroy());
+        design.select({kind: 'element', id: 'posGrid'});
+        const itemMark = () => designMarks(design, overlay).find(it => it.key === 'item');
+        expect(itemMark()).toBeUndefined();
+        design.setOpenListItem({element: 'posGrid', list: 'columnState', key: 'mktVal#1'});
+        expect(itemMark().target).toBe(
+            '[data-blueprint-element="posGrid"] .ag-header-cell[col-id="mktVal"]'
+        );
+        design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'});
+        expect(itemMark().target).toContain('col-id="pnlDay"');
+        design.select({kind: 'element', id: 'posGrid'});
+        expect(itemMark()).toBeUndefined();
+    });
+
     it('marks a hovered canvas, at a gap between its cells, with a faint outline and no tag', () => {
         const {design} = open('p3-morning-report.json'),
             overlay = new OverlayModel();

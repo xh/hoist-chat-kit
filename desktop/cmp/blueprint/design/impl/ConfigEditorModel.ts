@@ -54,6 +54,12 @@ export abstract class ConfigEditorModel extends HoistModel {
     @action
     setOpenItem(scope: string, itemKey: string) {
         this.openItems = {...this.openItems, [scope]: itemKey};
+        // A top-level list's open item is the canvas's to outline.
+        if (this.pageElement && !scope.includes('/')) {
+            this.designModel.setOpenListItem(
+                itemKey ? {element: this.pageElement, list: scope, key: itemKey} : null
+            );
+        }
     }
 
     /** The element whose list items can open a page of their own, or null for none. */

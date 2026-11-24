@@ -175,6 +175,7 @@ export class BlueprintDesignModel extends HoistModel {
         this.selection = selection;
         this.slotTarget = null;
         this.itemPage = null;
+        this.openListItem = null;
     }
 
     /**
@@ -193,6 +194,19 @@ export class BlueprintDesignModel extends HoistModel {
     @action
     closeItemPage() {
         this.itemPage = null;
+    }
+
+    /** The list item whose row is open in the Inspector, or null. */
+    @observableRef accessor openListItem: ItemPage = null;
+
+    @action
+    setOpenListItem(item: ItemPage) {
+        this.openListItem = item;
+    }
+
+    /** The list item the canvas outlines: the one whose page shows, else whose row is open. */
+    get outlinedItem(): ItemPage {
+        return this.itemPage ?? this.openListItem;
     }
 
     /**
