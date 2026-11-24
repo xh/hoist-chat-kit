@@ -166,6 +166,32 @@ describe('ChatComposerModel', () => {
             expect(composer.isEmpty).toBe(false);
         });
 
+        it('types a text file by its extension when the browser gives no type', async () => {
+            const composer = createChatModel({enableAttachments: true}).composerModel;
+            await composer.addFilesAsync([file('README.md', ''), file('data.bin', '')]);
+
+            expect(composer.attachments.map(it => it.mediaType)).toEqual([
+                'text/markdown',
+                'application/octet-stream'
+            ]);
+        });
+
+        it('accepts an untyped text file by a MIME rule, and types no file by a bare name', async () => {
+            const composer = createChatModel({
+                enableAttachments: true,
+                accept: ['text/markdown']
+            }).composerModel;
+            await composer.addFilesAsync([file('notes.md', '')]);
+            expect(composer.attachments.map(it => it.mediaType)).toEqual(['text/markdown']);
+
+            composer.accept = null;
+            await composer.addFilesAsync([file('md', ''), file('x.constructor', '')]);
+            expect(composer.attachments.slice(1).map(it => it.mediaType)).toEqual([
+                'application/octet-stream',
+                'application/octet-stream'
+            ]);
+        });
+
         it('rejects files of other types, and names them in attachmentErrors', async () => {
             const composer = createChatModel({
                 enableAttachments: true,

@@ -1,5 +1,5 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
-import {span} from '@xh/hoist/cmp/layout';
+import {div, span} from '@xh/hoist/cmp/layout';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatModel} from '../../../core';
@@ -237,6 +237,108 @@ describe('ChatPanel', () => {
         renderPanel(chatModel, {statusRegionProps: {className: 'app-status'}});
 
         expect(document.querySelector('.xh-chat-status-region.app-status')).toBeTruthy();
+    });
+    describe('file drops', () => {
+        const file = new File(['x'], 'notes.txt', {type: 'text/plain'}),
+            fileDrag = {dataTransfer: {types: ['Files'], files: [file]}},
+            hint = () => document.querySelector('.xh-chat-drop-hint');
+
+        it('takes a file dropped anywhere on the panel, and focuses the composer', async () => {
+            const chatModel = createModel(),
+                {composerModel} = chatModel;
+            composerModel.enableAttachments = true;
+            renderPanel(chatModel);
+            await act(() => chatModel.sendAsync('Hi'));
+            const list = document.querySelector('.xh-chat-message-list');
+
+            fireEvent.dragEnter(list, fileDrag);
+            expect(hint().classList).toContain('xh-chat-panel__drop-hint');
+            expect(hint().textContent).toContain(composerModel.attachmentTip);
+            expect(document.querySelectorAll('.xh-chat-drop-hint')).toHaveLength(1);
+
+            await act(async () => {
+                fireEvent.drop(list, fileDrag);
+            });
+            await vi.waitFor(() => expect(composerModel.attachments).toHaveLength(1));
+            expect(composerModel.attachments[0].name).toBe('notes.txt');
+            expect(hint()).toBeNull();
+            expect(document.activeElement).toBe(input());
+        });
+
+        it('shows one hint, over the panel, for a drag over the composer', () => {
+            const chatModel = createModel();
+            chatModel.composerModel.enableAttachments = true;
+            renderPanel(chatModel);
+
+            fireEvent.dragEnter(input(), fileDrag);
+            expect(document.querySelectorAll('.xh-chat-drop-hint')).toHaveLength(1);
+            expect(document.querySelector('.xh-chat-composer__drop-hint')).toBeNull();
+
+            fireEvent.dragLeave(input(), fileDrag);
+            expect(hint()).toBeNull();
+        });
+
+        it('clears the hint when an element under the drag was removed before it left', async () => {
+            const chatModel = createModel();
+            chatModel.composerModel.enableAttachments = true;
+            renderPanel(chatModel);
+            await act(() => chatModel.sendAsync('Hi'));
+            const list = document.querySelector('.xh-chat-message-list'),
+                child = list.querySelector('.xh-chat-message');
+
+            fireEvent.dragEnter(list, fileDrag);
+            fireEvent.dragEnter(child, fileDrag);
+            // As when a streaming reply re-renders: the leave of a removed element never bubbles.
+            child.remove();
+            fireEvent.dragLeave(list, fileDrag);
+            expect(hint()).toBeNull();
+        });
+
+        it("leaves a file to an app's own drop zone inside the panel", () => {
+            const chatModel = createModel(),
+                addFiles = vi.spyOn(chatModel.composerModel, 'addFilesAsync'),
+                take = (e: {preventDefault: () => void}) => e.preventDefault();
+            chatModel.composerModel.enableAttachments = true;
+            renderPanel(chatModel, {
+                emptyState: div({
+                    className: 'app-drop-zone',
+                    onDragEnter: take,
+                    onDragOver: take,
+                    onDrop: take
+                })
+            });
+            const zone = document.querySelector('.app-drop-zone');
+
+            fireEvent.dragEnter(zone, fileDrag);
+            expect(hint()).toBeNull();
+            fireEvent.drop(zone, fileDrag);
+            expect(addFiles).not.toHaveBeenCalled();
+        });
+
+        it('refuses a file while attachments are off, so the browser does not open it', () => {
+            const chatModel = createModel(),
+                addFiles = vi.spyOn(chatModel.composerModel, 'addFilesAsync');
+            renderPanel(chatModel);
+            const head = document.querySelector('.xh-chat-panel__empty-head');
+
+            fireEvent.dragEnter(head, fileDrag);
+            expect(hint()).toBeNull();
+            // False means that a handler prevented the browser's default.
+            expect(fireEvent.dragOver(head, fileDrag)).toBe(false);
+            expect(fireEvent.drop(head, fileDrag)).toBe(false);
+            expect(addFiles).not.toHaveBeenCalled();
+        });
+
+        it('leaves a drag with no files alone, such as one of text', () => {
+            const chatModel = createModel();
+            chatModel.composerModel.enableAttachments = true;
+            renderPanel(chatModel);
+            const textDrag = {dataTransfer: {types: ['text/plain'], files: []}};
+
+            fireEvent.dragEnter(input(), textDrag);
+            expect(hint()).toBeNull();
+            expect(fireEvent.drop(input(), textDrag)).toBe(true);
+        });
     });
 });
 

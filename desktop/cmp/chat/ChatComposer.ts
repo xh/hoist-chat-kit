@@ -1,5 +1,5 @@
 import {castArray, isString} from 'lodash';
-import {type ReactNode, type Ref, useLayoutEffect} from 'react';
+import {type ReactNode, type Ref, useContext, useLayoutEffect} from 'react';
 import {div, input, span, vbox} from '@xh/hoist/cmp/layout';
 import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button, type ButtonProps} from '@xh/hoist/desktop/cmp/button';
@@ -13,6 +13,7 @@ import './ChatComposer.scss';
 import {chatFileChip} from './ChatFileChip';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {ChatComposerLocalModel} from './impl/ChatComposerLocalModel';
+import {fileDropHint, FileDropZoneContext} from './impl/FileDrop';
 import classNames from 'classnames';
 import {useBreathing, useSmoothFieldHeight} from '../../impl/ChatMotion';
 
@@ -110,7 +111,8 @@ export type ChatComposerButtonProps = Pick<
  * {@link ChatStatusRegion} above the composer to state the reason, with its fix.
  *
  * When the model enables attachments, files can be added with the attach button, by pasting, or
- * by dropping them on the composer. They show as chips above the input until sent. Files left out
+ * by dropping them on the composer - or anywhere on a {@link ChatPanel} that holds it. They show
+ * as chips above the input until sent. Files left out
  * - of the wrong type, too large, or over the limit - are named under the chips, and read once to
  * screen readers.
  *
@@ -147,6 +149,8 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
     ) {
         const impl = useLocalModel(ChatComposerLocalModel),
             {composerModel} = impl,
+            // A zone around the composer, such as a ChatPanel, takes file drops in its place.
+            fileDrop = useContext(FileDropZoneContext) ? null : impl.fileDrop,
             boxRef = useOnResize(impl.fitInput),
             toolbarRef = useOnResize(impl.fitInput);
 
@@ -187,7 +191,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             ref,
             className: classNames(className, {
                 'xh-chat-composer--inline': isInline,
-                'xh-chat-composer--dragging': impl.isDragging,
+                'xh-chat-composer--dragging': !!fileDrop?.isDragging,
                 'xh-chat-composer--busy': isWorking,
                 'xh-chat-composer--attention': isPaused,
                 'xh-chat-composer--waiting': !!composerModel.retryWait
@@ -196,10 +200,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             overflow: 'visible',
             ...rest,
             onPaste: impl.onPaste,
-            onDragEnter: impl.onDragEnter,
-            onDragOver: impl.onDragOver,
-            onDragLeave: impl.onDragLeave,
-            onDrop: impl.onDrop,
+            ...fileDrop?.handlers,
             children: [
                 topItems ? div({className: 'xh-chat-composer__top', children: topItems}) : null,
                 div({
@@ -254,12 +255,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                 bottomItems
                     ? div({className: 'xh-chat-composer__bottom', children: bottomItems})
                     : null,
-                impl.isDragging
-                    ? div({
-                          className: 'xh-chat-composer__drop-hint',
-                          children: [Icon.paperclip(), 'Drop files to attach']
-                      })
-                    : null,
+                fileDrop?.isDragging ? fileDropHint('xh-chat-composer__drop-hint') : null,
                 chatAnnouncerRegions()
             ]
         });

@@ -529,9 +529,28 @@ chatPanel({
 ```
 
 Attachments are a model setting: set `composer: {enableAttachments: true}` on the
-`ChatModelConfig`. The user can then attach files with the paperclip button, a paste, or a drop
-on the composer. A paste that carries text stays a paste, even when the clipboard also holds an
-image of the copied cells.
+`ChatModelConfig`. The user can then attach files with the paperclip button, a paste, or a drop.
+A paste that carries text stays a paste, even when the clipboard also holds an image of the copied
+cells.
+
+A `ChatPanel` takes a file dropped anywhere on it: the message list, the empty state, the header
+or the composer. While files are over the panel, a hint covers its body, and the panel takes
+the `xh-chat-panel--dragging` class. A drop adds the files to the composer and focuses the input.
+
+Under its heading, the hint states the attachment rules in plain language, from the composer
+model's `attachmentTip`: "Images, PDF or CSV. Up to 4 files, 5 MB each." The kit names the types
+from `accept`: a family such as `image/*`, an extension such as `.csv`, and the common MIME types.
+A rule it has no name for reads as "other files". To describe the types yourself, set `acceptLabel`,
+as in `composer: {acceptLabel: 'Loan tapes as CSV or Excel'}`. The `--xh-chat-drop-hint-*`
+variables style the hint - see [Theming](#theming).
+
+A `ChatComposer` on its own, in a custom layout, takes a drop on the composer only. A drag with
+no files, such as one of selected text, is left to the browser.
+
+Content beside the panel, such as a thread sidebar, takes no drop. The kit's own surfaces refuse
+a dropped file they do not take, so that the browser does not open it in place of the app: a
+`ChatPanel` with attachments off, a `ChatMessageList`, a `ChatThreadList` and a `ChatWorkspace`.
+The rest of the page is the app's.
 
 To hold the user back until the app is ready, set `sendBlocker` on the `ChatModelConfig`. It
 returns the reason sending must wait, or null. The composer disables Send and shows the reason
@@ -1428,6 +1447,15 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-composer-pill-gap` | `6px`, between a pill's icon, words and count |
 | | `--xh-chat-composer-pill-chevron-gap` | `4px`, before a pill's chevron |
 | | `--xh-chat-composer-inline-padding` | `0` |
+| File drop hint | `--xh-chat-drop-hint-bg` | `--xh-chat-bg` at 90%, the scrim over the drop zone |
+| | `--xh-chat-drop-hint-border` | `2px dashed var(--xh-intent-primary)`. Set `none` for no outline |
+| | `--xh-chat-drop-hint-color` | `--xh-intent-primary-text-color`, for the icon, and for the text over a composer |
+| | `--xh-chat-drop-hint-icon-size` | `24px`, over a `ChatPanel` |
+| | `--xh-chat-drop-hint-icon-box-size` | `56px`, the circle around the icon |
+| | `--xh-chat-drop-hint-icon-bg` | `--xh-intent-primary` at 16% |
+| | `--xh-chat-drop-hint-title-color` | `--xh-text-color-headings` |
+| | `--xh-chat-drop-hint-title-font-size` | `18px` |
+| | `--xh-chat-drop-hint-tip-color` | `--xh-text-color`, for the line of attachment rules |
 | | `--xh-chat-composer-status-inset` | `4px`, the room before the status region's line |
 
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:

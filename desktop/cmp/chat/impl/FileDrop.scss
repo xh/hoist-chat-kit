@@ -1,0 +1,15 @@
+// The hint over a file drop zone: a scrim with an icon and a line of text, in one row. A larger
+// zone, such as a ChatPanel, arranges them to suit its area.
+.xh-chat-drop-hint {
+  align-items: center;
+  background-color: var(--xh-chat-drop-hint-bg);
+  border: var(--xh-chat-drop-hint-border);
+  border-radius: var(--xh-chat-border-radius);
+  color: var(--xh-chat-drop-hint-color);
+  display: flex;
+  gap: var(--xh-spacing-half);
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+}

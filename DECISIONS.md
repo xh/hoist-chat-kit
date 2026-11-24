@@ -143,6 +143,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D119](#d119-the-thread-layer-asks-the-app-to-title-a-new-thread) | The thread layer asks the app to title a new thread | Accepted |
 | [D120](#d120-a-replayed-failure-reads-as-the-same-failure-live) | A replayed failure reads as the same failure live | Accepted |
 | [D121](#d121-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
+| [D122](#d122-the-chat-panel-is-the-drop-zone-for-files) | The chat panel is the drop zone for files | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2495,3 +2496,28 @@ on the user's behalf.
 **Alternatives.** On by default, with a setting to keep a tool asking. Less setup for an app with
 many tools, but every existing approval would gain the choice at once. Persist the choice with the
 thread. A reloaded conversation would then run calls the user may no longer remember allowing.
+
+## D122. The chat panel is the drop zone for files
+
+**Status.** Accepted.
+
+**Decision.** A `ChatPanel` whose composer enables attachments takes a file dropped anywhere on
+it, shows one hint over the panel, and adds the files to the composer. With attachments off, the
+whole panel refuses the drop. A `ChatComposer` outside a `ChatPanel` keeps a zone of its own
+size. There is no setting for the zone.
+
+**Why.** An app asked for it. Its users drop a file on the conversation, as other chat tools let
+them, and miss a zone the size of the composer. The zone stops at the panel, as Slack's stops at
+the conversation: a drop on a thread list or on the rest of the app is not a message to this
+chat. An app page can hold two chats, or other drop targets, such as a grid.
+
+**Alternatives.** The whole document as the zone, as the Claude app and the `globalDrop` of
+Vercel's AI Elements have it. It claims drops meant for other parts of an app. An exported
+drop zone component for the app to place, as assistant-ui has. No app has asked for a zone
+beyond the panel, and the panel's zone can become one later. A prop to keep the zone to the
+composer: no one has asked for the smaller zone back.
+
+**Upstream.** The hint names the accepted file types from tables of the kit's own, in
+`core/composer/AttachmentTip.ts`. Hoist's `FileChooser` has the same need and prints raw
+extensions. Filed as [xh/hoist-react#5040](https://github.com/xh/hoist-react/issues/5040), for a
+shared utility. The kit drops its tables when Hoist ships one.

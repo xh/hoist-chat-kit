@@ -238,18 +238,4 @@
   &--dragging &__box {
     border-color: var(--xh-intent-primary);
   }
-
-  &__drop-hint {
-    align-items: center;
-    background-color: color-mix(in srgb, var(--xh-chat-composer-bg) 85%, transparent);
-    border: 2px dashed var(--xh-intent-primary);
-    border-radius: var(--xh-chat-border-radius);
-    color: var(--xh-intent-primary-text-color);
-    display: flex;
-    gap: var(--xh-spacing-half);
-    inset: 0;
-    justify-content: center;
-    pointer-events: none;
-    position: absolute;
-  }
 }

@@ -1,4 +1,4 @@
-import type {ReactElement, ReactNode} from 'react';
+import {type ReactElement, type ReactNode, useContext} from 'react';
 import {div, vbox} from '@xh/hoist/cmp/layout';
 import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -24,7 +24,7 @@ import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {chatErrorBoundary} from './ChatErrorBoundary';
 import {chatStatusCue} from './ChatStatusCue';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
-import {refuseFileDrop} from './impl/FileDrop';
+import {FileDropZoneContext, refuseFileDrop} from './impl/FileDrop';
 import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
 
 /** Props for {@link ChatMessageList}. */
@@ -153,7 +153,9 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
         },
         ref
     ) {
-        const impl = useLocalModel(ChatMessageListLocalModel),
+        // In a drop zone such as a ChatPanel, the zone takes or refuses dragged files.
+        const inFileDropZone = useContext(FileDropZoneContext),
+            impl = useLocalModel(ChatMessageListLocalModel),
             viewportRef = useComposedRefs<HTMLDivElement>(
                 useOnResize(impl.onViewportResize),
                 impl.viewportRef
@@ -198,8 +200,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
         return vbox({
             ref,
             className,
-            onDragOver: refuseFileDrop,
-            onDrop: refuseFileDrop,
+            ...(inFileDropZone ? {} : {onDragOver: refuseFileDrop, onDrop: refuseFileDrop}),
             ...rest,
             children: [
                 div({

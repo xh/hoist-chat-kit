@@ -1,12 +1,11 @@
-import type {ClipboardEvent, DragEvent} from 'react';
-import {HoistModel} from '@xh/hoist/core';
-import {action, observable} from '@xh/hoist/mobx';
+import type {ClipboardEvent} from 'react';
+import {HoistModel, managed} from '@xh/hoist/core';
 import {withDefault} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {isEmpty} from 'lodash';
 import {chatAnnouncer, ChatComposerModel} from '../../../../core';
 import {fitTextAreaToContent, isImeComposing} from './AutoGrow';
-import {hasFiles} from './FileDrop';
+import {FileDropModel} from './FileDrop';
 
 /** Rows the composer's input grows to before it scrolls, unless its `maxRows` prop says. */
 export const DEFAULT_MAX_ROWS = 8;
@@ -21,8 +20,8 @@ export const DEFAULT_MAX_ROWS = 8;
 export class ChatComposerLocalModel extends HoistModel {
     override xhImpl = true;
 
-    /** True while files are dragged over the composer. (observable) */
-    @observable accessor isDragging = false;
+    /** The composer as a drop zone for files, used when no zone around it takes them. */
+    @managed readonly fileDrop = new FileDropModel(() => this.composerModel);
 
     readonly fileInputRef = createObservableRef<HTMLInputElement>();
 
@@ -84,52 +83,11 @@ export class ChatComposerLocalModel extends HoistModel {
         this.composerModel.addFilesAsync(files).catchDefault();
     };
 
-    onDragEnter = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        if (!this.composerModel.enableAttachments) return;
-        this.dragDepth++;
-        this.setDragging(true);
-    };
-
-    onDragOver = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = this.composerModel.enableAttachments ? 'copy' : 'none';
-    };
-
-    onDragLeave = (e: DragEvent) => {
-        if (!hasFiles(e) || !this.dragDepth) return;
-        this.dragDepth--;
-        if (!this.dragDepth) this.setDragging(false);
-    };
-
-    onDrop = (e: DragEvent) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        this.dragDepth = 0;
-        this.setDragging(false);
-        if (this.composerModel.enableAttachments) {
-            this.composerModel.addFilesAsync(Array.from(e.dataTransfer.files)).catchDefault();
-        }
-    };
-
     onFilesChosen = (fileInput: HTMLInputElement) => {
         const files = Array.from(fileInput.files ?? []);
         fileInput.value = ''; // Allow the same file to be chosen again.
         if (files.length) this.composerModel.addFilesAsync(files).catchDefault();
     };
-
-    //------------------
-    // Implementation
-    //------------------
-    // Drag events fire on every child crossed, so count entries to know when the drag has left.
-    private dragDepth = 0;
-
-    @action
-    private setDragging(isDragging: boolean) {
-        this.isDragging = isDragging;
-    }
 }
 
 //------------------
