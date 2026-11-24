@@ -4,7 +4,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
-import {action, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isEqual, isString, without} from 'lodash';
 import {useEffect, useRef} from 'react';
@@ -113,6 +113,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
      * The element's editors in sections: the keys no section of its widget lists, untitled, then
      * each section in order, folded or not.
      */
+    @computed
     get sections(): {label: string; nodes: EditorNode[]; collapsed: boolean}[] {
         const {nodes} = this,
             sections = this.widgetSpec?.sections ?? [],
@@ -137,8 +138,6 @@ export class ElementInspectorModel extends ConfigEditorModel {
         this.toggled = {...this.toggled, [label]: !this.toggled[label]};
     }
 
-    /** The element's editors, from its widget's config schema. */
-    /** What a section's header counts: a lone list's items, else its properties. */
     /**
      * What a card's header counts: a lone list's items, else the settings set in it. A binding or
      * a preset counts as set, and a schema default does not.
@@ -155,8 +154,10 @@ export class ElementInspectorModel extends ConfigEditorModel {
         return {count: n, countTitle: `${countLabel(n, 'setting')} set`};
     }
 
+    /** The element's editors, from its widget's config schema. */
+    @computed
     get nodes(): EditorNode[] {
-        const ret = toEditorSpec(this.widgetSpec?.config),
+        const ret = this.schemaNodes,
             // A field list edits its settings map's entries in its drawer, so the map shows only
             // for an entry of a field the list leaves out.
             folded = ret.filter(it => {
@@ -168,6 +169,12 @@ export class ElementInspectorModel extends ConfigEditorModel {
                 return Object.keys(this.values[it.key] ?? {}).every(k => listed.includes(k));
             });
         return without(ret, ...folded);
+    }
+
+    // Built once per widget, as an edit changes the config, not its schema.
+    @computed
+    private get schemaNodes(): EditorNode[] {
+        return toEditorSpec(this.widgetSpec?.config);
     }
 
     /** The element's config as it shows, with the active presets applied. */
@@ -228,6 +235,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
      * Editors for where the element sits in its container, from the container's child schema.
      * None in a slot other than `children`, which holds no placement.
      */
+    @computed
     get placementNodes(): EditorNode[] {
         const schema = this.parentSpec?.children?.schema;
         if (!schema || this.slot !== 'children') return [];
