@@ -378,9 +378,7 @@ const INLINE_KINDS = [
 ];
 
 function isMultiline(node: EditorNode): boolean {
-    return (
-        (node.kind === 'text' && node.multiline) || (node.kind === 'choice' && !!node.thumbnails)
-    );
+    return node.kind === 'text' && node.multiline;
 }
 
 function editorFor(
@@ -452,25 +450,39 @@ function editorFor(
                 onCommit: v => commit(v === (node.default ?? false) ? undefined : v)
             });
         case 'choice':
-            // A choice of four pictures or fewer shows a card for each. A longer one is a select
-            // with a small picture per option.
-            if (node.thumbnails && node.options.filter(it => it !== true).length <= 4) {
-                const options = node.options.filter(it => it !== true);
+            // A choice with pictures shows them inline: a small card each for four or fewer, a row
+            // of thumbnails, named by their tooltips, for more, such as a chart's type.
+            if (node.thumbnails) {
+                const options = node.options.filter(it => it !== true),
+                    many = options.length > 4;
                 return radioCardInput({
                     value: value === true ? options[0] : (value ?? node.default ?? null),
                     options: [
                         ...(node.required || node.default !== undefined
                             ? []
                             : [{value: null, label: 'Default'}]),
-                        ...options.map(it => ({
-                            value: it as any,
-                            label: choiceLabel(node, it),
-                            preview: thumbnailPreview(node.thumbnails[String(it)])
-                        }))
+                        ...options.map(it => {
+                            const label = choiceLabel(node, it),
+                                picture = thumbnailPreview(
+                                    node.thumbnails[String(it)],
+                                    many ? {width: 30, height: 18} : {width: 34, height: 16}
+                                );
+                            return {
+                                value: it as any,
+                                label,
+                                preview: many
+                                    ? tooltip({content: label, hoverOpenDelay: 300, item: picture})
+                                    : picture
+                            };
+                        })
                     ],
                     disabled,
-                    cardWidth: 76,
-                    className: classNames(implied && `${CLS}__implied`),
+                    cardWidth: many ? 40 : 64,
+                    className: classNames(
+                        `${CLS}__pictures`,
+                        many && `${CLS}__pictures--many`,
+                        implied && `${CLS}__implied`
+                    ),
                     onCommit: v => commit(v === node.default || v == null ? undefined : v)
                 });
             }
@@ -492,21 +504,6 @@ function editorFor(
             return select({
                 value: value ?? null,
                 options: choiceOptions(node),
-                ...(node.thumbnails
-                    ? {
-                          optionRenderer: (opt: Option) =>
-                              hbox({
-                                  className: `${CLS}__pictured-option`,
-                                  children: [
-                                      thumbnailPreview(node.thumbnails[String(opt.value)], {
-                                          width: 30,
-                                          height: 18
-                                      }),
-                                      span(opt.label)
-                                  ]
-                              })
-                      }
-                    : {}),
                 enableClear: !node.required,
                 placeholder: choicePlaceholder,
                 ...(isDecided ? {title: 'The widget decides as it draws, when unset.'} : {}),

@@ -764,14 +764,23 @@ describe('ElementInspector', () => {
         expect(row('title').querySelector('.xh-blueprint-element-inspector__help')).toBeNull();
     });
 
-    it('pictures four options or fewer as cards, and more as a select', () => {
+    it('pictures a choice inline: small cards for four options or fewer, a row of thumbnails for more', () => {
         const {design} = open(),
             id = design.addWidget('chart', 'positions').id;
         act(() => design.select({kind: 'element', id}));
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
-            row = container.querySelector('[data-config-key="type"]');
-        expect(row.querySelector('[role=radio]')).toBeNull();
-        expect(row.querySelector('.xh-select')).not.toBeNull();
+            type = container.querySelector('[data-config-key="type"]');
+        expect(type.className).toContain('__row--inline');
+        expect(type.querySelector('.xh-select')).toBeNull();
+        expect(
+            type.querySelector('.xh-blueprint-element-inspector__pictures--many')
+        ).not.toBeNull();
+        expect(type.querySelectorAll('.xh-radio-card-input__card')).toHaveLength(9);
+        // The grid's Summary row: three small cards, beside its label.
+        act(() => design.select({kind: 'element', id: 'posGrid'}));
+        const summary = container.querySelector('[data-config-key="showSummary"]');
+        expect(summary.className).toContain('__row--inline');
+        expect(summary.querySelector('.xh-blueprint-element-inspector__pictures--many')).toBeNull();
     });
 
     it('tints a required setting while it is unset', () => {
@@ -799,14 +808,6 @@ describe('ElementInspector', () => {
         expect(config().stripeRows).toBe(false);
         flip();
         expect(config()).not.toHaveProperty('stripeRows');
-    });
-
-    it('puts a choice of pictures under its label, as it wraps over several lines', () => {
-        const {design} = open(),
-            {container} = render(elementInspector({designModel: design}) as ReactElement),
-            row = container.querySelector('[data-config-key="showSummary"]');
-        expect(row.firstElementChild.textContent).toBe('Summary row');
-        expect(row.className).not.toContain('__row--inline');
     });
 
     it('counts in words in each card header only the settings set there, a binding or preset included', () => {
