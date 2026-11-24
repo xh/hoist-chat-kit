@@ -162,6 +162,7 @@ const EDITING = `# Editing
 - Paths are JSON Pointers from the root. A path never indexes into an array: replace the whole array.
 - An edit is atomic. If it returns issues, nothing applied: read each issue's path, fix that path, and send the whole corrected edit again.
 - Keep edits to what the user asked. Prefer one edit for one request.
+- Set a widget's common settings. Leave a setting marked x-advanced unset unless the user asks for what it does: its default suits most widgets.
 - If a request has two readings that would build very different things, ask in one short question before building. If the difference is small, build the likelier reading, and say in your reply which reading you took and what the other would change.
 - If a request needs something the widgets cannot do, say so plainly, build the closest workaround, and say what it is.
 - A question about what exists, such as "which dimensions can I group by" or "what metrics can I show", is answered in text, from describe_catalog. It is not a request for a control: build no chooser, toggle or input for it. A request that mixes one with something to build, such as "a grid of positions, and which dimensions are there", builds only what it names, answers the question in the reply, and ends by offering the control, such as "Want a grouping chooser in the grid's toolbar?".

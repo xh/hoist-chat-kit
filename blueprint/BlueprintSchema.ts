@@ -56,7 +56,30 @@ export type BlueprintSchemaExtension = {
      * value, such as `{false: 'Free'}`.
      */
     'x-labels'?: Record<string, string>;
+    /** On a widget property, the section that shows it in design mode. See {@link SETTING_GROUPS}. */
+    'x-group'?: SettingGroup;
+    /**
+     * On a widget property, true for a setting most widgets leave unset. Design mode folds it
+     * behind its section's "N more" row while unset, and the Architect sets it only when asked.
+     */
+    'x-advanced'?: boolean;
 };
+
+/**
+ * The sections of a widget's settings, in the order design mode shows them: what it shows, its
+ * one list (columns, fields, buttons), the words the reader sees, how it looks, what it does, and
+ * its place in its parent.
+ */
+export const SETTING_GROUPS = [
+    'data',
+    'list',
+    'content',
+    'appearance',
+    'behavior',
+    'layout'
+] as const;
+
+export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 /**
  * A widget config schema: the JSON Schema subset `SchemaUtils` checks, with the Blueprints

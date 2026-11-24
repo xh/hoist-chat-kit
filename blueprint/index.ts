@@ -48,7 +48,7 @@ export type {
     TileFrameWidgetConfig,
     TreemapWidgetConfig
 } from './impl/builtInWidgets';
-export type * from './BlueprintSchema';
+export * from './BlueprintSchema';
 export * from './degradeAnswer';
 export * from './usages';
 export * from './variableLabel';

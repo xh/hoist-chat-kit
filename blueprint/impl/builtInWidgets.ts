@@ -36,6 +36,7 @@ const ACTION_PROP = {
 
 /** A title, which may read variables: "P&L for {fund}". */
 const TITLE = {
+    'x-group': 'content',
     type: 'string',
     maxLength: 100,
     'x-binding': true,
@@ -43,6 +44,7 @@ const TITLE = {
 } as const satisfies BlueprintSchema;
 
 const EMPTY_TEXT = {
+    'x-group': 'content',
     type: 'string',
     maxLength: 200,
     description: 'Text shown while the container has no children.'
@@ -54,6 +56,7 @@ const DASHBOARD_SCHEMA = {
     properties: {
         emptyText: EMPTY_TEXT,
         columns: {
+            'x-group': 'appearance',
             type: 'integer',
             minimum: 1,
             maximum: 48,
@@ -61,6 +64,7 @@ const DASHBOARD_SCHEMA = {
             description: 'Columns in the grid.'
         },
         rowHeight: {
+            'x-group': 'appearance',
             type: 'integer',
             minimum: 10,
             maximum: 200,
@@ -69,6 +73,8 @@ const DASHBOARD_SCHEMA = {
             description: 'Height of one row.'
         },
         compact: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             enum: ['vertical', 'horizontal', false],
             default: 'vertical',
             title: 'Packing',
@@ -82,6 +88,8 @@ const DASHBOARD_SCHEMA = {
                 'How cells pack: up, left, or not at all, so each stays where it is placed and a drop pushes the cells it lands on down.'
         },
         margin: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'array',
             items: {type: 'integer', minimum: 0, maximum: 40},
             minItems: 2,
@@ -92,6 +100,8 @@ const DASHBOARD_SCHEMA = {
             description: 'The space between cells, across and down.'
         },
         containerPadding: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'array',
             items: {type: 'integer', minimum: 0, maximum: 40},
             minItems: 2,
@@ -102,6 +112,8 @@ const DASHBOARD_SCHEMA = {
                 'The space inside the dashboard edge, across and down. Default the cell gap.'
         },
         maxRows: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'integer',
             minimum: 1,
             title: 'Most rows',
@@ -109,6 +121,8 @@ const DASHBOARD_SCHEMA = {
             description: 'The rows a cell may reach, none below.'
         },
         showGridBackground: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'boolean',
             default: false,
             title: 'Grid',
@@ -116,6 +130,8 @@ const DASHBOARD_SCHEMA = {
             description: 'Draw the grid behind the cells for readers too. Design mode always does.'
         },
         preventCollision: {
+            'x-group': 'behavior',
+            'x-advanced': true,
             type: 'boolean',
             default: false,
             title: 'Drop on a cell',
@@ -124,6 +140,7 @@ const DASHBOARD_SCHEMA = {
                 'Snap back a move or resize onto another cell, rather than push that cell aside.'
         },
         layoutLocked: {
+            'x-group': 'behavior',
             type: 'boolean',
             default: true,
             title: 'Rearranging',
@@ -140,6 +157,7 @@ const TAB_CONTAINER_SCHEMA = {
     properties: {
         emptyText: EMPTY_TEXT,
         switcherPosition: {
+            'x-group': 'appearance',
             enum: ['top', 'bottom', 'left', 'right'],
             default: 'top',
             title: 'Tab position',
@@ -173,6 +191,7 @@ const PANES_SCHEMA = {
     properties: {
         // The container writes it back as the user rearranges it, so it stays a literal.
         layout: {
+            'x-group': 'appearance',
             type: 'array',
             maxItems: 20,
             'x-binding': false,
@@ -182,6 +201,7 @@ const PANES_SCHEMA = {
         },
         emptyText: EMPTY_TEXT,
         layoutLocked: {
+            'x-group': 'behavior',
             type: 'boolean',
             default: true,
             title: 'Rearranging',
@@ -194,6 +214,7 @@ const PANES_SCHEMA = {
 
 // A Font Awesome icon's name, which design mode picks from a list of icons.
 const ICON_PROP = {
+    'x-group': 'content',
     type: 'string',
     maxLength: 40,
     description: 'A Font Awesome icon name.',
@@ -207,21 +228,23 @@ const PANEL_SCHEMA = {
         title: TITLE,
         icon: ICON_PROP,
         style: {
+            'x-group': 'appearance',
             type: 'string',
             enum: ['plain', 'card'],
             default: 'plain',
             description: 'plain draws a panel with a header. card draws a bordered group.'
         },
         intent: {
+            'x-group': 'appearance',
             type: 'string',
             enum: ['none', 'primary', 'success', 'warning', 'danger'],
             default: 'none',
             description: "Colors a card style panel's border and title."
         },
-        collapsible: {type: 'boolean', default: false},
+        collapsible: {'x-group': 'behavior', type: 'boolean', default: false},
         // The panel writes it back as the user collapses it, so it stays a literal.
-        collapsed: {type: 'boolean', default: false, 'x-binding': false},
-        compactHeader: {type: 'boolean', default: false},
+        collapsed: {'x-group': 'behavior', type: 'boolean', default: false, 'x-binding': false},
+        compactHeader: {'x-group': 'appearance', type: 'boolean', default: false},
         emptyText: EMPTY_TEXT
     }
 } as const satisfies BlueprintSchema;
@@ -231,17 +254,20 @@ const BOX_SCHEMA = {
     additionalProperties: false,
     properties: {
         direction: {
+            'x-group': 'appearance',
             'x-thumbnails': {row: 'direction.row', column: 'direction.column'},
             type: 'string',
             enum: ['column', 'row'],
             default: 'column'
         },
         fill: {
+            'x-group': 'appearance',
             type: 'boolean',
             default: true,
             description: 'True to fill its parent. False to take the size of its children.'
         },
         gap: {
+            'x-group': 'appearance',
             type: 'integer',
             minimum: 0,
             maximum: 64,
@@ -249,6 +275,7 @@ const BOX_SCHEMA = {
             description: 'Pixels between children.'
         },
         align: {
+            'x-group': 'appearance',
             type: 'string',
             enum: ['stretch', 'start', 'center', 'end'],
             default: 'stretch',
@@ -263,11 +290,13 @@ const MARKDOWN_SCHEMA = {
     required: ['text'],
     properties: {
         source: {
+            'x-group': 'data',
             type: 'string',
             'x-source': true,
             description: 'The source an undotted reference reads a field of.'
         },
         text: {
+            'x-group': 'content',
             type: 'string',
             maxLength: 10000,
             'x-template': true,
@@ -283,22 +312,28 @@ const CALLOUT_SCHEMA = {
     properties: {
         source: MARKDOWN_SCHEMA.properties.source,
         intent: {
+            'x-group': 'appearance',
             type: 'string',
             enum: ['primary', 'success', 'warning', 'danger', 'none'],
             default: 'primary',
             description: 'none is neutral, with no icon.'
         },
-        title: {type: 'string', maxLength: 200, 'x-template': true},
+        title: {type: 'string', maxLength: 200, 'x-template': true, 'x-group': 'content'},
         text: MARKDOWN_SCHEMA.properties.text
     }
 } as const satisfies BlueprintSchema;
 
-const LABEL = {type: 'string', maxLength: 40, description: 'Shown beside the input.'} as const;
+const LABEL = {
+    type: 'string',
+    maxLength: 40,
+    description: 'Shown beside the input.',
+    'x-group': 'content'
+} as const;
 
 const SELECT_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {label: LABEL, placeholder: {type: 'string', maxLength: 60}}
+    properties: {label: LABEL, placeholder: {type: 'string', maxLength: 60, 'x-group': 'content'}}
 } as const satisfies BlueprintSchema;
 
 const DATE_INPUT_SCHEMA = {
@@ -313,6 +348,7 @@ const DATE_RANGE_PICKER_SCHEMA = {
     properties: {
         label: LABEL,
         presets: {
+            'x-group': 'data',
             type: 'array',
             items: {type: 'string'},
             maxItems: 20,
@@ -320,6 +356,7 @@ const DATE_RANGE_PICKER_SCHEMA = {
                 "The preset tokens to offer, such as mtd and ytd. Default Hoist's usual set. Its variable's preset is offered too."
         },
         asOf: {
+            'x-group': 'data',
             type: 'string',
             'x-binding': true,
             description: 'The date, as YYYY-MM-DD, that its ranges run to. Default today.'
@@ -332,9 +369,9 @@ const NUMBER_INPUT_SCHEMA = {
     additionalProperties: false,
     properties: {
         label: LABEL,
-        min: {type: 'number'},
-        max: {type: 'number'},
-        precision: {type: 'integer', minimum: 0, maximum: 8}
+        min: {'x-group': 'data', type: 'number'},
+        max: {'x-group': 'data', type: 'number'},
+        precision: {'x-group': 'data', type: 'integer', minimum: 0, maximum: 8}
     }
 } as const satisfies BlueprintSchema;
 
@@ -348,11 +385,13 @@ const VARIABLE_INPUT_SCHEMA = {
     required: ['variable'],
     properties: {
         variable: {
+            'x-group': 'data',
             type: 'string',
             'x-variable': true,
             description: 'The prompted variable it shows and sets: one whose setBy is "prompt".'
         },
         label: {
+            'x-group': 'content',
             ...LABEL,
             description: "Shown beside the input. Default the variable's label."
         }
@@ -365,9 +404,9 @@ const SLIDER_SCHEMA = {
     required: ['min', 'max'],
     properties: {
         label: LABEL,
-        min: {type: 'number', default: 0},
-        max: {type: 'number', default: 100},
-        step: {type: 'number', minimum: 0.000001, default: 1}
+        min: {'x-group': 'data', type: 'number', default: 0},
+        max: {'x-group': 'data', type: 'number', default: 100},
+        step: {'x-group': 'data', type: 'number', minimum: 0.000001, default: 1}
     }
 } as const satisfies BlueprintSchema;
 
@@ -376,9 +415,10 @@ const FILTER_CHOOSER_SCHEMA = {
     additionalProperties: false,
     required: ['source'],
     properties: {
-        source: {type: 'string', 'x-source': true},
+        source: {'x-group': 'data', type: 'string', 'x-source': true},
         label: LABEL,
         fields: {
+            'x-group': 'list',
             type: 'array',
             items: {type: 'string'},
             'x-field': 'dimension',
@@ -391,8 +431,9 @@ const TOOLBAR_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
-        vertical: {type: 'boolean', default: false},
+        vertical: {'x-group': 'appearance', type: 'boolean', default: false},
         overflowMenu: {
+            'x-group': 'behavior',
             type: 'boolean',
             default: true,
             description:
@@ -404,7 +445,7 @@ const TOOLBAR_SCHEMA = {
 const SEPARATOR_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {label: {type: 'string', maxLength: 60}}
+    properties: {label: {type: 'string', maxLength: 60, 'x-group': 'content'}}
 } as const satisfies BlueprintSchema;
 
 const SPACER_SCHEMA = {
@@ -412,6 +453,7 @@ const SPACER_SCHEMA = {
     additionalProperties: false,
     properties: {
         size: {
+            'x-group': 'appearance',
             type: 'integer',
             minimum: 1,
             maximum: 400,
@@ -484,11 +526,13 @@ const CUBE_GRID_SCHEMA = {
     required: ['source'],
     properties: {
         source: {
+            'x-group': 'data',
             type: 'string',
             'x-source': true
         },
         title: TITLE,
         groupBy: {
+            'x-group': 'data',
             type: 'array',
             items: {
                 type: 'string'
@@ -499,6 +543,7 @@ const CUBE_GRID_SCHEMA = {
             description: 'Dimensions to group by, outermost first.'
         },
         columnState: {
+            'x-group': 'list',
             type: 'array',
             maxItems: 60,
             'x-field': 'any',
@@ -538,8 +583,9 @@ const CUBE_GRID_SCHEMA = {
                 ]
             }
         },
-        rowStyles: ROW_STYLE_RULES,
+        rowStyles: {...ROW_STYLE_RULES, 'x-group': 'appearance', 'x-advanced': true},
         rowActions: {
+            'x-group': 'behavior',
             type: 'array',
             maxItems: 10,
             items: {
@@ -556,6 +602,7 @@ const CUBE_GRID_SCHEMA = {
                 'Actions on a row, in its right-click menu, the first also on a double click. An action reads the row\'s fields, and its group path\'s, with {"$row": field}.'
         },
         columns: {
+            'x-group': 'list',
             type: 'object',
             'x-field': 'any',
             description:
@@ -655,6 +702,7 @@ const CUBE_GRID_SCHEMA = {
         },
         // The grid writes it back as the user sorts, so it stays a literal.
         sortBy: {
+            'x-group': 'data',
             'x-binding': false,
             'x-sort': true,
             anyOf: [
@@ -675,18 +723,22 @@ const CUBE_GRID_SCHEMA = {
                 'Hoist sort form: a field, field|desc, or field|desc|abs, or a list of them. The field group names the tree column.'
         },
         filter: {
+            'x-group': 'data',
             'x-filter': true,
             'x-binding': true,
             description: 'A Hoist filter applied in the browser.',
             type: 'object'
         },
         expandLevel: {
+            'x-group': 'data',
+            'x-advanced': true,
             'x-binding': true,
             type: 'integer',
             minimum: 0,
             maximum: 6
         },
         showSummary: {
+            'x-group': 'appearance',
             'x-thumbnails': {top: 'summary.top', bottom: 'summary.bottom', false: 'summary.off'},
             'x-binding': true,
             title: 'Summary row',
@@ -696,6 +748,8 @@ const CUBE_GRID_SCHEMA = {
                 "A row of totals docked at the top or bottom, or false for none. True, as Hoist's GridModel takes it, means 'top'."
         },
         treeStyle: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             'x-binding': true,
             enum: [
                 'highlights',
@@ -710,36 +764,47 @@ const CUBE_GRID_SCHEMA = {
                 'How group rows stand out: highlighted, colored, set off by borders, or both.'
         },
         stripeRows: {
+            'x-group': 'appearance',
             'x-binding': true,
             type: 'boolean',
             default: true,
             description: 'Alternate the background of rows.'
         },
         rowBorders: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             'x-binding': true,
             type: 'boolean',
             default: true,
             description: 'Draw a border between rows.'
         },
         cellBorders: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             'x-binding': true,
             type: 'boolean',
             default: false,
             description: 'Draw a border between cells.'
         },
         showHover: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             'x-binding': true,
             type: 'boolean',
             default: false,
             description: 'Highlight the row under the pointer.'
         },
         sizingMode: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             'x-binding': true,
             enum: ['tiny', 'compact', 'standard', 'large'],
             'x-unset': "The app's sizing mode",
             description: "The size of the grid's text and rows. Default the app's sizing mode."
         },
         showGroupRowCounts: {
+            'x-group': 'data',
+            'x-advanced': true,
             'x-binding': true,
             type: 'boolean',
             title: 'Group counts',
@@ -748,6 +813,8 @@ const CUBE_GRID_SCHEMA = {
             description: 'Show the count of rows in each group row.'
         },
         hideHeaders: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             'x-binding': true,
             type: 'boolean',
             title: 'Column headers',
@@ -756,12 +823,15 @@ const CUBE_GRID_SCHEMA = {
             description: 'Hide the row of column headers.'
         },
         emptyText: {
+            'x-group': 'content',
             type: 'string',
             maxLength: 200,
             default: 'No data',
             description: 'Text to show when the grid has no rows.'
         },
         groupRowHeight: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'integer',
             minimum: 16,
             maximum: 100,
@@ -790,11 +860,13 @@ const CHART_SCHEMA = {
     required: ['source', 'type', 'x', 'y'],
     properties: {
         source: {
+            'x-group': 'data',
             type: 'string',
             'x-source': true
         },
         title: TITLE,
         type: {
+            'x-group': 'appearance',
             'x-thumbnails': {
                 line: 'chart.line',
                 spline: 'chart.spline',
@@ -822,22 +894,26 @@ const CHART_SCHEMA = {
                 'waterfall shows each y as a step from the one before, as for P&L attribution.'
         },
         xTitle: {
+            'x-group': 'content',
             type: 'string',
             maxLength: 100,
             'x-binding': true,
             description: "Title of the x-axis. Default the x field's label."
         },
         yTitle: {
+            'x-group': 'content',
             type: 'string',
             maxLength: 100,
             'x-binding': true,
             description: "Title of the y-axis. Default the y field's label, if there is one y."
         },
         x: {
+            'x-group': 'data',
             type: 'string',
             'x-field': 'any'
         },
         y: {
+            'x-group': 'list',
             type: 'array',
             items: {
                 type: 'string'
@@ -847,6 +923,8 @@ const CHART_SCHEMA = {
             'x-field': 'measure'
         },
         y2: {
+            'x-group': 'list',
+            'x-advanced': true,
             type: 'array',
             items: {type: 'string'},
             maxItems: 4,
@@ -856,38 +934,50 @@ const CHART_SCHEMA = {
                 'Measures on a second axis, on the right, where their scale differs from y.'
         },
         y2Title: {
+            'x-group': 'content',
+            'x-advanced': true,
             type: 'string',
             maxLength: 100,
             'x-binding': true,
             description: "Title of the second axis. Default the y2 field's label, if there is one."
         },
         groupBy: {
+            'x-group': 'data',
             type: 'string',
             'x-field': 'dimension',
             'x-starter': false,
             description: 'A dimension that splits the first y into one series per value.'
         },
         stacking: {
+            'x-group': 'appearance',
             'x-binding': true,
             enum: ['normal', 'percent'],
             'x-unset': 'No stacking'
         },
         filter: {
+            'x-group': 'data',
+            'x-advanced': true,
             'x-filter': true,
             'x-binding': true,
             type: 'object'
         },
         sortBy: {
+            'x-group': 'data',
+            'x-advanced': true,
             type: 'string',
             pattern: '^[A-Za-z0-9_-]+(\\|(asc|desc))?$'
         },
         top: {
+            'x-group': 'data',
+            'x-advanced': true,
             type: 'integer',
             minimum: 1,
             maximum: 100,
             'x-unset': 'All'
         },
         highchartsConfig: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'object',
             description: `Highcharts options merged over the chart's own: ${HIGHCHARTS_KEYS.join(', ')}. No markup, functions, events or series data.`
         }
@@ -899,9 +989,10 @@ const PROPERTY_TABLE_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'fields'],
     properties: {
-        source: {type: 'string', 'x-source': true},
+        source: {'x-group': 'data', type: 'string', 'x-source': true},
         title: TITLE,
         fields: {
+            'x-group': 'list',
             type: 'array',
             minItems: 1,
             maxItems: 30,
@@ -926,9 +1017,9 @@ const PROPERTY_TABLE_SCHEMA = {
                 ]
             }
         },
-        filter: {'x-filter': true, 'x-binding': true, type: 'object'},
-        columns: {type: 'integer', minimum: 1, maximum: 4, default: 1},
-        labelSide: {enum: ['left', 'top'], default: 'left'}
+        filter: {'x-group': 'data', 'x-filter': true, 'x-binding': true, type: 'object'},
+        columns: {'x-group': 'appearance', type: 'integer', minimum: 1, maximum: 4, default: 1},
+        labelSide: {'x-group': 'appearance', enum: ['left', 'top'], default: 'left'}
     }
 } as const satisfies BlueprintSchema;
 
@@ -937,19 +1028,41 @@ const HEATMAP_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'x', 'y', 'value'],
     properties: {
-        source: {type: 'string', 'x-source': true},
+        source: {'x-group': 'data', type: 'string', 'x-source': true},
         title: TITLE,
-        x: {type: 'string', 'x-field': 'dimension', description: 'The dimension across.'},
-        y: {type: 'string', 'x-field': 'dimension', description: 'The dimension down.'},
-        value: {type: 'string', 'x-field': 'measure', description: 'Colors each cell.'},
+        x: {
+            'x-group': 'data',
+            type: 'string',
+            'x-field': 'dimension',
+            description: 'The dimension across.'
+        },
+        y: {
+            'x-group': 'data',
+            type: 'string',
+            'x-field': 'dimension',
+            description: 'The dimension down.'
+        },
+        value: {
+            'x-group': 'data',
+            type: 'string',
+            'x-field': 'measure',
+            description: 'Colors each cell.'
+        },
         colorMode: {
+            'x-group': 'appearance',
             'x-thumbnails': {diverging: 'color.diverging', sequential: 'color.sequential'},
             enum: ['diverging', 'sequential'],
             default: 'diverging',
             description:
                 'diverging colors below zero red and above green, as for P&L. Use sequential only for a measure that is never negative.'
         },
-        filter: {'x-filter': true, 'x-binding': true, type: 'object'}
+        filter: {
+            'x-group': 'data',
+            'x-advanced': true,
+            'x-filter': true,
+            'x-binding': true,
+            type: 'object'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -958,9 +1071,10 @@ const TREEMAP_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'value'],
     properties: {
-        source: {type: 'string', 'x-source': true},
+        source: {'x-group': 'data', type: 'string', 'x-source': true},
         title: TITLE,
         groupBy: {
+            'x-group': 'data',
             type: 'array',
             items: {type: 'string'},
             minItems: 1,
@@ -969,30 +1083,46 @@ const TREEMAP_SCHEMA = {
             'x-binding': true,
             description: 'The dimensions that nest the nodes, outermost first.'
         },
-        value: {type: 'string', 'x-field': 'measure', description: 'Sizes each node.'},
+        value: {
+            'x-group': 'data',
+            type: 'string',
+            'x-field': 'measure',
+            description: 'Sizes each node.'
+        },
         heat: {
+            'x-group': 'data',
             type: 'string',
             'x-field': 'measure',
             'x-starter': false,
             description: 'Colors each node: green above zero, red below. Default value.'
         },
         colorMode: {
+            'x-group': 'appearance',
             'x-thumbnails': {linear: 'color.linear', wash: 'color.wash', none: 'color.none'},
             enum: ['linear', 'wash', 'none'],
             default: 'linear'
         },
         maxDepth: {
+            'x-group': 'data',
+            'x-advanced': true,
             type: 'integer',
             minimum: 1,
             maximum: 4,
             'x-unset': 'All',
             description: 'How many levels of groupBy to draw.'
         },
-        filter: {'x-filter': true, 'x-binding': true, type: 'object'}
+        filter: {
+            'x-group': 'data',
+            'x-advanced': true,
+            'x-filter': true,
+            'x-binding': true,
+            type: 'object'
+        }
     }
 } as const satisfies BlueprintSchema;
 
 const FORMAT_PROP = {
+    'x-group': 'content',
     'x-format': true,
     anyOf: [{type: 'string'}, {type: 'object'}]
 } as const satisfies BlueprintSchema;
@@ -1002,20 +1132,33 @@ const STAT_CARD_SCHEMA = {
     additionalProperties: false,
     required: ['source'],
     properties: {
-        source: {type: 'string', 'x-source': true},
-        field: {type: 'string', 'x-field': 'measure'},
-        label: {type: 'string', maxLength: 40, 'x-template': 'variables'},
+        source: {'x-group': 'data', type: 'string', 'x-source': true},
+        field: {'x-group': 'data', type: 'string', 'x-field': 'measure'},
+        label: {'x-group': 'content', type: 'string', maxLength: 40, 'x-template': 'variables'},
         format: FORMAT_PROP,
         agg: {
+            'x-group': 'data',
             enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'],
             'x-unset': "The field's aggregator"
         },
-        deltaField: {type: 'string', 'x-field': 'measure', 'x-starter': false},
+        deltaField: {
+            'x-group': 'content',
+            type: 'string',
+            'x-field': 'measure',
+            'x-starter': false
+        },
         deltaFormat: FORMAT_PROP,
-        deltaLabel: {type: 'string', maxLength: 40},
-        invert: {type: 'boolean', default: false},
-        intent: {enum: ['none', 'primary', 'success', 'warning', 'danger'], default: 'none'},
+        deltaLabel: {'x-group': 'content', type: 'string', maxLength: 40},
+        invert: {'x-group': 'appearance', 'x-advanced': true, type: 'boolean', default: false},
+        intent: {
+            'x-group': 'appearance',
+            'x-advanced': true,
+            enum: ['none', 'primary', 'success', 'warning', 'danger'],
+            default: 'none'
+        },
         trend: {
+            'x-group': 'data',
+            'x-advanced': true,
             type: 'string',
             'x-field': 'any',
             'x-starter': false,
@@ -1030,12 +1173,29 @@ const GAUGE_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'value'],
     properties: {
-        source: {type: 'string', 'x-source': true},
+        source: {'x-group': 'data', type: 'string', 'x-source': true},
         title: TITLE,
-        value: {type: 'string', 'x-field': 'measure', description: 'The total the needle shows.'},
-        min: {type: 'number', default: 0, description: 'The start of the arc.'},
-        max: {type: 'number', default: 100, description: 'The end of the arc.'},
+        value: {
+            'x-group': 'data',
+            type: 'string',
+            'x-field': 'measure',
+            description: 'The total the needle shows.'
+        },
+        min: {
+            'x-group': 'appearance',
+            type: 'number',
+            default: 0,
+            description: 'The start of the arc.'
+        },
+        max: {
+            'x-group': 'appearance',
+            type: 'number',
+            default: 100,
+            description: 'The end of the arc.'
+        },
         stops: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'array',
             maxItems: 6,
             'x-starter': false,
@@ -1061,7 +1221,13 @@ const GAUGE_SCHEMA = {
             }
         },
         format: FORMAT_PROP,
-        filter: {'x-filter': true, 'x-binding': true, type: 'object'}
+        filter: {
+            'x-group': 'data',
+            'x-advanced': true,
+            'x-filter': true,
+            'x-binding': true,
+            type: 'object'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -1071,6 +1237,7 @@ const TILE_FRAME_SCHEMA = {
     properties: {
         title: TITLE,
         minTileWidth: {
+            'x-group': 'appearance',
             type: 'integer',
             minimum: 20,
             maximum: 2000,
@@ -1078,6 +1245,8 @@ const TILE_FRAME_SCHEMA = {
             description: 'The narrowest a tile gets. More tiles wrap to a new row.'
         },
         maxTileWidth: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'integer',
             minimum: 20,
             maximum: 2000,
@@ -1085,6 +1254,8 @@ const TILE_FRAME_SCHEMA = {
             description: 'The widest a tile gets, however few there are.'
         },
         minTileHeight: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'integer',
             minimum: 20,
             maximum: 2000,
@@ -1092,6 +1263,8 @@ const TILE_FRAME_SCHEMA = {
             description: 'The shortest a tile gets.'
         },
         maxTileHeight: {
+            'x-group': 'appearance',
+            'x-advanced': true,
             type: 'integer',
             minimum: 20,
             maximum: 2000,
@@ -1099,6 +1272,7 @@ const TILE_FRAME_SCHEMA = {
             description: 'The tallest a tile gets.'
         },
         desiredRatio: {
+            'x-group': 'appearance',
             type: 'number',
             minimum: 0.1,
             maximum: 10,
@@ -1106,6 +1280,7 @@ const TILE_FRAME_SCHEMA = {
             description: 'Tile width over height.'
         },
         spacing: {
+            'x-group': 'appearance',
             type: 'integer',
             minimum: 0,
             maximum: 64,
@@ -1122,8 +1297,14 @@ const PRESET_SELECTOR_SCHEMA = {
     additionalProperties: false,
     required: ['group'],
     properties: {
-        group: {type: 'string', 'x-preset': true, description: 'The preset group it switches.'},
+        group: {
+            'x-group': 'data',
+            type: 'string',
+            'x-preset': true,
+            description: 'The preset group it switches.'
+        },
         display: {
+            'x-group': 'appearance',
             'x-thumbnails': {
                 segmented: 'display.segmented',
                 buttonGroup: 'display.buttonGroup',
@@ -1144,6 +1325,7 @@ const GROUPING_CHOOSER_SCHEMA = {
     required: ['dimensions'],
     properties: {
         dimensions: {
+            'x-group': 'data',
             type: 'array',
             items: {
                 type: 'string'
@@ -1161,6 +1343,7 @@ const BUTTON_GROUP_SCHEMA = {
     required: ['buttons'],
     properties: {
         buttons: {
+            'x-group': 'list',
             type: 'array',
             minItems: 1,
             maxItems: 8,
@@ -1189,6 +1372,7 @@ const BUTTON_GROUP_INPUT_SCHEMA = {
     required: ['options'],
     properties: {
         options: {
+            'x-group': 'list',
             type: 'array',
             minItems: 2,
             maxItems: 8,

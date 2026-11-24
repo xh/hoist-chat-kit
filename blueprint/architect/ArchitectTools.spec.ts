@@ -153,6 +153,18 @@ describe('Architect tools', () => {
         expect(cubeGrid.guidance).toMatch(/Keep the grid's default style unless the user asks/);
     });
 
+    it("gives each grid setting's section, and marks the ones to leave unset unless asked", () => {
+        const {properties} = run('describe_registry', {kind: 'widget', names: ['cubeGrid']}, open())
+            .cubeGrid.config;
+        expect(properties.source).toMatchObject({'x-group': 'data'});
+        expect(properties.source['x-advanced']).toBeUndefined();
+        expect(properties.treeStyle).toMatchObject({'x-group': 'appearance', 'x-advanced': true});
+        expect(properties.expandLevel).toMatchObject({'x-group': 'data', 'x-advanced': true});
+        expect(architectPrompt(open())).toMatch(
+            /Leave a setting marked x-advanced unset unless the user asks/
+        );
+    });
+
     it('applies an edit as the Architect, and refuses one with errors, returning its issues', () => {
         const model = open(),
             ok = run(
