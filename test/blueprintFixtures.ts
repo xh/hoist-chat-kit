@@ -25,7 +25,11 @@ export function scenarioRegistry(): BlueprintRegistry {
         Object.entries<PlainObject>(PLANNING_REGISTRY[coll]).filter(([, it]) => it.app);
     return new BlueprintRegistry({
         widgets: app('widgets').map(([name, it]) => ({name, version: 1, ...it}) as WidgetSpec),
-        variableTypes: app('variableTypes').map(([name, it]) => ({name, matches: it.matches})),
+        variableTypes: app('variableTypes').map(([name, it]) => ({
+            name,
+            matches: it.matches,
+            ...(it.schema ? {schema: it.schema} : {})
+        })),
         resolvers: app('resolvers').map(([name, it]) => ({
             name,
             returns: it.returns,

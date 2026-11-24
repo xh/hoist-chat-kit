@@ -48,7 +48,21 @@
         "toolbox.portfolio": {
             "app": true,
             "matches": "toolbox.portfolio",
-            "guidance": "A hypothetical portfolio: {\"holdings\": [{\"symbol\": \"AAPL\", \"weight\": 0.5}]}."
+            "guidance": "A hypothetical portfolio: {\"holdings\": [{\"symbol\": \"AAPL\", \"weight\": 0.5}]}.",
+            "schema": {
+                "type": "object",
+                "required": ["holdings"],
+                "properties": {
+                    "holdings": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["symbol", "weight"],
+                            "properties": {"symbol": {"type": "string"}, "weight": {"type": "number"}}
+                        }
+                    }
+                }
+            }
         }
     },
     "resolvers": {

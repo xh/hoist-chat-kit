@@ -226,6 +226,12 @@ export interface VariableTypeSpec {
     label?: string;
     /** The field type its values match, so it can bind a parameter or filter of that type. */
     matches: string;
+    /**
+     * JSON Schema for a value, for a type whose `matches` is no field type, such as a portfolio.
+     * The validator, links and the Architect check values against it, and design mode edits a
+     * default with a form from it. Without it, such a type takes any JSON value.
+     */
+    schema?: PlainObject;
     guidance?: string;
     app?: boolean;
     /**
@@ -521,7 +527,15 @@ export class BlueprintRegistry {
         });
     }
 
+    /** Add variable types. Throws if a value schema uses JSON Schema the validator lacks. */
     addVariableTypes(...specs: (VariableTypeSpec | VariableTypeSpec[])[]) {
+        specs.flat().forEach(spec => {
+            const problems = findSchemaProblems(spec?.schema);
+            throwIf(
+                !isEmpty(problems),
+                `Variable type '${spec?.name}' uses unsupported JSON Schema: ${problems.join(', ')}`
+            );
+        });
         this.add('variable type', this.variableTypes, specs);
     }
 

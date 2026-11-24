@@ -574,7 +574,9 @@ export abstract class ConfigEditorModel extends HoistModel {
         if (type?.endsWith('[]'))
             return {type: 'array', items: this.valueSchema(type.slice(0, -2), options)};
         if (options?.length) return {enum: options};
-        const base = this.designModel.blueprintModel.registry.variableTypes[type]?.matches ?? type;
+        const spec = this.designModel.blueprintModel.registry.variableTypes[type],
+            base = spec?.matches ?? type;
+        if (spec?.schema) return spec.schema;
         switch (base) {
             case 'number':
                 return {type: 'number'};
@@ -594,7 +596,8 @@ export abstract class ConfigEditorModel extends HoistModel {
             case 'period':
                 return {type: 'string', pattern: PERIOD_PATTERN};
             default:
-                return {type: 'string'};
+                // An app type of no field type, such as a portfolio, edits as JSON.
+                return spec && base === type ? {} : {type: 'string'};
         }
     }
 

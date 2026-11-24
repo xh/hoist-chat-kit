@@ -1,12 +1,13 @@
 import {isArray, isBoolean, isEqual, isFinite, isInteger, isPlainObject, isString} from 'lodash';
 import type {VariableDecl} from '../Blueprint';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
+import {findSchemaErrors} from '../../impl/SchemaUtils';
 import {checkFilter} from './configSchema';
 
 /**
  * Why a value cannot be a variable's, or null if it can. Null always can, as no value. Checks the
  * variable's type, each item of a list type, and its `options.values`. An app type checks as the
- * field type it matches.
+ * field type it matches, and against its `schema`.
  */
 export function checkVariableValue(
     name: string,
@@ -22,10 +23,16 @@ export function checkVariableValue(
         items = isList ? value : [value];
     if (isList && !isArray(value)) return `'${name}' takes a list of ${itemType}`;
 
-    const base = registry.variableTypes[itemType]?.matches ?? itemType;
+    const spec = registry.variableTypes[itemType],
+        base = spec?.matches ?? itemType;
     for (const item of items as unknown[]) {
         if (!matchesType(item, base))
             return `'${name}' takes a ${type}, not ${JSON.stringify(item)}`;
+        const [problem] = spec?.schema ? findSchemaErrors(item, spec.schema) : [];
+        if (problem) {
+            const at = problem.path.length ? ` at ${problem.path.join('.')}` : '';
+            return `'${name}' takes a ${type}: ${problem.message}${at}`;
+        }
         const token = base === 'dateRange' ? presetToken(item) : null;
         if (token && registry.dateRangePresets && !registry.dateRangePresets[token]) {
             return `'${name}' names no date range preset '${token}'`;

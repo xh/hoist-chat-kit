@@ -117,13 +117,20 @@ describe('BlueprintLink', () => {
             registry.variableTypes['toolbox.portfolio'] = {
                 ...registry.variableTypes['toolbox.portfolio'],
                 urlCodec: {
-                    parse: text => ({holdings: text.split('|').map(symbol => ({symbol}))}),
+                    parse: text => ({
+                        holdings: text.split('|').map(symbol => ({symbol, weight: 0.5}))
+                    }),
                     format: v => (v as PlainObject).holdings.map(it => it.symbol).join('|')
                 }
             };
             const ret = parse({id: 'b1', book: 'AAPL|MSFT'}, registry);
             expect(ret.problems).toEqual([]);
-            expect(ret.values.book).toEqual({holdings: [{symbol: 'AAPL'}, {symbol: 'MSFT'}]});
+            expect(ret.values.book).toEqual({
+                holdings: [
+                    {symbol: 'AAPL', weight: 0.5},
+                    {symbol: 'MSFT', weight: 0.5}
+                ]
+            });
         });
 
         it("names a value an app type's urlCodec cannot read", () => {

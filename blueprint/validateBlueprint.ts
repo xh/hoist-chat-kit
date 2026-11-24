@@ -457,11 +457,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 `${p}/default`,
                 'a default is {"value": ...} or {"resolver": ..., "args": ...}'
             );
-        } else if (
-            v.default &&
-            'value' in v.default &&
-            ['dateRange', 'period'].includes(baseType)
-        ) {
+        } else if (v.default && 'value' in v.default) {
             const problem = checkVariableValue(vn, v, v.default.value, registry);
             if (problem) err('variable.badValue', `${p}/default/value`, problem);
         }

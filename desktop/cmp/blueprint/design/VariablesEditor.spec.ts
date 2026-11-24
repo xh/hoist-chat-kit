@@ -129,10 +129,17 @@ describe('VariablesEditor', () => {
     });
 
     it("gives a literal default an editor for the variable's type", () => {
-        const {editor} = open();
+        const {editor, model} = open();
         expect(editor.valueSchema('string')).toEqual({type: 'string'});
         expect(editor.valueSchema('int')).toEqual({type: 'integer'});
         expect(editor.valueSchema('toolbox.fund')).toEqual({type: 'string'});
+        // An app type of no field type takes its own schema's shape, or JSON with none.
+        expect(editor.valueSchema('toolbox.portfolio')).toMatchObject({
+            type: 'object',
+            required: ['holdings']
+        });
+        model.registry.addVariableTypes({name: 'acme.basket', matches: 'acme.basket'});
+        expect(editor.valueSchema('acme.basket')).toEqual({});
         expect(editor.valueSchema('string[]')).toEqual({type: 'array', items: {type: 'string'}});
         expect(editor.valueSchema('localDate')).toEqual({type: 'string', format: 'date'});
         expect(editor.valueSchema('string', ['EU', 'US'])).toEqual({enum: ['EU', 'US']});

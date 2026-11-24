@@ -734,6 +734,25 @@ describe('validateBlueprint', () => {
             ]);
         });
 
+        it("refuses a default whose value does not match its variable's type, an app type's schema included", () => {
+            const check = (type: string, value: unknown) => {
+                const bp = p2();
+                bp.variables.v = {type, setBy: 'prompt', default: {value}};
+                return validate(bp).map(it => [it.code, it.path]);
+            };
+            const bad = [['variable.badValue', '/variables/v/default/value']];
+            expect(check('string', 7)).toEqual(bad);
+            expect(check('int', 'seven')).toEqual(bad);
+            expect(
+                check('toolbox.portfolio', '{"holdings": [{"symbol": "AAPL", "weight": 1}]}')
+            ).toEqual(bad);
+            expect(check('toolbox.portfolio', {holdings: [{symbol: 'AAPL'}]})).toEqual(bad);
+            expect(check('toolbox.portfolio', {holdings: [{symbol: 'AAPL', weight: 1}]})).toEqual(
+                []
+            );
+            expect(check('string', 'Oak')).toEqual([]);
+        });
+
         it("takes options from a list or a source's field, and refuses any other form", () => {
             const check = (options: object) => {
                 const bp = p2();
