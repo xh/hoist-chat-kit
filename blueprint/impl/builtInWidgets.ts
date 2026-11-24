@@ -23,6 +23,9 @@ import {getOwn} from './pointer';
 //------------------
 // Widget config schemas
 //------------------
+
+// A grid column's alignment while unset, as the grid draws it.
+const ALIGN_BY_TYPE = {number: 'right', int: 'right', '*': 'left'};
 const ACTION = {
     type: 'object',
     required: ['type'],
@@ -820,12 +823,14 @@ const CUBE_GRID_SCHEMA = {
                         'x-group': 'header',
                         title: 'Align',
                         enum: ['left', 'center', 'right'],
+                        'x-type-default': ALIGN_BY_TYPE,
                         description: 'How the header aligns. Default as its cells.'
                     },
                     align: {
                         'x-group': 'values',
                         'x-advanced': true,
                         enum: ['left', 'center', 'right'],
+                        'x-type-default': ALIGN_BY_TYPE,
                         description: 'How the cells align. Default right for a number, else left.'
                     },
                     tooltip: {

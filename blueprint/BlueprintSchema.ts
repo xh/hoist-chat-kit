@@ -87,6 +87,11 @@ export type BlueprintSchemaExtension = {
     'x-row'?: string;
     /** The short name a setting shows under in its `x-row`, such as `Min`. */
     'x-caption'?: string;
+    /**
+     * On a field's setting, its default by the field's type, with `*` for any other type, as a
+     * column aligns right for a number and left for anything else.
+     */
+    'x-type-default'?: Record<string, unknown>;
 };
 
 /**

@@ -1488,6 +1488,7 @@ function entrySetting(
     flatFormat = false
 ) {
     const scope = `${scopeOf(ctx)}/${key}`;
+    setting = withTypeDefault(setting, ctx.impl.fieldType(entry.field));
     return own
         ? drawerSetting({
               key: setting.key,
@@ -1552,10 +1553,20 @@ function formatOptionSettings(
 }
 
 // Every setting of a field list entry: its own, then its settings map's, each marked by which.
-const entrySettings = (node: FieldListNode) => [
-    ...node.settings.map(it => ({setting: it, own: true})),
-    ...(node.settingsIn?.settings ?? []).map(it => ({setting: it, own: false}))
-];
+// A field list entry's settings, each at its default for the field's type where that varies.
+const entrySettings = (node: FieldListNode, fieldType: string = null) =>
+    [
+        ...node.settings.map(it => ({setting: it, own: true})),
+        ...(node.settingsIn?.settings ?? []).map(it => ({setting: it, own: false}))
+    ].map(it => ({...it, setting: withTypeDefault(it.setting, fieldType)}));
+
+/** A field's setting with its `x-type-default` for the field's type as its default. */
+export function withTypeDefault(node: EditorNode, fieldType: string): EditorNode {
+    const byType = node.schema['x-type-default'] as PlainObject;
+    if (!byType) return node;
+    const dflt = getOwn(byType, fieldType) ?? byType['*'];
+    return dflt === undefined ? node : ({...node, default: dflt} as EditorNode);
+}
 
 // What a field list entry shows as: its own header or name, else its field's label.
 function entryLabel(impl: ConfigEditorModel, entry: PlainObject, mapped: PlainObject): string {
@@ -1952,7 +1963,7 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
                 of: entryLabel(impl, row.entry, mapped)
             });
         }
-        const settings = entrySettings(node),
+        const settings = entrySettings(node, impl.fieldType(field)),
             ownKeys = settings.filter(it => it.own).map(it => it.setting.key),
             commitSetting = (key: string, v: unknown) =>
                 ownKeys.includes(key)

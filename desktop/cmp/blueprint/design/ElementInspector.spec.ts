@@ -1062,6 +1062,24 @@ describe('ElementInspector', () => {
         expect(config().columns.mktVal.headerName).toBe('Value');
     });
 
+    it("shows a column's alignment at its field type's default while unset, which picking leaves unset", () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal']);
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'mktVal#1'}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            segment = (label: string) =>
+                [...container.querySelectorAll('[data-config-key="headerAlign"] button')].find(
+                    it => it.textContent === label
+                );
+        expect(segment('Right').getAttribute('aria-checked')).toBe('true');
+        fireEvent.click(segment('Left'));
+        expect((model.blueprint.elements.posGrid.config as any).columns.mktVal.headerAlign).toBe(
+            'left'
+        );
+        fireEvent.click(segment('Right'));
+        expect((model.blueprint.elements.posGrid.config as any).columns?.mktVal).toBeUndefined();
+    });
+
     it("joins a column's Width, Min and Max in one row, each under its caption", () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['mktVal']);
