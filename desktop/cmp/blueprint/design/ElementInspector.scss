@@ -272,6 +272,10 @@ body {
     display: none;
   }
 
+  &__card-body > &__form-row:only-child:has(&__field-list) > .xh-form-field__label {
+    display: none;
+  }
+
   // A dashboard cell's X, Y, W and H, or a box child's flex and size, side by side.
   &__placement-row {
     display: flex;
@@ -342,6 +346,70 @@ body {
         padding: 0;
       }
     }
+  }
+
+  // A setting as a Hoist form field: its label, its editor, then bind and reset in a column of
+  // their own, so every control ends at one edge.
+  &__form-row {
+    --xh-form-field-margin: 0;
+    --xh-form-field-label-font-size: 11.5px;
+    --xh-form-field-label-font-weight: 400;
+    --xh-form-field-label-text-color: var(--xh-blueprint-inspector-muted);
+    --xh-form-field-label-margin: 0;
+    --xh-form-field-label-padding: 0;
+    --xh-form-field-inline-label-margin: 0 var(--xh-spacing-half) 0 0;
+    --xh-form-field-inline-label-padding: 0;
+
+    overflow: visible !important;
+
+    &.xh-form-field--inline {
+      align-items: center;
+      min-height: 30px;
+    }
+
+    > .xh-form-field__label {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
+    // The label's own text takes the field label's color and size.
+    .xh-form-field__label > .xh-blueprint-element-inspector__label {
+      font-size: inherit;
+      color: inherit;
+    }
+
+    // A stacked row's control keeps clear of the column its bind and reset take inline.
+    &:not(.xh-form-field--inline) > .xh-form-field__inner {
+      padding-right: calc(52px + var(--xh-spacing-half));
+    }
+
+    .xh-form-field__right-items {
+      gap: 0;
+    }
+
+    .xh-form-field__right-items &__reset.xh-button {
+      position: static;
+      width: 26px;
+      min-width: 26px;
+      transform: none;
+    }
+
+    &__bind-button.xh-button,
+    .xh-form-field__right-items &__bind-button.xh-button {
+      width: 26px;
+      min-width: 26px;
+      padding: 0;
+    }
+  }
+
+  &__row--set.xh-form-field > .xh-form-field__label {
+    --xh-form-field-label-text-color: var(--xh-text-color);
+  }
+
+  &__row--missing.xh-form-field > .xh-form-field__label {
+    --xh-form-field-label-text-color: var(--xh-intent-warning-text-color);
   }
 
   // A value an action passes: the value, the bind menu, and remove.

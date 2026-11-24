@@ -1,6 +1,9 @@
 import {card} from '@xh/hoist/cmp/card';
+import {form, type FormModel} from '@xh/hoist/cmp/form';
+import {type SettingsFormConfig, SettingsFormModel} from './SettingsFormModel';
+import {formField} from '@xh/hoist/desktop/cmp/form';
 import {div, filler, hbox, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type PlainObject, useLocalModel} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
@@ -155,6 +158,8 @@ export interface EditorContext {
     flatFormat?: boolean;
     // The field a setting belongs to, such as a column's.
     field?: string;
+    // The form of the settings the row sits among, whose field for it the row shows.
+    form?: FormModel;
 }
 
 const scopeOf = (ctx: EditorContext) => ctx.scope ?? ctx.key;
@@ -175,7 +180,119 @@ export interface RowProps {
  * hover turns to ↺ to reset it, as Delete on a focused control does. The label's tooltip and the
  * focused row's help line come from its schema.
  */
-export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
+export function propertyRow(props: RowProps) {
+    return props.ctx.form?.fields[props.node.key] ? formRow(props) : legacyRow(props);
+}
+
+// A row as a Hoist form field: its label, its editor in place of the field's input, and its bind
+// and reset at the end.
+function formRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
+    const isSet = value !== undefined,
+        locked = ctx.impl.readOnly || !!ctx.locked,
+        canReset = isSet && !badge && !locked,
+        reset = () => commit(undefined),
+        bound = node.bindable && isVarBinding(value);
+    return formField({
+        key,
+        field: node.key,
+        className: classNames(
+            `${CLS}__row`,
+            `${CLS}__form-row`,
+            isSet && `${CLS}__row--set`,
+            node.required && !isSet && !badge && `${CLS}__row--missing`
+        ),
+        inline: INLINE_KINDS.includes(node.kind) && !isMultiline(node),
+        clickableLabel: false,
+        label: span({
+            className: `${CLS}__label`,
+            children: [
+                isSet ? span({className: `${CLS}__dot`, 'aria-hidden': true} as object) : null,
+                labelTooltip(node)
+            ]
+        }),
+        domAttrs: {'data-config-key': node.key, role: 'group', 'aria-label': node.label},
+        rightItems: locked
+            ? null
+            : [
+                  node.bindable && !bound ? bindMenu(node, commit, ctx) : null,
+                  canReset
+                      ? button({
+                            className: `${CLS}__reset`,
+                            icon: Icon.reset(),
+                            minimal: true,
+                            small: true,
+                            title: `Reset ${node.label}`,
+                            'aria-label': `Reset ${node.label}`,
+                            onClick: reset
+                        })
+                      : null
+              ].filter(Boolean),
+        inputRenderer: () =>
+            div({
+                className: `${CLS}__row-body`,
+                onKeyDown: (e: React.KeyboardEvent) => {
+                    const target = e.target as HTMLElement;
+                    if (e.key !== 'Delete' || !canReset || isTextEntry(target)) return;
+                    if (LIST_EDITOR_KINDS.includes(node.kind)) return;
+                    const row = (e.currentTarget as HTMLElement).closest('[data-config-key]');
+                    if (target.closest('[data-config-key]') !== row) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    reset();
+                },
+                children: [
+                    badge ? badgeOf(badge, ctx) : null,
+                    bound
+                        ? boundEditor(node, value, commit, ctx)
+                        : editorFor({...node, bindable: false}, value, commit, ctx),
+                    ...issueLines(issues),
+                    node.kind === 'format' && !ctx.flatFormat
+                        ? formatOptionsCard(value, commit, ctx, !!issues.length)
+                        : null,
+                    node.kind === 'sort' ? sortDrawer(node, value, commit, ctx) : null
+                ]
+            }),
+        // The input the editor stands in for, never shown.
+        item: textInput()
+    });
+}
+
+/**
+ * A Hoist form over a set of settings, such as an element's config, for the rows it renders. Each
+ * row whose context carries the form shows as the form's field for its setting.
+ */
+export const settingsForm = hoistCmp.factory<
+    HoistProps & SettingsFormConfig & {content: (form: FormModel) => ReactNode[]}
+>({
+    displayName: 'BlueprintSettingsForm',
+    model: false,
+    render({nodes, values, commit, content}) {
+        // A new set of settings takes a new form.
+        return settingsFormBody({
+            key: nodes.map(it => it.key).join('|'),
+            nodes,
+            values,
+            commit,
+            content
+        });
+    }
+});
+
+const settingsFormBody = hoistCmp.factory<
+    HoistProps & SettingsFormConfig & {content: (form: FormModel) => ReactNode[]}
+>({
+    model: false,
+    render({nodes, values, commit, content}) {
+        const {formModel} = useLocalModel(() => new SettingsFormModel({nodes, values, commit}));
+        return form({
+            model: formModel,
+            fieldDefaults: {labelWidth: 104, rightItemsWidth: 52},
+            items: content(formModel)
+        });
+    }
+});
+
+function legacyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
     const isSet = value !== undefined,
         canReset = isSet && !badge && !ctx.impl.readOnly && !ctx.locked,
         reset = () => commit(undefined);
@@ -225,28 +342,9 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
             div({
                 className: `${CLS}__row-body`,
                 children: [
-                    badge
-                        ? div({
-                              className: classNames(
-                                  `${CLS}__badge`,
-                                  ctx.impl.canShowPresetGroups && `${CLS}__badge--link`
-                              ),
-                              title: ctx.impl.canShowPresetGroups ? 'Show the preset group' : null,
-                              onClick: () => ctx.impl.showPresetGroupFor(ctx.key),
-                              children: badge
-                          })
-                        : null,
+                    badge ? badgeOf(badge, ctx) : null,
                     editorFor(node, value, commit, ctx),
-                    ...issues.map((it, idx) =>
-                        div({
-                            key: idx,
-                            className: classNames(
-                                `${CLS}__issue`,
-                                it.severity === 'warning' && `${CLS}__issue--warning`
-                            ),
-                            children: it.message
-                        })
-                    )
+                    ...issueLines(issues)
                 ]
             }),
             node.kind === 'format' && !ctx.flatFormat
@@ -255,6 +353,32 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
             node.kind === 'sort' ? sortDrawer(node, value, commit, ctx) : null
         ]
     });
+}
+
+// The preset an edit changes, beside the label, which shows its group where it can.
+function badgeOf(badge: string, ctx: EditorContext) {
+    return div({
+        className: classNames(
+            `${CLS}__badge`,
+            ctx.impl.canShowPresetGroups && `${CLS}__badge--link`
+        ),
+        title: ctx.impl.canShowPresetGroups ? 'Show the preset group' : null,
+        onClick: () => ctx.impl.showPresetGroupFor(ctx.key),
+        children: badge
+    });
+}
+
+function issueLines(issues: BlueprintIssue[]) {
+    return issues.map((it, idx) =>
+        div({
+            key: idx,
+            className: classNames(
+                `${CLS}__issue`,
+                it.severity === 'warning' && `${CLS}__issue--warning`
+            ),
+            children: it.message
+        })
+    );
 }
 
 // The label, with a tooltip of the property's description, its default, whether it binds, and
@@ -714,60 +838,8 @@ function bindableEditor(
     commit: (value: unknown) => void,
     ctx: EditorContext
 ) {
-    const {impl} = ctx,
-        disabled = impl.readOnly,
-        choices = impl.bindChoices(node),
-        bound = isVarBinding(value) ? value.$var : null;
-    if (bound != null) {
-        return div({
-            className: `${CLS}__bindable`,
-            children: [
-                // Its remove unbinds, back to a value.
-                selectChip({
-                    className: `${CLS}__var-chip`,
-                    kind: 'variable',
-                    text: bound,
-                    // A bound value changes through its variable, so it is not personalized here.
-                    label: `Set by variable ${bound}, which a user changes in its place, not here. Show the variable.`,
-                    onSelect: () => impl.designModel.select({kind: 'variable', id: bound}),
-                    onRemove: disabled
-                        ? null
-                        : e => {
-                              // Focus stays in the row, on the editor that takes the chip's place.
-                              const row = (e.currentTarget as HTMLElement).closest(
-                                  '[data-config-key]'
-                              );
-                              commit(impl.unboundValue(node));
-                              wait().then(() =>
-                                  row
-                                      ?.querySelector<HTMLElement>(
-                                          'input, textarea, [tabindex="0"], button'
-                                      )
-                                      ?.focus()
-                              );
-                          },
-                    removeHint: 'Delete unbinds.'
-                }),
-                // Where users could change it in place, say that the variable now takes their changes.
-                impl.isPersonalizable(ctx.key)
-                    ? div({
-                          className: `${CLS}__bound-note`,
-                          children: [
-                              'Users change this through ',
-                              selectChip({
-                                  className: `${CLS}__var-chip`,
-                                  kind: 'variable',
-                                  text: bound,
-                                  label: `Show variable ${bound}`,
-                                  onSelect: () =>
-                                      impl.designModel.select({kind: 'variable', id: bound})
-                              })
-                          ]
-                      })
-                    : null
-            ]
-        });
-    }
+    const disabled = ctx.impl.readOnly;
+    if (isVarBinding(value)) return boundEditor(node, value, commit, ctx);
     return div({
         className: `${CLS}__bindable`,
         children: [
@@ -775,49 +847,113 @@ function bindableEditor(
                 className: `${CLS}__value`,
                 children: editorFor({...node, bindable: false}, value, commit, ctx)
             }),
-            disabled || !choices.some(it => !it.reason)
-                ? null
-                : tooltip({
-                      content: 'Bind to a variable',
-                      hoverOpenDelay: 500,
-                      item: menuButton({
-                          className: `${CLS}__bind-button`,
-                          icon: Icon.link(),
-                          minimal: true,
-                          'aria-label': `Bind ${node.label} to a variable`,
-                          // Those it cannot bind show too, disabled, each saying why.
-                          menuItems: [
-                              ...sortBy(choices, it => !!it.reason).map(({name, reason}) => ({
-                                  // A variable it cannot take says why, under its name.
-                                  text: reason
-                                      ? div({
-                                            children: [
-                                                div(name),
-                                                div({
-                                                    className: `${CLS}__menu-reason`,
-                                                    children: reason
-                                                })
-                                            ]
-                                        })
-                                      : name,
-                                  disabled: !!reason,
-                                  actionFn: () => commit({$var: name})
-                              })),
-                              ...(impl.isPersonalizable(ctx.key)
-                                  ? [
-                                        '-' as const,
-                                        {
-                                            text: 'Binding moves user changes to the variable.',
-                                            className: `${CLS}__menu-note`,
-                                            disabled: true
-                                        }
-                                    ]
-                                  : [])
-                          ]
-                      })
-                  })
+            disabled ? null : bindMenu(node, commit, ctx)
         ]
     });
+}
+
+// A bound value as its variable's chip, whose remove unbinds it.
+function boundEditor(
+    node: EditorNode,
+    value: unknown,
+    commit: (value: unknown) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        disabled = impl.readOnly,
+        bound = (value as {$var: string}).$var;
+    return div({
+        className: `${CLS}__bindable`,
+        children: [
+            // Its remove unbinds, back to a value.
+            selectChip({
+                className: `${CLS}__var-chip`,
+                kind: 'variable',
+                text: bound,
+                // A bound value changes through its variable, so it is not personalized here.
+                label: `Set by variable ${bound}, which a user changes in its place, not here. Show the variable.`,
+                onSelect: () => impl.designModel.select({kind: 'variable', id: bound}),
+                onRemove: disabled
+                    ? null
+                    : e => {
+                          // Focus stays in the row, on the editor that takes the chip's place.
+                          const row = (e.currentTarget as HTMLElement).closest('[data-config-key]');
+                          commit(impl.unboundValue(node));
+                          wait().then(() =>
+                              row
+                                  ?.querySelector<HTMLElement>(
+                                      'input, textarea, [tabindex="0"], button'
+                                  )
+                                  ?.focus()
+                          );
+                      },
+                removeHint: 'Delete unbinds.'
+            }),
+            // Where users could change it in place, say that the variable now takes their changes.
+            impl.isPersonalizable(ctx.key)
+                ? div({
+                      className: `${CLS}__bound-note`,
+                      children: [
+                          'Users change this through ',
+                          selectChip({
+                              className: `${CLS}__var-chip`,
+                              kind: 'variable',
+                              text: bound,
+                              label: `Show variable ${bound}`,
+                              onSelect: () => impl.designModel.select({kind: 'variable', id: bound})
+                          })
+                      ]
+                  })
+                : null
+        ]
+    });
+}
+
+// The menu that binds a setting to a variable, or null when no variable can take it.
+function bindMenu(node: EditorNode, commit: (value: unknown) => void, ctx: EditorContext) {
+    const {impl} = ctx,
+        choices = impl.bindChoices(node);
+    return !choices.some(it => !it.reason)
+        ? null
+        : tooltip({
+              content: 'Bind to a variable',
+              hoverOpenDelay: 500,
+              item: menuButton({
+                  className: `${CLS}__bind-button`,
+                  icon: Icon.link(),
+                  minimal: true,
+                  'aria-label': `Bind ${node.label} to a variable`,
+                  // Those it cannot bind show too, disabled, each saying why.
+                  menuItems: [
+                      ...sortBy(choices, it => !!it.reason).map(({name, reason}) => ({
+                          // A variable it cannot take says why, under its name.
+                          text: reason
+                              ? div({
+                                    children: [
+                                        div(name),
+                                        div({
+                                            className: `${CLS}__menu-reason`,
+                                            children: reason
+                                        })
+                                    ]
+                                })
+                              : name,
+                          disabled: !!reason,
+                          actionFn: () => commit({$var: name})
+                      })),
+                      ...(impl.isPersonalizable(ctx.key)
+                          ? [
+                                '-' as const,
+                                {
+                                    text: 'Binding moves user changes to the variable.',
+                                    className: `${CLS}__menu-note`,
+                                    disabled: true
+                                }
+                            ]
+                          : [])
+                  ]
+              })
+          });
 }
 
 interface ListEditorProps<N extends EditorNode> extends HoistProps {

@@ -770,7 +770,7 @@ describe('ElementInspector', () => {
         act(() => design.select({kind: 'element', id}));
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
             type = container.querySelector('[data-config-key="type"]');
-        expect(type.className).toContain('__row--inline');
+        expect(type.className).toContain('xh-form-field--inline');
         expect(type.querySelector('.xh-select')).toBeNull();
         expect(
             type.querySelector('.xh-blueprint-element-inspector__pictures--many')
@@ -779,7 +779,7 @@ describe('ElementInspector', () => {
         // The grid's Summary row: three small cards, beside its label.
         act(() => design.select({kind: 'element', id: 'posGrid'}));
         const summary = container.querySelector('[data-config-key="showSummary"]');
-        expect(summary.className).toContain('__row--inline');
+        expect(summary.className).toContain('xh-form-field--inline');
         expect(summary.querySelector('.xh-blueprint-element-inspector__pictures--many')).toBeNull();
     });
 
@@ -1794,7 +1794,7 @@ describe('ElementInspector', () => {
         ).toHaveLength(0);
         // Delete is in the header's ⋯, not at the end.
         expect(container.querySelector('.xh-blueprint-element-inspector__remove')).toBeNull();
-        expect(row('Title').className).toContain('__row--inline');
+        expect(row('Title').className).toContain('xh-form-field--inline');
         // The Columns section's list stands alone in it, which hides its label for the header.
         expect(row('Columns').parentElement.children).toHaveLength(1);
     });
@@ -1910,13 +1910,13 @@ describe('ElementInspector', () => {
         expect(container.querySelector('[data-config-key="icon"] .xh-icon-picker')).toBeTruthy();
     });
 
-    it('draws a labelled editor per property', () => {
+    it('draws a labelled form field per property, a required one marked', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
-            labels = [...container.querySelectorAll('.xh-blueprint-element-inspector__label')].map(
+            labels = [...container.querySelectorAll('.xh-form-field__label')].map(
                 it => it.textContent
             );
-        expect(labels).toEqual(expect.arrayContaining(['Source*', 'Title', 'Group by']));
+        expect(labels).toEqual(expect.arrayContaining(['Source *', 'Title', 'Group by']));
         expect(container.textContent).not.toContain('No model found');
     });
 });

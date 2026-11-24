@@ -2,6 +2,7 @@ import {div, hbox, placeholder, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
+import type {FormModel} from '@xh/hoist/cmp/form';
 import {sortableList} from '@xh/hoist/cmp/sortablelist';
 import {Icon} from '@xh/hoist/icon';
 import {tooltip} from '@xh/hoist/kit/blueprint';
@@ -36,6 +37,7 @@ import {
     listItemPage,
     moreLine,
     propertyRow,
+    settingsForm,
     removeItemButton,
     sectionCard,
     useNamedInputs
@@ -280,7 +282,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     // Built once per widget, as an edit changes the config, not its schema.
     @computed
-    private get schemaNodes(): EditorNode[] {
+    get schemaNodes(): EditorNode[] {
         return toEditorSpec(this.widgetSpec?.config);
     }
 
@@ -648,7 +650,15 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                     ? viewCards(impl)
                     : impl.pageNode
                       ? [itemPage(impl)]
-                      : [...sectionCards(impl), layoutCard(impl)])
+                      : [
+                            settingsForm({
+                                key: 'settings',
+                                nodes: impl.schemaNodes,
+                                values: () => impl.values,
+                                commit: (key, value) => impl.commit(key, value),
+                                content: form => [...sectionCards(impl, form), layoutCard(impl)]
+                            })
+                        ])
             ]
         });
     }
@@ -738,14 +748,14 @@ function itemPage(impl: ElementInspectorModel): ReactNode {
 }
 
 // The element's sections in order, its tabs or children as its list where its config has none.
-function sectionCards(impl: ElementInspectorModel): ReactNode[] {
+function sectionCards(impl: ElementInspectorModel, form: FormModel): ReactNode[] {
     const {sections} = impl,
         lists = [
             impl.tabs ? tabsEditor(impl) : null,
             impl.childIds ? childrenCard(impl) : null
         ].filter(Boolean),
         listAt = sections.findIndex(it => it.group !== 'data'),
-        cards = sections.map(section => configCard(impl, section));
+        cards = sections.map(section => configCard(impl, section, form));
     // An input's Data is its Value: the variable it sets, then its options.
     if (impl.setsOptions && sections[0]?.group !== 'data') {
         cards.unshift(
@@ -767,7 +777,11 @@ function insertLists(cards: ReactNode[], lists: ReactNode[], at: number): ReactN
     return cards;
 }
 
-function configCard(impl: ElementInspectorModel, section: InspectorSection): ReactNode {
+function configCard(
+    impl: ElementInspectorModel,
+    section: InspectorSection,
+    form: FormModel
+): ReactNode {
     const all = [...section.nodes, ...(section.moreOpen ? [] : section.folded)],
         preset = all.map(it => impl.presetFor(it.key)).find(Boolean);
     const isValue = section.group === 'data' && !!impl.setsOptions;
@@ -788,7 +802,7 @@ function configCard(impl: ElementInspectorModel, section: InspectorSection): Rea
             isValue ? setsEditor(impl) : null,
             isValue ? optionsRow(impl) : null,
             // A section's one list, such as Columns, is named by the section's header alone.
-            ...section.nodes.map(node => configRow(impl, node)),
+            ...section.nodes.map(node => configRow(impl, node, form)),
             moreRow(impl, section)
         ]
     });
@@ -1084,8 +1098,8 @@ function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) =
 }
 
 // One config property's row, with its issues and preset badge.
-function configRow(impl: ElementInspectorModel, node: EditorNode) {
-    return inspectorRow({impl, node, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
+function configRow(impl: ElementInspectorModel, node: EditorNode, form: FormModel) {
+    return inspectorRow({impl, node, form, key: `${node.key}:${impl.resets[node.key] ?? 0}`});
 }
 
 /**
@@ -1097,11 +1111,12 @@ const inspectorRow = hoistCmp.factory<
         impl: ElementInspectorModel;
         node: EditorNode;
         placement?: boolean;
+        form?: FormModel;
     }
 >({
     displayName: 'ElementInspectorRow',
     model: false,
-    render({impl, node, placement}) {
+    render({impl, node, placement, form}) {
         const key = placement ? placementKey(node.key) : node.key,
             state = useMemo(
                 () =>
@@ -1127,7 +1142,7 @@ const inspectorRow = hoistCmp.factory<
                 placement
                     ? impl.commitPlacement(node.key, shifted(v, -impl.placementOffset(node.key)))
                     : impl.commit(node.key, v),
-            ctx: {impl, key},
+            ctx: {impl, key, form},
             issues: state.issues,
             badge: state.badge
         });
