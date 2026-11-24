@@ -422,8 +422,18 @@ body {
   // A row within a row's editor, as a step's in a list item's drawer, ends at its drawer's edge
   // and shows its bind and reset in the column beside it, so nesting adds no column of its own.
   &__form-row &__form-row &__form-row {
-    &:not(.xh-form-field--inline) > .xh-form-field__inner {
-      padding-right: 0;
+    &:not(.xh-form-field--inline) {
+      position: relative;
+
+      > .xh-form-field__inner {
+        padding-right: 0;
+      }
+
+      > .xh-form-field__right-items {
+        position: absolute;
+        top: 0;
+        left: calc(100% + var(--xh-spacing-half));
+      }
     }
 
     > .xh-form-field__inner > .xh-form-field__input-row {
