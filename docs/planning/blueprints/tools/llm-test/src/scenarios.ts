@@ -1,4 +1,5 @@
 import {Blueprint, loadBlueprint} from './load.ts';
+import {advancedKeysOf} from './library.ts';
 import type {LibraryItem} from './tools.ts';
 
 export interface Step {
@@ -456,6 +457,19 @@ export const SCENARIOS: Scenario[] = [
             }],
             ['no cell holds it any more', o => !(o.blueprint.elements?.dashboard?.children ?? []).some((it: any) => o.blueprint.elements[it.id]?.component === 'groupingChooser')],
             ['still drives the grid', o => o.blueprint.variables?.grouping?.setBy?.element === 'groupChooser']
+        ]
+    },
+    {
+        id: 'P20',
+        title: 'A grid with only its common settings',
+        context: BUILD,
+        steps: [{prompt: 'A grid of my positions grouped by sector, with market value and day P&L.'}],
+        checks: [
+            ['a cubeGrid over positions', o => cfg(o.blueprint, 'cubeGrid', c => dataset(o.blueprint, c) === 'positions').length],
+            ['sets no advanced setting it was not asked for', o => {
+                const advanced = advancedKeysOf('cubeGrid');
+                return cfg(o.blueprint, 'cubeGrid').every(c => !Object.keys(c).some(k => advanced.includes(k)));
+            }]
         ]
     },
     {

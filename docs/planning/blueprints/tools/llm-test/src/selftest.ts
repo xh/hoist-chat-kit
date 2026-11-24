@@ -122,6 +122,7 @@ const expected_: Record<string, any> = {
         replies: ['You can group by sector, region, strategy, trader and symbol, and show market value, P&L and exposure.']
     },
     P19: {blueprint: applied['p19-edit.json applied to p19-host'].result, segments: [], replies: ['']},
+    P20: {blueprint: loadBlueprint('p1-one-grid.json'), segments: [], replies: ['']},
     P11o: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}
 };

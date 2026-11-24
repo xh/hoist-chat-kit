@@ -28,6 +28,12 @@ export type Issue = BlueprintIssue;
 
 export const libraryCatalogs = Object.values(catalogs).map(it => new DataCatalog(it));
 
+/** The config keys a built-in widget marks x-advanced, which the Architect leaves unset unless asked. */
+export const advancedKeysOf = (widget: string): string[] =>
+    Object.entries<any>(BUILT_IN_WIDGETS.find(it => it.name === widget)?.config?.properties ?? {})
+        .filter(([, prop]) => prop['x-advanced'])
+        .map(([key]) => key);
+
 /** Every catalog's datasets, as one catalog. */
 const catalog = {
     getDataset: (name: string) =>
