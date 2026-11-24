@@ -25,18 +25,25 @@ import {getOwn} from './pointer';
 const ACTION = {
     type: 'object',
     required: ['type'],
-    properties: {type: {type: 'string'}}
+    properties: {
+        type: {
+            type: 'string',
+            description: "The action's name, such as setVariable or openBlueprint."
+        }
+    }
 } as const satisfies BlueprintSchema;
 
 /** An action prop: one action, or a list of up to 8 that run as steps. */
 const ACTION_PROP = {
     'x-action': true,
+    description: 'What runs: one action, or up to 8 that run in order as steps.',
     anyOf: [ACTION, {type: 'array', minItems: 1, maxItems: 8, items: ACTION}]
 } as const satisfies BlueprintSchema;
 
 /** A title, which may read variables: "P&L for {fund}". */
 const TITLE = {
     'x-group': 'content',
+    description: 'The title in its header. It can read variables, as "P&L for {fund}".',
     type: 'string',
     maxLength: 100,
     'x-binding': true,
@@ -48,6 +55,20 @@ const EMPTY_TEXT = {
     type: 'string',
     maxLength: 200,
     description: 'Text shown while the container has no children.'
+} as const satisfies BlueprintSchema;
+
+const SOURCE = {
+    'x-group': 'data',
+    type: 'string',
+    'x-source': true,
+    description: 'The source whose rows it reads.'
+} as const satisfies BlueprintSchema;
+
+const FILTER = {
+    'x-filter': true,
+    'x-binding': true,
+    type: 'object',
+    description: 'Shows only the rows that match. A Hoist filter, applied in the browser.'
 } as const satisfies BlueprintSchema;
 
 const DASHBOARD_SCHEMA = {
@@ -174,12 +195,34 @@ function dashLayoutItem(depth: number): BlueprintSchema {
         additionalProperties: false,
         required: ['type'],
         properties: {
-            type: {type: 'string', enum: ['row', 'column', 'stack', 'view']},
-            id: {type: 'string'},
-            width: {type: 'number', minimum: 0, maximum: 100},
-            height: {type: 'number', minimum: 0, maximum: 100},
+            type: {
+                type: 'string',
+                enum: ['row', 'column', 'stack', 'view'],
+                description:
+                    'What the item is: a row or column of items, a stack of tabs, or a view.'
+            },
+            id: {type: 'string', description: 'The child a view shows, by its ID.'},
+            width: {
+                type: 'number',
+                minimum: 0,
+                maximum: 100,
+                description: "Its share of its row's width, in percent."
+            },
+            height: {
+                type: 'number',
+                minimum: 0,
+                maximum: 100,
+                description: "Its share of its column's height, in percent."
+            },
             ...(depth > 1
-                ? {content: {type: 'array', maxItems: 20, items: dashLayoutItem(depth - 1)}}
+                ? {
+                      content: {
+                          type: 'array',
+                          maxItems: 20,
+                          items: dashLayoutItem(depth - 1),
+                          description: 'The items a row, column or stack holds.'
+                      }
+                  }
                 : {})
         }
     };
@@ -241,10 +284,26 @@ const PANEL_SCHEMA = {
             default: 'none',
             description: "Colors a card style panel's border and title."
         },
-        collapsible: {'x-group': 'behavior', type: 'boolean', default: false},
+        collapsible: {
+            'x-group': 'behavior',
+            type: 'boolean',
+            default: false,
+            description: 'Lets readers collapse the panel to its header.'
+        },
         // The panel writes it back as the user collapses it, so it stays a literal.
-        collapsed: {'x-group': 'behavior', type: 'boolean', default: false, 'x-binding': false},
-        compactHeader: {'x-group': 'appearance', type: 'boolean', default: false},
+        collapsed: {
+            'x-group': 'behavior',
+            type: 'boolean',
+            default: false,
+            'x-binding': false,
+            description: 'Shows the panel collapsed to its header.'
+        },
+        compactHeader: {
+            'x-group': 'appearance',
+            type: 'boolean',
+            default: false,
+            description: 'Draws a shorter header.'
+        },
         emptyText: EMPTY_TEXT
     }
 } as const satisfies BlueprintSchema;
@@ -258,7 +317,8 @@ const BOX_SCHEMA = {
             'x-thumbnails': {row: 'direction.row', column: 'direction.column'},
             type: 'string',
             enum: ['column', 'row'],
-            default: 'column'
+            default: 'column',
+            description: 'Lays out children in a column, top to bottom, or in a row, left to right.'
         },
         fill: {
             'x-group': 'appearance',
@@ -300,7 +360,9 @@ const MARKDOWN_SCHEMA = {
             type: 'string',
             maxLength: 10000,
             'x-template': true,
-            examples: ['Write this text in the inspector.']
+            examples: ['Write this text in the inspector.'],
+            description:
+                'The text, in Markdown. It shows live values with {variable} and {source.field}.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -318,7 +380,13 @@ const CALLOUT_SCHEMA = {
             default: 'primary',
             description: 'none is neutral, with no icon.'
         },
-        title: {type: 'string', maxLength: 200, 'x-template': true, 'x-group': 'content'},
+        title: {
+            type: 'string',
+            maxLength: 200,
+            'x-template': true,
+            'x-group': 'content',
+            description: 'A bold line above the text. It can show {variable} and {source.field}.'
+        },
         text: MARKDOWN_SCHEMA.properties.text
     }
 } as const satisfies BlueprintSchema;
@@ -333,7 +401,15 @@ const LABEL = {
 const SELECT_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {label: LABEL, placeholder: {type: 'string', maxLength: 60, 'x-group': 'content'}}
+    properties: {
+        label: LABEL,
+        placeholder: {
+            type: 'string',
+            maxLength: 60,
+            'x-group': 'content',
+            description: 'Shown in the input while it has no value.'
+        }
+    }
 } as const satisfies BlueprintSchema;
 
 const DATE_INPUT_SCHEMA = {
@@ -369,9 +445,15 @@ const NUMBER_INPUT_SCHEMA = {
     additionalProperties: false,
     properties: {
         label: LABEL,
-        min: {'x-group': 'data', type: 'number'},
-        max: {'x-group': 'data', type: 'number'},
-        precision: {'x-group': 'data', type: 'integer', minimum: 0, maximum: 8}
+        min: {'x-group': 'data', type: 'number', description: 'The least value it takes.'},
+        max: {'x-group': 'data', type: 'number', description: 'The greatest value it takes.'},
+        precision: {
+            'x-group': 'data',
+            type: 'integer',
+            minimum: 0,
+            maximum: 8,
+            description: 'The decimal places it shows and keeps.'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -404,9 +486,25 @@ const SLIDER_SCHEMA = {
     required: ['min', 'max'],
     properties: {
         label: LABEL,
-        min: {'x-group': 'data', type: 'number', default: 0},
-        max: {'x-group': 'data', type: 'number', default: 100},
-        step: {'x-group': 'data', type: 'number', minimum: 0.000001, default: 1}
+        min: {
+            'x-group': 'data',
+            type: 'number',
+            default: 0,
+            description: "The value at the slider's left end."
+        },
+        max: {
+            'x-group': 'data',
+            type: 'number',
+            default: 100,
+            description: "The value at the slider's right end."
+        },
+        step: {
+            'x-group': 'data',
+            type: 'number',
+            minimum: 0.000001,
+            default: 1,
+            description: 'How much each move changes the value.'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -415,7 +513,7 @@ const FILTER_CHOOSER_SCHEMA = {
     additionalProperties: false,
     required: ['source'],
     properties: {
-        source: {'x-group': 'data', type: 'string', 'x-source': true},
+        source: SOURCE,
         label: LABEL,
         fields: {
             'x-group': 'list',
@@ -431,7 +529,12 @@ const TOOLBAR_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
-        vertical: {'x-group': 'appearance', type: 'boolean', default: false},
+        vertical: {
+            'x-group': 'appearance',
+            type: 'boolean',
+            default: false,
+            description: 'Lays out its items in a column instead of a row.'
+        },
         overflowMenu: {
             'x-group': 'behavior',
             type: 'boolean',
@@ -445,7 +548,14 @@ const TOOLBAR_SCHEMA = {
 const SEPARATOR_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {label: {type: 'string', maxLength: 60, 'x-group': 'content'}}
+    properties: {
+        label: {
+            type: 'string',
+            maxLength: 60,
+            'x-group': 'content',
+            description: 'Text shown on the line, such as the name of what follows.'
+        }
+    }
 } as const satisfies BlueprintSchema;
 
 const SPACER_SCHEMA = {
@@ -466,6 +576,7 @@ const SPACER_SCHEMA = {
 /** A grid style: a closed set of keys, each value from a list or a strict pattern. */
 const GRID_STYLE = {
     type: 'object',
+    description: 'The style to apply: text and background colors, weight, alignment and a border.',
     additionalProperties: false,
     properties: {
         color: {
@@ -473,10 +584,13 @@ const GRID_STYLE = {
             description: 'An intent (primary, success, warning, danger), muted, or #rrggbb.'
         },
         background: {type: 'string', description: 'An intent, or #rrggbb.'},
-        fontWeight: {enum: ['bold', 'normal']},
-        fontStyle: {enum: ['italic', 'normal']},
-        textDecoration: {enum: ['underline', 'line-through', 'none']},
-        align: {enum: ['left', 'center', 'right']},
+        fontWeight: {enum: ['bold', 'normal'], description: 'Bold or normal text.'},
+        fontStyle: {enum: ['italic', 'normal'], description: 'Italic or normal text.'},
+        textDecoration: {
+            enum: ['underline', 'line-through', 'none'],
+            description: 'Underlines the text or strikes it through.'
+        },
+        align: {enum: ['left', 'center', 'right'], description: 'Where the text sits in the cell.'},
         border: {
             enum: ['primary', 'success', 'warning', 'danger'],
             description: "A bar of the intent's color down the left edge."
@@ -513,7 +627,11 @@ const ROW_STYLE_RULES = {
         properties: {
             when: STYLE_WHEN,
             style: GRID_STYLE,
-            rows: {enum: ['all', 'leaves', 'groups'], default: 'all'}
+            rows: {
+                enum: ['all', 'leaves', 'groups'],
+                default: 'all',
+                description: 'Which rows the rule styles: all, leaf rows only, or group rows only.'
+            }
         }
     },
     description:
@@ -525,11 +643,7 @@ const CUBE_GRID_SCHEMA = {
     additionalProperties: false,
     required: ['source'],
     properties: {
-        source: {
-            'x-group': 'data',
-            type: 'string',
-            'x-source': true
-        },
+        source: SOURCE,
         title: TITLE,
         groupBy: {
             'x-group': 'data',
@@ -562,21 +676,26 @@ const CUBE_GRID_SCHEMA = {
                         required: ['field'],
                         properties: {
                             field: {
-                                type: 'string'
+                                type: 'string',
+                                description: "The column's field, or group for the tree column."
                             },
                             width: {
                                 type: 'integer',
                                 minimum: 30,
                                 maximum: 800,
-                                'x-unset': 'Auto'
+                                'x-unset': 'Auto',
+                                description: "The column's width in pixels."
                             },
                             hidden: {
                                 type: 'boolean',
                                 title: 'Visible',
-                                'x-labels': {false: 'Show', true: 'Hide'}
+                                'x-labels': {false: 'Show', true: 'Hide'},
+                                description: 'Hides the column.'
                             },
                             pinned: {
-                                enum: ['left', 'right']
+                                enum: ['left', 'right'],
+                                description:
+                                    'Keeps the column at the left or right edge as the grid scrolls.'
                             }
                         }
                     }
@@ -593,7 +712,11 @@ const CUBE_GRID_SCHEMA = {
                 additionalProperties: false,
                 required: ['label', 'action'],
                 properties: {
-                    label: {type: 'string', maxLength: 40},
+                    label: {
+                        type: 'string',
+                        maxLength: 40,
+                        description: "The action's name in the row menu."
+                    },
                     icon: ICON_PROP,
                     action: ACTION_PROP
                 }
@@ -692,7 +815,13 @@ const CUBE_GRID_SCHEMA = {
                             {
                                 type: 'object',
                                 required: ['name'],
-                                properties: {name: {type: 'string'}}
+                                properties: {
+                                    name: {
+                                        type: 'string',
+                                        description:
+                                            "The renderer's name. Its other keys are the renderer's options."
+                                    }
+                                }
                             }
                         ],
                         description: "How its cells draw, in place of the field's renderer."
@@ -722,20 +851,15 @@ const CUBE_GRID_SCHEMA = {
             description:
                 'Hoist sort form: a field, field|desc, or field|desc|abs, or a list of them. The field group names the tree column.'
         },
-        filter: {
-            'x-group': 'data',
-            'x-filter': true,
-            'x-binding': true,
-            description: 'A Hoist filter applied in the browser.',
-            type: 'object'
-        },
+        filter: {...FILTER, 'x-group': 'data'},
         expandLevel: {
             'x-group': 'data',
             'x-advanced': true,
             'x-binding': true,
             type: 'integer',
             minimum: 0,
-            maximum: 6
+            maximum: 6,
+            description: 'How many levels of groups start expanded. 0 starts every group collapsed.'
         },
         showSummary: {
             'x-group': 'appearance',
@@ -859,11 +983,7 @@ const CHART_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'type', 'x', 'y'],
     properties: {
-        source: {
-            'x-group': 'data',
-            type: 'string',
-            'x-source': true
-        },
+        source: SOURCE,
         title: TITLE,
         type: {
             'x-group': 'appearance',
@@ -910,7 +1030,8 @@ const CHART_SCHEMA = {
         x: {
             'x-group': 'data',
             type: 'string',
-            'x-field': 'any'
+            'x-field': 'any',
+            description: 'The field across the x-axis, one point per value.'
         },
         y: {
             'x-group': 'list',
@@ -920,7 +1041,8 @@ const CHART_SCHEMA = {
             },
             minItems: 1,
             maxItems: 8,
-            'x-field': 'measure'
+            'x-field': 'measure',
+            description: 'The measures to draw, one series each.'
         },
         y2: {
             'x-group': 'list',
@@ -952,20 +1074,17 @@ const CHART_SCHEMA = {
             'x-group': 'appearance',
             'x-binding': true,
             enum: ['normal', 'percent'],
-            'x-unset': 'No stacking'
+            'x-unset': 'No stacking',
+            description:
+                "Stacks the series on each other: by value, or as a percent of each point's total."
         },
-        filter: {
-            'x-group': 'data',
-            'x-advanced': true,
-            'x-filter': true,
-            'x-binding': true,
-            type: 'object'
-        },
+        filter: {...FILTER, 'x-group': 'data', 'x-advanced': true},
         sortBy: {
             'x-group': 'data',
             'x-advanced': true,
             type: 'string',
-            pattern: '^[A-Za-z0-9_-]+(\\|(asc|desc))?$'
+            pattern: '^[A-Za-z0-9_-]+(\\|(asc|desc))?$',
+            description: 'Sorts the points by a field, as field|asc or field|desc.'
         },
         top: {
             'x-group': 'data',
@@ -973,7 +1092,8 @@ const CHART_SCHEMA = {
             type: 'integer',
             minimum: 1,
             maximum: 100,
-            'x-unset': 'All'
+            'x-unset': 'All',
+            description: 'Shows only the first points, after sorting.'
         },
         highchartsConfig: {
             'x-group': 'appearance',
@@ -989,7 +1109,7 @@ const PROPERTY_TABLE_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'fields'],
     properties: {
-        source: {'x-group': 'data', type: 'string', 'x-source': true},
+        source: SOURCE,
         title: TITLE,
         fields: {
             'x-group': 'list',
@@ -1005,21 +1125,49 @@ const PROPERTY_TABLE_SCHEMA = {
                         additionalProperties: false,
                         required: ['field'],
                         properties: {
-                            field: {type: 'string', 'x-field': 'any'},
-                            label: {type: 'string', maxLength: 60},
-                            format: {'x-format': true, anyOf: [{type: 'string'}, {type: 'object'}]},
+                            field: {
+                                type: 'string',
+                                'x-field': 'any',
+                                description: 'The field the row shows.'
+                            },
+                            label: {
+                                type: 'string',
+                                maxLength: 60,
+                                description: "The row's label, in place of the field's."
+                            },
+                            format: {
+                                'x-format': true,
+                                anyOf: [{type: 'string'}, {type: 'object'}],
+                                description: "How the value shows, in place of the field's format."
+                            },
                             renderer: {
                                 'x-renderer': true,
-                                anyOf: [{type: 'string'}, {type: 'object'}]
+                                anyOf: [{type: 'string'}, {type: 'object'}],
+                                description:
+                                    "How the value draws, in place of the field's renderer."
                             }
                         }
                     }
                 ]
-            }
+            },
+            description:
+                'The fields to list, one row each: a field name, or an object with its own label, format or renderer.'
         },
-        filter: {'x-group': 'data', 'x-filter': true, 'x-binding': true, type: 'object'},
-        columns: {'x-group': 'appearance', type: 'integer', minimum: 1, maximum: 4, default: 1},
-        labelSide: {'x-group': 'appearance', enum: ['left', 'top'], default: 'left'}
+        filter: {...FILTER, 'x-group': 'data'},
+        columns: {
+            'x-group': 'appearance',
+            type: 'integer',
+            minimum: 1,
+            maximum: 4,
+            default: 1,
+            description: 'The columns the rows flow into.'
+        },
+        labelSide: {
+            'x-group': 'appearance',
+            enum: ['left', 'top'],
+            default: 'left',
+            description: 'Puts each label beside its value, or above it.'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -1028,7 +1176,7 @@ const HEATMAP_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'x', 'y', 'value'],
     properties: {
-        source: {'x-group': 'data', type: 'string', 'x-source': true},
+        source: SOURCE,
         title: TITLE,
         x: {
             'x-group': 'data',
@@ -1056,13 +1204,7 @@ const HEATMAP_SCHEMA = {
             description:
                 'diverging colors below zero red and above green, as for P&L. Use sequential only for a measure that is never negative.'
         },
-        filter: {
-            'x-group': 'data',
-            'x-advanced': true,
-            'x-filter': true,
-            'x-binding': true,
-            type: 'object'
-        }
+        filter: {...FILTER, 'x-group': 'data', 'x-advanced': true}
     }
 } as const satisfies BlueprintSchema;
 
@@ -1071,7 +1213,7 @@ const TREEMAP_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'value'],
     properties: {
-        source: {'x-group': 'data', type: 'string', 'x-source': true},
+        source: SOURCE,
         title: TITLE,
         groupBy: {
             'x-group': 'data',
@@ -1100,7 +1242,8 @@ const TREEMAP_SCHEMA = {
             'x-group': 'appearance',
             'x-thumbnails': {linear: 'color.linear', wash: 'color.wash', none: 'color.none'},
             enum: ['linear', 'wash', 'none'],
-            default: 'linear'
+            default: 'linear',
+            description: 'How heat colors each node: on a scale, as a wash, or not at all.'
         },
         maxDepth: {
             'x-group': 'data',
@@ -1111,18 +1254,13 @@ const TREEMAP_SCHEMA = {
             'x-unset': 'All',
             description: 'How many levels of groupBy to draw.'
         },
-        filter: {
-            'x-group': 'data',
-            'x-advanced': true,
-            'x-filter': true,
-            'x-binding': true,
-            type: 'object'
-        }
+        filter: {...FILTER, 'x-group': 'data', 'x-advanced': true}
     }
 } as const satisfies BlueprintSchema;
 
 const FORMAT_PROP = {
     'x-group': 'content',
+    description: 'How the number shows: a named format, or Hoist number options.',
     'x-format': true,
     anyOf: [{type: 'string'}, {type: 'object'}]
 } as const satisfies BlueprintSchema;
@@ -1132,29 +1270,54 @@ const STAT_CARD_SCHEMA = {
     additionalProperties: false,
     required: ['source'],
     properties: {
-        source: {'x-group': 'data', type: 'string', 'x-source': true},
-        field: {'x-group': 'data', type: 'string', 'x-field': 'measure'},
-        label: {'x-group': 'content', type: 'string', maxLength: 40, 'x-template': 'variables'},
+        source: SOURCE,
+        field: {
+            'x-group': 'data',
+            type: 'string',
+            'x-field': 'measure',
+            description: 'The measure the card shows.'
+        },
+        label: {
+            'x-group': 'content',
+            type: 'string',
+            maxLength: 40,
+            'x-template': 'variables',
+            description: 'The name above the figure. It can read variables.'
+        },
         format: FORMAT_PROP,
         agg: {
             'x-group': 'data',
             enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'],
-            'x-unset': "The field's aggregator"
+            'x-unset': "The field's aggregator",
+            description: "How the source's rows total into one figure."
         },
         deltaField: {
             'x-group': 'content',
             type: 'string',
             'x-field': 'measure',
-            'x-starter': false
+            'x-starter': false,
+            description: "A measure shown beside the figure as its change, such as the day's P&L."
         },
         deltaFormat: FORMAT_PROP,
-        deltaLabel: {'x-group': 'content', type: 'string', maxLength: 40},
-        invert: {'x-group': 'appearance', 'x-advanced': true, type: 'boolean', default: false},
+        deltaLabel: {
+            'x-group': 'content',
+            type: 'string',
+            maxLength: 40,
+            description: 'Words after the change, such as "vs yesterday".'
+        },
+        invert: {
+            'x-group': 'appearance',
+            'x-advanced': true,
+            type: 'boolean',
+            default: false,
+            description: 'Colors a fall green and a rise red, for a figure where less is better.'
+        },
         intent: {
             'x-group': 'appearance',
             'x-advanced': true,
             enum: ['none', 'primary', 'success', 'warning', 'danger'],
-            default: 'none'
+            default: 'none',
+            description: "Colors the card's figure."
         },
         trend: {
             'x-group': 'data',
@@ -1173,7 +1336,7 @@ const GAUGE_SCHEMA = {
     additionalProperties: false,
     required: ['source', 'value'],
     properties: {
-        source: {'x-group': 'data', type: 'string', 'x-source': true},
+        source: SOURCE,
         title: TITLE,
         value: {
             'x-group': 'data',
@@ -1221,13 +1384,7 @@ const GAUGE_SCHEMA = {
             }
         },
         format: FORMAT_PROP,
-        filter: {
-            'x-group': 'data',
-            'x-advanced': true,
-            'x-filter': true,
-            'x-binding': true,
-            type: 'object'
-        }
+        filter: {...FILTER, 'x-group': 'data', 'x-advanced': true}
     }
 } as const satisfies BlueprintSchema;
 
@@ -1332,7 +1489,8 @@ const GROUPING_CHOOSER_SCHEMA = {
             },
             minItems: 1,
             maxItems: 20,
-            'x-field': 'dimension'
+            'x-field': 'dimension',
+            description: 'The dimensions readers can group by.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -1356,12 +1514,14 @@ const BUTTON_GROUP_SCHEMA = {
                         type: 'string',
                         maxLength: 40,
                         // A new button refreshes, so its label says so.
-                        examples: ['Refresh']
+                        examples: ['Refresh'],
+                        description: "The button's text."
                     },
                     icon: ICON_PROP,
                     action: ACTION_PROP
                 }
-            }
+            },
+            description: 'The buttons, in order, each running an action.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -1382,14 +1542,17 @@ const BUTTON_GROUP_INPUT_SCHEMA = {
                 required: ['value', 'label'],
                 properties: {
                     value: {
-                        type: 'string'
+                        type: 'string',
+                        description: 'The value the variable takes when this option is picked.'
                     },
                     label: {
                         type: 'string',
-                        maxLength: 30
+                        maxLength: 30,
+                        description: "The option's text."
                     }
                 }
-            }
+            },
+            description: 'The choices, one segment each, in order.'
         }
     }
 } as const satisfies BlueprintSchema;
