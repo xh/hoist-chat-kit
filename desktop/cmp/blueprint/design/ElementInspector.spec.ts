@@ -775,7 +775,7 @@ describe('ElementInspector', () => {
         expect(row.className).not.toContain('__row--inline');
     });
 
-    it('counts in each card header only the settings set there, a binding or preset included', () => {
+    it('counts in words in each card header only the settings set there, a binding or preset included', () => {
         const {design} = open(),
             id = design.addWidget('markdown', 'overview').id;
         act(() => design.select({kind: 'element', id}));
@@ -788,14 +788,12 @@ describe('ElementInspector', () => {
         act(() => {
             design.setConfig(id, '/source', 'positions');
         });
-        expect(countOf('Data').classList).toContain('xh-badge');
-        expect(countOf('Data').textContent).toBe('1');
-        expect(countOf('Data').getAttribute('title')).toBe('1 setting set');
+        expect(countOf('Data').textContent).toBe('1 set');
         // A bound value is set too.
         act(() => {
             design.setConfig(id, '/source', {$var: 'fund'});
         });
-        expect(countOf('Data').textContent).toBe('1');
+        expect(countOf('Data').textContent).toBe('1 set');
     });
 
     it("shows a dashboard's and a panes widget's rearranging locked by default", () => {
@@ -1182,7 +1180,8 @@ describe('ElementInspector', () => {
             titles = bandsOf(container),
             cell = () =>
                 model.blueprint.elements.positions.children.find(it => it.id === 'posGrid') as any;
-        expect(titles).toEqual(['Header', 'Header items 2', 'Placement in positions']);
+        // Its View, with the header and the inputs in it, then its Position, both open.
+        expect(titles).toEqual(['View', 'Position']);
         expect(container.textContent).toContain('posViewsSelector');
         expect(
             container.querySelectorAll(
@@ -1286,7 +1285,7 @@ describe('ElementInspector', () => {
                 [...container.querySelectorAll('[data-child]')].map(it =>
                     it.getAttribute('data-child')
                 );
-        expect(bandsOf(container)).toContain('Children 2');
+        expect(bandsOf(container)).toContain('Children 2 children');
         expect(rows()).toEqual([a, b]);
         const edits = model.history.length;
         await altDown(
@@ -1347,7 +1346,7 @@ describe('ElementInspector', () => {
         });
         design.select({kind: 'view', id: 'a', of: 'dock'});
         const {container} = render(elementInspector({designModel: design}) as ReactElement);
-        expect(bandsOf(container)).toEqual(['Header']);
+        expect(bandsOf(container)).toEqual(['View']);
         expect(container.querySelector('[data-config-key="hideHeader"]')).toBeNull();
         expect(inspector.dashboardId).toBeNull();
         inspector.commitPlacement('title', 'Exposure');
@@ -1476,11 +1475,11 @@ describe('ElementInspector', () => {
         // Each band counts what is set in it: posGrid's source, sort, and its bound grouping and
         // filter. A band with nothing set shows no count.
         expect(bandsOf(container)).toEqual([
-            'Data 4',
-            'Columns 4 Preset · P&L view',
+            'Data 4 set',
+            'Columns 4 columns Preset · P&L view',
             'Content',
             'Appearance',
-            'Behavior',
+            'Behavior none',
             'Layout'
         ]);
         // A dashboard cell's place sits in its Layout section, folded until opened.

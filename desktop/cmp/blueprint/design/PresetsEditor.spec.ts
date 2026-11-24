@@ -111,7 +111,7 @@ describe('PresetsEditor', () => {
                 it => it.textContent
             );
         expect(labels).toEqual(expect.arrayContaining(['Label', 'Default']));
-        expect(bandsOf(container)).toEqual(['Group', 'Controls 1', 'Presets 2']);
+        expect(bandsOf(container)).toEqual(['Group', 'Controls 1 control', 'Presets 2 presets']);
         // The active preset is the one edits fill.
         expect(
             [...container.querySelectorAll('.xh-blueprint-element-inspector__editing')].map(

@@ -1,4 +1,3 @@
-import {badge as hoistBadge} from '@xh/hoist/cmp/badge';
 import {card} from '@xh/hoist/cmp/card';
 import {div, hbox, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type PlainObject} from '@xh/hoist/core';
@@ -1924,7 +1923,6 @@ export function sectionCard({
     key,
     title,
     count,
-    countTitle,
     badge,
     collapsed = false,
     summary,
@@ -1933,10 +1931,8 @@ export function sectionCard({
 }: {
     key: string;
     title: string;
-    /** What is set in the group, or the items of its list, beside the title. None when 0. */
-    count?: number;
-    /** The count's tooltip, such as "2 settings set". */
-    countTitle?: string;
+    /** What is set in the group, or the items of its list, in words: "3 set", "5 columns", "none". */
+    count?: string;
     /** A link beside the title, such as to the preset group a path in the card belongs to. */
     badge?: {text: string; onClick: () => void};
     collapsed?: boolean;
@@ -1978,13 +1974,7 @@ export function sectionCard({
                             collapsed && summary
                                 ? span({className: `${CLS}__card-summary`, children: summary})
                                 : null,
-                            count
-                                ? hoistBadge({
-                                      className: `${CLS}__card-count`,
-                                      title: countTitle,
-                                      children: String(count)
-                                  })
-                                : null
+                            count ? span({className: `${CLS}__card-count`, children: count}) : null
                         ]
                     } as object),
                     badge

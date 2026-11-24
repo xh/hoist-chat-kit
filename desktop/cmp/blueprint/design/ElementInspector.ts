@@ -144,7 +144,7 @@ export class ElementInspectorModel extends ConfigEditorModel {
                 {
                     group,
                     label: group === 'list' ? inGroup[0].label : SECTION_LABELS[group],
-                    nodes: moreOpen ? inGroup : without(inGroup, ...folded),
+                    nodes: [...without(inGroup, ...folded), ...(moreOpen ? folded : [])],
                     folded,
                     moreOpen,
                     collapsed: this.isToggled(group)
@@ -165,19 +165,21 @@ export class ElementInspectorModel extends ConfigEditorModel {
     }
 
     /**
-     * What a card's header counts: a lone list's items, else the settings set in it. A binding or
-     * a preset counts as set, and a schema default does not.
+     * What a card's header counts, in words: a lone list's items ("5 columns", "none"), else the
+     * settings set in it ("3 set"), or null for none. A binding or a preset counts as set, and a
+     * schema default does not.
      */
-    countOf(nodes: EditorNode[]): {count: number; countTitle: string} {
+    countOf(nodes: EditorNode[]): string {
         const [only] = nodes;
         if (nodes.length === 1 && LIST_KINDS.includes(only.kind)) {
-            const n = castArray(this.values[only.key] ?? []).length;
-            return {count: n, countTitle: countLabel(n, 'item')};
+            const n = castArray(this.values[only.key] ?? []).length,
+                many = only.label.toLowerCase();
+            return n ? countLabel(n, many.replace(/s$/, ''), many) : 'none';
         }
         const n = nodes.filter(
             it => this.values[it.key] !== undefined || this.presetFor(it.key)
         ).length;
-        return {count: n, countTitle: `${countLabel(n, 'setting')} set`};
+        return n ? `${n} set` : null;
     }
 
     /** The element's editors, from its widget's config schema. */
@@ -427,7 +429,7 @@ function refuseMessage(designModel: BlueprintDesignModel, message: string) {
 export interface InspectorSection {
     group: SettingGroup;
     label: string;
-    /** The settings it shows: all of them, or all but those folded while its "N more" is shut. */
+    /** The settings it shows, those its "N more" folds after the rest once opened. */
     nodes: EditorNode[];
     /** The unset advanced settings its "N more" row holds. */
     folded: EditorNode[];
@@ -516,13 +518,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...[...impl.issuesFor(ID_KEY), ...impl.issuesFor(ELEMENT_KEY)].map((it, idx) =>
                     div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),
-                ...(impl.isView
-                    ? viewCards(impl)
-                    : [
-                          impl.setsOptions ? setsEditor(impl) : null,
-                          ...sectionCards(impl),
-                          layoutCard(impl)
-                      ])
+                ...(impl.isView ? viewCards(impl) : [...sectionCards(impl), layoutCard(impl)])
             ]
         });
     }
@@ -539,17 +535,35 @@ function sectionCards(impl: ElementInspectorModel): ReactNode[] {
         ].filter(Boolean),
         listAt = sections.findIndex(it => it.group !== 'data'),
         cards = sections.map(section => configCard(impl, section));
-    cards.splice(listAt < 0 ? cards.length : listAt, 0, ...lists);
+    // An input's Data is its Value: the variable it sets, then its options.
+    if (impl.setsOptions && sections[0]?.group !== 'data') {
+        cards.unshift(
+            sectionCard({
+                key: 'section:data',
+                title: 'Value',
+                collapsed: impl.isToggled('data'),
+                onToggle: () => impl.toggleSection('data'),
+                children: [setsEditor(impl)]
+            })
+        );
+        return insertLists(cards, lists, 1);
+    }
+    return insertLists(cards, lists, listAt);
+}
+
+function insertLists(cards: ReactNode[], lists: ReactNode[], at: number): ReactNode[] {
+    cards.splice(at < 0 ? cards.length : at, 0, ...lists);
     return cards;
 }
 
 function configCard(impl: ElementInspectorModel, section: InspectorSection): ReactNode {
     const all = [...section.nodes, ...(section.moreOpen ? [] : section.folded)],
         preset = all.map(it => impl.presetFor(it.key)).find(Boolean);
+    const isValue = section.group === 'data' && !!impl.setsOptions;
     return sectionCard({
         key: `section:${section.group}`,
-        title: section.label,
-        ...impl.countOf(all),
+        title: isValue ? 'Value' : section.label,
+        count: impl.countOf(all),
         badge: preset
             ? {
                   text: `Preset · ${preset.itemLabel}`,
@@ -559,7 +573,11 @@ function configCard(impl: ElementInspectorModel, section: InspectorSection): Rea
         collapsed: section.collapsed,
         summary: setSummary(impl, all),
         onToggle: () => impl.toggleSection(section.group),
-        children: [...section.nodes.map(node => configRow(impl, node)), moreRow(impl, section)]
+        children: [
+            isValue ? setsEditor(impl) : null,
+            ...section.nodes.map(node => configRow(impl, node)),
+            moreRow(impl, section)
+        ]
     });
 }
 
@@ -664,20 +682,27 @@ function viewCards(impl: ElementInspectorModel) {
     if (!impl.dashboardId) {
         return [
             sectionCard({
-                key: 'view-header',
-                title: 'Header',
+                key: 'view',
+                title: 'View',
+                collapsed: impl.isToggled('view'),
+                onToggle: () => impl.toggleSection('view'),
                 children: placementRows(impl, it => it.key === 'title')
             })
         ];
     }
     return [
-        sectionCard({key: 'view-header', title: 'Header', children: viewHeaderRows(impl)}),
         sectionCard({
-            key: 'view-items',
-            title: 'Header items',
-            count: impl.headerItemIds.length,
-            countTitle: countLabel(impl.headerItemIds.length, 'item'),
+            key: 'view',
+            title: 'View',
+            collapsed: impl.isToggled('view'),
+            onToggle: () => impl.toggleSection('view'),
             children: [
+                ...viewHeaderRows(impl),
+                div({
+                    key: 'items-label',
+                    className: `${CLS}__label`,
+                    children: `Header items · ${impl.headerItemIds.length ? countLabel(impl.headerItemIds.length, 'item') : 'none'}`
+                }),
                 impl.headerItemIds.length
                     ? sortableList({
                           key: 'items',
@@ -730,8 +755,10 @@ function viewCards(impl: ElementInspectorModel) {
             ]
         }),
         sectionCard({
-            key: 'view-placement',
-            title: `Placement in ${impl.dashboardId}`,
+            key: 'position',
+            title: 'Position',
+            collapsed: impl.isToggled('position'),
+            onToggle: () => impl.toggleSection('position'),
             children: [
                 div({
                     key: 'row',
@@ -906,8 +933,9 @@ function childrenCard(impl: ElementInspectorModel) {
     return sectionCard({
         key: 'children',
         title: 'Children',
-        count: childIds.length,
-        countTitle: countLabel(childIds.length, 'child', 'children'),
+        count: childIds.length ? countLabel(childIds.length, 'child', 'children') : 'none',
+        collapsed: impl.isToggled('children'),
+        onToggle: () => impl.toggleSection('children'),
         children: [
             childIds.length
                 ? impl.ordersChildren

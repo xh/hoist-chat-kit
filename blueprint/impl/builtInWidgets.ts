@@ -1097,6 +1097,7 @@ const CHART_SCHEMA = {
         },
         y: {
             'x-group': 'list',
+            title: 'Series',
             type: 'array',
             items: {
                 type: 'string'

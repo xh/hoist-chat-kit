@@ -64,7 +64,7 @@ export interface ValidateBlueprintContext {
 // its minimum. Any other is wrong as it stands.
 const UNFINISHED = /is required$|^expected at least \d+ (item|character)s?\b/;
 
-// An unfinished property as a person reads it, by its label: "chart is unfinished: Y needs at
+// An unfinished property as a person reads it, by its label: "chart is unfinished: Series needs at
 // least 1 item".
 function unfinishedText(
     id: string,
