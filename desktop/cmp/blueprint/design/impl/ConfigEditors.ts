@@ -977,33 +977,27 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
             onKeyDown: (e: React.KeyboardEvent) =>
                 !disabled && onItemDelete(e, key => ops.current.remove(key)),
             children: [
-                rows.length
-                    ? sortableList({
-                          className: `${CLS}__columns`,
-                          value: rows,
-                          itemKey: 'key',
-                          getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
-                          disabled,
-                          compact: true,
-                          onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
-                          ...openItemOf(impl, scope),
-                          ...renderers,
-                          variant: 'divided',
-                          ...(canPage ? {isItemExpandable: () => false} : {})
-                      })
-                    : null,
-                button({
-                    icon: Icon.add(),
-                    intent: 'primary',
-                    text: 'Add',
-                    minimal: true,
+                sortableList({
+                    className: `${CLS}__columns`,
+                    value: rows,
+                    itemKey: 'key',
+                    getItemLabel: (row: PlainObject) => itemLabel(row.value, row.index),
                     disabled,
-                    onClick: () => {
-                        // A new item opens, for its settings.
-                        const item = impl.newValue(node.item.schema, ctx.field),
-                            key = impl.addKey(scope, item);
-                        commitList([...items, item]);
-                        impl.setOpenItem(scope, key);
+                    compact: true,
+                    onReorder: e => commitList(e.items.map((it: PlainObject) => it.value)),
+                    ...openItemOf(impl, scope),
+                    ...renderers,
+                    variant: 'divided',
+                    ...(canPage ? {isItemExpandable: () => false} : {}),
+                    // The list's own Add row starts an item from the schema, which opens.
+                    addText: `Add ${withArticle(singular(node.label).toLowerCase())}…`,
+                    getNewItem: () => {
+                        const value = impl.newValue(node.item.schema, ctx.field);
+                        return {key: impl.addKey(scope, value), index: items.length, value};
+                    },
+                    onAdd: e => {
+                        commitList([...items, e.item.value]);
+                        if (!canPage) impl.setOpenItem(scope, e.item.key);
                     }
                 })
             ]
@@ -1126,8 +1120,16 @@ function usePageFocus(ref: {current: HTMLElement}, itemKey: string) {
 
 /** Focus a list's add control again after it remounts for an add, so another add follows. */
 export function refocusAdd(list: HTMLElement) {
-    wait().then(() => list?.querySelector<HTMLElement>(':scope > :last-child input')?.focus());
+    wait().then(() =>
+        (
+            list?.querySelector<HTMLElement>('.xh-sortable-list__add input') ??
+            list?.querySelector<HTMLElement>(':scope > :last-child input')
+        )?.focus()
+    );
 }
+
+// A noun with its article, as "a column" or "an option".
+const withArticle = (noun: string) => `${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun}`;
 
 // A list's one open item, kept by the Inspector, so it stays open while the list remounts.
 function openItemOf(impl: ConfigEditorModel, scope: string) {
@@ -1437,14 +1439,11 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                 // eslint-disable-next-line react-hooks/exhaustive-deps
                 [options.length, fieldsOf.join('|'), impl.fieldOptions(node.role)]
             ),
-            addField = useCallback(
-                (field: string) => {
-                    ops.current.add(field);
-                    refocusAdd(namedRef.current);
-                },
-                // eslint-disable-next-line react-hooks/exhaustive-deps
-                [ops]
-            ),
+            addField = useCallback((field: string) => ops.current.add(field), [ops]),
+            addPlaceholder =
+                node.role === 'measure'
+                    ? 'Add a measure…'
+                    : `Add ${withArticle(singular(node.label).toLowerCase())}…`,
             all = entrySettings(node),
             canPage = !!impl.pageElement && all.length > 6,
             summary = sortBy(
@@ -1536,29 +1535,35 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
             onKeyDown: (e: React.KeyboardEvent) =>
                 !disabled && onItemDelete(e, key => ops.current.remove(key)),
             children: [
-                entries.length
-                    ? sortableList({
-                          className: `${CLS}__columns`,
-                          value: rows,
-                          itemKey: 'key',
-                          getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
-                          disabled,
-                          compact: true,
-                          onReorder: e =>
-                              ops.current.commitList(e.items.map((it: PlainObject) => it.entry)),
-                          ...openItemOf(impl, scope),
-                          ...renderers,
-                          variant: 'divided',
-                          ...(canPage ? {isItemExpandable: () => false} : {})
-                      })
-                    : null,
-                select({
-                    key: entries.length,
-                    placeholder: 'Add a field…',
-                    options: addOptions,
+                sortableList({
+                    className: `${CLS}__columns`,
+                    value: rows,
+                    itemKey: 'key',
+                    getItemLabel: (row: PlainObject) => impl.fieldLabel(row.entry.field),
                     disabled,
-                    width: '100%',
-                    onCommit: addField
+                    compact: true,
+                    onReorder: e =>
+                        ops.current.commitList(e.items.map((it: PlainObject) => it.entry)),
+                    ...openItemOf(impl, scope),
+                    ...renderers,
+                    variant: 'divided',
+                    ...(canPage ? {isItemExpandable: () => false} : {}),
+                    // A picker of the fields it lacks, in the list's own Add row.
+                    addRenderer: ({add, disabled: off}) =>
+                        select({
+                            key: entries.length,
+                            placeholder: addPlaceholder,
+                            options: addOptions,
+                            disabled: off,
+                            width: '100%',
+                            onCommit: (field: string) => {
+                                if (!field) return;
+                                const n = entries.filter(it => it.field === field).length + 1;
+                                add({key: `${field}#${n}`, entry: {field}});
+                                refocusAdd(namedRef.current);
+                            }
+                        }),
+                    onAdd: e => addField(e.item.entry.field)
                 })
             ]
         });

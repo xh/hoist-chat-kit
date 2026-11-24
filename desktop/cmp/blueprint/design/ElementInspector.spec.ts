@@ -1020,14 +1020,36 @@ describe('ElementInspector', () => {
         expect(design.itemPage.inner).toBeUndefined();
     });
 
-    it("adds a style rule on a column's page that starts as a valid test", () => {
+    it("offers a list's fields to add in its own Add row, inside its frame, though it is empty", () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', undefined);
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            add = () =>
+                container.querySelector('[data-config-key="columnState"] .xh-sortable-list__add');
+        expect(add()).not.toBeNull();
+        expect(add().textContent).toContain('Add a column…');
+        // A chart's series add a measure.
+        const chart = design.addWidget('chart', 'dashboard').id;
+        act(() => design.select({kind: 'element', id: chart}));
+        const {container: other} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(
+            other.querySelector('[data-config-key="y"] .xh-sortable-list__add').textContent
+        ).toContain('Add a measure…');
+    });
+
+    it("adds a style rule from its list's own Add row, starting as a valid test", async () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['pnlDay']);
         act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'pnlDay#1'}));
         const {container} = render(elementInspector({designModel: design}) as ReactElement),
             styles = container.querySelector('[data-config-key="styles"]');
-        fireEvent.click(
-            [...styles.querySelectorAll('button')].find(it => it.textContent === 'Add')
+        const add = styles.querySelector('.xh-sortable-list__add');
+        expect(add.textContent).toBe('Add a style…');
+        fireEvent.click(add.querySelector('button') ?? add);
+        await vi.waitFor(() =>
+            expect(
+                (model.blueprint.elements.posGrid.config.columns as any)?.pnlDay?.styles
+            ).toHaveLength(1)
         );
         const [rule] = (model.blueprint.elements.posGrid.config.columns as any).pnlDay.styles;
         // On the column's own field, a measure, and red to show the loss.
