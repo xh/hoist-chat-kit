@@ -72,6 +72,7 @@ const FORMAT_OPTIONS = toEditorSpec({
     properties: {
         precision: {type: 'integer', minimum: 0, maximum: 12, description: 'Decimal places.'},
         scale: {
+            'x-advanced': true,
             enum: ['thousands', 'millions', 'billions', 'auto'],
             description: 'Show in thousands, millions or billions with a label, or compact.'
         },
@@ -82,10 +83,25 @@ const FORMAT_OPTIONS = toEditorSpec({
             'x-labels': {true: 'By sign', false: 'None'},
             description: 'Color a number by its sign.'
         },
-        label: {type: 'string', maxLength: 20, description: 'A unit after the number.'},
+        label: {
+            'x-advanced': true,
+            type: 'string',
+            maxLength: 20,
+            description: 'A unit after the number.'
+        },
         date: {enum: ['date', 'dateTime', 'time', 'compact'], description: 'How a date shows.'},
-        pattern: {type: 'string', maxLength: 40, description: 'A date pattern, such as MMM D.'},
-        nullDisplay: {type: 'string', maxLength: 20, description: 'The text for no value.'}
+        pattern: {
+            'x-advanced': true,
+            type: 'string',
+            maxLength: 40,
+            description: 'A date pattern, such as MMM D.'
+        },
+        nullDisplay: {
+            'x-advanced': true,
+            type: 'string',
+            maxLength: 20,
+            description: 'The text for no value.'
+        }
     }
 });
 
@@ -135,6 +151,8 @@ export interface EditorContext {
     scope?: string;
     // The type of the field a setting belongs to, such as a column's, which a format's options fit.
     fieldType?: string;
+    // True where a format's options show as rows of their own, as on an item's page.
+    flatFormat?: boolean;
 }
 
 const scopeOf = (ctx: EditorContext) => ctx.scope ?? ctx.key;
@@ -234,7 +252,9 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
                         : null
                 ]
             }),
-            node.kind === 'format' ? formatOptionsCard(value, commit, ctx, !!issues.length) : null,
+            node.kind === 'format' && !ctx.flatFormat
+                ? formatOptionsCard(value, commit, ctx, !!issues.length)
+                : null,
             node.kind === 'sort' ? sortDrawer(node, value, commit, ctx) : null
         ]
     });
@@ -1186,7 +1206,8 @@ function entrySetting(
     {key, entry}: PlainObject,
     mapped: PlainObject,
     ctx: EditorContext,
-    ops: ReturnType<typeof useFieldList>['ops']
+    ops: ReturnType<typeof useFieldList>['ops'],
+    flatFormat = false
 ) {
     const scope = `${scopeOf(ctx)}/${key}`;
     return own
@@ -1199,7 +1220,8 @@ function entrySetting(
               scope,
               rowKey: key,
               ops,
-              locked: ctx.locked
+              locked: ctx.locked,
+              flatFormat
           })
         : drawerSetting({
               key: `${node.settingsIn.key}:${setting.key}`,
@@ -1209,8 +1231,44 @@ function entrySetting(
               listKey: node.settingsIn.key,
               scope,
               field: entry.field,
-              locked: ctx.locked
+              locked: ctx.locked,
+              flatFormat
           });
+}
+
+// A format setting's options as page settings of their own, in its section, the less used folded.
+function formatOptionSettings(
+    format: EditorNode,
+    value: unknown,
+    commit: (value: unknown) => void,
+    ctx: EditorContext
+): PageSetting[] {
+    const {name, options} = splitNamed(value),
+        nodes = formatOptionNodes(
+            ctx.impl.formatDefinition(name ?? splitNamed(ctx.inherited?.format).name),
+            options,
+            ctx.fieldType
+        );
+    return nodes.map(it => {
+        const node = {...it, schema: {...it.schema, 'x-group': format.schema['x-group']}};
+        return {
+            node,
+            value: options[it.key],
+            row: propertyRow({
+                key: `format:${it.key}`,
+                node,
+                value: options[it.key],
+                commit: v =>
+                    commit(
+                        joinNamed(
+                            name,
+                            v === undefined ? omit(options, it.key) : {...options, [it.key]: v}
+                        )
+                    ),
+                ctx
+            })
+        };
+    });
 }
 
 // Every setting of a field list entry: its own, then its settings map's, each marked by which.
@@ -1527,11 +1585,30 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             index,
             count: rows.length,
             groups: node.settingsIn?.groups,
-            settings: entrySettings(node).map(({setting, own}) => ({
-                node: setting,
-                value: own ? row.entry[setting.key] : mapped[setting.key],
-                row: entrySetting(node, setting, own, row, mapped, ctx, ops)
-            })),
+            settings: entrySettings(node).flatMap(({setting, own}) => {
+                const value = own ? row.entry[setting.key] : mapped[setting.key],
+                    ret = {
+                        node: setting,
+                        value,
+                        row: entrySetting(node, setting, own, row, mapped, ctx, ops, true)
+                    };
+                if (setting.kind !== 'format') return [ret];
+                const {field} = row.entry,
+                    commitFormat = (v: unknown) =>
+                        own
+                            ? ops.current.set(row.key, setting.key, v)
+                            : impl.commitItemSetting(node.settingsIn.key, field, setting.key, v);
+                return [
+                    ret,
+                    ...formatOptionSettings(setting, value, commitFormat, {
+                        impl,
+                        key: own ? ctx.key : node.settingsIn.key,
+                        scope: `${scope}/${row.key}`,
+                        inherited: impl.inheritedDisplay(field),
+                        fieldType: impl.fieldType(field)
+                    })
+                ];
+            }),
             onStep: by => rows[index + by] && impl.openPage(ctx.key, rows[index + by].key),
             onBack: () => {
                 impl.designModel.closeItemPage();
@@ -1608,11 +1685,12 @@ const drawerSetting = hoistCmp.factory<
         rowKey?: string;
         ops?: {readonly current: {set: (key: string, settingKey: string, v: unknown) => void}};
         locked?: boolean;
+        flatFormat?: boolean;
     }
 >({
     displayName: 'BlueprintDrawerSetting',
     model: false,
-    render({impl, node, value, listKey, scope, field, rowKey, ops, locked}) {
+    render({impl, node, value, listKey, scope, field, rowKey, ops, locked, flatFormat}) {
         const issues = useMemo(
             () =>
                 computed(() => (field ? impl.itemSettingIssues(listKey, field, node.key) : []), {
@@ -1633,10 +1711,11 @@ const drawerSetting = hoistCmp.factory<
                       key: listKey,
                       scope,
                       locked,
+                      flatFormat,
                       inherited: impl.inheritedDisplay(field),
                       fieldType: impl.fieldType(field)
                   }
-                : {impl, key: listKey, scope, locked},
+                : {impl, key: listKey, scope, locked, flatFormat},
             issues
         });
     }

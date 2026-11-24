@@ -942,6 +942,30 @@ describe('ElementInspector', () => {
         expect(row('mktVal').querySelector('[title="Remove"]')).toBeNull();
     });
 
+    it("shows a column's format options as rows of its page, the less used folded", () => {
+        const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['mktVal']);
+        act(() => design.openItemPage({element: 'posGrid', list: 'columnState', key: 'mktVal#1'}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            page = () => container.querySelector('.xh-blueprint-element-inspector__page');
+        expect(page().querySelector('.xh-blueprint-element-inspector__format-options')).toBeNull();
+        expect(page().querySelector('[data-config-key="precision"]')).not.toBeNull();
+        expect(page().querySelector('[data-config-key="scale"]')).toBeNull();
+        expect(page().textContent).toMatch(/more · .*Scale/);
+        const precision = page().querySelector<HTMLInputElement>(
+            '[data-config-key="precision"] input'
+        );
+        fireEvent.focus(precision);
+        fireEvent.change(precision, {target: {value: '3'}});
+        fireEvent.keyDown(precision, {key: 'Enter'});
+        fireEvent.blur(precision);
+        expect(
+            (model.blueprint.elements.posGrid.config.columns as any)?.mktVal?.format
+        ).toMatchObject({
+            precision: 3
+        });
+    });
+
     it('removes only the focused column on Delete, from its handle too, and never the whole list', () => {
         const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['mktVal', 'pnlDay', 'pnlMtd']);
