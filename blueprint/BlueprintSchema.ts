@@ -56,13 +56,30 @@ export type BlueprintSchemaExtension = {
      * value, such as `{false: 'Free'}`.
      */
     'x-labels'?: Record<string, string>;
-    /** On a widget property, the section that shows it in design mode. See {@link SETTING_GROUPS}. */
-    'x-group'?: SettingGroup;
+    /**
+     * The section that shows a property in design mode: on a widget property, one of
+     * {@link SETTING_GROUPS}, and on a list item's property, the ID of one of the item's `x-groups`.
+     */
+    'x-group'?: SettingGroup | (string & {});
     /**
      * On a widget property, true for a setting most widgets leave unset. Design mode folds it
      * behind its section's "N more" row while unset, and the Architect sets it only when asked.
      */
     'x-advanced'?: boolean;
+    /** On a list item, the sections of its settings, in order, each holding its `x-group`. */
+    'x-groups'?: {id: string; label: string; collapsed?: boolean}[];
+    /**
+     * On a list item, the settings its row shows when opened, in place of all of them. A key may name
+     * a setting of the list's `x-settings` partner, as a grid column's `width` sits in `columnState`.
+     */
+    'x-common'?: string[];
+    /** On a list item, the settings whose values its row shows as chips. */
+    'x-summary'?: string[];
+    /**
+     * On a list item, true to give it a page of its own, or false never to. By default an item with
+     * more than six settings, or a list inside, gets one.
+     */
+    'x-page'?: boolean;
 };
 
 /**

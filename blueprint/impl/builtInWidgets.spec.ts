@@ -1,3 +1,4 @@
+import {difference} from 'lodash';
 import {describe, expect, it} from 'vitest';
 import {SETTING_GROUPS} from '../BlueprintSchema';
 import {BUILT_IN_WIDGETS} from './builtInWidgets';
@@ -46,6 +47,44 @@ describe('Built-in widget schemas', () => {
             }));
         }).filter(it => it.count > 4 && !CROWDED_SECTIONS[it.section]);
         expect(crowded).toEqual([]);
+    });
+
+    it('give each list item its groups, its common settings and its summary', () => {
+        const grid = WIDGETS.find(it => it.name === 'cubeGrid').config as any,
+            columnState = grid.properties.columnState.items.anyOf[1],
+            items: [string, any, object?][] = [
+                ['cubeGrid.columns', grid.properties.columns.additionalProperties, columnState],
+                [
+                    'cubeGrid.columns.styles',
+                    grid.properties.columns.additionalProperties.properties.styles.items
+                ],
+                ['cubeGrid.rowStyles', grid.properties.rowStyles.items],
+                ['cubeGrid.rowActions', grid.properties.rowActions.items],
+                ...['propertyTable.fields', 'buttonGroup.buttons', 'buttonGroupInput.options'].map(
+                    path => {
+                        const [name, key] = path.split('.'),
+                            prop = (WIDGETS.find(it => it.name === name).config as any).properties[
+                                key
+                            ];
+                        return [path, prop.items.anyOf?.[1] ?? prop.items] as [string, any];
+                    }
+                )
+            ];
+        for (const [path, item, sibling] of items) {
+            const props = {...(sibling as any)?.properties, ...item.properties},
+                keys = Object.keys(props),
+                groups = item['x-groups']?.map((it: any) => it.id);
+            expect(item['x-common'], path).toBeDefined();
+            expect(item['x-summary'], path).toBeDefined();
+            expect(difference(item['x-common'], keys), path).toEqual([]);
+            expect(difference(item['x-summary'], keys), path).toEqual([]);
+            if (groups) {
+                const ungrouped = keys.filter(
+                    k => k !== 'field' && !groups.includes(props[k]['x-group'])
+                );
+                expect(ungrouped, path).toEqual([]);
+            }
+        }
     });
 
     it('describe every property, in list items too', () => {

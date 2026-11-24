@@ -576,6 +576,7 @@ const SPACER_SCHEMA = {
 
 /** A grid style: a closed set of keys, each value from a list or a strict pattern. */
 const GRID_STYLE = {
+    'x-group': 'style',
     type: 'object',
     description: 'The style to apply: text and background colors, weight, alignment and a border.',
     additionalProperties: false,
@@ -600,6 +601,7 @@ const GRID_STYLE = {
 } as const satisfies BlueprintSchema;
 
 const STYLE_WHEN = {
+    'x-group': 'when',
     type: 'object',
     'x-filter': true,
     'x-binding': true,
@@ -613,6 +615,13 @@ const CELL_STYLE_RULES = {
         type: 'object',
         additionalProperties: false,
         required: ['when', 'style'],
+        'x-groups': [
+            {id: 'when', label: 'When'},
+            {id: 'style', label: 'Style'}
+        ],
+        'x-common': ['when', 'style'],
+        'x-summary': ['style'],
+        'x-page': true,
         properties: {when: STYLE_WHEN, style: GRID_STYLE}
     },
     description:
@@ -625,10 +634,18 @@ const ROW_STYLE_RULES = {
         type: 'object',
         additionalProperties: false,
         required: ['when', 'style'],
+        'x-groups': [
+            {id: 'when', label: 'When'},
+            {id: 'style', label: 'Style'}
+        ],
+        'x-common': ['when', 'style'],
+        'x-summary': ['rows', 'style'],
+        'x-page': true,
         properties: {
             when: STYLE_WHEN,
             style: GRID_STYLE,
             rows: {
+                'x-group': 'when',
                 enum: ['all', 'leaves', 'groups'],
                 default: 'all',
                 description: 'Which rows the rule styles: all, leaf rows only, or group rows only.'
@@ -681,6 +698,7 @@ const CUBE_GRID_SCHEMA = {
                                 description: "The column's field, or group for the tree column."
                             },
                             width: {
+                                'x-group': 'size',
                                 type: 'integer',
                                 minimum: 30,
                                 maximum: 800,
@@ -688,12 +706,14 @@ const CUBE_GRID_SCHEMA = {
                                 description: "The column's width in pixels."
                             },
                             hidden: {
+                                'x-group': 'size',
                                 type: 'boolean',
                                 title: 'Visible',
                                 'x-labels': {false: 'Show', true: 'Hide'},
                                 description: 'Hides the column.'
                             },
                             pinned: {
+                                'x-group': 'size',
                                 enum: ['left', 'right'],
                                 description:
                                     'Keeps the column at the left or right edge as the grid scrolls.'
@@ -712,14 +732,21 @@ const CUBE_GRID_SCHEMA = {
                 type: 'object',
                 additionalProperties: false,
                 required: ['label', 'action'],
+                'x-groups': [
+                    {id: 'item', label: 'Menu item'},
+                    {id: 'action', label: 'Action'}
+                ],
+                'x-common': ['label', 'action'],
+                'x-summary': ['action'],
                 properties: {
                     label: {
+                        'x-group': 'item',
                         type: 'string',
                         maxLength: 40,
                         description: "The action's name in the row menu."
                     },
-                    icon: ICON_PROP,
-                    action: ACTION_PROP
+                    icon: {...ICON_PROP, 'x-group': 'item'},
+                    action: {...ACTION_PROP, 'x-group': 'action'}
                 }
             },
             description:
@@ -734,9 +761,19 @@ const CUBE_GRID_SCHEMA = {
             additionalProperties: {
                 type: 'object',
                 additionalProperties: false,
+                'x-groups': [
+                    {id: 'header', label: 'Header'},
+                    {id: 'values', label: 'Values'},
+                    {id: 'size', label: 'Size and position'},
+                    {id: 'styles', label: 'Conditional styles'},
+                    {id: 'chooser', label: 'Chooser and export', collapsed: true}
+                ],
+                'x-common': ['headerName', 'format', 'width', 'hidden'],
+                'x-summary': ['format', 'pinned', 'width'],
                 properties: {
-                    styles: CELL_STYLE_RULES,
+                    styles: {...CELL_STYLE_RULES, 'x-group': 'styles'},
                     headerName: {
+                        'x-group': 'header',
                         type: 'string',
                         title: 'Header',
                         maxLength: 100,
@@ -745,71 +782,94 @@ const CUBE_GRID_SCHEMA = {
                             'The header text, which may read variables. Default the field label.'
                     },
                     headerTooltip: {
+                        'x-group': 'header',
                         type: 'string',
                         maxLength: 500,
                         description: 'The header tooltip. Default the field description.'
                     },
                     headerAlign: {
+                        'x-group': 'header',
+                        'x-advanced': true,
                         enum: ['left', 'center', 'right'],
                         description: 'How the header aligns. Default as its cells.'
                     },
                     align: {
+                        'x-group': 'values',
                         enum: ['left', 'center', 'right'],
                         description: 'How the cells align. Default right for a number, else left.'
                     },
                     tooltip: {
+                        'x-group': 'values',
+                        'x-advanced': true,
                         type: 'boolean',
                         description: 'Show the value on hover, for a column too narrow for it.'
                     },
                     highlightOnChange: {
+                        'x-group': 'size',
+                        'x-advanced': true,
                         type: 'boolean',
                         description: 'Flash a cell when its value changes, as in a live grid.'
                     },
                     minWidth: {
+                        'x-group': 'size',
                         type: 'integer',
                         minimum: 20,
                         maximum: 800,
                         description: 'The narrowest a user or a flex column may make it, in pixels.'
                     },
                     maxWidth: {
+                        'x-group': 'size',
                         type: 'integer',
                         minimum: 20,
                         maximum: 2000,
                         description: 'The widest a user or a flex column may make it, in pixels.'
                     },
                     flex: {
+                        'x-group': 'size',
+                        'x-advanced': true,
                         anyOf: [{type: 'boolean'}, {type: 'number', minimum: 0, maximum: 10}],
                         description:
                             'Stretch to fill the grid, sharing the width with other flex columns in proportion.'
                     },
                     chooserName: {
+                        'x-group': 'chooser',
+                        'x-advanced': true,
                         type: 'string',
                         maxLength: 100,
                         description: "The column's name in the column chooser. Default its header."
                     },
                     chooserGroup: {
+                        'x-group': 'chooser',
+                        'x-advanced': true,
                         type: 'string',
                         maxLength: 100,
                         description:
                             "The column chooser's group for it. Default the field's category."
                     },
                     chooserDescription: {
+                        'x-group': 'chooser',
+                        'x-advanced': true,
                         type: 'string',
                         maxLength: 500,
                         description:
                             'The text the column chooser shows for it. Default the field description.'
                     },
                     exportName: {
+                        'x-group': 'chooser',
+                        'x-advanced': true,
                         type: 'string',
                         maxLength: 100,
                         description: 'Its header in an export. Default its header.'
                     },
                     format: {
+                        'x-group': 'values',
                         'x-format': true,
                         anyOf: [{type: 'string'}, {type: 'object'}],
                         description: "Its number or date format, over the field's own."
                     },
                     renderer: {
+                        'x-group': 'values',
+                        'x-advanced': true,
                         'x-renderer': true,
                         anyOf: [
                             {type: 'string'},
@@ -1125,6 +1185,8 @@ const PROPERTY_TABLE_SCHEMA = {
                         type: 'object',
                         additionalProperties: false,
                         required: ['field'],
+                        'x-common': ['label', 'format'],
+                        'x-summary': ['format'],
                         properties: {
                             field: {
                                 type: 'string',
@@ -1510,6 +1572,9 @@ const BUTTON_GROUP_SCHEMA = {
                 type: 'object',
                 additionalProperties: false,
                 required: ['label', 'action'],
+                'x-common': ['label', 'icon', 'action'],
+                'x-summary': ['action'],
+                'x-page': false,
                 properties: {
                     label: {
                         type: 'string',
@@ -1541,6 +1606,8 @@ const BUTTON_GROUP_INPUT_SCHEMA = {
                 type: 'object',
                 additionalProperties: false,
                 required: ['value', 'label'],
+                'x-common': ['value', 'label'],
+                'x-summary': ['value'],
                 properties: {
                     value: {
                         type: 'string',

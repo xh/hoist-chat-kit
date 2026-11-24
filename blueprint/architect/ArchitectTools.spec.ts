@@ -165,6 +165,19 @@ describe('Architect tools', () => {
         );
     });
 
+    it("leaves out of a widget's schema what only people read: list items' groups and labels", () => {
+        const {properties} = run('describe_registry', {kind: 'widget', names: ['cubeGrid']}, open())
+                .cubeGrid.config,
+            column = properties.columns.additionalProperties,
+            text = JSON.stringify(properties);
+        expect(column.properties.headerName).toBeTruthy();
+        for (const key of ['x-groups', 'x-common', 'x-summary', 'x-page', 'x-labels', 'x-unset']) {
+            expect(text, key).not.toContain(`"${key}"`);
+        }
+        expect(column.properties.headerName['x-group']).toBeUndefined();
+        expect(properties.rowStyles['x-group']).toBe('appearance');
+    });
+
     it('applies an edit as the Architect, and refuses one with errors, returning its issues', () => {
         const model = open(),
             ok = run(

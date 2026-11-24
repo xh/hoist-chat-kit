@@ -58,27 +58,45 @@ export function withEffectiveBindings(config: PlainObject): PlainObject {
 
 /**
  * A config schema as the Architect reads it: a property marked `x-binding: true` that would bind
- * by default loses the mark, as the prompt states the default once, and no property keeps its
- * `x-thumbnails`, `x-labels` or `x-unset`.
+ * by default loses the mark, as the prompt states the default once. What only people read goes:
+ * `x-thumbnails`, `x-labels` and `x-unset` everywhere, list items' `x-groups`, `x-common`,
+ * `x-summary` and `x-page`, and the `x-group` of a list item's property.
  */
 export function withDefaultBindingsImplied(config: PlainObject): PlainObject {
     if (!isPlainObject(config?.properties)) return config;
     return {
         ...config,
         properties: mapValues(config.properties, (prop: PlainObject) => {
-            // Thumbnails and labels are for people, so the Architect never reads them.
-            const {
-                'x-thumbnails': _thumbnails,
-                'x-labels': _labels,
-                'x-unset': _unset,
-                ...rest
-            } = prop ?? {};
-            if (rest['x-binding'] !== true || !isBindableByDefault(rest)) return rest;
-            const {'x-binding': _binding, ...unmarked} = rest;
+            const rest = forArchitect(prop ?? {}) as PlainObject,
+                kept = prop?.['x-group'] ? {...rest, 'x-group': prop['x-group']} : rest;
+            if (kept['x-binding'] !== true || !isBindableByDefault(kept)) return kept;
+            const {'x-binding': _binding, ...unmarked} = kept;
             return unmarked;
         })
     };
 }
+
+// A schema without the annotations only people read, at any depth.
+function forArchitect(schema: unknown): unknown {
+    if (Array.isArray(schema)) return schema.map(forArchitect);
+    if (!isPlainObject(schema)) return schema;
+    return Object.fromEntries(
+        Object.entries(schema as PlainObject)
+            .filter(([key]) => !FOR_PEOPLE.includes(key))
+            .map(([key, value]) => [key, forArchitect(value)])
+    );
+}
+
+const FOR_PEOPLE = [
+    'x-thumbnails',
+    'x-labels',
+    'x-unset',
+    'x-group',
+    'x-groups',
+    'x-common',
+    'x-summary',
+    'x-page'
+];
 
 const REFERENCES = [
     'x-source',
