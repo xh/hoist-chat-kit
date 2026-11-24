@@ -1,5 +1,5 @@
 import {chart, ChartModel} from '@xh/hoist/cmp/chart';
-import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
+import {hoistCmp, managed, type PlainObject, uses, XH} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {compact, escape, isEqual, isFinite, sortBy, uniqBy} from 'lodash';
@@ -30,7 +30,7 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
                 equals: 'structural'
             },
             {
-                track: () => [this.view?.result, this.resolvedConfig, this.selection],
+                track: () => [this.view?.result, this.resolvedConfig, this.selection, XH.darkTheme],
                 run: () => this.updateChart(),
                 fireImmediately: true
             }
@@ -83,7 +83,8 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
 
     private updateChart() {
         const {view, source, chartModel} = this,
-            {value, colorMode = 'diverging'} = this.resolvedConfig;
+            {value, colorMode = 'diverging'} = this.resolvedConfig,
+            colors = heatColors();
         if (!view || !source?.fields[value]) {
             chartModel.setSeries([]);
             return;
@@ -104,7 +105,7 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
                     y: yIndex.get(cell.cubeLabelValue),
                     value: cell[value] ?? null,
                     ...(isEqual(selected, [row.cubeLabelValue, cell.cubeLabelValue])
-                        ? {borderWidth: 2, borderColor: SELECTED}
+                        ? {borderWidth: 2, borderColor: colors.selected}
                         : {})
                 }))
             ),
@@ -135,12 +136,12 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
                               min: -maxAbs,
                               max: maxAbs,
                               stops: [
-                                  [0, NEG],
-                                  [0.5, MID],
-                                  [1, POS]
+                                  [0, colors.neg],
+                                  [0.5, colors.mid],
+                                  [1, colors.pos]
                               ]
                           }
-                        : {minColor: MID, maxColor: POS},
+                        : {minColor: colors.mid, maxColor: colors.pos},
                 tooltip: {
                     // The categories are escaped already.
                     pointFormatter: function (this: any) {
@@ -169,7 +170,15 @@ export const [HeatmapWidget, heatmapWidget] = hoistCmp.withFactory({
     }
 });
 
-const NEG = '#d9534f',
-    MID = '#f7f7f7',
-    POS = '#5cb85c',
-    SELECTED = '#333333';
+// The theme's colors for the scale and the selected cell. Highcharts draws to SVG attributes,
+// which do not resolve CSS variables, so read them as computed.
+function heatColors(): {neg: string; mid: string; pos: string; selected: string} {
+    const style = window.getComputedStyle(document.body),
+        css = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+    return {
+        neg: css('--xh-intent-danger', '#d9534f'),
+        mid: css('--xh-bg', '#f7f7f7'),
+        pos: css('--xh-intent-success', '#5cb85c'),
+        selected: css('--xh-text-color', '#333333')
+    };
+}
