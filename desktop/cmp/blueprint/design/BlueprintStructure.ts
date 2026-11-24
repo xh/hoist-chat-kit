@@ -128,16 +128,18 @@ export class BlueprintStructureModel extends HoistModel {
         });
         this.addReaction(
             {
-                track: () => [
-                    designModel.blueprintModel.blueprint,
-                    designModel.blueprintModel.issues
-                ],
+                track: () => designModel.blueprintModel.blueprint,
                 run: () => this.loadRows(),
                 fireImmediately: true
             },
             {
-                // Rows draw through ag-Grid's renderers, which redraw only when told to.
-                track: () => [designModel.activeTabs, designModel.hiddenViews],
+                // Rows draw through ag-Grid's renderers, which redraw only when told to. Issues
+                // change without the rows, as when an async check returns.
+                track: () => [
+                    designModel.activeTabs,
+                    designModel.hiddenViews,
+                    designModel.blueprintModel.issues
+                ],
                 run: () => this.gridModel.agApi?.refreshCells({force: true})
             },
             {

@@ -66,6 +66,41 @@ describe('BlueprintStructure', () => {
         expect(design.hoveredId).toBeNull();
     });
 
+    it("redraws its rows when an issue arrives without an edit, as an async check's does", async () => {
+        const registry = scenarioRegistry();
+        registry.addVariableTypes({
+            name: 'acme.fund',
+            matches: 'string',
+            checkAsync: async value => (value === 'Closed' ? 'Closed is no longer a fund' : null)
+        });
+        const bp = loadBlueprint('p3-morning-report.json');
+        bp.variables.closedFund = {type: 'acme.fund', default: {value: 'Closed'}};
+        const model = new BlueprintModel({
+                blueprint: bp,
+                catalog: portfolioCatalog,
+                registry,
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            structure = new BlueprintStructureModel(design),
+            refreshCells = vi.fn();
+        onTestFinished(() => {
+            structure.destroy();
+            design.destroy();
+            model.destroy();
+        });
+        structure.gridModel.agGridModel.agApi = {refreshCells} as any;
+
+        await model.whenChecksSettledAsync();
+        expect(refreshCells).toHaveBeenCalledWith({force: true});
+        const row = render(
+            (structure as any).renderRow(record(structure, 'variable:closedFund'))
+        ).container;
+        expect(row.querySelector('.xh-blueprint-structure__issue--error')).not.toBeNull();
+    });
+
     it('classes each row by its type: category, container, slot or leaf, with no tree tint', () => {
         const {structure, model} = open(),
             {store} = structure.gridModel,
