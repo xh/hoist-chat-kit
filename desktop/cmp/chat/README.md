@@ -1470,9 +1470,27 @@ code.
 
 ### Compact density
 
-Add the `xh-chat--compact` class to a parent of the chat for a narrow host, such as a docked
-side panel. It sets the side padding to `--xh-spacing` (10px), the user bubble width to 85%, and the
-chart height to 160px.
+Compact density fits the chat to a narrow host, such as a panel docked at the side of an app. It is
+a width mode, not a density choice for a chat of any size. `ChatPanel` and `ChatWorkspace` measure
+their own width and add the `xh-chat--compact` class at `ChatKit.defaults.compactMaxWidth` or less.
+Set that width at startup, or set it to null to never add the class from the width. In a layout of
+its own, built from `ChatMessageList` and `ChatComposer`, an app adds the class to a parent of the
+chat when it is that narrow. An app can also add the class to a chat of any width.
+
+At compact density:
+
+| Part | Change |
+|------|--------|
+| Side padding | `--xh-spacing` (10px). |
+| User bubble | Up to 85% of the column. |
+| Suggestions | One column. |
+| Composer pills | Icon and count only. The words show in the tooltip. |
+| Tool call rows | The tool's own name gives way to its title. The name shows in the title's tooltip. |
+| Not found reply | A count of the documents searched, in place of their names. The names show in a tooltip. |
+| Charts | 160px tall, down from 220px. |
+| Table previews | Up to 3 columns, with a shorter footer. A card narrower than 420px does the same at any density. |
+
+Text that compact density hides always has a tooltip, and its full form shows in a wider chat.
 
 ### Reduced motion
 

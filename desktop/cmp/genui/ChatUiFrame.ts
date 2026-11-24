@@ -12,15 +12,19 @@ import './ChatUiFrame.scss';
 /** Props for {@link ChatUiFrame}. */
 export interface ChatUiFrameProps extends HoistProps {
     /**
-     * Title shown in the header strip. A string title over 80 characters is cut short, with the
-     * whole title in a tooltip. A string title also names the frame for screen readers.
+     * Title shown in the header strip. A string title over 80 characters is cut short, and a narrow
+     * frame cuts it to fit. A string title shows whole in a tooltip, and names the frame for screen
+     * readers.
      */
     title?: ReactNode;
 
     /** Icon before the title. */
     icon?: ReactElement;
 
-    /** Muted text after the title, such as a row count or the units. */
+    /**
+     * Muted text after the title, such as a row count or the units. A narrow frame cuts it to fit,
+     * and a string shows whole in a tooltip.
+     */
     meta?: ReactNode;
 
     /** Buttons at the right end of the header strip, such as Expand. */
@@ -81,10 +85,8 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
                                             ? div({
                                                   key: 'title',
                                                   className: 'xh-chat-ui-frame__title',
-                                                  title:
-                                                      titleText?.length > MAX_TITLE
-                                                          ? titleText
-                                                          : null,
+                                                  // A narrow frame cuts the title at any length.
+                                                  title: titleText,
                                                   children: capTitle(title)
                                               })
                                             : null,
@@ -92,6 +94,7 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
                                             ? div({
                                                   key: 'meta',
                                                   className: 'xh-chat-ui-frame__meta',
+                                                  title: isString(meta) ? meta : null,
                                                   children: meta
                                               })
                                             : null

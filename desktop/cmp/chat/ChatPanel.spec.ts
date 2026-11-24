@@ -2,7 +2,7 @@ import {act, fireEvent, render, screen} from '@testing-library/react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {chatAnnouncer, ChatModel} from '../../../core';
+import {chatAnnouncer, ChatKit, ChatModel} from '../../../core';
 import {errorEvents, ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatComposerPill} from './ChatComposerPill';
 import {chatPanel} from './ChatPanel';
@@ -238,6 +238,39 @@ describe('ChatPanel', () => {
 
         expect(document.querySelector('.xh-chat-status-region.app-status')).toBeTruthy();
     });
+    it('sets compact density at 380 px or less, measured on its own element', () => {
+        const resizeTo = stubPanelResize();
+        renderPanel(createModel());
+
+        const panel = document.querySelector('.xh-chat-panel');
+        expect(panel.classList).not.toContain('xh-chat--compact');
+
+        resizeTo(380);
+        expect(panel.classList).toContain('xh-chat--compact');
+
+        resizeTo(381);
+        expect(panel.classList).not.toContain('xh-chat--compact');
+    });
+
+    it('takes its compact width from ChatKit.defaults.compactMaxWidth, and none when null', () => {
+        const saved = ChatKit.defaults.compactMaxWidth,
+            resizeTo = stubPanelResize();
+        onTestFinished(() => {
+            ChatKit.defaults.compactMaxWidth = saved;
+        });
+        renderPanel(createModel());
+
+        const panel = document.querySelector('.xh-chat-panel');
+
+        ChatKit.defaults.compactMaxWidth = 500;
+        resizeTo(450);
+        expect(panel.classList).toContain('xh-chat--compact');
+
+        ChatKit.defaults.compactMaxWidth = null;
+        resizeTo(300);
+        expect(panel.classList).not.toContain('xh-chat--compact');
+    });
+
     describe('file drops', () => {
         const file = new File(['x'], 'notes.txt', {type: 'text/plain'}),
             fileDrag = {dataTransfer: {types: ['Files'], files: [file]}},
@@ -349,6 +382,24 @@ class NoopResizeObserver {
     observe() {}
     unobserve() {}
     disconnect() {}
+}
+
+/** Stub ResizeObserver, and return a function that resizes the panel's own element by hand. */
+function stubPanelResize(): (width: number) => void {
+    const callbacks: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+        'ResizeObserver',
+        class {
+            constructor(private callback: ResizeObserverCallback) {}
+            observe(el: Element) {
+                if (el.classList?.contains('xh-chat-panel')) callbacks.push(this.callback);
+            }
+            unobserve() {}
+            disconnect() {}
+        }
+    );
+    const entry = (width: number) => ({contentRect: {width, height: 600}}) as ResizeObserverEntry;
+    return width => act(() => callbacks.forEach(it => it([entry(width)], null)));
 }
 
 function createModel(responses = [textEvents('Hi.')], delayMs = 0): ChatModel {

@@ -70,6 +70,14 @@ export interface ChatKitDefaults {
      */
     drafts: 'local' | 'memory';
 
+    /**
+     * Widest chat, in pixels, that shows at compact density, as when docked at the side of an app.
+     * `ChatPanel` and `ChatWorkspace` measure their own width and add `xh-chat--compact` at this
+     * width or less. Null to never add it - an app can still add the class itself. Read as each
+     * chat resizes. Default 380.
+     */
+    compactMaxWidth: number;
+
     /** Key combos for the chat's keyboard shortcuts - see {@link ChatShortcuts}. */
     shortcuts: ChatShortcuts;
 
@@ -138,6 +146,7 @@ export class ChatKit {
         statusRefreshMs: 5_000,
         statusRefreshTimeoutMs: 1_800_000,
         drafts: 'local',
+        compactMaxWidth: 380,
         shortcuts: {
             newChat: 'mod+shift+o',
             focusComposer: '/',

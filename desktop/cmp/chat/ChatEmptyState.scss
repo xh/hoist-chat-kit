@@ -34,11 +34,4 @@
     flex: none;
     height: calc(1em * var(--xh-chat-line-height));
   }
-
-  // At 380, the supporting text keeps to one line.
-  .xh-chat--compact & &__text > :last-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 }

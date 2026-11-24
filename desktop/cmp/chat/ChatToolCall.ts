@@ -109,7 +109,13 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                 spec?.icon
                     ? span({className: 'xh-chat-tool-call__icon', children: spec.icon})
                     : null,
-                span({className: 'xh-chat-tool-call__title', children: title}),
+                // The tooltip holds the title, which a narrow row cuts, and the tool's own name,
+                // which compact density hides.
+                span({
+                    className: 'xh-chat-tool-call__title',
+                    title: title !== toolName ? `${title} (${toolName})` : title,
+                    children: title
+                }),
                 title !== toolName
                     ? span({className: 'xh-chat-tool-call__name', children: toolName})
                     : null,
