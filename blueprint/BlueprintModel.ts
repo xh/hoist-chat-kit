@@ -17,6 +17,7 @@ import {BlueprintSource} from './BlueprintSource';
 import {BlueprintVariable} from './BlueprintVariable';
 import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
+import {runAsyncChecksAsync} from './asyncChecks';
 import type {BlueprintLinkState} from './BlueprintLink';
 import type {BlueprintRepository} from './repository/BlueprintRepository';
 import {diffOps} from './diffOps';
@@ -369,6 +370,28 @@ export class BlueprintModel extends HoistModel {
             this.undoStack = takeRight([...this.undoStack, entry], MAX_UNDO);
             this.redoStack = [];
         });
+    }
+
+    /**
+     * Apply an edit as {@link applyEdit} does, once the async checks of what it changed pass - see
+     * `WidgetSpec.checkAsync`. Refuses with their issues, or with `edit.staleBase` if the blueprint
+     * changed while they ran. Their warnings join the result's issues.
+     */
+    async applyEditAsync(
+        edit: BlueprintEdit,
+        opts: {undoable?: boolean} = {}
+    ): Promise<BlueprintEditResult> {
+        const base = this.version,
+            before = this.blueprint ?? {},
+            {result, issue} = applyOps(before, edit.ops);
+        let warnings: BlueprintIssue[] = [];
+        if (!issue && !isEqual(result, before) && !hasErrors(this.validate(result))) {
+            const issues = await runAsyncChecksAsync(before, result, this.registry);
+            if (hasErrors(issues)) return {issues};
+            warnings = issues;
+        }
+        const ret = this.applyEdit({...edit, base: edit.base ?? base}, opts);
+        return ret.version == null ? ret : {...ret, issues: [...ret.issues, ...warnings]};
     }
 
     /**

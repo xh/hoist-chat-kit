@@ -164,7 +164,13 @@ editors what a value means:
   `terms`, `accepts` and an optional `maxItems`. `children.slots` names the slot lists a child
   reference holds.
 - **Checks.** `validate(config, ctx)` returns issues the schema cannot express, with paths inside
-  the config and codes under the widget's name, such as `acme.headline.noField`.
+  the config and codes under the widget's name, such as `acme.headline.noField`. It stays
+  synchronous, as the validator runs everywhere, a Node server included.
+- **Server checks.** `checkAsync(config, ctx)` returns issues as `validate` does, for a check that
+  needs the app's server, such as that a symbol exists. `edit_blueprint` and
+  `BlueprintModel.applyEditAsync()` run it after the validator passes, for an element the edit
+  changed, and refuse the edit on an error. A check that throws refuses it with `check.failed`.
+  Edits that do not wait, such as design mode's, skip it.
 - **Highcharts modules.** `modules` names each series module the widget needs, such as
   `heatmap`, or gives a function of the config. A widget whose module the app has not loaded
   draws a notice in its place. List every module a module depends on: `solid-gauge` needs
@@ -246,6 +252,7 @@ A variable type is a dotted name for a kind of value, such as `acme.fund`:
 | `guidance` | For the Architect: what the values mean, and where they come from |
 | `input` | The input a `variableInput` draws for the type, in place of the built-in one for `matches`. It shows `value` and calls `onCommit` |
 | `urlCodec` | The text form of a value in a link, for a type whose `matches` has none, such as a portfolio. Without it, a link cannot set the type. `parse` reads untrusted text, and throws or returns null for text it cannot read |
+| `checkAsync` | Checks a value against the app's server, such as that a fund is open, and returns a problem or null. Runs as a widget's `checkAsync` does, for each literal default and listed option of a variable the edit changed |
 
 ## Add a Resolver
 

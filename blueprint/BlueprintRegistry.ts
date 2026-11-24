@@ -143,6 +143,13 @@ export interface WidgetSpec {
     /** Checks the schema cannot express. Paths are inside the widget's config. */
     validate?: (config: PlainObject, ctx: WidgetValidateContext) => BlueprintIssue[];
     /**
+     * Check config against the app's server, such as that a symbol exists. Runs after the
+     * synchronous validator passes, for an edit that waits for checks - see
+     * `BlueprintModel.applyEditAsync()` - and only when the element changed. Returns issues as
+     * `validate` does, with paths relative to the config.
+     */
+    checkAsync?: (config: PlainObject, ctx: WidgetValidateContext) => Promise<BlueprintIssue[]>;
+    /**
      * Adjust the config a new widget starts with, from the blueprint, or say why it cannot start
      * yet. Applied after the schema fills it.
      */
@@ -233,6 +240,12 @@ export interface VariableTypeSpec {
      * checked as the type's.
      */
     urlCodec?: {parse: (text: string) => unknown; format: (value: unknown) => string};
+    /**
+     * Check a value against the app's server, such as that a fund is open. Runs for each literal
+     * default and listed option of a variable of the type that an edit changed, as
+     * {@link WidgetSpec.checkAsync} does. Returns a problem for the user, or null.
+     */
+    checkAsync?: (value: unknown, ctx: {blueprint: Blueprint; variable: string}) => Promise<string>;
 }
 
 /** What a variable type's prompt input receives. */

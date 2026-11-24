@@ -113,10 +113,10 @@ describe('undo and redo', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('T5');
     });
 
-    it('undoes an edit the Architect made through its tool', () => {
+    it('undoes an edit the Architect made through its tool', async () => {
         const model = open('p2-linked-dashboard.json'),
             original = model.blueprint;
-        ARCHITECT_TOOLS.find(it => it.name === 'edit_blueprint').run(
+        await ARCHITECT_TOOLS.find(it => it.name === 'edit_blueprint').run(
             {
                 base: model.version,
                 description: 'Group by sector',

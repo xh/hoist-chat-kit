@@ -42,6 +42,8 @@ export interface ArchitectTarget {
     /** Each variable's current value. */
     readonly variables?: {name: string; value: unknown}[];
     applyEdit(edit: BlueprintEdit): {version?: number; issues: BlueprintIssue[]};
+    /** Apply an edit once the async checks of what it changed pass. `edit_blueprint` prefers it. */
+    applyEditAsync?(edit: BlueprintEdit): Promise<{version?: number; issues: BlueprintIssue[]}>;
     /** Check a blueprint. `strict` counts incomplete config as an error, as for the Architect. */
     validate(bp: Blueprint, opts?: {strict?: boolean}): BlueprintIssue[];
     /** Switch the user's mode. Design mode takes effect only with write access. */
@@ -292,7 +294,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
                     ops: {type: 'array', items: {type: 'object'}}
                 }
             },
-            run: (input, target) => {
+            run: async (input, target) => {
                 const refused = checkEditAllowed(input?.ops, target.mode, target.access, true);
                 if (refused) {
                     throw new ArchitectToolError({
@@ -301,12 +303,15 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = (
                         issues: [refused]
                     });
                 }
-                const {version, issues} = target.applyEdit({
-                    base: input?.base,
-                    description: input?.description,
-                    author: 'architect',
-                    ops: input?.ops
-                });
+                const edit: BlueprintEdit = {
+                        base: input?.base,
+                        description: input?.description,
+                        author: 'architect',
+                        ops: input?.ops
+                    },
+                    {version, issues} = target.applyEditAsync
+                        ? await target.applyEditAsync(edit)
+                        : target.applyEdit(edit);
                 if (issues.some(it => it.severity === 'error')) {
                     throw new ArchitectToolError({applied: false, version: target.version, issues});
                 }

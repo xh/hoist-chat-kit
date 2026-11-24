@@ -279,9 +279,9 @@ describe('Architect tools', () => {
         expect(properties.rowStyles['x-group']).toBe('appearance');
     });
 
-    it('applies an edit as the Architect, and refuses one with errors, returning its issues', () => {
+    it('applies an edit as the Architect, and refuses one with errors, returning its issues', async () => {
         const model = open(),
-            ok = run(
+            ok = await run(
                 'edit_blueprint',
                 {
                     base: 1,
@@ -298,7 +298,7 @@ describe('Architect tools', () => {
 
         let error: ArchitectToolError;
         try {
-            run(
+            await run(
                 'edit_blueprint',
                 {
                     base: 2,
@@ -315,13 +315,13 @@ describe('Architect tools', () => {
             version: 2,
             issues: [{code: 'field.notDimension'}]
         });
-        expect(() =>
+        await expect(
             run(
                 'edit_blueprint',
                 {base: 1, description: 'stale', ops: [{op: 'remove', path: '/root'}]},
                 model
             )
-        ).toThrow(/staleBase/);
+        ).rejects.toThrow(/staleBase/);
     });
 
     describe('mode and access', () => {
@@ -330,20 +330,23 @@ describe('Architect tools', () => {
                 description: 'Group by sector',
                 ops: [{op: 'set', path: '/elements/posGrid/config/groupBy', value: ['sector']}]
             },
-            refusal = (model: BlueprintModel, {mode, access}: any) => {
+            refusal = async (model: BlueprintModel, {mode, access}: any) => {
                 model.setAccess(access);
                 model.setMode(mode);
                 try {
-                    ARCHITECT_TOOLS.find(it => it.name === 'edit_blueprint').run(regroup, model);
+                    await ARCHITECT_TOOLS.find(it => it.name === 'edit_blueprint').run(
+                        regroup,
+                        model
+                    );
                 } catch (e) {
                     return e.result.issues[0];
                 }
                 return null;
             };
 
-        it('refuses every edit in run mode, at its first path, and offers design mode', () => {
+        it('refuses every edit in run mode, at its first path, and offers design mode', async () => {
             const model = open();
-            expect(refusal(model, {mode: 'run', access: 'write'})).toMatchObject({
+            expect(await refusal(model, {mode: 'run', access: 'write'})).toMatchObject({
                 code: 'edit.notAllowed',
                 path: '/elements/posGrid/config/groupBy',
                 message: expect.stringMatching(/run mode.*design mode/)
@@ -351,10 +354,10 @@ describe('Architect tools', () => {
             expect(model.version).toBe(1);
         });
 
-        it('refuses every edit without write access, in any mode, and offers a copy', () => {
+        it('refuses every edit without write access, in any mode, and offers a copy', async () => {
             const model = open();
             for (const mode of ['design', 'run']) {
-                expect(refusal(model, {mode, access: 'read'})).toMatchObject({
+                expect(await refusal(model, {mode, access: 'read'})).toMatchObject({
                     code: 'edit.notAllowed',
                     message: expect.stringMatching(/read access.*copy/)
                 });
@@ -364,7 +367,7 @@ describe('Architect tools', () => {
 
         it('applies edits in design mode with write access, and sets variables in run mode', async () => {
             const model = open();
-            expect(refusal(model, {mode: 'design', access: 'write'})).toBeNull();
+            expect(await refusal(model, {mode: 'design', access: 'write'})).toBeNull();
             expect(model.version).toBe(2);
 
             model.setAccess('read');

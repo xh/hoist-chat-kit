@@ -1,4 +1,5 @@
 export * from './applyOps';
+export * from './asyncChecks';
 export * from './diffBlueprints';
 export * from './diffOps';
 export * from './Blueprint';
