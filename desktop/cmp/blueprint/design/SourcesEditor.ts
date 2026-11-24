@@ -23,6 +23,7 @@ import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {
     CLS,
     countLabel,
+    focusItem,
     issueRows,
     labelled,
     listOf,
@@ -602,7 +603,10 @@ function sourcePage(
         keys = isJoin ? (impl.values.joins ?? []).map(it => it.source) : Object.keys(instances),
         index = keys.indexOf(key);
     if (index < 0) return null;
-    const back = () => impl.setPage(null);
+    const back = () => {
+        impl.setPage(null);
+        focusItem(key);
+    };
     return [
         div({
             key: 'page',

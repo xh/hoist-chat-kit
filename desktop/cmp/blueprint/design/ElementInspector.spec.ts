@@ -989,7 +989,11 @@ describe('ElementInspector', () => {
             [...styles.querySelectorAll('button')].find(it => it.textContent === 'Add')
         );
         const [rule] = (model.blueprint.elements.posGrid.config.columns as any).pnlDay.styles;
-        expect(rule.when).toMatchObject({op: '<', value: 0});
+        // On the column's own field, a measure, and red to show the loss.
+        expect(rule).toEqual({
+            when: {field: 'pnlDay', op: '<', value: 0},
+            style: {color: 'danger'}
+        });
         expect(model.issues.filter(it => it.severity === 'error')).toEqual([]);
     });
 

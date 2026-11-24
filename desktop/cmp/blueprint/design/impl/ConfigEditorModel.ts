@@ -191,14 +191,17 @@ export abstract class ConfigEditorModel extends HoistModel {
         return refusal?.key === key ? [...refusal.issues, ...standing] : standing;
     }
 
-    /** A value a new item can start with, from fields of the source the values do not use. */
-    newValue(schema: PlainObject): unknown {
+    /**
+     * A value a new item can start with, from fields of the source the values do not use. `field`
+     * is one a filter starts on where it can, such as a column's own.
+     */
+    newValue(schema: PlainObject, field?: string): unknown {
         const {blueprint, catalog} = this.designModel.blueprintModel,
             {values, sourceName: source} = this,
             fields = this.source?.fields ?? {},
             used = new Set<string>();
         walkStrings(values, it => Object.hasOwn(fields, it) && used.add(it));
-        return starterValue(schema, {blueprint, catalog, source, used: [...used]});
+        return starterValue(schema, {blueprint, catalog, source, used: [...used], field});
     }
 
     /** The value a property takes when unbound: none if optional, else one to start from. */

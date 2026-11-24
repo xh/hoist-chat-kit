@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {sortBy, uniq} from 'lodash';
+import {isEmpty, isPlainObject, sortBy, uniq} from 'lodash';
 import type {Blueprint} from '../Blueprint';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import type {DataCatalog, FieldDef} from '../DataCatalog';
@@ -33,7 +33,14 @@ export function starterConfig(
  */
 export function starterValue(
     schema: PlainObject,
-    ctx: {blueprint: Blueprint; catalog: DataCatalog; source?: string; used?: string[]}
+    ctx: {
+        blueprint: Blueprint;
+        catalog: DataCatalog;
+        source?: string;
+        used?: string[];
+        /** A field a filter starts on where it can, such as a column's own for its style rule. */
+        field?: string;
+    }
 ): unknown {
     return fill(schema ?? {}, '', fillContext(ctx));
 }
@@ -55,6 +62,7 @@ interface FillContext {
     state: {missingSource: boolean; used: Set<string>};
     // Numbers the texts of a list's items, so each item differs.
     suffix: string;
+    field?: string;
 }
 
 function fillContext(ctx: {
@@ -62,6 +70,7 @@ function fillContext(ctx: {
     catalog: DataCatalog;
     source?: string;
     used?: string[];
+    field?: string;
 }): FillContext {
     const {blueprint, catalog} = ctx,
         sources = Object.entries(blueprint?.sources ?? {}).filter(
@@ -75,7 +84,8 @@ function fillContext(ctx: {
         source,
         fields,
         state: {missingSource: false, used: new Set(ctx.used)},
-        suffix: ''
+        suffix: '',
+        field: ctx.field
     };
 }
 
@@ -87,7 +97,8 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
     if (schema['x-action']) return {type: 'refresh'};
     // A filter, such as a style rule's test, starts as one clause: a measure below 0, as for a loss.
     if (schema['x-filter'] && schema.type === 'object') {
-        const [measure] = fieldsFor('measure', ctx.fields, false),
+        const measures = fieldsFor('measure', ctx.fields, false),
+            measure = measures.find(it => it.name === ctx.field) ?? measures[0],
             field = measure ?? ctx.fields[0];
         if (!field) return undefined;
         return measure
@@ -121,9 +132,14 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
                             props[k].type !== 'object' &&
                             props[k]['x-starter'] !== false)
                 );
-            return Object.fromEntries(
+            const ret = Object.fromEntries(
                 keys.map(k => [k, fill(props[k], k, ctx)]).filter(([, v]) => v !== undefined)
             );
+            // A style rule that tests for a loss starts by showing it, in red.
+            if (ret.when?.op === '<' && isPlainObject(ret.style) && isEmpty(ret.style)) {
+                ret.style = {color: 'danger'};
+            }
+            return ret;
         }
         case 'array':
             return Array.from({length: schema.minItems ?? 0}, (_, i) =>

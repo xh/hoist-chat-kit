@@ -99,6 +99,8 @@ describe('SourcesEditor', () => {
             fireEvent.keyDown(row(), {key: 'Enter'});
             await vi.waitFor(() => expect(page().contains(document.activeElement)).toBe(true));
             fireEvent.keyDown(page(), {key: 'Escape'});
+            // Leaving it returns focus to its row.
+            await vi.waitFor(() => expect(document.activeElement).toBe(row()));
             fireEvent.keyDown(row(), {key: 'Delete'});
             expect(model.blueprint.sources.positions.joins).toBeUndefined();
         });

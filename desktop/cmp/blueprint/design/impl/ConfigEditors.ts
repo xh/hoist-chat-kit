@@ -153,6 +153,8 @@ export interface EditorContext {
     fieldType?: string;
     // True where a format's options show as rows of their own, as on an item's page.
     flatFormat?: boolean;
+    // The field a setting belongs to, such as a column's.
+    field?: string;
 }
 
 const scopeOf = (ctx: EditorContext) => ctx.scope ?? ctx.key;
@@ -933,7 +935,7 @@ const listEditor = hoistCmp.factory<ListEditorProps<ListNode>>({
                     disabled,
                     onClick: () => {
                         // A new item opens, for its settings.
-                        const item = impl.newValue(node.item.schema),
+                        const item = impl.newValue(node.item.schema, ctx.field),
                             key = impl.addKey(scope, item);
                         commitList([...items, item]);
                         impl.setOpenItem(scope, key);
@@ -1020,7 +1022,7 @@ function itemOf(el: HTMLElement, list: HTMLElement): {item: HTMLElement; row: HT
 }
 
 /** Focus a list item's handle by its row's key, as a page closes, so the keyboard stays there. */
-function focusItem(key: string, fallbacks: HTMLElement[] = []) {
+export function focusItem(key: string, fallbacks: HTMLElement[] = []) {
     wait().then(() => {
         const row = document.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(key)}"]`),
             list = row?.closest<HTMLElement>(`.${CLS}__field-list`),
@@ -1661,6 +1663,7 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
                     key: own ? ctx.key : node.settingsIn.key,
                     scope: `${scope}/${row.key}`,
                     flatFormat: true,
+                    field,
                     inherited: impl.inheritedDisplay(field),
                     fieldType: impl.fieldType(field)
                 },
@@ -1812,6 +1815,7 @@ const drawerSetting = hoistCmp.factory<
                       scope,
                       locked,
                       flatFormat,
+                      field,
                       inherited: impl.inheritedDisplay(field),
                       fieldType: impl.fieldType(field)
                   }
