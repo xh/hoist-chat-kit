@@ -796,6 +796,24 @@ describe('ElementInspector', () => {
         expect(container.querySelector('[data-config-key="stacking"] .xh-select')).toBeNull();
     });
 
+    it("shows a dashboard view's place as a column and row counted from 1, storing x and y from 0", () => {
+        const {design, model} = open();
+        design.select({kind: 'view', id: 'posGrid', of: 'positions'});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            cell = () =>
+                model.blueprint.elements.positions.children.find(it => it.id === 'posGrid') as any,
+            input = (key: string) =>
+                container.querySelector<HTMLInputElement>(`[data-config-key="${key}"] input`);
+        expect(container.querySelector('[data-config-key="x"]').textContent).toContain('Column');
+        expect(Number(input('x').value)).toBe(cell().x + 1);
+        // Row 41 is clear of every other view, and stores as y 40.
+        fireEvent.focus(input('y'));
+        fireEvent.change(input('y'), {target: {value: '41'}});
+        fireEvent.keyDown(input('y'), {key: 'Enter'});
+        fireEvent.blur(input('y'));
+        expect(cell().y).toBe(40);
+    });
+
     it('tints a required setting while it is unset', () => {
         const {design} = open(),
             id = design.addWidget('statCard', 'positions').id;
@@ -1267,7 +1285,7 @@ describe('ElementInspector', () => {
         expect(model.history.length).toBe(edits + 1);
     });
 
-    it("opens a column's page with its common settings first, each showing what it takes from the field", () => {
+    it("opens a column's page in the mockup's sections, each setting showing what it takes from the field", () => {
         const {design, model, inspector} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             columnRow = (field: string) =>
@@ -1303,8 +1321,8 @@ describe('ElementInspector', () => {
             `${inspector.fieldLabel('mktVal')} (from the field)`
         );
         expect(drawerInput('width').placeholder).toBe('Auto');
-        // Its page leads with its common settings.
-        expect(firstSection()).toEqual(['headerName', 'format', 'width', 'hidden']);
+        // Its page reads like the mockup: Header first, its common setting leading.
+        expect(firstSection()).toEqual(['headerName', 'headerTooltip', 'headerAlign']);
 
         const before = model.history.length;
         inspector.commitItemSetting('columns', 'mktVal', 'headerName', 'MV');

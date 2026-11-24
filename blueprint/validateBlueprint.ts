@@ -1456,7 +1456,7 @@ function checkDashboardLayout(
             err(
                 'layout.outOfBounds',
                 at,
-                `'${c.id}' reaches column ${c.x + c.w}, past the last of ${cols}. Rescale the x and w of ${listOf(outside)} to fit ${cols} columns, in proportion, so each x + w is at most ${cols}`
+                `'${c.id}' at x ${c.x} (counted from 0) and w ${c.w} reaches column ${c.x + c.w}, past the last of ${cols}. Rescale the x and w of ${listOf(outside)} to fit ${cols} columns, in proportion, so each x + w is at most ${cols}`
             );
         }
         const minW = specOf(c.id)?.size?.min?.w;

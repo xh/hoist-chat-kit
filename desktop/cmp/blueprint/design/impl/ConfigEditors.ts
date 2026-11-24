@@ -80,7 +80,7 @@ const FORMAT_OPTIONS = toEditorSpec({
         colorSpec: {
             type: 'boolean',
             title: 'Color',
-            'x-labels': {true: 'By sign', false: 'None'},
+            'x-labels': {false: 'None', true: 'By sign'},
             description: 'Color a number by its sign.'
         },
         label: {
@@ -532,6 +532,7 @@ function editorFor(
             return iconPicker({
                 value: (value as string) ?? null,
                 enableClear: !node.required,
+                placeholder: unset ?? 'None',
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))
@@ -592,6 +593,7 @@ function editorFor(
                       value: (value as string[]) ?? [],
                       options,
                       enableMulti: true,
+                      placeholder: unset ?? 'None',
                       disabled,
                       width: '100%',
                       onCommit: v => commit(isEmpty(v) && !node.required ? undefined : v)
@@ -600,6 +602,7 @@ function editorFor(
                       value: value ?? null,
                       options,
                       enableClear: !node.required,
+                      placeholder: unset ?? (node.required ? 'Pick a field…' : 'None'),
                       disabled,
                       width: '100%',
                       onCommit: v => commit(optional(v))
@@ -639,6 +642,7 @@ function editorFor(
             return filterEditor({
                 key: ctx.impl.sourceName,
                 value: value as PlainObject,
+                placeholder: unset ?? 'All rows',
                 fieldSpecs: () => ctx.impl.filterFieldSpecs(),
                 labelOf: it => ctx.impl.fieldLabel(it),
                 disabled,
@@ -1585,7 +1589,7 @@ function pageView(opts: {
     index: number;
     count: number;
     groups: {id: string; label: string; collapsed?: boolean}[];
-    /** The settings shown first, in a section of their own, ahead of the item's sections. */
+    /** The item's common settings, which lead their sections. */
     common?: string[];
     settings: PageSetting[];
     onStep: (by: number) => void;
@@ -1593,21 +1597,12 @@ function pageView(opts: {
 }): ReactNode {
     const {impl, scope, listLabel, title, meta, subtitle, index, count, onStep, onBack} = opts,
         common = opts.common ?? [],
-        first = sortBy(
-            opts.settings.filter(it => common.includes(it.node.key)),
-            it => common.indexOf(it.node.key)
-        ),
-        settings =
-            first.length < opts.settings.length
-                ? opts.settings.filter(it => !common.includes(it.node.key))
-                : opts.settings,
-        // A Common section leads only where it holds fewer than all the item's settings.
-        groups = [
-            ...(first.length && first.length < opts.settings.length
-                ? [{id: COMMON_GROUP, label: 'Common'}]
-                : []),
-            ...(opts.groups ?? [{id: null, label: null}])
-        ];
+        {settings} = opts,
+        groups = opts.groups ?? [{id: null, label: null}],
+        rank = (it: PageSetting) =>
+            common.includes(it.node.key) ? common.indexOf(it.node.key) : common.length,
+        // As in the mockup, a section's unset advanced settings fold behind its N more.
+        isFolded = (it: PageSetting) => it.value === undefined && !!it.node.schema['x-advanced'];
     return div({
         ref: opts.ref,
         className: `${CLS}__page`,
@@ -1637,20 +1632,16 @@ function pageView(opts: {
                 ]
             }),
             ...groups.map(group => {
-                const inGroup =
-                        group.id === COMMON_GROUP
-                            ? first
-                            : settings.filter(
-                                  it => group.id == null || it.node.schema['x-group'] === group.id
-                              ),
+                // The item's common settings lead each section.
+                const inGroup = sortBy(
+                        settings.filter(
+                            it => group.id == null || it.node.schema['x-group'] === group.id
+                        ),
+                        rank
+                    ),
                     moreScope = `${scope}/page-more`,
                     moreOpen = impl.isItemOpen(moreScope, group.id),
-                    folded =
-                        inGroup.length > 4
-                            ? inGroup.filter(
-                                  it => it.node.schema['x-advanced'] && it.value === undefined
-                              )
-                            : [],
+                    folded = inGroup.filter(isFolded),
                     shown = [...without(inGroup, ...folded), ...(moreOpen ? folded : [])],
                     foldScope = `${scope}/page-fold`,
                     collapsed = impl.isItemOpen(foldScope, group.id) !== !!group.collapsed,
@@ -1732,8 +1723,6 @@ export function pageBar(opts: {
         ]
     });
 }
-
-const COMMON_GROUP = '$common';
 
 // What one item of a list is called, from the list's label: Columns, a column.
 const singular = (label: string) => label?.replace(/s$/, '') ?? '';

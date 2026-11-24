@@ -401,6 +401,7 @@ const LABEL = {
     type: 'string',
     maxLength: 40,
     description: 'Shown beside the input.',
+    'x-unset': 'None',
     'x-group': 'content'
 } as const;
 
@@ -804,12 +805,12 @@ const CUBE_GRID_SCHEMA = {
                     },
                     headerAlign: {
                         'x-group': 'header',
-                        'x-advanced': true,
                         enum: ['left', 'center', 'right'],
                         description: 'How the header aligns. Default as its cells.'
                     },
                     align: {
                         'x-group': 'values',
+                        'x-advanced': true,
                         enum: ['left', 'center', 'right'],
                         description: 'How the cells align. Default right for a number, else left.'
                     },
@@ -829,6 +830,7 @@ const CUBE_GRID_SCHEMA = {
                         'x-group': 'size',
                         type: 'integer',
                         minimum: 20,
+                        'x-unset': '20',
                         maximum: 800,
                         description: 'The narrowest a user or a flex column may make it, in pixels.'
                     },
@@ -836,6 +838,7 @@ const CUBE_GRID_SCHEMA = {
                         'x-group': 'size',
                         type: 'integer',
                         minimum: 20,
+                        'x-unset': 'None',
                         maximum: 2000,
                         description: 'The widest a user or a flex column may make it, in pixels.'
                     },
@@ -1094,6 +1097,7 @@ const CHART_SCHEMA = {
             type: 'string',
             maxLength: 100,
             'x-binding': true,
+            'x-unset': "The field's label",
             description: "Title of the x-axis. Default the x field's label."
         },
         yTitle: {
@@ -1101,6 +1105,7 @@ const CHART_SCHEMA = {
             type: 'string',
             maxLength: 100,
             'x-binding': true,
+            'x-unset': "The field's label, for one y",
             description: "Title of the y-axis. Default the y field's label, if there is one y."
         },
         x: {
@@ -1141,6 +1146,7 @@ const CHART_SCHEMA = {
             type: 'string',
             maxLength: 100,
             'x-binding': true,
+            'x-unset': "The field's label, for one y2",
             description: "Title of the second axis. Default the y2 field's label, if there is one."
         },
         groupBy: {

@@ -7,7 +7,7 @@ import {Icon} from '@xh/hoist/icon';
 import {tooltip} from '@xh/hoist/kit/blueprint';
 import {action, bindable, compareStructural, computed, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {castArray, isArray, isEqual, isPlainObject, isString, without} from 'lodash';
+import {castArray, isArray, isEqual, isNumber, isPlainObject, isString, without} from 'lodash';
 import {type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useMemo} from 'react';
 import {
     type BlueprintDesignModel,
@@ -208,14 +208,15 @@ export class ElementInspectorModel extends ConfigEditorModel {
             const inGroup = nodes.filter(it => groupOf(it) === group);
             if (!inGroup.length) return [];
             const folded =
-                    inGroup.length > 4
-                        ? inGroup.filter(
-                              it =>
-                                  it.schema['x-advanced'] &&
-                                  this.values[it.key] === undefined &&
-                                  !this.presetFor(it.key)
-                          )
-                        : [],
+                    // A section of more than four folds its unset advanced settings, and any
+                    // section an unset advanced code editor, such as Highcharts options.
+                    inGroup.filter(
+                        it =>
+                            (inGroup.length > 4 || it.kind === 'json') &&
+                            it.schema['x-advanced'] &&
+                            this.values[it.key] === undefined &&
+                            !this.presetFor(it.key)
+                    ),
                 moreOpen = this.isToggled(`more:${group}`);
             return [
                 {
@@ -346,9 +347,21 @@ export class ElementInspectorModel extends ConfigEditorModel {
     get placementNodes(): EditorNode[] {
         const schema = this.parentSpec?.children?.schema;
         if (!schema || this.slot !== 'children') return [];
-        return toEditorSpec(schema).filter(
-            it => it.key !== 'id' && !this.parentSpec.children.slots?.[it.key]
-        );
+        return toEditorSpec(schema)
+            .filter(it => it.key !== 'id' && !this.parentSpec.children.slots?.[it.key])
+            .map(it =>
+                this.dashboardId && DASHBOARD_PLACES[it.key]
+                    ? ({...it, ...DASHBOARD_PLACES[it.key]} as EditorNode)
+                    : it
+            );
+    }
+
+    /**
+     * What a placement shows over what its blueprint holds: 1 for a dashboard cell's column and
+     * row, which read from 1 here though the blueprint counts its x and y from 0.
+     */
+    placementOffset(key: string): number {
+        return this.dashboardId && (key === 'x' || key === 'y') ? 1 : 0;
     }
 
     /** The slot that holds the element, as `slot` or `slot:of` for a child reference's slot. */
@@ -544,6 +557,18 @@ function groupOf(node: EditorNode): SettingGroup {
         ? 'data'
         : 'content';
 }
+
+// A dashboard cell's place as the mockup names it: a column and a row counted from 1, a width in
+// columns and a height in rows.
+const DASHBOARD_PLACES: Record<string, Partial<EditorNode>> = {
+    x: {label: 'Column', description: 'The column the view starts in, from 1.', min: 1} as any,
+    y: {label: 'Row', description: 'The row the view starts in, from 1.', min: 1} as any,
+    w: {label: 'Width', description: 'How many of the 12 columns the view spans.'},
+    h: {label: 'Height', description: 'How many rows the view spans.'}
+};
+
+// A number moved by an offset, as a placement shows or stores it. Anything else as it is.
+const shifted = (v: unknown, by: number) => (isNumber(v) && by ? v + by : v);
 
 const ELEMENT_KEY = '';
 
@@ -1002,7 +1027,10 @@ const inspectorRow = hoistCmp.factory<
                     computed(
                         () => ({
                             value: placement
-                                ? impl.placementValues[node.key]
+                                ? shifted(
+                                      impl.placementValues[node.key],
+                                      impl.placementOffset(node.key)
+                                  )
                                 : impl.values[node.key],
                             issues: impl.issuesFor(key),
                             badge: placement ? null : impl.badgeFor(node.key)
@@ -1014,7 +1042,10 @@ const inspectorRow = hoistCmp.factory<
         return propertyRow({
             node,
             value: state.value,
-            commit: v => (placement ? impl.commitPlacement(node.key, v) : impl.commit(node.key, v)),
+            commit: v =>
+                placement
+                    ? impl.commitPlacement(node.key, shifted(v, -impl.placementOffset(node.key)))
+                    : impl.commit(node.key, v),
             ctx: {impl, key},
             issues: state.issues,
             badge: state.badge

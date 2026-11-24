@@ -77,6 +77,8 @@ interface FilterEditorProps {
     labelOf: (field: string) => string;
     disabled: boolean;
     onCommit: (value: PlainObject) => void;
+    /** What the chooser shows while it holds no filter. */
+    placeholder?: string;
 }
 
 /**
@@ -86,7 +88,7 @@ interface FilterEditorProps {
 export const filterEditor = hoistCmp.factory<FilterEditorModel>({
     model: creates(() => FilterEditorModel),
     render({model}) {
-        const {value, disabled, labelOf, onCommit} = model.props,
+        const {value, disabled, labelOf, onCommit, placeholder} = model.props,
             {bound, literal} = splitClauses(value);
         return div({
             className: `${CLS}__filter`,
@@ -111,7 +113,7 @@ export const filterEditor = hoistCmp.factory<FilterEditorModel>({
                         children: describe(clause, labelOf)
                     })
                 ),
-                filterChooser({model: model.chooserModel, disabled, width: '100%'})
+                filterChooser({model: model.chooserModel, disabled, placeholder, width: '100%'})
             ]
         });
     }
