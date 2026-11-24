@@ -867,7 +867,7 @@ function layoutCard(impl: ElementInspectorModel): ReactNode {
                   ...viewHeaderRows(impl),
                   div({
                       className: `${CLS}__placement-row`,
-                      children: placementRows(impl, it => it.kind === 'number')
+                      children: placementRows(impl, it => it.kind === 'number', true)
                   }),
                   button({
                       className: `${CLS}__select-view`,
@@ -886,7 +886,7 @@ function layoutCard(impl: ElementInspectorModel): ReactNode {
                   impl.slotOptions.length > 1 ? slotEditor(impl) : null,
                   div({
                       className: `${CLS}__placement-row`,
-                      children: placementRows(impl, it => inPlacementRow(impl, it))
+                      children: placementRows(impl, it => inPlacementRow(impl, it), true)
                   }),
                   ...placementRows(impl, it => !inPlacementRow(impl, it))
               ]
@@ -1046,7 +1046,7 @@ function viewCards(impl: ElementInspectorModel) {
                 div({
                     key: 'row',
                     className: `${CLS}__placement-row`,
-                    children: placementRows(impl, it => it.kind === 'number')
+                    children: placementRows(impl, it => it.kind === 'number', true)
                 }),
                 div({
                     key: 'hint',
@@ -1091,15 +1091,40 @@ function viewHeaderRows(impl: ElementInspectorModel) {
 const inPlacementRow = (impl: ElementInspectorModel, node: EditorNode) =>
     node.kind === 'number' || !impl.placementNodes.some(it => it.kind === 'number');
 
-function placementRows(impl: ElementInspectorModel, filter: (node: EditorNode) => boolean) {
-    return impl.placementNodes.filter(filter).map(node =>
-        inspectorRow({
-            impl,
-            node,
-            placement: true,
-            key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
+// The element's placement settings the filter picks, on a form of their own. Side by side, each
+// shows as a cell under its label.
+function placementRows(
+    impl: ElementInspectorModel,
+    filter: (node: EditorNode) => boolean,
+    asCells = false
+): ReactNode[] {
+    const nodes = impl.placementNodes
+        .filter(filter)
+        .map(it => (asCells ? {...it, schema: {...it.schema, 'x-caption': it.label}} : it));
+    if (!nodes.length) return [];
+    return [
+        settingsForm({
+            key: 'placement',
+            nodes,
+            values: Object.fromEntries(
+                nodes.map(({key}) => [
+                    key,
+                    shifted(impl.placementValues[key], impl.placementOffset(key))
+                ])
+            ),
+            commit: (key, v) => impl.commitPlacement(key, shifted(v, -impl.placementOffset(key))),
+            content: form =>
+                nodes.map(node =>
+                    inspectorRow({
+                        impl,
+                        node,
+                        form,
+                        placement: true,
+                        key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
+                    })
+                )
         })
-    );
+    ];
 }
 
 // One config property's row, with its issues and preset badge.

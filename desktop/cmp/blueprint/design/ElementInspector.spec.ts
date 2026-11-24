@@ -1957,10 +1957,10 @@ describe('ElementInspector', () => {
         fireEvent.click(screen.getByText('Layout'));
         const labels = [
             ...container.querySelectorAll(
-                '.xh-blueprint-element-inspector__placement-row .xh-blueprint-element-inspector__label'
+                '.xh-blueprint-element-inspector__placement-row .xh-form-field__label'
             )
         ].map(it => it.textContent);
-        expect(labels).toEqual(['Title*', 'Icon']);
+        expect(labels).toEqual(['Title *', 'Icon']);
         expect(container.querySelector('[data-config-key="icon"] .xh-icon-picker')).toBeTruthy();
     });
 
