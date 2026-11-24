@@ -308,7 +308,7 @@ and the validator, the picker and links accept it.
 
 - **An app's entries** go in the app's `BlueprintRegistry` config, under dotted names, with each
   widget's `model` and `component` on its spec.
-- **A built-in** goes in `blueprint/impl/builtInWidgets.ts`, with its schema, spec, demand and
+- **A built-in** goes in `blueprint/builtInWidgets.ts`, with its schema, spec, demand and
   validator, and `blueprint/impl/builtInSpecs.ts` for resolver and renderer code. Its desktop model
   and component go in `desktop/cmp/blueprint/`, registered in `BlueprintViewModel`'s map and the
   package index. It also needs a row in `docs/planning/blueprints/tools/check-blueprints.py`.

@@ -3,7 +3,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
-import {BUILT_IN_WIDGETS} from './builtInWidgets';
+import {BUILT_IN_WIDGETS} from '../builtInWidgets';
 import {fieldDisplay} from './renderers';
 
 /**

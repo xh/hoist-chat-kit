@@ -1,11 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {action, compareStructural, computed, observable, observableRef} from '@xh/hoist/mobx';
-import {
-    DASHBOARD_GAP,
-    DASHBOARD_ROW_HEIGHT,
-    growCell
-} from '../../../../blueprint/impl/dashboardCells';
+import {DASHBOARD_GAP, DASHBOARD_ROW_HEIGHT, growCell} from '../../../../blueprint/dashboardCells';
 import {parentOf} from '../../../../blueprint/impl/elements';
 import {
     type BlueprintSource,
@@ -13,7 +9,7 @@ import {
     BlueprintWidgetModel
 } from '../../../../blueprint';
 import {variableText} from '../../../../blueprint/impl/variableText';
-import {formatValue, resolveFormat} from '../../../../blueprint/impl/formats';
+import {formatValue, resolveFormat} from '../../../../blueprint/formats';
 import type {ChatMarkdownProps} from '../../../../cmp/markdown';
 import {
     fillTemplate,

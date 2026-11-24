@@ -12,7 +12,7 @@ import type {BlueprintVariable} from './BlueprintVariable';
 import type {BlueprintWidgetConfig, BlueprintWidgetModel} from './BlueprintWidgetModel';
 import type {FieldDef} from './DataCatalog';
 import {BUILT_IN_RENDERERS, BUILT_IN_RESOLVERS} from './impl/builtInSpecs';
-import {BUILT_IN_ACTIONS, BUILT_IN_WIDGETS} from './impl/builtInWidgets';
+import {BUILT_IN_ACTIONS, BUILT_IN_WIDGETS} from './builtInWidgets';
 
 /**
  * A widget a blueprint can configure. The config schema uses chat kit's JSON Schema subset, plus

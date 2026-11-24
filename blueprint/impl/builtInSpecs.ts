@@ -13,7 +13,7 @@ import {progressBar} from '@xh/hoist/cmp/progressbar';
 import {sparkline, type SparklineColorBy, type SparklineType} from '@xh/hoist/cmp/sparkline';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import type {BlueprintRegistry, RendererSpec, ResolverSpec} from '../BlueprintRegistry';
-import {BUILT_IN_RENDERER_INFO, BUILT_IN_RESOLVER_INFO} from './builtInWidgets';
+import {BUILT_IN_RENDERER_INFO, BUILT_IN_RESOLVER_INFO} from '../builtInWidgets';
 
 const INTENTS: Intent[] = ['primary', 'success', 'warning', 'danger'];
 

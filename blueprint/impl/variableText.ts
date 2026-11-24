@@ -1,6 +1,6 @@
 import {fmtDate, fmtNumber} from '@xh/hoist/format';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {describeValue} from './builtInWidgets';
+import {describeValue} from '../builtInWidgets';
 
 /** A variable's value as text in a template: a date or number formatted, null as empty. */
 export function variableText(value: unknown, type: string): string {

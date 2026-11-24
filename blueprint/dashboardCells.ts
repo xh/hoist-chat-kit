@@ -1,5 +1,5 @@
 import {clamp, sortBy} from 'lodash';
-import type {ChildRef} from '../Blueprint';
+import type {ChildRef} from './Blueprint';
 
 /**
  * A dashboard's cells with one cell grown by some rows, and each cell it would then cover moved down

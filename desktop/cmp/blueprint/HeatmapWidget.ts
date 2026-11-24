@@ -8,7 +8,7 @@ import {
     type BlueprintWidgetConfig,
     type HeatmapWidgetConfig
 } from '../../../blueprint';
-import {formatValue, resolveFormat} from '../../../blueprint/impl/formats';
+import {formatValue, resolveFormat} from '../../../blueprint/formats';
 import {setChartConfig} from './impl/chartConfig';
 
 /**

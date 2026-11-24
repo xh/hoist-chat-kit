@@ -21,8 +21,8 @@ import {
     type BlueprintWidgetConfig,
     type ChartWidgetConfig
 } from '../../../blueprint';
-import {checkHighchartsConfig} from '../../../blueprint/impl/builtInWidgets';
-import {formatValue, resolveFormat} from '../../../blueprint/impl/formats';
+import {checkHighchartsConfig} from '../../../blueprint/builtInWidgets';
+import {formatValue, resolveFormat} from '../../../blueprint/formats';
 import {fmtChatUiNumber} from '../genui/ChatUiFormat';
 import {setChartConfig} from './impl/chartConfig';
 import {

@@ -47,7 +47,7 @@ export type {
     TabContainerWidgetConfig,
     TileFrameWidgetConfig,
     TreemapWidgetConfig
-} from './impl/builtInWidgets';
+} from './builtInWidgets';
 export * from './BlueprintSchema';
 export * from './degradeAnswer';
 export * from './usages';
@@ -59,8 +59,8 @@ export {
     resolveFieldDisplay,
     resolveFormat,
     type ResolvedFieldDisplay
-} from './impl/formats';
-export {DASHBOARD_COLUMNS, rescaleCells} from './impl/dashboardCells';
+} from './formats';
+export {DASHBOARD_COLUMNS, rescaleCells} from './dashboardCells';
 export * from './design/BlueprintDesignModel';
 export * from './design/editorSpec';
 export * from './design/wiring';

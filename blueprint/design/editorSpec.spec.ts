@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {BUILT_IN_WIDGETS} from '../impl/builtInWidgets';
+import {BUILT_IN_WIDGETS} from '../builtInWidgets';
 import {childIds} from '../impl/elements';
 import {type EditorNode, toEditorSpec} from './editorSpec';
 

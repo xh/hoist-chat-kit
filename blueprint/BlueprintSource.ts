@@ -50,9 +50,9 @@ import {
     resolveFieldDisplay,
     resolveFormat,
     type ResolvedFieldDisplay
-} from './impl/formats';
+} from './formats';
 import {paramLabel} from './impl/paramLabel';
-import {rendererFields} from './impl/builtInWidgets';
+import {rendererFields} from './builtInWidgets';
 import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
 import {parentOf} from './impl/elements';

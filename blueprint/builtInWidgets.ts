@@ -1,8 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {FromExtendedSchema} from 'json-schema-to-ts';
 import {castArray, compact, isEmpty, isString, mapValues, mergeWith, uniq} from 'lodash';
-import type {BlueprintIssue} from '../Blueprint';
-import type {BlueprintSchema, BlueprintSchemaExtension} from '../BlueprintSchema';
+import type {BlueprintIssue} from './Blueprint';
+import type {BlueprintSchema, BlueprintSchemaExtension} from './BlueprintSchema';
 import type {
     ActionSpec,
     RendererSpec,
@@ -11,12 +11,12 @@ import type {
     WidgetDemand,
     WidgetFit,
     WidgetSpec
-} from '../BlueprintRegistry';
+} from './BlueprintRegistry';
 import {DASHBOARD_COLUMNS, DASHBOARD_GAP, DASHBOARD_ROW_HEIGHT} from './dashboardCells';
-import {parentOf} from './elements';
-import {listOf} from './labels';
-import {templateDemand} from './template';
-import {getOwn} from './pointer';
+import {parentOf} from './impl/elements';
+import {listOf} from './impl/labels';
+import {templateDemand} from './impl/template';
+import {getOwn} from './impl/pointer';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
 

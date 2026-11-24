@@ -29,7 +29,7 @@ import {
 } from './impl/actions';
 import {resolveBindings, resolveFilter} from './impl/bindings';
 import {fillTemplate} from './impl/template';
-import {formatValue, resolveFormat} from './impl/formats';
+import {formatValue, resolveFormat} from './formats';
 import {variableText} from './impl/variableText';
 import {getOwn, getAt as valueAt, withValueAt} from './impl/pointer';
 import {isIncomplete, validateBlueprint} from './validateBlueprint';

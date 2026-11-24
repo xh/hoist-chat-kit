@@ -4,7 +4,7 @@ The lessons this file gathered from the design sessions and the LLM test rounds 
 they are enforced or taught. Add a new lesson there, not here:
 
 - **The in-app Architect's rules:** its system prompt, `blueprint/architect/architectPrompt.ts`,
-  and each widget's `guidance` in `blueprint/impl/builtInWidgets.ts`.
+  and each widget's `guidance` in `blueprint/builtInWidgets.ts`.
 - **Rules the format can enforce:** `validateBlueprint`, with a stable issue code.
 - **A coding agent writing blueprints:** the `blueprint-architect` skill.
 - **Adding widgets and other registry entries:** the `extend-blueprints` skill.

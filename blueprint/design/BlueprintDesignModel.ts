@@ -25,7 +25,7 @@ import type {
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
-import {DASHBOARD_COLUMNS, rescaleCells} from '../impl/dashboardCells';
+import {DASHBOARD_COLUMNS, rescaleCells} from '../dashboardCells';
 import {
     childIds,
     hasViews,

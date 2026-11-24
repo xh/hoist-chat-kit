@@ -11,7 +11,7 @@ import {BlueprintModel} from './BlueprintModel';
 import {BlueprintSource} from './BlueprintSource';
 import {DataCatalog} from './DataCatalog';
 import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
-import {formatValue, resolveFieldDisplay, resolveFormat} from './impl/formats';
+import {formatValue, resolveFieldDisplay, resolveFormat} from './formats';
 import {fieldUsages} from './usages';
 import {validateBlueprint} from './validateBlueprint';
 

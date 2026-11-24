@@ -9,7 +9,7 @@ import {
     BUILT_IN_RENDERER_INFO,
     BUILT_IN_RESOLVER_INFO,
     BUILT_IN_WIDGETS
-} from '../../../../../../blueprint/impl/builtInWidgets.ts';
+} from '../../../../../../blueprint/builtInWidgets.ts';
 import {validateBlueprint} from '../../../../../../blueprint/validateBlueprint.ts';
 import {Blueprint, catalogs, registry} from './load.ts';
 

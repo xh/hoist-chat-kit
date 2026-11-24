@@ -4,7 +4,7 @@ import type {ReactNode} from 'react';
 import type {Blueprint} from '../Blueprint';
 import type {BlueprintRegistry, RendererContext, RendererSpec} from '../BlueprintRegistry';
 import type {DataCatalog, FieldDef} from '../DataCatalog';
-import {formatValue, type FormatLike, resolveFormat} from './formats';
+import {formatValue, type FormatLike, resolveFormat} from '../formats';
 
 /** A renderer as a blueprint or catalog names it: a name, or an object with a name and options. */
 export type RendererLike = string | PlainObject;

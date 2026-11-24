@@ -14,8 +14,8 @@ import {
 } from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
-import {CUBE_GRID_STYLES} from '../../../../blueprint/impl/builtInWidgets';
-import {type FormatLike, resolveFormat} from '../../../../blueprint/impl/formats';
+import {CUBE_GRID_STYLES} from '../../../../blueprint/builtInWidgets';
+import {type FormatLike, resolveFormat} from '../../../../blueprint/formats';
 import {chatArtifactProvider} from '../../../../genui/impl/answerData';
 import {getArtifactRows} from '../../../../impl/ArtifactRows';
 import {

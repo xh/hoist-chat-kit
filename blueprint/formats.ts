@@ -15,8 +15,8 @@ import {
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {isPlainObject, isString, omit} from 'lodash';
 import type {ReactNode} from 'react';
-import type {Blueprint} from '../Blueprint';
-import type {DataCatalog, FieldDef} from '../DataCatalog';
+import type {Blueprint} from './Blueprint';
+import type {DataCatalog, FieldDef} from './DataCatalog';
 
 /** A format, as a blueprint or catalog writes it: a name, an object, or a name with changes. */
 export type FormatLike = string | PlainObject;

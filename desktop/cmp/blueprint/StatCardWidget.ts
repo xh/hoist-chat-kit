@@ -14,7 +14,7 @@ import {
     type FieldDef,
     type StatCardWidgetConfig
 } from '../../../blueprint';
-import {type FormatLike, formatValue, resolveFormat} from '../../../blueprint/impl/formats';
+import {type FormatLike, formatValue, resolveFormat} from '../../../blueprint/formats';
 import {fieldDisplay} from '../../../blueprint/impl/renderers';
 
 /** A stat card, as it shows. */

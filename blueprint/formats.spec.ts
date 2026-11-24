@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it} from 'vitest';
-import {loadBlueprint, portfolioCatalog} from '../../test/blueprintFixtures';
+import {loadBlueprint, portfolioCatalog} from '../test/blueprintFixtures';
 import {formatValue, resolveFormat} from './formats';
 
 /**

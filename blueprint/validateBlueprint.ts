@@ -24,7 +24,7 @@ import {bindingTypesOf} from './impl/bindable';
 import {checkConfig, checkFilter, templateStrings, toPointer} from './impl/configSchema';
 import {isStyleColor, MAX_STYLE_RULES} from './impl/gridStyles';
 import {joinFields} from './impl/joins';
-import {DASHBOARD_COLUMNS} from './impl/dashboardCells';
+import {DASHBOARD_COLUMNS} from './dashboardCells';
 import {slotLists} from './impl/elements';
 import {labelOf, listOf} from './impl/labels';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';

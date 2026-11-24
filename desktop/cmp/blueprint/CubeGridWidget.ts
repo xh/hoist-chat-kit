@@ -40,8 +40,8 @@ import {
     type CubeGridWidgetConfig
 } from '../../../blueprint';
 import {sortKeysOf} from '../../../blueprint/design/configValues';
-import {CUBE_GRID_STYLES} from '../../../blueprint/impl/builtInWidgets';
-import type {FieldDisplayLayer} from '../../../blueprint/impl/formats';
+import {CUBE_GRID_STYLES} from '../../../blueprint/builtInWidgets';
+import type {FieldDisplayLayer} from '../../../blueprint/formats';
 import {styleToCss} from '../../../blueprint/impl/gridStyles';
 import {getOwn} from '../../../blueprint/impl/pointer';
 import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers';

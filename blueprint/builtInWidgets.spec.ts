@@ -1,6 +1,6 @@
 import {difference} from 'lodash';
 import {describe, expect, it} from 'vitest';
-import {SETTING_GROUPS} from '../BlueprintSchema';
+import {SETTING_GROUPS} from './BlueprintSchema';
 import {BUILT_IN_WIDGETS} from './builtInWidgets';
 
 // Sections that show more than four common settings, each with its reason.
