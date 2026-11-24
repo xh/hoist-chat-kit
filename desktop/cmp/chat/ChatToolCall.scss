@@ -123,9 +123,11 @@
     font-size: var(--xh-chat-code-font-size);
   }
 
+  // The error takes only the room the title and status leave, so it gives way first. A weighted
+  // shrink still took a fraction of a pixel from the title and cut it.
   &__detail {
     color: var(--xh-chat-error-color);
-    flex: 0 1000 auto;
+    flex: 1 1 0;
     font-size: var(--xh-chat-meta-font-size);
     min-width: 0;
     overflow: hidden;
@@ -301,7 +303,7 @@
   }
 }
 
-// A docked or narrow chat drops the tool name, so the title has the room.
+// A compact chat drops the tool name, so the title has the room. The title's tooltip names it.
 .xh-chat--compact .xh-chat-tool-call__name {
   display: none;
 }

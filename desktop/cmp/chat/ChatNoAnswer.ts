@@ -64,6 +64,8 @@ export const [ChatNoAnswer, chatNoAnswer] = hoistCmp.withFactory<ChatNoAnswerPro
                 documents.length
                     ? div({
                           className: 'xh-chat-no-answer__scope',
+                          // Every name, for a list cut to three, or to a count at compact density.
+                          title: documents.map(it => it.name).join('\n'),
                           children: [
                               span({
                                   className: 'xh-chat-no-answer__scope-names',

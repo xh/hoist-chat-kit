@@ -1,8 +1,9 @@
-import {type ReactNode, useRef} from 'react';
+import {type ReactNode, useRef, useState} from 'react';
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {getTestId} from '@xh/hoist/utils/js';
+import {useComposedRefs, useOnResize} from '@xh/hoist/utils/react';
 import type {ChatImagePolicy, ChatMarkdownPlugins} from '../../../cmp/markdown';
 import {ChatModel} from '../../../core';
 import classNames from 'classnames';
@@ -14,6 +15,7 @@ import type {ChatSourceClickHandler} from './ChatMessageView';
 import './ChatPanel.scss';
 import '../../impl/ChatMotion.scss';
 import {chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
+import {isCompactWidth} from './impl/Compact';
 import {composerCenteredProvider} from './impl/ComposerPlacement';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {fileDropHint, FileDropModel, fileDropZoneProvider} from './impl/FileDrop';
@@ -96,6 +98,9 @@ export interface ChatPanelProps
  * to the bottom in one frame, with no animation, and focus stays in it.
  * Pass `emptyState` to show other content in the list instead, with the composer at the bottom.
  *
+ * At `ChatKit.defaults.compactMaxWidth` wide or less, as when docked at the side of an app, the
+ * panel shows at compact density - see the README's Compact density section.
+ *
  * When the model enables attachments, a file dropped anywhere on the panel goes to the composer.
  * A hint covers the panel while files are dragged over it.
  *
@@ -140,6 +145,13 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             () => new FileDropModel(() => modelRef.current.composerModel)
         );
 
+        // A narrow panel, such as one docked at the side of an app, shows at compact density.
+        const [isCompact, setIsCompact] = useState(false),
+            rootRef = useComposedRefs(
+                useOnResize(rect => setIsCompact(isCompactWidth(rect.width))),
+                ref
+            );
+
         // A thread whose turn runs on the server, with nothing saved yet, shows that the reply is
         // on its way in the list, not the centered empty state of a new chat.
         const isAwaitingReply = model.isEmpty && model.isRunningOnServer,
@@ -154,9 +166,10 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
         return fileDropZoneProvider({
             value: true,
             children: panel({
-                ref,
+                ref: rootRef,
                 testId,
                 className: classNames(className, {
+                    'xh-chat--compact': isCompact,
                     'xh-chat-panel--empty': isCentered,
                     'xh-chat-panel--dragging': fileDrop.isDragging
                 }),

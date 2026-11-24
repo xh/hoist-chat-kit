@@ -6,6 +6,7 @@ import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {type ChatDocumentRenderer, ChatSidePanelModel} from '../../../core';
 import type {ChatThreadsModel} from '../../../threads';
+import {isCompactWidth} from '../chat/impl/Compact';
 
 /** Configuration for a {@link ChatWorkspaceModel}. */
 export interface ChatWorkspaceConfig {
@@ -53,7 +54,7 @@ export type ChatWorkspaceSidebarMode = 'open' | 'rail' | 'hidden';
  * minimum. The sidebar is cut first against the conversation alone, then the side panel against
  * what is left.
  *
- * At 380 px or less, the workspace shows the chat at compact density.
+ * At `ChatKit.defaults.compactMaxWidth` or less, the workspace shows the chat at compact density.
  */
 export class ChatWorkspaceModel extends HoistModel {
     declare config: ChatWorkspaceConfig;
@@ -132,11 +133,13 @@ export class ChatWorkspaceModel extends HoistModel {
         return width == null || width >= SIDE_PANEL_MIN_WORKSPACE_WIDTH;
     }
 
-    /** True if the workspace is narrow enough for compact density - 380 px or less. */
+    /**
+     * True if the workspace is narrow enough for compact density - at
+     * `ChatKit.defaults.compactMaxWidth` or less.
+     */
     @computed
     get isCompact(): boolean {
-        const {width} = this;
-        return width != null && width <= COMPACT_MAX_WIDTH;
+        return isCompactWidth(this.width);
     }
 
     constructor(config: ChatWorkspaceConfig) {
@@ -356,8 +359,9 @@ const SIDEBAR_DEFAULT_WIDTH = 260,
     SIDE_PANEL_MIN_WORKSPACE_WIDTH = 788,
     RAIL_BELOW_WIDTH = 1000,
     WIDE_WIDTH = 1280,
-    COMPACT_MAX_WIDTH = 380,
     MIN_CONVERSATION_WIDTH = 480,
+    // A layout floor, not the compact setting. It equals the default compactMaxWidth, so a
+    // conversation cut to this floor shows at compact density.
     NARROW_MIN_CONVERSATION_WIDTH = 380,
     // The bands of width, by index - each up to the next breakpoint.
     BANDS = [SIDE_PANEL_MIN_WORKSPACE_WIDTH, RAIL_BELOW_WIDTH, WIDE_WIDTH, Infinity],

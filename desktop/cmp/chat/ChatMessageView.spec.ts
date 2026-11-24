@@ -120,6 +120,10 @@ describe('ChatMessageView', () => {
             expect(frame.querySelector('.xh-chat-no-answer__scope-names').textContent).toBe(
                 'Searched: Credit Guidelines v4, Reserves Policy, Investor Overlay +1'
             );
+            // Every name, which the list cuts to three and compact density to a count.
+            expect(frame.querySelector('.xh-chat-no-answer__scope').getAttribute('title')).toBe(
+                'Credit Guidelines v4\nReserves Policy\nInvestor Overlay\nSeasoning'
+            );
         });
 
         it('shows no sources list and no Regenerate, and keeps only the thumbs down', () => {

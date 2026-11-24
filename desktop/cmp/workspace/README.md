@@ -35,7 +35,7 @@ Key features:
   panel, in the app's own viewer.
 - **Layout by width** - the sidebar turns to its rail and then hides, the side panel shows only
   where there is room, each panel keeps one saved width, cut so the conversation stays readable,
-  and the chat turns compact at 380 px or less.
+  and the chat turns compact at `ChatKit.defaults.compactMaxWidth` or less.
 - **Persistence** - the sidebar's width and collapsed state, and the side panel's width, persist
   per user through `persistWith`.
 - **Keyboard** - Ctrl/Cmd+Shift+O starts a new chat, `/` focuses the composer, and F6 moves
@@ -56,7 +56,7 @@ ChatWorkspaceModel (HoistModel)
 │   ├── sidebarMode                   # 'open', 'rail' or 'hidden'
 │   ├── sidebarWidth, sidePanelWidth  # The widths that show, cut for the conversation
 │   ├── isSidePanelShown              # Open or a request open, and the workspace has room
-│   └── isCompact                     # 380 px or less
+│   └── isCompact                     # At ChatKit.defaults.compactMaxWidth or less
 └── Methods:
     ├── expandSidebar() / collapseSidebar() / toggleSidebar()
     └── openSidePanel() / closeSidePanel() / toggleSidePanel()
@@ -242,7 +242,7 @@ from the app's own state.
 | `sidePanelWidth` | `number` | Width of the side panel, or null when it does not show. Its saved width, cut for the conversation. |
 | `isSidePanelOpen` | `boolean` | True if the app wants the side panel open. Bindable. |
 | `isSidePanelShown` | `boolean` | True if the side panel shows: a request or the app's content, with room. |
-| `isCompact` | `boolean` | True at 380 px or less. |
+| `isCompact` | `boolean` | True at `ChatKit.defaults.compactMaxWidth` or less. |
 | `expandSidebar()`, `collapseSidebar()`, `toggleSidebar()` | methods | Change the sidebar. |
 | `openSidePanel()`, `closeSidePanel()`, `toggleSidePanel()` | methods | Change the side panel. Close also closes an open request. |
 

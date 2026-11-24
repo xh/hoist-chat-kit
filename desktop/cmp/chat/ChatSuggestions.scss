@@ -51,12 +51,9 @@
     font-size: var(--xh-chat-meta-font-size);
   }
 
-  // A narrow host shows three suggestions at most, in one column.
+  // A compact chat shows the suggestions in one column. It shows them all, as the app chose them,
+  // and the space under the composer scrolls when they do not fit.
   .xh-chat--compact & {
     grid-template-columns: 1fr;
-
-    > :nth-child(n + 4) {
-      display: none;
-    }
   }
 }

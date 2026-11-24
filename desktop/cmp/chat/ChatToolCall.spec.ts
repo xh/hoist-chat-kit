@@ -161,6 +161,15 @@ describe('ChatToolCall display modes', () => {
         );
     });
 
+    it("puts the title and the tool's name in the title's tooltip", () => {
+        const chatModel = createChat({}, [reply(toolCall('lookup_rows'))]);
+        renderList(chatModel);
+
+        const title = document.querySelector('.xh-chat-tool-call__title');
+        expect(title.textContent).toBe('Lookup rows');
+        expect(title.getAttribute('title')).toBe('Lookup rows (lookup_rows)');
+    });
+
     it("says Running for a call the backend runs, and Pending for a browser tool's", () => {
         // The row alone: a loaded message settles an open call, so the model cannot hold one.
         const pending = toolCall('lookup_rows', {state: 'input-available', output: null}),
