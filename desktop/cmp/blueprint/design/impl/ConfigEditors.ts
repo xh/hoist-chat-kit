@@ -1645,6 +1645,12 @@ function pageView(opts: {
                 return sectionCard({
                     key: group.id ?? 'all',
                     title: group.label ?? title,
+                    summary: inGroup.some(it => it.value !== undefined)
+                        ? inGroup
+                              .filter(it => it.value !== undefined)
+                              .map(it => it.node.label)
+                              .join(', ')
+                        : `Nothing set · ${inGroup.map(it => it.node.label).join(', ')}`,
                     count: set ? `${set} set` : null,
                     collapsed,
                     onToggle: () => impl.toggleItem(foldScope, group.id),
@@ -2726,9 +2732,6 @@ export function sectionCard({
                         ...toggle,
                         children: [
                             span({className: `${CLS}__card-title`, children: title}),
-                            collapsed && summary
-                                ? span({className: `${CLS}__card-summary`, children: summary})
-                                : null,
                             count ? span({className: `${CLS}__card-count`, children: count}) : null
                         ]
                     } as object),
@@ -2755,7 +2758,12 @@ export function sectionCard({
                         : null
                 ]
             }),
-            collapsed ? null : div({className: `${CLS}__card-body`, children})
+            // A folded card sums itself up on a line of its own, under its header.
+            collapsed
+                ? summary
+                    ? div({className: `${CLS}__card-summary`, children: summary})
+                    : null
+                : div({className: `${CLS}__card-body`, children})
         ]
     });
 }

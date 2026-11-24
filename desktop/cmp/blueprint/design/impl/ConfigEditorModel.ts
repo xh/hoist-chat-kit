@@ -19,6 +19,7 @@ import {bindingTypesOf} from '../../../../../blueprint/impl/bindable';
 import {
     boundValues,
     fitsProp,
+    variableTypeLabel,
     variableTypeMatches
 } from '../../../../../blueprint/validateBlueprint';
 import type {Option} from './ConfigEditors';
@@ -380,10 +381,20 @@ export abstract class ConfigEditorModel extends HoistModel {
     bindChoices(node: EditorNode): {name: string; reason: string}[] {
         const {registry} = this.designModel.blueprintModel,
             want = bindingTypesOf(node.schema);
+        // What the setting takes, in words: one of its choices, or a kind of value.
+        const takes = node.schema.enum
+                ? 'one of its choices'
+                : uniq((want ?? []).map(it => variableTypeLabel(registry, it).toLowerCase())).join(
+                      ' or '
+                  ),
+            label = (type: string) => variableTypeLabel(registry, type).toLowerCase();
         return Object.entries(this.variables).map(([name, it]) => {
             if (!want) return {name, reason: 'This setting takes no variable.'};
             if (!want.some(type => variableTypeMatches(registry, it.type, type))) {
-                return {name, reason: `A ${it.type}, but this takes a ${want.join(' or ')}.`};
+                return {
+                    name,
+                    reason: `It holds ${withArticle(label(it.type))}, but this takes ${node.schema.enum ? takes : withArticle(takes)}.`
+                };
             }
             const values = boundValues(it);
             // A choice binds only a variable whose values it knows are among its own.
@@ -620,6 +631,9 @@ function walkStrings(value: unknown, fn: (s: string) => void) {
     if (value != null && typeof value === 'object')
         Object.values(value).forEach(it => walkStrings(it, fn));
 }
+
+// A noun with its article, as "an int" or "a date".
+const withArticle = (noun: string) => `${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun}`;
 
 function visibleOptions(specs: Record<string, {name: string; reserved?: boolean}>): Option[] {
     return Object.values(specs)

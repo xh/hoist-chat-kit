@@ -1,7 +1,10 @@
-.xh-blueprint-element-inspector {
-  // A quieter text color that still reads at 4.5:1 or better, on the body and on a section's band.
+// A quieter text color that still reads at 4.5:1 or better, on the body and on a section's band.
+// On body, where Hoist sets its theme, so menus and tooltips in portals take it too.
+body {
   --xh-blueprint-inspector-muted: color-mix(in srgb, var(--xh-text-color) 72%, var(--xh-bg));
+}
 
+.xh-blueprint-element-inspector {
   // Controls a size smaller than an app's forms, so the Inspector's rows stay compact.
   .bp6-input:not(textarea),
   .xh-select__control {
@@ -18,6 +21,11 @@
   .bp6-button:not(.bp6-small) {
     min-height: 26px;
     font-size: 12px;
+  }
+
+  .xh-segmented-control.bp6-segmented-control {
+    align-items: stretch;
+    height: 26px;
   }
 
   .xh-segmented-control .bp6-button {
@@ -106,8 +114,9 @@
 
   // What a folded section has set, after its title.
   &__card-summary {
+    padding: 0 var(--xh-spacing) 9px;
     overflow: hidden;
-    font-weight: normal;
+    font-size: 11px;
     white-space: nowrap;
     text-overflow: ellipsis;
     color: var(--xh-blueprint-inspector-muted);
@@ -380,10 +389,13 @@
     box-shadow: inset 0 0 0 1px var(--xh-intent-warning);
   }
 
+  // The reason a variable cannot bind, readable though its menu item is disabled.
   &__menu-reason {
     max-width: 260px;
     font-size: 11px;
     white-space: normal;
+    color: var(--xh-blueprint-inspector-muted);
+    opacity: 1;
   }
 
   &__label-tip {

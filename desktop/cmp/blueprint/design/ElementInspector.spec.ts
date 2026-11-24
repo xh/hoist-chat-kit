@@ -151,7 +151,7 @@ describe('ElementInspector', () => {
         expect(odd.reason).toMatch(/"nope"/);
         expect(
             inspector.bindChoices(node('stripeRows')).find(it => it.name === 'asOf').reason
-        ).toBe('A localDate, but this takes a bool.');
+        ).toBe('It holds a local date, but this takes a yes or no.');
         // A setting no variable type fits offers none, rather than all.
         expect(inspector.variablesFor({...node('stripeRows'), schema: {type: 'object'}})).toEqual(
             []
@@ -1714,9 +1714,11 @@ describe('ElementInspector', () => {
         fireEvent.click(band().querySelector('.xh-blueprint-element-inspector__card-chevron'));
         expect(toggle().getAttribute('aria-expanded')).toBe('false');
         expect(styleRow()).toBeNull();
-        // Folded, it says what it has set.
+        // Folded, it says what it has set, on a line under its band.
         expect(
-            band().querySelector('.xh-blueprint-element-inspector__card-summary')
+            band().parentElement.querySelector(
+                ':scope > .xh-blueprint-element-inspector__card-summary'
+            )
         ).not.toBeNull();
         fireEvent.keyDown(toggle(), {key: 'Enter'});
         expect(styleRow()).not.toBeNull();

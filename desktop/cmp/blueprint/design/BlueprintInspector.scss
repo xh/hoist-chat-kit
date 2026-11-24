@@ -138,7 +138,7 @@
     font-size: 11px;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__issue {
@@ -172,7 +172,7 @@
     flex: none;
     width: 72px;
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__chips {
