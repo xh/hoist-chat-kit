@@ -12,7 +12,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__tiles {
@@ -48,7 +48,7 @@
     justify-content: center;
     height: 44px;
     padding: 6px 8px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     background-color: var(--xh-bg-alt);
 
     > svg.xh-blueprint-preview {
@@ -70,14 +70,14 @@
     display: -webkit-box;
     overflow: hidden;
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
   }
 
   &__target {
     font-size: var(--xh-font-size-small);
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__source {

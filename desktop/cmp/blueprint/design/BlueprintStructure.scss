@@ -7,12 +7,12 @@
 
   &__count {
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__slot {
     font-style: italic;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__row {
@@ -27,7 +27,7 @@
   }
 
   &__icon {
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__name {
@@ -38,7 +38,7 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__issue {

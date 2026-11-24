@@ -9,6 +9,7 @@ import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
 import {
     type BlueprintDesignModel,
     type SourcePage,
+    variableTypeLabel,
     FIELD_OVERRIDE_SCHEMA,
     type DatasetDef,
     type FieldInstance,
@@ -412,7 +413,7 @@ function declaration(impl: SourceEditorModel) {
                             value: (decl.params?.[pn] as PlainObject)?.$var ?? null,
                             options: impl.paramVariables(pd.type),
                             enableClear: !pd.required,
-                            placeholder: `A ${pd.type} variable…`,
+                            placeholder: `${withArticle(variableTypeLabel(impl.designModel.blueprintModel.registry, pd.type))} variable…`,
                             disabled,
                             width: '100%',
                             onCommit: (v: string) => {
@@ -733,4 +734,10 @@ function instanceBody(
             })
         )
     ];
+}
+
+// A noun after its article, for a placeholder: "A fund", "An integer".
+function withArticle(noun: string): string {
+    const lower = noun.toLowerCase();
+    return `${/^[aeiou]/.test(lower) ? 'An' : 'A'} ${lower}`;
 }

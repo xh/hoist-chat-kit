@@ -37,7 +37,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__group {
@@ -120,19 +120,19 @@
     font-size: 11px;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__node-line {
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
   }
 
   &__port {
     padding-left: var(--xh-spacing);
     font-family: var(--xh-font-family-mono);
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     border-top: 1px solid var(--xh-border-color);
   }
 
@@ -235,7 +235,7 @@
     display: flex;
     flex-direction: column;
     font-size: 11px;
-    color: var(--xh-text-color-muted);
+    color: var(--xh-blueprint-inspector-muted);
     background-color: var(--xh-bg);
     border: var(--xh-border-solid);
     border-radius: var(--xh-border-radius);

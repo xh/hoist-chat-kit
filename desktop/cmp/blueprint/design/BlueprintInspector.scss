@@ -37,7 +37,7 @@
     &--current {
       flex: 0 1 auto;
       min-width: 0;
-      background-color: var(--xh-intent-primary-trans1);
+      background-color: color-mix(in srgb, var(--xh-intent-primary) 8%, var(--xh-bg));
 
       .xh-blueprint-inspector__crumb-id {
         flex: 0 1 auto;
