@@ -972,8 +972,8 @@ export function booleanEditor({
     });
 }
 
-// Delete on a list item, its handle or its row, removes that item, not the list's row.
-function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => void) {
+/** Delete on a list item, its handle or its row, removes that item, not the list's row. */
+export function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => void) {
     const target = e.target as HTMLElement;
     if (e.key !== 'Delete' || isTextEntry(target)) return;
     const list = e.currentTarget as HTMLElement,
@@ -1484,45 +1484,7 @@ function pageView(opts: {
             }
         },
         children: [
-            hbox({
-                className: `${CLS}__page-bar`,
-                children: [
-                    button({
-                        icon: Icon.arrowLeft(),
-                        text: listLabel,
-                        minimal: true,
-                        small: true,
-                        title: `Back to ${listLabel}`,
-                        onClick: onBack
-                    }),
-                    div({
-                        className: `${CLS}__page-title`,
-                        children: [
-                            span({children: title}),
-                            meta ? span({className: `${CLS}__column-field`, children: meta}) : null
-                        ]
-                    }),
-                    span({className: `${CLS}__page-count`, children: `${index + 1} of ${count}`}),
-                    button({
-                        icon: Icon.chevronUp(),
-                        minimal: true,
-                        small: true,
-                        disabled: index === 0,
-                        title: 'Previous · Alt+↑',
-                        'aria-label': 'Previous',
-                        onClick: () => onStep(-1)
-                    }),
-                    button({
-                        icon: Icon.chevronDown(),
-                        minimal: true,
-                        small: true,
-                        disabled: index === count - 1,
-                        title: 'Next · Alt+↓',
-                        'aria-label': 'Next',
-                        onClick: () => onStep(1)
-                    })
-                ]
-            }),
+            pageBar({listLabel, title, meta, index, count, onStep, onBack}),
             ...groups.map(group => {
                 const inGroup = settings.filter(
                         it => group.id == null || it.node.schema['x-group'] === group.id
@@ -1562,6 +1524,61 @@ function pageView(opts: {
                             : null
                     ]
                 });
+            })
+        ]
+    });
+}
+
+/**
+ * A list item's page bar: back to its list, its name, its place, and steps to the items either
+ * side of it.
+ */
+export function pageBar(opts: {
+    listLabel: string;
+    title: string;
+    meta?: string;
+    index: number;
+    count: number;
+    onStep: (by: number) => void;
+    onBack: () => void;
+}): ReactNode {
+    const {listLabel, title, meta, index, count, onStep, onBack} = opts;
+    return hbox({
+        className: `${CLS}__page-bar`,
+        children: [
+            button({
+                icon: Icon.arrowLeft(),
+                text: listLabel,
+                minimal: true,
+                small: true,
+                title: `Back to ${listLabel}`,
+                onClick: onBack
+            }),
+            div({
+                className: `${CLS}__page-title`,
+                children: [
+                    span({children: title}),
+                    meta ? span({className: `${CLS}__column-field`, children: meta}) : null
+                ]
+            }),
+            span({className: `${CLS}__page-count`, children: `${index + 1} of ${count}`}),
+            button({
+                icon: Icon.chevronUp(),
+                minimal: true,
+                small: true,
+                disabled: index === 0,
+                title: 'Previous · Alt+↑',
+                'aria-label': 'Previous',
+                onClick: () => onStep(-1)
+            }),
+            button({
+                icon: Icon.chevronDown(),
+                minimal: true,
+                small: true,
+                disabled: index === count - 1,
+                title: 'Next · Alt+↓',
+                'aria-label': 'Next',
+                onClick: () => onStep(1)
             })
         ]
     });
@@ -2132,6 +2149,7 @@ function actionEditor(
     const stepHeader = (step: PlainObject, i: number) =>
             hbox({
                 className: `${CLS}__item-header`,
+                ...({'data-row-key': keys[i]} as object),
                 children: [
                     select({
                         value: step.type,
@@ -2144,14 +2162,6 @@ function actionEditor(
                                 ...impl.stepStart(type),
                                 ...(step.confirm ? {confirm: true} : {})
                             })
-                    }),
-                    button({
-                        icon: Icon.delete(),
-                        title: 'Remove',
-                        intent: 'danger',
-                        minimal: true,
-                        disabled: disabled || (node.required && steps.length === 1),
-                        onClick: () => commitSteps(steps.filter((_, j) => j !== i))
                     })
                 ]
             }),
@@ -2212,7 +2222,12 @@ function actionEditor(
             });
         };
     return div({
-        className: `${CLS}__list`,
+        className: `${CLS}__list ${CLS}__field-list`,
+        // Delete on a step removes it, though never the last of a required action.
+        onKeyDown: (e: React.KeyboardEvent) =>
+            !disabled &&
+            !(node.required && steps.length === 1) &&
+            onItemDelete(e, key => commitSteps(steps.filter((_, j) => keys[j] !== key))),
         children: [
             ...(steps.length > 1
                 ? [

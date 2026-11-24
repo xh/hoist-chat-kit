@@ -1132,6 +1132,14 @@ describe('ElementInspector', () => {
         const steps = container.querySelector('.xh-blueprint-element-inspector__steps');
         expect(steps.querySelectorAll('.xh-blueprint-element-inspector__step')).toHaveLength(2);
         expect(steps.querySelector('.xh-sortable-list__expander')).toBeNull();
+        // Delete on a step removes that step alone.
+        expect(steps.querySelector('[title="Remove"]')).toBeNull();
+        fireEvent.keyDown(steps.querySelector('[data-row-key]'), {key: 'Delete'});
+        expect(
+            (design.blueprintModel.blueprint.elements.posGrid.config.rowActions as any)[0].action
+        ).toEqual({
+            type: 'refresh'
+        });
     });
 
     it("moves an action's step and a list's item two places with Alt+Down twice", async () => {

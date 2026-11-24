@@ -1,4 +1,4 @@
-import {render} from '@testing-library/react';
+import {fireEvent, render} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
@@ -70,6 +70,32 @@ describe('SourcesEditor', () => {
             ]);
             expect(editor.joinFieldOptions(0).map(it => it.value)).toContain('high');
             editor.removeJoin(0);
+            expect(model.blueprint.sources.positions.joins).toBeUndefined();
+        });
+
+        it('lists each join as a row, opened on its page, and removes it on Delete', () => {
+            const {model, design} = open();
+            design.blueprintModel.applyEdit({
+                ops: [
+                    {
+                        op: 'set',
+                        path: '/sources/positions/joins',
+                        value: [{source: 'prices', on: {symbol: 'symbol'}, fields: ['close']}]
+                    }
+                ]
+            });
+            const {container} = render(sourcesEditor({designModel: design}) as ReactElement),
+                row = () => container.querySelector('[data-row-key="prices"]'),
+                page = () =>
+                    container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page');
+            expect(row().textContent).toContain('on symbol');
+            expect(row().textContent).toContain('1 field');
+            fireEvent.click(row().querySelector('[aria-label="All settings of prices"]'));
+            expect(page().textContent).toContain('1 of 1');
+            expect(page().textContent).toContain('Fields');
+            fireEvent.keyDown(page(), {key: 'Escape'});
+            expect(page()).toBeNull();
+            fireEvent.keyDown(row(), {key: 'Delete'});
             expect(model.blueprint.sources.positions.joins).toBeUndefined();
         });
 

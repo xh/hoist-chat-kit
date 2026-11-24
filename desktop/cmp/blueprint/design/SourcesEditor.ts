@@ -3,6 +3,8 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} fr
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import type {KeyboardEvent} from 'react';
+import {action, observableRef} from '@xh/hoist/mobx';
 import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
 import {
     type BlueprintDesignModel,
@@ -19,11 +21,14 @@ import {joinFields, type JoinField} from '../../../../blueprint/impl/joins';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {
     CLS,
+    countLabel,
     issueRows,
     labelled,
     listOf,
     nodeOf,
+    onItemDelete,
     type Option,
+    pageBar,
     propertyRow
 } from './impl/ConfigEditors';
 
@@ -51,6 +56,14 @@ export const [SourcesEditor, sourcesEditor] = hoistCmp.withFactory<SourcesEditor
 
 /** @internal */
 export class SourceEditorModel extends ConfigEditorModel {
+    /** The join or field instance whose page shows in place of the source's settings, or null. */
+    @observableRef accessor page: {source: string; list: 'joins' | 'instances'; key: string} = null;
+
+    @action
+    setPage(page: {list: 'joins' | 'instances'; key: string}) {
+        this.page = page ? {source: this.name, ...page} : null;
+    }
+
     /** The selected source's name, or null. */
     get name(): string {
         const {selection, blueprintModel} = this.designModel;
@@ -341,6 +354,10 @@ function declaration(impl: SourceEditorModel) {
         instances = pickBy(fields, isFieldInstance) as Record<string, FieldInstance>,
         commitFields = (next: PlainObject) =>
             impl.commit('fields', isEmpty(next) ? undefined : next);
+    if (impl.page?.source === impl.name) {
+        const page = sourcePage(impl, instances, overrides, commitFields);
+        if (page) return page;
+    }
     return [
         labelled(
             'Name',
@@ -428,83 +445,29 @@ function declaration(impl: SourceEditorModel) {
     ];
 }
 
-// Each join: its source, the fields it pairs, the fields it brings with their names and modes.
+// Each join as a row, its source and what it pairs and brings, opened on its page. Delete on a row
+// removes the join.
 function joinsEditor(impl: SourceEditorModel) {
     const disabled = impl.readOnly,
         joins = impl.values.joins ?? [];
     return div({
-        className: `${CLS}__list`,
+        className: `${CLS}__list ${CLS}__field-list`,
+        onKeyDown: (e: KeyboardEvent) =>
+            !disabled &&
+            onItemDelete(e, key => impl.removeJoin(joins.findIndex(it => it.source === key))),
         children: [
-            ...joins.map((join, idx) =>
-                div({
-                    key: `${idx}:${join.source}`,
-                    className: `${CLS}__item`,
-                    children: [
-                        hbox({
-                            className: `${CLS}__item-header`,
-                            children: [
-                                div({className: `${CLS}__item-label`, children: join.source}),
-                                button({
-                                    icon: Icon.delete(),
-                                    title: 'Remove the join',
-                                    disabled,
-                                    onClick: () => impl.removeJoin(idx)
-                                })
-                            ]
-                        }),
-                        ...Object.entries(join.on ?? {}).map(([own, other]) =>
-                            hbox({
-                                key: own,
-                                children: [
-                                    select({
-                                        value: own,
-                                        options: impl.onFieldOptions,
-                                        disabled,
-                                        flex: 1,
-                                        onCommit: (f: string) =>
-                                            impl.setJoin(idx, {
-                                                on: {...omit(join.on, own), [f]: other}
-                                            })
-                                    }),
-                                    select({
-                                        value: other,
-                                        options: impl.onOptions(idx, own),
-                                        disabled,
-                                        flex: 1,
-                                        onCommit: (f: string) =>
-                                            impl.setJoin(idx, {on: {...join.on, [own]: f}})
-                                    })
-                                ]
-                            })
-                        ),
-                        select({
-                            value: join.fields ?? [],
-                            options: impl.joinFieldOptions(idx),
-                            enableMulti: true,
-                            placeholder: 'Fields to bring…',
-                            disabled,
-                            width: '100%',
-                            onCommit: (fields: string[]) => impl.setJoin(idx, {fields})
-                        }),
-                        ...impl.joinModes(idx).map(it =>
-                            labelled(
-                                `${it.field}: ${it.mode}${it.reduce ? ', reduced' : ''}`,
-                                textInput({
-                                    value: join.as?.[it.field] ?? '',
-                                    placeholder: 'Name it here as…',
-                                    disabled,
-                                    width: '100%',
-                                    onCommit: (name: string) =>
-                                        impl.setJoin(idx, {
-                                            as: name
-                                                ? {...join.as, [it.field]: name}
-                                                : omit(join.as, it.field)
-                                        })
-                                })
-                            )
-                        )
-                    ]
-                })
+            ...joins.map(join =>
+                itemRow(
+                    join.source,
+                    join.source,
+                    [
+                        Object.keys(join.on ?? {}).length
+                            ? `on ${Object.keys(join.on).join(', ')}`
+                            : null,
+                        join.fields?.length ? countLabel(join.fields.length, 'field') : null
+                    ],
+                    () => impl.setPage({list: 'joins', key: join.source})
+                )
             ),
             select({
                 value: null,
@@ -518,68 +481,170 @@ function joinsEditor(impl: SourceEditorModel) {
     });
 }
 
-// Instances of the dataset's parameterized fields: each its field and parameters, plus a way to add one.
+// A join's settings: the fields it pairs, the fields it brings, and their names here.
+function joinBody(impl: SourceEditorModel, join: PlainObject, idx: number) {
+    const disabled = impl.readOnly;
+    return [
+        labelled(
+            'On',
+            div({
+                className: `${CLS}__group`,
+                children: Object.entries<string>(join.on ?? {}).map(([own, other]) =>
+                    hbox({
+                        key: own,
+                        children: [
+                            select({
+                                value: own,
+                                options: impl.onFieldOptions,
+                                disabled,
+                                flex: 1,
+                                onCommit: (f: string) =>
+                                    impl.setJoin(idx, {on: {...omit(join.on, own), [f]: other}})
+                            }),
+                            select({
+                                value: other,
+                                options: impl.onOptions(idx, own),
+                                disabled,
+                                flex: 1,
+                                onCommit: (f: string) =>
+                                    impl.setJoin(idx, {on: {...join.on, [own]: f}})
+                            })
+                        ]
+                    })
+                )
+            })
+        ),
+        labelled(
+            'Fields',
+            select({
+                value: join.fields ?? [],
+                options: impl.joinFieldOptions(idx),
+                enableMulti: true,
+                placeholder: 'Fields to bring…',
+                disabled,
+                width: '100%',
+                onCommit: (fields: string[]) => impl.setJoin(idx, {fields})
+            })
+        ),
+        ...impl.joinModes(idx).map(it =>
+            labelled(
+                `${it.field}: ${it.mode}${it.reduce ? ', reduced' : ''}`,
+                textInput({
+                    value: join.as?.[it.field] ?? '',
+                    placeholder: 'Name it here as…',
+                    disabled,
+                    width: '100%',
+                    onCommit: (name: string) =>
+                        impl.setJoin(idx, {
+                            as: name ? {...join.as, [it.field]: name} : omit(join.as, it.field)
+                        })
+                })
+            )
+        )
+    ];
+}
+
+// A list item's row: its label, chips of what it sets, and › to its page.
+function itemRow(key: string, label: string, chips: string[], openPage: () => void) {
+    return hbox({
+        key,
+        className: `${CLS}__item-header`,
+        tabIndex: 0,
+        ...({'data-row-key': key} as object),
+        onKeyDown: (e: KeyboardEvent) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            openPage();
+        },
+        children: [
+            div({className: `${CLS}__column-label`, children: label}),
+            ...chips
+                .filter(Boolean)
+                .map((it, idx) => div({key: idx, className: `${CLS}__chip-text`, children: it})),
+            button({
+                className: `${CLS}__page-link`,
+                icon: Icon.chevronRight(),
+                minimal: true,
+                small: true,
+                title: `All settings of ${label}`,
+                'aria-label': `All settings of ${label}`,
+                onClick: openPage
+            })
+        ]
+    } as object);
+}
+
+// The page of the join or field instance open, or null if it is gone.
+function sourcePage(
+    impl: SourceEditorModel,
+    instances: Record<string, FieldInstance>,
+    overrides: PlainObject,
+    commitFields: (fields: PlainObject) => void
+) {
+    const {list, key} = impl.page,
+        isJoin = list === 'joins',
+        keys = isJoin ? (impl.values.joins ?? []).map(it => it.source) : Object.keys(instances),
+        index = keys.indexOf(key);
+    if (index < 0) return null;
+    const back = () => impl.setPage(null);
+    return [
+        div({
+            key: 'page',
+            className: `${CLS}__page`,
+            onKeyDown: (e: KeyboardEvent) => {
+                if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                    e.preventDefault();
+                    const to = keys[index + (e.key === 'ArrowUp' ? -1 : 1)];
+                    if (to) impl.setPage({list, key: to});
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    back();
+                }
+            },
+            children: [
+                pageBar({
+                    listLabel: isJoin ? 'Joins' : 'Field instances',
+                    title: key,
+                    index,
+                    count: keys.length,
+                    onStep: by => keys[index + by] && impl.setPage({list, key: keys[index + by]}),
+                    onBack: back
+                }),
+                ...(isJoin
+                    ? joinBody(impl, impl.values.joins[index], index)
+                    : instanceBody(impl, key, instances, overrides, commitFields))
+            ]
+        })
+    ];
+}
+
+// Instances of the dataset's parameterized fields, each a row opened on its page, plus a way to
+// add one. Delete on a row removes it.
 function instancesEditor(
     impl: SourceEditorModel,
     instances: Record<string, FieldInstance>,
     overrides: PlainObject,
     commitFields: (fields: PlainObject) => void
 ) {
-    const disabled = impl.readOnly,
-        commitInstance = (name: string, inst: FieldInstance) =>
-            commitFields({...overrides, ...instances, [name]: inst});
+    const disabled = impl.readOnly;
     return div({
-        className: `${CLS}__list`,
+        className: `${CLS}__list ${CLS}__field-list`,
+        onKeyDown: (e: KeyboardEvent) =>
+            !disabled &&
+            onItemDelete(e, name => commitFields({...overrides, ...omit(instances, name)})),
         children: [
             ...Object.entries(instances).map(([name, inst]) =>
-                div({
-                    key: name,
-                    className: `${CLS}__item`,
-                    children: [
-                        hbox({
-                            className: `${CLS}__item-header`,
-                            children: [
-                                div({className: `${CLS}__item-label`, children: name}),
-                                button({
-                                    icon: Icon.delete(),
-                                    title: 'Remove',
-                                    disabled,
-                                    onClick: () =>
-                                        commitFields({...overrides, ...omit(instances, name)})
-                                })
-                            ]
-                        }),
-                        select({
-                            value: inst.field,
-                            options: impl.parameterizedFields,
-                            disabled,
-                            width: '100%',
-                            onCommit: (field: string) => commitInstance(name, {...inst, field})
-                        }),
-                        ...impl.fieldParams(inst.field).map(([pn, pd]) =>
-                            propertyRow({
-                                key: pn,
-                                node: {
-                                    ...nodeOf(pn, {
-                                        ...impl.valueSchema(pd.type),
-                                        description: pd.description
-                                    }),
-                                    bindable: true
-                                },
-                                value: inst.params?.[pn],
-                                commit: v =>
-                                    commitInstance(name, {
-                                        ...inst,
-                                        params:
-                                            v === undefined
-                                                ? omit(inst.params, pn)
-                                                : {...inst.params, [pn]: v}
-                                    }),
-                                ctx: {impl, key: 'fields'}
-                            })
-                        )
-                    ]
-                })
+                itemRow(
+                    name,
+                    name,
+                    [
+                        inst.field,
+                        Object.keys(inst.params ?? {}).length
+                            ? `${Object.keys(inst.params).length} set`
+                            : null
+                    ],
+                    () => impl.setPage({list: 'instances', key: name})
+                )
             ),
             select({
                 key: Object.keys(instances).length,
@@ -591,4 +656,45 @@ function instancesEditor(
             })
         ]
     });
+}
+
+// A field instance's settings: its field, then its parameters, each bound or set.
+function instanceBody(
+    impl: SourceEditorModel,
+    name: string,
+    instances: Record<string, FieldInstance>,
+    overrides: PlainObject,
+    commitFields: (fields: PlainObject) => void
+) {
+    const inst = instances[name],
+        commitInstance = (next: FieldInstance) =>
+            commitFields({...overrides, ...instances, [name]: next});
+    return [
+        labelled(
+            'Field',
+            select({
+                value: inst.field,
+                options: impl.parameterizedFields,
+                disabled: impl.readOnly,
+                width: '100%',
+                onCommit: (field: string) => commitInstance({...inst, field})
+            })
+        ),
+        ...impl.fieldParams(inst.field).map(([pn, pd]) =>
+            propertyRow({
+                key: pn,
+                node: {
+                    ...nodeOf(pn, {...impl.valueSchema(pd.type), description: pd.description}),
+                    bindable: true
+                },
+                value: inst.params?.[pn],
+                commit: v =>
+                    commitInstance({
+                        ...inst,
+                        params: v === undefined ? omit(inst.params, pn) : {...inst.params, [pn]: v}
+                    }),
+                ctx: {impl, key: 'fields'}
+            })
+        )
+    ];
 }
