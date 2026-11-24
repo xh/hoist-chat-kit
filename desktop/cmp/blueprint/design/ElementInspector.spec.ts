@@ -783,6 +783,19 @@ describe('ElementInspector', () => {
         expect(summary.querySelector('.xh-blueprint-element-inspector__pictures--many')).toBeNull();
     });
 
+    it('shows a choice of a few short words as segments, with None where it may stay unset', () => {
+        const {design} = open(),
+            id = design.addWidget('chart', 'positions').id;
+        act(() => design.select({kind: 'element', id}));
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            segments = (key: string) =>
+                [...container.querySelectorAll(`[data-config-key="${key}"] [aria-checked]`)].map(
+                    it => it.textContent
+                );
+        expect(segments('stacking')).toEqual(['None', 'Normal', 'Percent']);
+        expect(container.querySelector('[data-config-key="stacking"] .xh-select')).toBeNull();
+    });
+
     it('tints a required setting while it is unset', () => {
         const {design} = open(),
             id = design.addWidget('statCard', 'positions').id;

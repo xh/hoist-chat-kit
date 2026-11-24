@@ -48,13 +48,15 @@ const TITLE = {
     type: 'string',
     maxLength: 100,
     'x-binding': true,
-    'x-template': 'variables'
+    'x-template': 'variables',
+    'x-unset': 'No title'
 } as const satisfies BlueprintSchema;
 
 const EMPTY_TEXT = {
     'x-group': 'content',
     type: 'string',
     maxLength: 200,
+    'x-unset': 'Nothing to show',
     description: 'Text shown while the container has no children.'
 } as const satisfies BlueprintSchema;
 
@@ -297,12 +299,15 @@ const PANEL_SCHEMA = {
             type: 'boolean',
             default: false,
             'x-binding': false,
-            description: 'Shows the panel collapsed to its header.'
+            title: 'Starts collapsed',
+            description: 'Shows the panel collapsed to its header. Only when collapsible.'
         },
         compactHeader: {
             'x-group': 'appearance',
             type: 'boolean',
             default: false,
+            title: 'Header',
+            'x-labels': {false: 'Standard', true: 'Compact'},
             description: 'Draws a shorter header.'
         },
         emptyText: EMPTY_TEXT
@@ -408,6 +413,7 @@ const SELECT_SCHEMA = {
             type: 'string',
             maxLength: 60,
             'x-group': 'content',
+            'x-unset': 'Select…',
             description: 'Shown in the input while it has no value.'
         }
     }
@@ -458,7 +464,13 @@ const NUMBER_INPUT_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
-const TEXT_INPUT_SCHEMA = SELECT_SCHEMA;
+const TEXT_INPUT_SCHEMA = {
+    ...SELECT_SCHEMA,
+    properties: {
+        ...SELECT_SCHEMA.properties,
+        placeholder: {...SELECT_SCHEMA.properties.placeholder, 'x-unset': 'None'}
+    }
+} as const satisfies BlueprintSchema;
 
 const SWITCH_INPUT_SCHEMA = DATE_INPUT_SCHEMA;
 
@@ -784,8 +796,10 @@ const CUBE_GRID_SCHEMA = {
                     },
                     headerTooltip: {
                         'x-group': 'header',
+                        title: 'Tooltip',
                         type: 'string',
-                        maxLength: 500,
+                        maxLength: 200,
+                        'x-unset': 'The field description',
                         description: 'The header tooltip. Default the field description.'
                     },
                     headerAlign: {
@@ -1091,6 +1105,7 @@ const CHART_SCHEMA = {
         },
         x: {
             'x-group': 'data',
+            title: 'Category (X)',
             type: 'string',
             'x-field': 'any',
             description: 'The field across the x-axis, one point per value.'
@@ -1121,6 +1136,7 @@ const CHART_SCHEMA = {
         },
         y2Title: {
             'x-group': 'content',
+            title: 'Y2 title',
             'x-advanced': true,
             type: 'string',
             maxLength: 100,
@@ -1129,6 +1145,7 @@ const CHART_SCHEMA = {
         },
         groupBy: {
             'x-group': 'data',
+            title: 'Split by',
             type: 'string',
             'x-field': 'dimension',
             'x-starter': false,

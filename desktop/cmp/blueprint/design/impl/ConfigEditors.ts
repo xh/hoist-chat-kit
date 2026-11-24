@@ -498,6 +498,26 @@ function editorFor(
                     onCommit: v => commit(v === node.default ? undefined : v)
                 });
             }
+            // A few short options, such as an alignment or a pin, show all at once. One with no
+            // default leads with None while it may stay unset, up to three options besides.
+            if (isShortChoice(node)) {
+                const unsettable = node.default === undefined && !node.required,
+                    withNone = unsettable && node.options.length < 3;
+                return segmentedControl({
+                    value: (value ?? node.default ?? null) as any,
+                    options: [
+                        ...(withNone ? [{value: null, label: 'None'}] : []),
+                        ...node.options.map(it => ({
+                            value: it as any,
+                            label: choiceLabel(node, it)
+                        }))
+                    ],
+                    disabled,
+                    compact: true,
+                    className: classNames(implied && `${CLS}__implied`),
+                    onCommit: v => commit(v === node.default || v == null ? undefined : v)
+                });
+            }
             return select({
                 value: value ?? null,
                 options: choiceOptions(node),
@@ -2035,6 +2055,14 @@ function formatOptionsCard(
 
 // A choice's label: its `x-labels` entry, else Off for false, else its value in words.
 // A choice's options, built once per node, so its select keeps the same props as it draws again.
+// A choice of three or fewer short words, which a segmented control shows better than a select.
+function isShortChoice(node: Extract<EditorNode, {kind: 'choice'}>): boolean {
+    return (
+        node.options.length <= 3 &&
+        node.options.every(it => isString(it) && choiceLabel(node, it).length <= 10)
+    );
+}
+
 const choiceOptionsCache = new WeakMap<EditorNode, Option[]>();
 
 function choiceOptions(node: Extract<EditorNode, {kind: 'choice'}>): Option[] {
