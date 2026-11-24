@@ -318,6 +318,13 @@ export abstract class ConfigEditorModel extends HoistModel {
         return this.memo(`fieldOptions:${role}`, () => this.buildFieldOptions(role));
     }
 
+    /** The fields that can fill a role and that a field list does not hold yet, for its Add. */
+    addFieldOptions(role: string, held: string[]): Option[] {
+        return this.memo(`addFieldOptions:${role}:${held.join('|')}`, () =>
+            this.fieldOptions(role).filter(it => !held.includes(it.value))
+        );
+    }
+
     private buildFieldOptions(role: string): Option[] {
         const {source} = this;
         if (!source) return [];

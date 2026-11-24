@@ -1607,13 +1607,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
             {entries, rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
             namedRef = useNamedInputs(),
             fieldsOf = entries.map(it => it.field),
-            options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
-            // The same props while the list's fields hold, so the select draws again only then.
-            addOptions = useMemo(
-                () => options.filter(it => !fieldsOf.includes(it.value)),
-                // eslint-disable-next-line react-hooks/exhaustive-deps
-                [options.length, fieldsOf.join('|'), impl.fieldOptions(node.role)]
-            ),
+            addOptions = impl.addFieldOptions(node.role, fieldsOf),
             addField = useCallback((field: string) => ops.current.add(field), [ops]),
             addPlaceholder =
                 node.role === 'measure'
