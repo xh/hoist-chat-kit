@@ -147,6 +147,8 @@ describe('template widgets', () => {
         expect(note.markdownProps('Fund: {fund}').markdownPlugins).toBe(first.markdownPlugins);
         model.setVariable('fund', 'Elm');
         expect(props.markdownPlugins).not.toBe(first.markdownPlugins);
+        // A text still streaming in may not be there yet.
+        expect(note.markdownProps(undefined).content).toBe('');
     });
 
     it('renders nothing for a template whose every reference is empty', () => {

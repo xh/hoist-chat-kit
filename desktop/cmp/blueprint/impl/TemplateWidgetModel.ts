@@ -88,7 +88,7 @@ export class TemplateWidgetModel<
     markdownProps(
         text: string
     ): Pick<ChatMarkdownProps, 'content' | 'markdownPlugins' | 'isStreaming'> {
-        if (this.template?.text !== text) {
+        if (!this.template || this.template.text !== text) {
             this.template = {
                 text,
                 filled: computed(() => markdownTemplate(text, ref => this.refValue(ref)), {
