@@ -346,7 +346,12 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /** A field's label, through the source. */
     fieldLabel(name: string): string {
-        return this.memo(`label:${name}`, () => this.source?.fieldLabel(name) ?? name);
+        return this.memo(`label:${name}`, () =>
+            // A grid's `group` names its tree column, where the source has no such field.
+            name === 'group' && !this.source?.fields[name]
+                ? 'Tree column'
+                : (this.source?.fieldLabel(name) ?? name)
+        );
     }
 
     /** The variables a property can bind, by the type its schema takes. */

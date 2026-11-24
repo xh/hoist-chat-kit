@@ -3,7 +3,7 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} fr
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import type {KeyboardEvent} from 'react';
+import {type KeyboardEvent, useEffect, useRef} from 'react';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
 import {
@@ -29,7 +29,8 @@ import {
     onItemDelete,
     type Option,
     pageBar,
-    propertyRow
+    propertyRow,
+    refocusAdd
 } from './impl/ConfigEditors';
 
 export interface SourcesEditorProps extends HoistProps {
@@ -305,8 +306,18 @@ const FILTER_NODE = nodeOf('filter', {'x-filter': true, type: 'object'}),
 const sourcesBody = hoistCmp.factory<SourceEditorModel>({
     model: uses(SourceEditorModel),
     render({model: impl, className}) {
-        const {name, readOnly: disabled} = impl;
+        const {name, readOnly: disabled} = impl,
+            ref = useRef<HTMLDivElement>(null),
+            pageKey = impl.page ? `${impl.page.list}/${impl.page.key}` : null;
+        // A page takes focus as it opens or steps, so its keys work at once.
+        useEffect(() => {
+            const page = ref.current?.querySelector<HTMLElement>(`.${CLS}__page`);
+            if (page && !page.contains(document.activeElement)) {
+                page.querySelector<HTMLElement>('button')?.focus();
+            }
+        }, [pageKey]);
         return div({
+            ref,
             className,
             children: [
                 impl.framed
@@ -628,7 +639,7 @@ function instancesEditor(
 ) {
     const disabled = impl.readOnly;
     return div({
-        className: `${CLS}__list ${CLS}__field-list`,
+        className: `${CLS}__list ${CLS}__field-list ${CLS}__instances`,
         onKeyDown: (e: KeyboardEvent) =>
             !disabled &&
             onItemDelete(e, name => commitFields({...overrides, ...omit(instances, name)})),
@@ -652,7 +663,11 @@ function instancesEditor(
                 options: impl.parameterizedFields,
                 disabled: disabled || !impl.parameterizedFields.length,
                 width: '100%',
-                onCommit: (field: string) => field && impl.addInstance(field)
+                onCommit: (field: string) => {
+                    if (!field) return;
+                    impl.addInstance(field);
+                    refocusAdd(document.querySelector(`.${CLS}__instances`));
+                }
             })
         ]
     });

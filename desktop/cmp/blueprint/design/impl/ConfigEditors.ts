@@ -989,7 +989,7 @@ export function onItemDelete(e: React.KeyboardEvent, remove: (key: string) => vo
         next = keys[at + 1] ?? keys[at - 1];
     remove(key);
     if (next) {
-        focusItem(next);
+        focusItem(next, list);
     } else {
         wait().then(() =>
             list
@@ -1019,13 +1019,32 @@ function itemOf(el: HTMLElement, list: HTMLElement): {item: HTMLElement; row: HT
 }
 
 /** Focus a list item's handle by its row's key, as a page closes, so the keyboard stays there. */
-function focusItem(key: string) {
+function focusItem(key: string, fallback?: HTMLElement) {
     wait().then(() => {
         const row = document.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(key)}"]`),
             list = row?.closest<HTMLElement>(`.${CLS}__field-list`),
             item = row && list ? itemOf(row, list)?.item : null;
-        (item?.querySelector<HTMLElement>('[class*="handle"]') ?? row)?.focus();
+        // A list that now draws its one item without rows, such as a lone step, takes focus itself.
+        (
+            item?.querySelector<HTMLElement>('[class*="handle"]') ??
+            row ??
+            fallback?.querySelector<HTMLElement>('input, button, [tabindex="0"]')
+        )?.focus();
     });
+}
+
+/** Focus a page's back button as it opens or steps, unless focus is already in it. */
+function usePageFocus(ref: {current: HTMLElement}, itemKey: string) {
+    useEffect(() => {
+        const el = ref.current;
+        if (el && !el.contains(document.activeElement))
+            el.querySelector<HTMLElement>('button')?.focus();
+    }, [ref, itemKey]);
+}
+
+/** Focus a list's add control again after it remounts for an add, so another add follows. */
+export function refocusAdd(list: HTMLElement) {
+    wait().then(() => list?.querySelector<HTMLElement>(':scope > :last-child input')?.focus());
 }
 
 // A list's one open item, kept by the Inspector, so it stays open while the list remounts.
@@ -1282,6 +1301,12 @@ const entrySettings = (node: FieldListNode) => [
     ...(node.settingsIn?.settings ?? []).map(it => ({setting: it, own: false}))
 ];
 
+// What a field list entry shows as: its own header or name, else its field's label.
+function entryLabel(impl: ConfigEditorModel, entry: PlainObject, mapped: PlainObject): string {
+    const own = [mapped.headerName, mapped.name, entry.headerName, entry.name].find(isString);
+    return own || impl.fieldLabel(entry.field);
+}
+
 // What a set value shows as on its item's row, such as `$m 1dp`, `pinned left` or `90px`.
 function chipText(setting: EditorNode, value: unknown): string {
     if (value == null || value === false) return null;
@@ -1321,6 +1346,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
             {settingsIn} = node,
             disabled = impl.readOnly,
             {entries, rows, ops, mappedOf} = useFieldList(node, items, commit, ctx),
+            namedRef = useNamedInputs(),
             fieldsOf = entries.map(it => it.field),
             options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
             // The same props while the list's fields hold, so the select draws again only then.
@@ -1329,9 +1355,15 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                 // eslint-disable-next-line react-hooks/exhaustive-deps
                 [options.length, fieldsOf.join('|'), impl.fieldOptions(node.role)]
             ),
-            addField = useCallback((field: string) => ops.current.add(field), [ops]),
+            addField = useCallback(
+                (field: string) => {
+                    ops.current.add(field);
+                    refocusAdd(namedRef.current);
+                },
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+                [ops]
+            ),
             all = entrySettings(node),
-            namedRef = useNamedInputs(),
             canPage = !!impl.pageElement && all.length > 6,
             summary = sortBy(
                 all.filter(it => settingsIn?.summary?.includes(it.setting.key)),
@@ -1362,7 +1394,7 @@ const fieldListEditor = hoistCmp.factory<ListEditorProps<FieldListNode>>({
                         children: [
                             span({
                                 className: `${CLS}__column-label`,
-                                children: impl.fieldLabel(entry.field)
+                                children: entryLabel(impl, entry, mapped)
                             }),
                             span({className: `${CLS}__column-field`, children: entry.field}),
                             ...chips.map((it, idx) =>
@@ -1595,6 +1627,7 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             ref = useNamedInputs(),
             index = rows.findIndex(it => it.key === itemKey),
             row = rows[index];
+        usePageFocus(ref, `${itemKey}/${impl.designModel.itemPage?.inner?.key ?? ''}`);
         if (!row) return null;
         const mapped = mappedOf(row.entry),
             {field} = row.entry,
@@ -1631,7 +1664,7 @@ export const fieldItemPage = hoistCmp.factory<ListEditorProps<FieldListNode> & {
             scope,
             ref,
             listLabel: node.label,
-            title: impl.fieldLabel(row.entry.field),
+            title: entryLabel(impl, row.entry, mapped),
             meta: row.entry.field,
             index,
             count: rows.length,
@@ -1682,6 +1715,7 @@ export const listItemPage = hoistCmp.factory<
             ref = useNamedInputs(),
             index = keys.indexOf(itemKey),
             value = items[index] as PlainObject;
+        usePageFocus(ref, itemKey);
         if (index < 0) return null;
         const set = (key: string, v: unknown) =>
             commit(

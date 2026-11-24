@@ -942,6 +942,22 @@ describe('ElementInspector', () => {
         expect(row('mktVal').querySelector('[title="Remove"]')).toBeNull();
     });
 
+    it('focuses a page as it opens, so Escape leaves it, and names rows by their own header', async () => {
+        const {design} = open('p2-linked-dashboard.json', 'posGrid');
+        design.setConfig('posGrid', '/columnState', ['group', 'mktVal']);
+        design.setConfig('posGrid', '/columns', {mktVal: {headerName: 'Value'}});
+        const {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (field: string) => container.querySelector(`[data-field="${field}"]`),
+            page = () =>
+                container.querySelector<HTMLElement>('.xh-blueprint-element-inspector__page');
+        expect(row('group').textContent).toContain('Tree column');
+        expect(row('mktVal').textContent).toMatch(/^Value/);
+        fireEvent.click(row('mktVal').querySelector('[aria-label^="All settings of"]'));
+        await vi.waitFor(() => expect(page().contains(document.activeElement)).toBe(true));
+        fireEvent.keyDown(document.activeElement, {key: 'Escape'});
+        expect(design.itemPage).toBeNull();
+    });
+
     it("opens a column's style rule on a page within its page, and goes back to the column", () => {
         const {design} = open('p2-linked-dashboard.json', 'posGrid');
         design.setConfig('posGrid', '/columnState', ['pnlDay']);
