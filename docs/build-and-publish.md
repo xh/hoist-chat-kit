@@ -67,8 +67,9 @@ and runs lint, type check, tests and the package check. Then it:
 1. Sets the version in `package.json`, in the runner only.
 2. Publishes to npm with the `latest` dist-tag, or `hotfix` for a hotfix.
 3. Creates and pushes a `vX.Y.Z` git tag.
-4. Creates a GitHub Release with auto-generated notes. A hotfix is marked as not the latest
-   release, so it does not supplant the most recent mainline release.
+4. Creates a GitHub Release. Its notes lead with the version's `CHANGELOG.md` entry, followed by
+   GitHub's auto-generated notes. A hotfix is marked as not the latest release, so it does not
+   supplant the most recent mainline release.
 
 The tag points at a commit whose `package.json` still reads `-SNAPSHOT`. The workflow does not
 commit the version back, which avoids paired set-and-reset commits on every release. The
@@ -91,9 +92,9 @@ leaves it there, and 2.0.0 moves it to `3.0.0-SNAPSHOT`.
    Any other release is the next minor or patch from the latest `v*` tag, such as `1.1.0`.
 3. On `develop`, run `pnpm changelog release <version>`, as in `pnpm changelog release 1.1.0`. It
    assembles the fragments in `changelog.d/` into a new `## 1.1.0 - <today>` block in
-   `CHANGELOG.md` and deletes them. Review and curate the block. For a major release, also set the
-   `Released` date in that version's upgrade notes. Commit and push. Deploy Release fails if
-   `CHANGELOG.md` lacks the version or fragments are left over.
+   `CHANGELOG.md`. Review and curate the block. For a major release, also set the `Released` date
+   in that version's upgrade notes. Commit and push. Deploy Release fails if `CHANGELOG.md` lacks
+   the version or fragments are left over.
 4. Fast-forward `main` to `develop` and push it:
    ```bash
    git switch main && git merge --ff-only develop && git push
@@ -103,9 +104,12 @@ leaves it there, and 2.0.0 moves it to `3.0.0-SNAPSHOT`.
    gh workflow run deployRelease.yml --ref main -f version=1.1.0 -f is-hotfix=false
    ```
 6. After a major release, bump `package.json` on `develop` to the next major `-SNAPSHOT` version,
-   then push. The `release` command already rolled the changelog's snapshot heading forward to
-   match. A minor or patch release leaves both alone. `release` refuses a minor or patch while a
-   fragment has a `💥 Breaking Changes` section.
+   then push. A minor or patch release leaves it alone.
+
+The hoist-dev-utils README section
+[Release](https://github.com/xh/hoist-dev-utils/blob/master/README.md#release) describes how
+`release` orders entries, rolls the snapshot heading forward, blocks breaking changes in a minor,
+and handles hotfixes.
 
 ### Cut a hotfix
 
@@ -118,6 +122,9 @@ A hotfix patches a release that is no longer the latest.
    It publishes under the `hotfix` dist-tag, so `latest` does not move.
 4. Merge the fix forward into `develop`. If the same fix landed on `develop`, delete its matching
    fragment there, or the next release lists it twice.
+
+A hotfix branch cut from v3.0.0 or an earlier tag has no `changelog.d/`. Edit `CHANGELOG.md` there
+directly, as before.
 
 A patch to the latest release is an ordinary release, cut from `main`.
 

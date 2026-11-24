@@ -276,19 +276,10 @@ there. The harness loads only this repo's guide, so read the sibling's before yo
 
 **Before you add or edit a changelog entry, read and follow
 [`docs/changelog-format.md`](docs/changelog-format.md).** It is the reference for where entries go,
-section headers, voice, the issue and PR link policy, and the breaking change requirements. Do not
-rely on the summary below alone.
+section headers, voice, the issue and PR link policy, and the breaking change requirements.
 
-The essentials: new entries go in a fragment file in `changelog.d/`, never in `CHANGELOG.md`.
-`pnpm changelog add fix "<text>"` adds a one-line entry, and `pnpm changelog new` creates an empty
-fragment for a longer one. A release assembles the fragments into `CHANGELOG.md`. Fragments use the
-emoji-prefixed sections listed in `changelog.d/config.json`, such as `### 🎁 New Features` and
-`### 🐞 Bug Fixes`, and no version heading. Run `pnpm changelog check` before you commit one. Use
-past-tense, action-driven language, and
-name specific classes, methods and config keys in backticks. Write one bullet per change, one to
-three lines. Upgrade notes hold the detail when a change needs it. Do not add GitHub issue or PR
-links by default. They belong in the commit message and the PR description. Hard-wrap entries at
-100 characters, unlike commit bodies and PR descriptions.
+The essentials: new entries go in a fragment file in `changelog.d/`, never in `CHANGELOG.md`. Add
+one with `pnpm changelog add <section> "<text>"`. Run `pnpm changelog check` before you commit.
 
 **Declaring a new `@xh/hoist` minimum:** a `Requires @xh/hoist X or later` entry in the changelog is
 not self-enforcing. Also raise the `@xh/hoist` range in `peerDependencies`, and update the version
@@ -308,9 +299,7 @@ The essentials:
   hotfix branch. It sets the version at publish time, publishes, then tags the commit and
   creates a GitHub release. It does not commit the version back.
 - `develop` always holds the next major version as a snapshot, as in all XH libraries. Each
-  release starts with `pnpm changelog release <version>`, which assembles the fragments into
-  `CHANGELOG.md`. A major release also rolls the changelog's snapshot heading forward, such as to
-  `## 3.0.0-SNAPSHOT - unreleased`. Then bump `package.json` to match. A minor or patch release
-  leaves `package.json` and the snapshot heading alone.
+  release starts with `pnpm changelog release <version>`. After a major release, bump
+  `package.json` to the next major snapshot.
 
 Both workflows use shared actions from `xh/hoist-dev-utils`, pinned by SHA.
