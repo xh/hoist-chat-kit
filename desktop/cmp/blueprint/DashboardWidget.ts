@@ -314,7 +314,7 @@ export const [DashboardWidget, dashboardWidget] = hoistCmp.withFactory({
                             : null,
                     frameProps: id => ({
                         'data-blueprint-view': id,
-                        'data-blueprint-dashboard': model.id
+                        'data-blueprint-view-of': model.id
                     }),
                     onChange: (cells, change) => model.onCellsChange(cells, change),
                     onDropOver: e => model.onDropOver(e),

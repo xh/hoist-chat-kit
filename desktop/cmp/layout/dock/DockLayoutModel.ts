@@ -30,6 +30,8 @@ export interface DockLayoutProps {
     viewRenderer: (id: string) => ReactNode;
     /** A view's tab label. */
     viewTitle: (id: string) => ReactNode;
+    /** Attributes for a view's tab beyond its own, such as ones that name its view to a host. */
+    tabProps?: (id: string) => Record<string, unknown>;
     /** Called once per finished move or resize, with the new tree. */
     onChange?: (layout: DockItem[], change: DockChange) => void;
     /** True to let views move and splits resize. Default false. */

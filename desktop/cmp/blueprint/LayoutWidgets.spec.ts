@@ -999,7 +999,7 @@ describe('layout and container widgets', () => {
             const {view} = cells(),
                 {container} = renderDashboard(view);
             const frame = container.querySelector('[data-blueprint-view="pnl"]');
-            expect(frame.getAttribute('data-blueprint-dashboard')).toBe('canvas');
+            expect(frame.getAttribute('data-blueprint-view-of')).toBe('canvas');
             const header = frame.querySelector('[data-blueprint-view-header]');
             expect(header.querySelector('.xh-blueprint-dashboard__cell-title').textContent).toBe(
                 'Positions'

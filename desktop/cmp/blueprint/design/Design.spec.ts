@@ -155,11 +155,11 @@ describe('design mode selection', () => {
     it("finds the dashboard view a click on its header or grip lands on, but not on the header's items", () => {
         const cell = document.createElement('div');
         cell.innerHTML =
-            '<div data-blueprint-view="sectorChart" data-blueprint-dashboard="overview">' +
+            '<div data-blueprint-view="sectorChart" data-blueprint-view-of="overview">' +
             '<div data-blueprint-view-header><span class="title">Day P&L</span>' +
             '<div data-blueprint-element="views"><span class="item"></span></div></div>' +
             '<div class="body"><div data-blueprint-element="sectorChart"></div></div></div>' +
-            '<div data-blueprint-view="reportActions" data-blueprint-dashboard="overview">' +
+            '<div data-blueprint-view="reportActions" data-blueprint-view-of="overview">' +
             '<span data-blueprint-view-grip="reportActions" class="grip"></span></div>';
         const host = document.createElement('div');
         host.appendChild(cell);
@@ -470,6 +470,32 @@ describe('design mode selection', () => {
         design.setInteraction('interact');
         expect(fireEvent.contextMenu(inner)).toBe(true);
         expect(design.selection).toBeNull();
+    });
+
+    it("opens a panes view's own menu on a right-click on its tab, and only switches tabs on a click", async () => {
+        stubRects();
+        const {design, model} = open('p1-one-grid.json', bp => {
+                bp.elements.notes = {component: 'markdown', config: {text: 'Notes'}};
+                bp.elements.views = {
+                    component: 'panes',
+                    config: {},
+                    children: [{id: 'posGrid'}, {id: 'notes'}]
+                };
+                bp.elements.page.children = [{id: 'views'}];
+            }),
+            {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+            tab = (id: string) =>
+                container.querySelector<HTMLElement>(`[role=tab][data-blueprint-view-tab="${id}"]`);
+        await vi.waitFor(() => expect(tab('notes')).not.toBeNull());
+
+        design.select(null);
+        fireEvent.click(tab('notes'));
+        expect(design.selection?.kind).not.toBe('view');
+        expect(tab('notes').getAttribute('aria-selected')).toBe('true');
+
+        expect(fireEvent.contextMenu(tab('posGrid'))).toBe(false);
+        expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'views'});
+        await vi.waitFor(() => expect(document.body.textContent).toContain('Delete'));
     });
 
     it("leaves the selection's body undraggable, and stops text selection only in Edit", () => {

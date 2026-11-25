@@ -181,6 +181,11 @@ export const [PanesWidget, panesWidget] = hoistCmp.withFactory({
                         editable: !model.isLocked,
                         viewRenderer: id => model.renderElement(id),
                         viewTitle: id => model.titles[id],
+                        // A right-click on a tab opens its view's design menu, as on a cell header.
+                        tabProps: id => ({
+                            'data-blueprint-view-tab': id,
+                            'data-blueprint-view-of': model.id
+                        }),
                         onChange: (layout, change) => model.noteLayout(layout, change),
                         canMove: (id, target) => model.canMove(id, target),
                         externalDrag: () => model.externalDrag(),

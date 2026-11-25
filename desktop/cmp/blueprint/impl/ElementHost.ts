@@ -122,7 +122,9 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 }
                 native.xhMenu = true;
                 const target = e.target as HTMLElement,
-                    view = viewAt(target, e.currentTarget as HTMLElement),
+                    view =
+                        viewAt(target, e.currentTarget as HTMLElement) ??
+                        tabViewAt(target, e.currentTarget as HTMLElement),
                     el = target.closest<HTMLElement>('[data-blueprint-element]'),
                     sel: BlueprintSelection = view
                         ? {kind: 'view', ...view}
@@ -160,7 +162,18 @@ export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of:
     const view = target.closest<HTMLElement>('[data-blueprint-view]'),
         item = target.closest('[data-blueprint-element]');
     if (item && view.contains(item)) return null;
-    return {id, of: view.dataset.blueprintDashboard};
+    return {id, of: view.dataset.blueprintViewOf};
+}
+
+/**
+ * The panes view whose tab a click landed on, or null. Only a right-click reads it: a left click on
+ * a tab switches tabs, and selects nothing more.
+ */
+function tabViewAt(target: HTMLElement, host: HTMLElement): {id: string; of: string} {
+    const tab = target?.closest<HTMLElement>('[data-blueprint-view-tab]');
+    return tab && host.contains(tab)
+        ? {id: tab.dataset.blueprintViewTab, of: tab.dataset.blueprintViewOf}
+        : null;
 }
 
 const CELL_CHROME = `[data-blueprint-view-header], [data-blueprint-view-grip], ${GRID_RESIZE_HANDLE}`;
