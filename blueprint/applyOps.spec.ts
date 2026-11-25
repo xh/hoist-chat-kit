@@ -114,6 +114,20 @@ describe('applyOps', () => {
         );
     });
 
+    it('refuses to move an element into itself or anything inside it', () => {
+        const bp = loadBlueprint('p3-morning-report.json'),
+            move = (id: string, parent: string) =>
+                applyOps(bp, [{op: 'moveElement', id, parent}]).issue;
+        expect(move('tabs', 'tabs')?.message).toBe("'tabs' cannot move into itself");
+        expect(move('tabs', 'overview')?.message).toBe(
+            "'tabs' cannot move into 'overview', which it holds"
+        );
+        expect(move('tabs', 'headline')?.message).toBe(
+            "'tabs' cannot move into 'headline', which it holds"
+        );
+        expect(move('headlineMktVal', 'positions')).toBeUndefined();
+    });
+
     it("renames an element in each preset's values, where its ID is a key", () => {
         const bp = loadBlueprint('p3-morning-report.json'),
             {result, issue} = applyOps(bp, [

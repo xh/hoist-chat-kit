@@ -154,6 +154,17 @@ function applyOp(bp: Blueprint, op: any, draft: Draft): Blueprint {
         }
         case 'moveElement': {
             if (!ownElement(bp, op.id)) throw new OpError(`element '${op.id}' does not exist`);
+            if (op.parent === op.id) throw new OpError(`'${op.id}' cannot move into itself`);
+            // Up from the new parent, the walk meets the element if it holds the parent.
+            for (
+                let it = parentOf(bp.elements, op.parent), seen = new Set<string>();
+                it && !seen.has(it);
+                seen.add(it), it = parentOf(bp.elements, it)
+            ) {
+                if (it === op.id) {
+                    throw new OpError(`'${op.id}' cannot move into '${op.parent}', which it holds`);
+                }
+            }
             const from = locate(bp.elements, op.id),
                 old: PlainObject = from ? removeRef(draft.element(bp, from.parent), op.id) : {},
                 {id: _id, ...placement} = old,
