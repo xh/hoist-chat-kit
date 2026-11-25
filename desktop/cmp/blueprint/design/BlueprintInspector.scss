@@ -287,8 +287,10 @@
   color: var(--xh-blueprint-inspector-muted);
 }
 
-// A design menu's first row, naming what it acts on: no action, so no hover or press.
-.bp6-menu-item.xh-blueprint-menu-target {
+// A design menu's first row, naming what it acts on: no action, so no hover or press. A Blueprint
+// menu draws it as a menu item, and a grid's ag-Grid menu as a menu option.
+.bp6-menu-item.xh-blueprint-menu-target,
+.ag-menu-option.xh-blueprint-menu-target {
   position: relative;
   font-weight: 600;
   cursor: default;
@@ -300,7 +302,8 @@
   }
 
   &:hover,
-  &:active {
+  &:active,
+  &.ag-menu-option-active {
     background-color: transparent;
   }
 }
