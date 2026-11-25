@@ -287,22 +287,29 @@
   color: var(--xh-blueprint-inspector-muted);
 }
 
-// A design menu's first row, naming what it acts on: no action, so no hover or press. A Blueprint
-// menu draws it as a menu item, and a grid's ag-Grid menu as a menu option.
-.bp6-menu-item.xh-blueprint-menu-target,
-.ag-menu-option.xh-blueprint-menu-target {
+// A design menu's heading, naming what it acts on, as Hoist draws a menu heading: a Blueprint
+// menu's header, or a grid menu's heading row. All of it outlines the target while hovered.
+.xh-blueprint-menu-target {
   position: relative;
-  font-weight: 600;
-  cursor: default;
 
-  // Over the whole row, icon and padding included, to outline the target while hovered.
+  .xh-blueprint-menu-target__text {
+    display: inline-flex;
+    gap: var(--xh-spacing-half);
+    align-items: center;
+  }
+
   .xh-blueprint-menu-target__hit {
     position: absolute;
     inset: 0;
   }
 
-  &:hover,
-  &:active,
+  // A grid heading outdents its label with relative positioning, which would hold the hit area to
+  // the label. A margin outdents it the same.
+  .xh-grid-menu-heading__label {
+    position: static;
+    margin-left: calc(-1 * (var(--ag-icon-size) + var(--ag-grid-size) * 2));
+  }
+
   &.ag-menu-option-active {
     background-color: transparent;
   }

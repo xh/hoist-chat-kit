@@ -153,12 +153,18 @@ function namedLabel(action: DesignAction, noun: string): string {
     }
 }
 
-// The menu's first row: what it acts on, which outlines it on the canvas while hovered.
+// The menu's heading: what it acts on, which outlines it on the canvas while hovered. A heading
+// takes no keyboard focus, so the first action does.
 function targetHeader(designModel: BlueprintDesignModel, target: MenuTarget): MenuItemLike {
     return {
-        text: span({
+        heading: span({
             className: 'xh-blueprint-menu-target__text',
             children: [
+                span({
+                    key: 'icon',
+                    className: 'xh-blueprint-menu-target__icon',
+                    children: target.icon
+                }),
                 target.header,
                 span({
                     key: 'hit',
@@ -168,9 +174,7 @@ function targetHeader(designModel: BlueprintDesignModel, target: MenuTarget): Me
                 })
             ]
         }),
-        icon: target.icon,
-        className: 'xh-blueprint-menu-target',
-        keepMenuOpen: true
+        className: 'xh-blueprint-menu-target'
     };
 }
 
@@ -226,7 +230,7 @@ export function designMenu(
         );
     if (!actions.length && !view && !parent) return [];
     return [
-        ...(opts.header ? [targetHeader(designModel, target), '-'] : []),
+        ...(opts.header ? [targetHeader(designModel, target)] : []),
         ...actions,
         ...(view || parent
             ? [
@@ -416,7 +420,7 @@ export function selectionMenu(
     if (kind === 'view') return designMenu(designModel, {kind, id, of}, omit, opts);
     if (kind !== 'element') {
         return [
-            ...(opts.header ? [targetHeader(designModel, target), '-'] : []),
+            ...(opts.header ? [targetHeader(designModel, target)] : []),
             rename,
             '-',
             {
@@ -429,7 +433,7 @@ export function selectionMenu(
         ];
     }
     const menu = designMenu(designModel, {kind, id}, omit);
-    return [...(opts.header ? [targetHeader(designModel, target), '-'] : []), rename, '-', ...menu];
+    return [...(opts.header ? [targetHeader(designModel, target)] : []), rename, '-', ...menu];
 }
 
 /** Issues counted as a screen reader reads a dot: `2 errors, 1 warning`. */

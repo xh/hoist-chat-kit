@@ -311,13 +311,16 @@ describe('BlueprintStructure', () => {
     it("offers an element's design actions in its menu, each naming it, under a row that names it, then a way to climb to what holds it", () => {
         const {structure} = open(),
             texts = (id: string) =>
-                structure.menuFor(record(structure, `element:${id}`)).map((it: any) => {
-                    const children = it.text?.props?.children;
-                    return (Array.isArray(children) ? children[0] : children) ?? it.text ?? it;
-                });
+                structure
+                    .menuFor(record(structure, `element:${id}`))
+                    .map((it: any) =>
+                        it.heading
+                            ? {heading: it.heading.props.children[1]}
+                            : (it.text?.props?.children?.[0] ?? it.text ?? it)
+                    );
         expect(texts('posGrid')).toEqual([
-            'posGrid · Grid',
-            '-',
+            // A heading, not an item, so keyboard focus lands on the first action.
+            {heading: 'posGrid · Grid'},
             "Rename grid 'posGrid'…",
             '-',
             "Duplicate grid 'posGrid'",
