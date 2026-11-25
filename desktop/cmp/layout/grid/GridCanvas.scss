@@ -3,6 +3,12 @@
   flex: 1 1 auto;
   overflow: auto;
 
+  // react-grid-layout sizes its container to its rows, and only that container takes a drop, so it
+  // fills the canvas: a drop anywhere in view lands. A taller grid still sets its own height.
+  .react-grid-layout {
+    min-height: 100%;
+  }
+
   &__background {
     position: absolute;
     inset: 0;
