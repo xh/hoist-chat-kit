@@ -243,6 +243,35 @@ describe('validateBlueprint', () => {
         expect(codes(bp)).not.toContain('source.tooManyInlineRows');
     });
 
+    it('treats a blank required string as missing, with the issue an absent one gets', () => {
+        const issuesWith = (text: unknown, label: unknown) => {
+            const bp = loadBlueprint('p1-one-grid.json');
+            bp.elements.note = {component: 'markdown', config: text === undefined ? {} : {text}};
+            (bp.elements.page.children as {id: string}[]).push({id: 'note'});
+            bp.elements.posGrid.config.rowActions = [
+                {
+                    ...(label === undefined ? {} : {label}),
+                    action: {type: 'refresh'}
+                }
+            ];
+            return validateBlueprint(bp, {
+                catalog: portfolioCatalog,
+                registry,
+                artifacts: ARTIFACTS
+            })
+                .filter(it => it.path.includes('/note/') || it.path.includes('rowActions'))
+                .map(({code, severity, path, message}) => ({code, severity, path, message}));
+        };
+        const absent = issuesWith(undefined, undefined);
+        expect(absent.map(it => [it.code, it.path])).toEqual([
+            ['schema.invalid', '/elements/posGrid/config/rowActions/0/label'],
+            ['config.incomplete', '/elements/note/config/text']
+        ]);
+        expect(issuesWith('', '')).toEqual(absent);
+        expect(issuesWith('  \n', ' ')).toEqual(absent);
+        expect(issuesWith('# Notes', 'Open')).toEqual([]);
+    });
+
     describe('elements still streaming', () => {
         const noteRegistry = new BlueprintRegistry({
                 widgets: [

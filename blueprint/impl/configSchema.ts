@@ -31,11 +31,35 @@ export function checkConfig(
     schema: PlainObject,
     opts: {isPartial?: boolean} = {}
 ): {path: string; message: string}[] {
-    return findSchemaErrors(value, schema, {checkNode, isPartial: opts.isPartial}).map(it => ({
+    const problems = [
+        ...findSchemaErrors(value, schema, {checkNode, isPartial: opts.isPartial}),
+        ...(opts.isPartial ? [] : blankRequired(value, schema, []))
+    ];
+    return problems.map(it => ({
         path: toPointer(it.path),
         // A missing key reads as a sentence that names it.
         message: it.message === 'required' ? `'${it.path.at(-1)}' is required` : it.message
     }));
+}
+
+// A required string that is empty or only whitespace, at any depth the schema declares, reads as
+// missing: a new list item's text starts empty for the user to write.
+function blankRequired(value: unknown, schema: PlainObject, path: SchemaPath): SchemaProblem[] {
+    if (isArray(value) && isPlainObject(schema?.items)) {
+        return value.flatMap((it, i) => blankRequired(it, schema.items, [...path, i]));
+    }
+    if (!isPlainObject(value) || !isPlainObject(schema?.properties)) return [];
+    const required: string[] = schema.required ?? [];
+    return Object.entries(schema.properties as Record<string, PlainObject>).flatMap(
+        ([key, prop]) => {
+            const v = (value as PlainObject)[key],
+                at = [...path, key];
+            if (required.includes(key) && isString(v) && !v.trim() && prop?.type === 'string') {
+                return [{path: at, message: 'required'}];
+            }
+            return blankRequired(v, prop, at);
+        }
+    );
 }
 
 /** Check a value as a Hoist filter in JSON form, where any member may be a binding. */
