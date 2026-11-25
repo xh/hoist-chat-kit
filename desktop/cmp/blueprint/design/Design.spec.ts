@@ -470,7 +470,7 @@ describe('design mode selection', () => {
         expect(document.body.textContent).toContain('overview · Dashboard');
         expect(document.body.textContent).toContain("Select tabs 'tabs'");
         // Hovering that row outlines it on the canvas.
-        const header = document.querySelector('.xh-blueprint-menu-target__text');
+        const header = document.querySelector('.xh-blueprint-menu-target__hit');
         fireEvent.mouseEnter(header);
         expect(design.hoveredId).toBe('overview');
         fireEvent.mouseLeave(header);

@@ -158,9 +158,15 @@ function targetHeader(designModel: BlueprintDesignModel, target: MenuTarget): Me
     return {
         text: span({
             className: 'xh-blueprint-menu-target__text',
-            children: target.header,
-            onMouseEnter: () => target.element && designModel.setHovered(target.element),
-            onMouseLeave: () => target.element && designModel.setHovered(null)
+            children: [
+                target.header,
+                span({
+                    key: 'hit',
+                    className: 'xh-blueprint-menu-target__hit',
+                    onMouseEnter: () => target.element && designModel.setHovered(target.element),
+                    onMouseLeave: () => target.element && designModel.setHovered(null)
+                })
+            ]
         }),
         icon: target.icon,
         className: 'xh-blueprint-menu-target',

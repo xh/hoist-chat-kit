@@ -31,10 +31,10 @@
     border-radius: 4px;
 
     // A minimal Hoist button, which handles keys and focus, in the crumb's own type and size.
-    // An ancestor truncates before the selection, keeping its icon and an ellipsis.
+    // An ancestor truncates before the selection: its kind first, then its name, down to its icon.
     &--link.xh-button {
       gap: 6px;
-      min-width: 44px;
+      min-width: 26px;
       min-height: 0;
       padding: 3px 7px;
       overflow: hidden;
@@ -51,9 +51,19 @@
       }
 
       .xh-blueprint-inspector__crumb-id {
+        flex: 0 1 auto;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      // Clipped away whole, far sooner than the name, so a cut name never sits beside it.
+      .xh-blueprint-inspector__crumb-kind {
+        flex: 0 1000 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: clip;
+        white-space: nowrap;
       }
 
       &:hover {
@@ -279,8 +289,15 @@
 
 // A design menu's first row, naming what it acts on: no action, so no hover or press.
 .bp6-menu-item.xh-blueprint-menu-target {
+  position: relative;
   font-weight: 600;
   cursor: default;
+
+  // Over the whole row, icon and padding included, to outline the target while hovered.
+  .xh-blueprint-menu-target__hit {
+    position: absolute;
+    inset: 0;
+  }
 
   &:hover,
   &:active {
