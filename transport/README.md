@@ -224,9 +224,9 @@ new ChatModel({
   The function can be async. System messages in the history are appended to it.
 - **`model`** and **`maxTokens`** - leave these out when the server sets them, as the example
   server below does.
-- **`params`** - other fields for the body, such as `thinking`, `output_config` or `temperature`.
-  Tools in `params.tools` go ahead of the chat's own tools. Use them for Anthropic server tools,
-  such as web search.
+- **`params`** - other fields for the body, such as `thinking` or `output_config`. Tools in
+  `params.tools` go ahead of the chat's own tools. Use them for Anthropic server tools, such as web
+  search.
 - **`cacheControl`** - true to mark prompt cache breakpoints, so that Anthropic caches the
   prompt across the steps and turns of a chat. See below.
 - **`prepareBody`** - a function that adjusts the finished body before it goes out. It can be
@@ -947,10 +947,10 @@ class ChatService extends BaseService {
             throw new RoutineRuntimeException('This conversation is too large to send. Clear it to start again.')
         }
 
-        def post = new HttpPost('https://api.anthropic.com/v1/messages')
+        def post = new HttpPost(MESSAGES_URL)
         post.setHeader('Content-Type', 'application/json')
         post.setHeader('x-api-key', key)
-        post.setHeader('anthropic-version', '2023-06-01')
+        post.setHeader('anthropic-version', API_VERSION)
         post.setEntity(new StringEntity(json, UTF_8))
 
         CloseableHttpResponse response = null
@@ -1022,6 +1022,9 @@ class ChatService extends BaseService {
         streamClient.close()
         super.destroy()
     }
+
+    private static final String MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
+    private static final String API_VERSION = '2026-10-21'
 
     /** Request keys forwarded from the client. */
     private static final List<String> CLIENT_KEYS = ['system', 'messages', 'tools', 'tool_choice']

@@ -57,7 +57,7 @@ export interface AnthropicCodecConfig {
     maxTokens?: number;
 
     /**
-     * Other fields for the request body, such as `thinking`, `output_config` or `temperature`.
+     * Other fields for the request body, such as `thinking` or `output_config`.
      * Tools listed here - typically Anthropic server tools, such as web search - are sent ahead of
      * the chat's own tools.
      */
