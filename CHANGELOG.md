@@ -15,6 +15,51 @@
 
 ## 4.0.0-SNAPSHOT - unreleased
 
+## 3.1.0 - 2026-11-25
+
+### 🎁 New Features
+
+* `ChatPanel` now takes a file dropped anywhere on it, when its composer enables attachments. A
+  hint covers the panel while files are dragged over it and states the attachment rules, and a
+  drop adds the files to the composer. A `ChatComposer` used on its own still takes a drop on the
+  composer only.
+* `ChatPanel` now shows at compact density when it is narrow, as `ChatWorkspace` already did. It
+  measures its own width and adds `xh-chat--compact`, so a panel docked at the side of an app no
+  longer needs the class from the app. The new `ChatKit.defaults.compactMaxWidth` sets the width
+  at or below which both show at compact density. Default 380. Set it to null to never add the
+  class from the width.
+
+### 🐞 Bug Fixes
+
+* Compact density no longer hides text with no way to read it. The empty state and suggestions
+  show in full, and tool call titles and "Not found" details show in a tooltip.
+* A failed tool call row no longer cuts its title when the error beside it is long. The error now
+  gives way first.
+* The header of a generative UI card shows its title and meta in a tooltip. A narrow card cut them
+  with no way to read the rest.
+* `ChatComposerModel.addFilesAsync()` now types a text file by its extension when the browser
+  gives it no type, as it can for a markdown file. The codecs then send it as text, and no longer
+  leave it out of the request as an unreadable file.
+* `ChatThreadList` and `ChatWorkspace` now refuse a file dropped on them, as `ChatMessageList`
+  does. The browser no longer opens a file that misses the chat and lands on the thread list.
+
+### ⚙️ Technical
+
+* Moved changelog entries to fragments in `changelog.d/`, which a release assembles into
+  `CHANGELOG.md` with `pnpm changelog release`. Snapshot builds list the unreleased entries in
+  their published `CHANGELOG.md`. See `docs/changelog-format.md`.
+
+### ✨ Styles
+
+* Restyled the hint shown over a file drop zone, and added the `xh-chat-drop-hint` class to it,
+  with `xh-chat-panel__drop-hint` for the hint of a `ChatPanel`: a scrim, with a large icon over
+  a heading and the attachment rules. Added the `--xh-chat-drop-hint-*` variables for its scrim,
+  outline, colors and sizes.
+* A `ChatPanel` takes `xh-chat-panel--dragging` while files are over it. A composer inside a
+  `ChatPanel` no longer shows `xh-chat-composer__drop-hint` or takes `xh-chat-composer--dragging`.
+* The hint over a composer now takes its scrim from `--xh-chat-drop-hint-bg`, which fixes a
+  scrim too weak to cover the composer in the dark theme.
+
 ## 3.0.0 - 2026-11-21
 
 Requires `@xh/hoist` 91 or later.
