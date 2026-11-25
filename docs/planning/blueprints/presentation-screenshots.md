@@ -23,9 +23,22 @@ Toolbox, Blueprints tab, light theme. Source PNGs and the cropped JPEGs are in t
 | concepts3 | Toolbox teaches Blueprints | Concepts › Sources and joins with its live example |
 | builtins3 | Toolbox teaches Blueprints | Built-ins › Layout › dashCanvas (dark theme: charts take the app theme at load) |
 
-Older shots still in use: map and dock (Nov 22, before rounds 3 and 4), registry (box, Nov 22, dark).
+Retaken Nov 23 after decisions 203 to 205: editor (Layout view, Inspector cropped), map (Inspector cropped), builtins3 (dashboard).
 
-Retake once blueprints-ui passes them: editor3 and any shot showing the document bar or Design / Run (decision 200's view bar and Preview); the breadcrumb menus (decision 196, built); version history (decision 199); the prompt bar and renamed widgets and Layout tab (decisions 204 and 205); the Inspector (decision 206).
+## Reshoot after John reviews the Inspector (decisions 206, 208, 210)
+
+The same images are in the Technical Reference. Slide numbers are the main deck's unless marked.
+
+| Shot | Slide | Stale because |
+|---|---|---|
+| editor | 7, People edit on the canvas | The Inspector is cropped out. Retake with it: sections, item pages, Find a setting, header + and ⋯ |
+| map | 8, The Map | Inspector cropped, and dimmed-node contrast changed (decision 209). Text still matches |
+| dock | 9, A library and a dock | Nov 22: before rounds 3 and 4, History's restore, rollback and compare (decision 199), and the Architect's export menu (decision 207). The caption now names History's publish controls |
+| library3 | 9, A library and a dock | Check whether it shows the old document bar (decision 200's docbar) |
+| registry | 10, Data Catalog and Registry | Nov 22: before dashboard and panes (decision 205) and config grouped by x-group (decision 206) |
+| builtins3 | 11, Toolbox teaches Blueprints | Before Built-ins settings grouped by x-group (decision 206) |
+| context | Companion 11, Context | Retake only if it shows the old Inspector |
+| breadcrumb, History | none yet | Optional new shots: the breadcrumb menus (decision 196) and version history (decision 199) |
 
 ## Still wanted
 
