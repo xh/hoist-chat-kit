@@ -276,3 +276,14 @@
   font-size: 11px;
   color: var(--xh-blueprint-inspector-muted);
 }
+
+// A design menu's first row, naming what it acts on: no action, so no hover or press.
+.bp6-menu-item.xh-blueprint-menu-target {
+  font-weight: 600;
+  cursor: default;
+
+  &:hover,
+  &:active {
+    background-color: transparent;
+  }
+}

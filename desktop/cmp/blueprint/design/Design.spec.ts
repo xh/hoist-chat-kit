@@ -310,7 +310,7 @@ describe('design mode selection', () => {
             selectionMenu(design, design.selection).map(
                 (it: any) => it.text?.props?.children?.[0] ?? it.text ?? it
             )
-        ).toEqual(['Delete', '-', 'Select dock']);
+        ).toEqual(["Delete pane 'a'", '-', "Select panes 'dock'"]);
         expect(designMarks(design, overlay)[0].target).toBe('[data-blueprint-element="a"]');
     });
 
@@ -463,8 +463,18 @@ describe('design mode selection', () => {
             inner = [...container.querySelectorAll('.xh-blueprint-view__design-element')].at(-1);
         expect(fireEvent.contextMenu(inner)).toBe(false);
         expect(design.selectedElementId).toBe('overview');
-        await vi.waitFor(() => expect(document.body.textContent).toContain('Add a widget…'));
-        expect(document.body.textContent).toContain('Select tabs');
+        await vi.waitFor(() =>
+            expect(document.body.textContent).toContain("Add a widget to dashboard 'overview'…")
+        );
+        // It opens with a row naming what it acts on.
+        expect(document.body.textContent).toContain('overview · Dashboard');
+        expect(document.body.textContent).toContain("Select tabs 'tabs'");
+        // Hovering that row outlines it on the canvas.
+        const header = document.querySelector('.xh-blueprint-menu-target__text');
+        fireEvent.mouseEnter(header);
+        expect(design.hoveredId).toBe('overview');
+        fireEvent.mouseLeave(header);
+        expect(design.hoveredId).toBeNull();
 
         design.select(null);
         design.setInteraction('interact');
@@ -568,7 +578,11 @@ describe('design mode selection', () => {
 
         expect(fireEvent.contextMenu(tab('posGrid'))).toBe(false);
         expect(design.selection).toEqual({kind: 'view', id: 'posGrid', of: 'views'});
-        await vi.waitFor(() => expect(document.body.textContent).toContain('Delete'));
+        // A pane's menu names the pane, apart from the grid it holds.
+        await vi.waitFor(() =>
+            expect(document.body.textContent).toContain('Pane · holds posGrid (Grid)')
+        );
+        expect(document.body.textContent).toContain("Delete pane 'posGrid'");
     });
 
     it("leaves the selection's body undraggable, and stops text selection only in Edit", () => {

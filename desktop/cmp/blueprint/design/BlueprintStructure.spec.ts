@@ -308,23 +308,26 @@ describe('BlueprintStructure', () => {
         expect(model.blueprint.variables).toHaveProperty('asOf');
     });
 
-    it("offers an element's design actions in its menu, then a way to climb to what holds it", () => {
+    it("offers an element's design actions in its menu, each naming it, under a row that names it, then a way to climb to what holds it", () => {
         const {structure} = open(),
             texts = (id: string) =>
-                structure
-                    .menuFor(record(structure, `element:${id}`))
-                    .map((it: any) => it.text?.props?.children?.[0] ?? it.text ?? it);
+                structure.menuFor(record(structure, `element:${id}`)).map((it: any) => {
+                    const children = it.text?.props?.children;
+                    return (Array.isArray(children) ? children[0] : children) ?? it.text ?? it;
+                });
         expect(texts('posGrid')).toEqual([
-            'Rename…',
+            'posGrid · Grid',
             '-',
-            'Duplicate',
-            'Wrap in',
-            'Delete',
+            "Rename grid 'posGrid'…",
             '-',
-            'Select the posGrid view'
+            "Duplicate grid 'posGrid'",
+            "Wrap grid 'posGrid' in",
+            "Delete grid 'posGrid'",
+            '-',
+            "Select cell 'posGrid'"
         ]);
         // A container also offers to add a widget to it.
-        expect(texts('positions')).toContain('Add a widget…');
+        expect(texts('positions')).toContain("Add a widget to dashboard 'positions'…");
         expect(texts('positions')).not.toContain('Move earlier');
     });
 

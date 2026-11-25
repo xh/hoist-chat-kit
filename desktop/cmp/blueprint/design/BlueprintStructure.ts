@@ -199,9 +199,12 @@ export class BlueprintStructureModel extends HoistModel {
     /** The menu of a row: rename, duplicate, move, add into and delete, as its kind allows. */
     menuFor(record: StoreRecord): (PlainObject | string)[] {
         const {kind, name, element, of} = record.data;
-        if (kind === 'view') return selectionMenu(this.designModel, {kind, id: element, of});
+        const header = {header: true};
+        if (kind === 'view') {
+            return selectionMenu(this.designModel, {kind, id: element, of}, null, header);
+        }
         return ['element', 'source', 'variable', 'preset'].includes(kind)
-            ? selectionMenu(this.designModel, {kind, id: name})
+            ? selectionMenu(this.designModel, {kind, id: name}, null, header)
             : [];
     }
 

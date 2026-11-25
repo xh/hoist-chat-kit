@@ -131,7 +131,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                     sel: BlueprintSelection = view
                         ? {kind: 'view', ...view}
                         : {kind: 'element', id: el?.dataset.blueprintElement ?? id},
-                    items = designMenu(designModel, sel);
+                    items = designMenu(designModel, sel, null, {header: true});
                 if (!items.length) return;
                 e.preventDefault();
                 e.stopPropagation();

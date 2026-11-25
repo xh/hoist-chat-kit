@@ -51,9 +51,14 @@ describe('BlueprintInspector', () => {
         fireEvent.click(header().querySelector('[aria-label="More"]'));
         await vi.waitFor(() => expect(items().length).toBeGreaterThan(0));
         expect(items().map(it => it.textContent)).toEqual(
-            expect.arrayContaining(['DuplicateCtrl+D', 'DeleteDel'])
+            expect.arrayContaining([
+                "Duplicate chart 'Day P&L by Sector'Ctrl+D",
+                "Delete chart 'Day P&L by Sector'Del"
+            ])
         );
-        expect(items().some(it => it.textContent.startsWith('Wrap in'))).toBe(true);
+        expect(
+            items().some(it => it.textContent.startsWith("Wrap chart 'Day P&L by Sector' in"))
+        ).toBe(true);
         const edits = model.history.length;
         fireEvent.click(items().find(it => it.textContent.startsWith('Duplicate')));
         await vi.waitFor(() => expect(model.history.length).toBe(edits + 1));

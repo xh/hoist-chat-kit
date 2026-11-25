@@ -10,6 +10,8 @@ import type {
 } from '../../../../../blueprint';
 import {getOwn} from '../../../../../blueprint/impl/pointer';
 import type {ReactElement} from 'react';
+import {isString} from 'lodash';
+import {partIcon} from './icons';
 import {listOf} from './ConfigEditors';
 import {removalMessage} from '../../../../../blueprint/design/removalMessage';
 
@@ -79,17 +81,108 @@ export function actionIcon(name: string, props: {className?: string} = {}): Reac
     return typeof factory === 'function' ? factory(props) : null;
 }
 
-/** Design actions as menu items, a disabled one naming why in its tooltip. */
+/**
+ * What a design menu acts on: its name in a verb, such as `grid 'Positions'`, and its header, such
+ * as `Positions · Grid`. A view is its container's place, such as `pane 'Positions'`. A name is the
+ * element's title where it has one, else its id.
+ */
+export interface MenuTarget {
+    noun: string;
+    header: string;
+    icon: ReactElement;
+    /** The element to outline while the header is hovered. */
+    element?: string;
+}
+
+export function menuTarget(designModel: BlueprintDesignModel, sel: BlueprintSelection): MenuTarget {
+    const {blueprint, registry} = designModel.blueprintModel,
+        elements = blueprint?.elements ?? {},
+        elementName = (id: string) => {
+            const title = getOwn(elements, id)?.config?.title;
+            return isString(title) && title ? title : id;
+        },
+        typeOf = (id: string) =>
+            registry.widgets[getOwn(elements, id)?.component]?.label ??
+            getOwn(elements, id)?.component;
+    if (sel.kind === 'element' || sel.kind === 'view') {
+        const name = elementName(sel.id),
+            type = typeOf(sel.id);
+        if (sel.kind === 'view') {
+            const place = getOwn(elements, sel.of)?.component === 'panes' ? 'Pane' : 'Cell';
+            return {
+                noun: `${place.toLowerCase()} '${name}'`,
+                header: `${place} · holds ${name} (${type})`,
+                icon: Icon.window(),
+                element: sel.id
+            };
+        }
+        return {
+            noun: `${type.toLowerCase()} '${name}'`,
+            header: `${name} · ${type}`,
+            icon: partIcon('element', registry.widgets[getOwn(elements, sel.id)?.component]),
+            element: sel.id
+        };
+    }
+    const type = {source: 'Source', variable: 'Variable', preset: 'Preset group'}[sel.kind];
+    return {
+        noun: `${type.toLowerCase()} '${sel.id}'`,
+        header: `${sel.id} · ${type}`,
+        icon: partIcon(sel.kind as 'source' | 'variable' | 'preset', null)
+    };
+}
+
+// A design action's label naming its target, so each verb reads alone, as `Delete grid 'X'`.
+function namedLabel(action: DesignAction, noun: string): string {
+    switch (action.id) {
+        case 'addWidget':
+            return `Add a widget to ${noun}…`;
+        case 'addAfter':
+            return `Add a widget after ${noun}`;
+        case 'wrap':
+            return `Wrap ${noun} in`;
+        case 'changeType':
+            return `Change ${noun} to`;
+        case 'header':
+            return `${action.label.split(' ')[0]} ${noun} header`;
+        case 'duplicate':
+        case 'unwrap':
+        case 'delete':
+            return `${action.label} ${noun}`;
+        default:
+            return action.label;
+    }
+}
+
+// The menu's first row: what it acts on, which outlines it on the canvas while hovered.
+function targetHeader(designModel: BlueprintDesignModel, target: MenuTarget): MenuItemLike {
+    return {
+        text: span({
+            className: 'xh-blueprint-menu-target__text',
+            children: target.header,
+            onMouseEnter: () => target.element && designModel.setHovered(target.element),
+            onMouseLeave: () => target.element && designModel.setHovered(null)
+        }),
+        icon: target.icon,
+        className: 'xh-blueprint-menu-target',
+        keepMenuOpen: true
+    };
+}
+
+/**
+ * Design actions as menu items, a disabled one naming why in its tooltip. With a target, each
+ * names it, as `Delete grid 'Positions'`.
+ */
 export function actionMenuItems(
     designModel: BlueprintDesignModel,
     id: string,
-    actions: DesignAction[]
+    actions: DesignAction[],
+    target?: MenuTarget
 ): MenuItemLike[] {
     return actions.map(action => ({
         text: span({
             title: action.disabledReason,
             children: [
-                action.label,
+                target ? namedLabel(action, target.noun) : action.label,
                 action.shortcut
                     ? span({className: 'xh-blueprint-menu-shortcut', children: action.shortcut})
                     : null
@@ -105,29 +198,39 @@ export function actionMenuItems(
 }
 
 /**
- * The design menu for an element or a view: its actions, a disabled one naming why, then
- * a way to select what holds it, so a right-click on a nested element can climb.
+ * The design menu for an element or a view: each action naming its target, a disabled one naming
+ * why, then a way to select what holds it, so a right-click on a nested element can climb. With
+ * `header`, it opens with a row naming the target, as a right-click on the canvas shows it.
  */
 export function designMenu(
     designModel: BlueprintDesignModel,
     sel: BlueprintSelection,
-    omit?: string
+    omit?: string,
+    opts: {header?: boolean} = {}
 ): MenuItemLike[] {
     if (sel?.kind !== 'element' && sel?.kind !== 'view') return [];
     const view = sel.kind === 'element' ? designModel.viewOf(sel.id) : null,
         parent = sel.kind === 'view' ? sel.of : designModel.pathTo(sel.id).at(-1),
+        target = menuTarget(designModel, sel),
         actions = actionMenuItems(
             designModel,
             sel.id,
-            designModel.designActions(sel).filter(it => it.id !== omit)
+            designModel.designActions(sel).filter(it => it.id !== omit),
+            target
         );
+    if (!actions.length && !view && !parent) return [];
     return [
+        ...(opts.header ? [targetHeader(designModel, target), '-'] : []),
         ...actions,
         ...(view || parent
             ? [
                   ...(actions.length ? ['-'] : []),
                   {
-                      text: view ? `Select the ${sel.id} view` : `Select ${parent}`,
+                      text: `Select ${
+                          view
+                              ? menuTarget(designModel, {kind: 'view', ...view}).noun
+                              : menuTarget(designModel, {kind: 'element', id: parent}).noun
+                      }`,
                       icon: Icon.arrowUp(),
                       actionFn: () =>
                           designModel.select(
@@ -281,14 +384,16 @@ export function addWidgetAt(designModel: BlueprintDesignModel, widget: string, p
 export function selectionMenu(
     designModel: BlueprintDesignModel,
     sel: BlueprintSelection,
-    omit?: string
+    omit?: string,
+    opts: {header?: boolean} = {}
 ): (PlainObject | string)[] {
     const {kind, id} = sel,
         of = sel.kind === 'view' ? sel.of : null;
     const {blueprintModel} = designModel;
     if (blueprintModel.mode !== 'design' || blueprintModel.access !== 'write') return [];
-    const rename = {
-            text: 'Rename…',
+    const target = menuTarget(designModel, sel),
+        rename = {
+            text: `Rename ${target.noun}…`,
             disabled: kind === 'preset' || kind === 'view',
             actionFn: async () => {
                 const to = await XH.prompt<string>({
@@ -301,10 +406,11 @@ export function selectionMenu(
                 }
             }
         },
-        remove = {text: 'Delete', icon: Icon.delete(), intent: 'danger'};
-    if (kind === 'view') return designMenu(designModel, {kind, id, of}, omit);
+        remove = {text: `Delete ${target.noun}`, icon: Icon.delete(), intent: 'danger'};
+    if (kind === 'view') return designMenu(designModel, {kind, id, of}, omit, opts);
     if (kind !== 'element') {
         return [
+            ...(opts.header ? [targetHeader(designModel, target), '-'] : []),
             rename,
             '-',
             {
@@ -316,7 +422,8 @@ export function selectionMenu(
             }
         ];
     }
-    return [rename, '-', ...designMenu(designModel, {kind, id}, omit)];
+    const menu = designMenu(designModel, {kind, id}, omit);
+    return [...(opts.header ? [targetHeader(designModel, target), '-'] : []), rename, '-', ...menu];
 }
 
 /** Issues counted as a screen reader reads a dot: `2 errors, 1 warning`. */
