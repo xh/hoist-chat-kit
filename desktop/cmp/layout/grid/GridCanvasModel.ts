@@ -253,8 +253,12 @@ export class GridCanvasModel extends HoistModel {
         compact: (layout: Layout) => this.compact(layout)
     };
 
-    /** Start a move or resize of a cell, which Esc then cancels. */
+    /**
+     * Start a move or resize of a cell, which Esc then cancels. react-grid-layout starts its drop
+     * preview's drag too, which ends only on a drop here, so that starts nothing.
+     */
     startGesture(id: string = null) {
+        if (id === DROPPING) return;
         this.activeId = id;
         layoutGesture.start();
         this.cancelled = false;

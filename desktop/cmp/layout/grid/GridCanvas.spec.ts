@@ -338,6 +338,19 @@ describe('gridCanvas', () => {
             });
         });
 
+        it('starts no gesture for the drop preview, so a drag that drops elsewhere leaves none under way', () => {
+            const model = new GridCanvasModel();
+            onTestFinished(() => model.destroy());
+            linkProps(model, {cells: CELLS});
+            // react-grid-layout starts its preview item's drag as the drag first comes over.
+            model.startGesture('__dropping-elem__');
+            expect(layoutGesture.active).toBe(false);
+            model.startGesture('chart');
+            expect(layoutGesture.active).toBe(true);
+            model.endGesture('move', 'chart', CELLS.map(toLayout));
+            expect(layoutGesture.active).toBe(false);
+        });
+
         it('shows where it would drop while over the canvas, its own cells included', () => {
             const {container} = renderCanvas(dropProps());
             dragIn(container);
