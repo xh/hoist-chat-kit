@@ -722,6 +722,35 @@ describe('validateBlueprint', () => {
             };
             expect(codes(bp)).toEqual(['structure.notPlaced']);
         });
+
+        it('refuses elements that hold each other, naming the loop once, and what hangs from it', () => {
+            const bp = p2(),
+                box = (...ids: string[]) => ({
+                    component: 'box',
+                    config: {},
+                    children: ids.map(id => ({id}))
+                });
+            bp.elements.a = box('b');
+            bp.elements.b = box('a', 'note');
+            bp.elements.note = {component: 'markdown', config: {text: 'Hi'}};
+            const found = validate(bp).filter(it => it.code.startsWith('structure.'));
+            expect(found.map(it => [it.code, it.path])).toEqual([
+                ['structure.cycle', '/elements/a'],
+                ['structure.notPlaced', '/elements/note']
+            ]);
+            expect(found[0].message).toMatch(/a -> b -> a/);
+            expect(found[1].message).toMatch(/'note'.*'b'/);
+        });
+
+        it('refuses what hangs from an element with no parent, as well as that element', () => {
+            const bp = p2();
+            bp.elements.stray = {component: 'box', config: {}, children: [{id: 'note'}]};
+            bp.elements.note = {component: 'markdown', config: {text: 'Hi'}};
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+                ['structure.notPlaced', '/elements/stray'],
+                ['structure.notPlaced', '/elements/note']
+            ]);
+        });
     });
 
     it("takes a source's run and live, and refuses any other value", () => {

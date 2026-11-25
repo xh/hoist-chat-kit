@@ -8,7 +8,8 @@ import {
     isNumber,
     isPlainObject,
     isString,
-    omit
+    omit,
+    sortBy
 } from 'lodash';
 import {
     type Blueprint,
@@ -342,15 +343,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
         }
     }
-    for (const id of Object.keys(elements)) {
-        if (id !== bp.root && !parent[id]) {
-            err(
-                'structure.notPlaced',
-                `/elements/${id}`,
-                `element '${id}' has no parent, so it never shows`
-            );
-        }
-    }
+    checkPlacement(bp.root, elements, parent, err);
 
     // A config value bound to a variable, in an element's config or a preset's: the property must
     // take a binding, of the variable's type, and every value the variable may hold.
@@ -1380,6 +1373,62 @@ function canFold(
         return !String(variables[f.value.$var]?.type ?? '').endsWith('[]');
     }
     return true;
+}
+
+/**
+ * Every element shows only if the root reaches it. Each has one parent at most, so up from one the
+ * root does not reach, the walk ends at an element with no parent or comes round to itself: a loop
+ * of elements that hold each other, reported once. Anything else unreached is not placed.
+ */
+function checkPlacement(
+    root: string,
+    elements: Record<string, BlueprintElement>,
+    parent: Record<string, string>,
+    err: (code: string, path: string, message: string) => void
+) {
+    const children = new Map<string, string[]>();
+    Object.entries(parent).forEach(([child, p]) =>
+        children.set(p, [...(children.get(p) ?? []), child])
+    );
+    const reached = new Set<string>(),
+        visit = (id: string) => {
+            if (reached.has(id)) return;
+            reached.add(id);
+            (children.get(id) ?? []).forEach(visit);
+        };
+    if (root && elements[root]) visit(root);
+
+    const inLoop = new Set<string>();
+    for (const id of Object.keys(elements)) {
+        if (reached.has(id) || inLoop.has(id)) continue;
+        const path: string[] = [];
+        let it = id;
+        while (it && !path.includes(it) && !inLoop.has(it)) {
+            path.push(it);
+            it = parent[it];
+        }
+        if (!it || inLoop.has(it)) continue;
+        const loop = path.slice(path.indexOf(it)),
+            first = sortBy(loop)[0],
+            from = loop.indexOf(first),
+            named = [...loop.slice(from), ...loop.slice(0, from), first].reverse();
+        loop.forEach(l => inLoop.add(l));
+        err(
+            'structure.cycle',
+            `/elements/${first}`,
+            `elements ${named.join(' -> ')} hold each other, so none of them shows. Move one under an element the root reaches.`
+        );
+    }
+    for (const id of Object.keys(elements)) {
+        if (id === root || reached.has(id) || inLoop.has(id)) continue;
+        err(
+            'structure.notPlaced',
+            `/elements/${id}`,
+            parent[id]
+                ? `element '${id}' sits under '${parent[id]}', which never shows, so it never shows`
+                : `element '${id}' has no parent, so it never shows`
+        );
+    }
 }
 
 /** Resolver arguments may read other variables, but never in a cycle. Reports each cycle once. */
