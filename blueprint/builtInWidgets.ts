@@ -1883,7 +1883,7 @@ const TOOLBAR_SLOT_ACCEPTS: SlotAccepts = {
 
 const dashboard: WidgetSpec = {
     name: 'dashboard',
-    icon: 'layout',
+    icon: 'dashboard',
     summary: "A 12-column grid of widgets placed by x, y, w and h. A blueprint's usual root.",
     version: 1,
     label: 'Dashboard',
@@ -2594,7 +2594,7 @@ const gauge: WidgetSpec = {
 
 const tileFrame: WidgetSpec = {
     name: 'tileFrame',
-    icon: 'layout',
+    icon: 'tiles',
     summary: 'Equal tiles that wrap, such as a row of stat cards.',
     version: 1,
     label: 'Tiles',
