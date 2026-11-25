@@ -93,14 +93,8 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 onDrop: (layout, item: LayoutItem, e) => {
                     impl.dropped();
                     if (item) {
-                        const others = layout
-                            .filter(it => it.i !== item.i)
-                            .map(({i, x, y, w, h}) => ({id: i, x, y, w, h}));
-                        onDrop?.(
-                            {x: item.x, y: item.y, w: item.w, h: item.h},
-                            others,
-                            e as DragEvent
-                        );
+                        const {place, others} = impl.packDrop(layout, item);
+                        onDrop?.(place, others, e as DragEvent);
                     }
                     impl.endGesture('move', null, []);
                 },

@@ -323,6 +323,21 @@ describe('gridCanvas', () => {
             expect(ghosts(container)).toBe(1);
         }
 
+        it('drops a cell where the canvas packs it, as a move would store it', () => {
+            const model = new GridCanvasModel();
+            onTestFinished(() => model.destroy());
+            linkProps(model, {cells: CELLS, editable: true, onDrop: vi.fn()});
+            const layout = [
+                ...CELLS.map(toLayout),
+                {i: '__dropping-elem__', x: 0, y: 9, w: 4, h: 2}
+            ];
+            // Packed up under the cells above it, not left at the row the pointer was over.
+            expect(model.packDrop(layout, layout[2])).toEqual({
+                place: {x: 0, y: 4, w: 4, h: 2},
+                others: CELLS
+            });
+        });
+
         it('shows where it would drop while over the canvas, its own cells included', () => {
             const {container} = renderCanvas(dropProps());
             dragIn(container);

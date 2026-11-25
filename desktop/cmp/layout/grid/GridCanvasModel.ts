@@ -181,6 +181,30 @@ export class GridCanvasModel extends HoistModel {
         return this.props.onDropOver ? this.props.onDropOver(e) : undefined;
     }
 
+    /**
+     * A drop's cell and the other cells, packed as the canvas packs them, so what is stored is what
+     * draws, as for a move.
+     */
+    packDrop(
+        layout: readonly LayoutItem[],
+        item: LayoutItem
+    ): {place: Omit<GridCell, 'id'>; others: GridCell[]} {
+        const {compact = 'vertical', preventCollision = false, columns = 12} = this.props,
+            cells = layout.map(({i, x, y, w, h}) => ({id: i, x, y, w, h})),
+            packed =
+                placeCell(
+                    cells,
+                    cells.find(it => it.id === item.i),
+                    {
+                        compact,
+                        preventCollision,
+                        columns
+                    }
+                ) ?? cells,
+            {id: _id, ...place} = packed.find(it => it.id === item.i);
+        return {place, others: packed.filter(it => it.id !== item.i)};
+    }
+
     /** Note that a drop landed, which react-grid-layout clears itself. */
     dropped() {
         this.dragInside = false;
@@ -362,7 +386,7 @@ function hitOf<T extends Box>(placed: T[], b: Box): T {
 
 type CanvasModelProps = Pick<
     GridCanvasProps,
-    'cells' | 'onChange' | 'compact' | 'preventCollision' | 'onDropOver'
+    'cells' | 'onChange' | 'compact' | 'preventCollision' | 'onDropOver' | 'columns'
 >;
 
 function toLayout(cells: GridCell[]): LayoutItem[] {
