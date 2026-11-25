@@ -170,17 +170,15 @@ export class GridCanvasModel extends HoistModel {
     /** The grid's layout element, where react-grid-layout takes drags from outside. */
     layoutEl: HTMLElement = null;
 
-    /** Where a drag from outside would drop, as the host says, noting whether it shows a preview. */
+    /** Where a drag from outside would drop, as the host says. */
     dropOver(e: DragEvent): {w: number; h: number} | false {
-        if (this.clearingDrop) return false;
-        const ret = this.props.onDropOver ? this.props.onDropOver(e) : undefined;
-        this.dropShown = ret !== false;
-        return ret;
+        this.dragInside = true;
+        return this.props.onDropOver ? this.props.onDropOver(e) : undefined;
     }
 
     /** Note that a drop landed, which react-grid-layout clears itself. */
     dropped() {
-        this.dropShown = false;
+        this.dragInside = false;
     }
 
     /**
@@ -267,20 +265,32 @@ export class GridCanvasModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
-    private dropShown = false;
-    private clearingDrop = false;
+    private dragInside = false;
 
     // react-grid-layout clears its preview only when a count of dragenters and dragleaves returns
-    // to 0, which a cell redrawn under the pointer can upset. A dragover it is refused clears it.
+    // to 0, which a cell redrawn under the pointer can upset. A dragleave that brings the count to
+    // 0 clears all of it. Its dropping item can set the preview again from an effect still pending
+    // as it clears, so a preview left on the next frame clears again.
     private clearDrop() {
-        if (!this.dropShown || !this.layoutEl) return;
-        this.clearingDrop = true;
-        try {
-            this.layoutEl.dispatchEvent(new Event('dragover', {bubbles: true, cancelable: true}));
-        } finally {
-            this.clearingDrop = false;
-            this.dropShown = false;
-        }
+        this.dragInside = false;
+        if (!this.hasStrayPreview) return;
+        this.layoutEl.dispatchEvent(new Event('dragleave', {bubbles: true, cancelable: true}));
+        window.requestAnimationFrame(() => {
+            if (!this.dragInside && this.hasStrayPreview) {
+                this.layoutEl.dispatchEvent(
+                    new Event('dragleave', {bubbles: true, cancelable: true})
+                );
+            }
+        });
+    }
+
+    // A preview that no drag over the canvas and no gesture of its own cells holds.
+    private get hasStrayPreview(): boolean {
+        return (
+            !!this.layoutEl?.isConnected &&
+            (this.activeId == null || this.activeId === DROPPING) &&
+            !!this.layoutEl.querySelector(':scope > .react-grid-placeholder, :scope > .dropping')
+        );
     }
     private cancelled = false;
     private listening = false;

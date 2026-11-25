@@ -358,6 +358,47 @@ describe('gridCanvas', () => {
         });
     });
 
+    describe('a preview left behind', () => {
+        // A grid as react-grid-layout leaves it after a race: its preview, with no drag over it.
+        function strayGrid() {
+            const model = new GridCanvasModel(),
+                el = document.createElement('div'),
+                leaves = vi.fn();
+            onTestFinished(() => {
+                model.destroy();
+                el.remove();
+            });
+            linkProps(model, {cells: CELLS, editable: true, onDrop: vi.fn()});
+            el.innerHTML = '<div class="react-grid-item react-grid-placeholder"></div>';
+            el.addEventListener('dragleave', leaves);
+            document.body.appendChild(el);
+            model.layoutEl = el;
+            onTestFinished(model.followDrags());
+            return {el, leaves};
+        }
+
+        it.each(['dragover', 'drop', 'dragend'])(
+            'clears it on a %s outside, though the canvas never noted a drop over it',
+            type => {
+                const {leaves} = strayGrid();
+                document.body.dispatchEvent(new Event(type, {bubbles: true}));
+                expect(leaves).toHaveBeenCalledTimes(1);
+            }
+        );
+
+        it('clears it again on the next frame, if react-grid-layout shows it again', async () => {
+            const {el, leaves} = strayGrid();
+            document.body.dispatchEvent(new Event('drop', {bubbles: true}));
+            await new Promise(resolve => window.requestAnimationFrame(resolve));
+            expect(leaves).toHaveBeenCalledTimes(2);
+
+            el.innerHTML = '';
+            document.body.dispatchEvent(new Event('drop', {bubbles: true}));
+            await new Promise(resolve => window.requestAnimationFrame(resolve));
+            expect(leaves).toHaveBeenCalledTimes(2);
+        });
+    });
+
     //------------------
     // Test support
     //------------------
