@@ -31,19 +31,29 @@
     border-radius: 4px;
 
     // A minimal Hoist button, which handles keys and focus, in the crumb's own type and size.
+    // An ancestor truncates before the selection, keeping its icon and an ellipsis.
     &--link.xh-button {
       gap: 6px;
-      min-width: 0;
+      min-width: 44px;
       min-height: 0;
       padding: 3px 7px;
+      overflow: hidden;
 
       .bp6-button-text {
         display: inline-flex;
         gap: 6px;
         align-items: center;
+        min-width: 0;
+        overflow: hidden;
         font-family: var(--xh-font-family-mono);
         font-size: 11px;
         color: var(--xh-text-color);
+      }
+
+      .xh-blueprint-inspector__crumb-id {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       &:hover {
@@ -51,9 +61,10 @@
       }
     }
 
-    // The selection gives way before the trailing chevron: its kind first, then its id.
+    // The selection keeps its name while any ancestor can give way, then its kind goes first.
     &--current {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
+      max-width: 100%;
       min-width: 0;
       background-color: color-mix(in srgb, var(--xh-intent-primary) 8%, var(--xh-bg));
 

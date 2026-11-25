@@ -470,8 +470,14 @@ const breadcrumb = hoistCmp.factory<HoistProps & {impl: BlueprintInspectorModel}
                                   title: `Select ${step.id}${step.kind === 'view' ? ' view' : ''}`,
                                   icon: icon(step),
                                   onClick: () => select(step),
+                                  // Nearer the root, the sooner it gives way.
+                                  shrink: 4 ** (last - idx + (page ? 1 : 0)),
                                   text: [
-                                      step.id,
+                                      span({
+                                          key: 'id',
+                                          className: `${CLS}__crumb-id`,
+                                          children: step.id
+                                      }),
                                       step.kind === 'view'
                                           ? span({
                                                 key: 'kind',
@@ -881,17 +887,23 @@ const issueRow = hoistCmp.factory<
 });
 
 // A step of the path that goes to it, as a minimal Hoist button.
-function crumbLink(props: {
+function crumbLink({
+    shrink = 1,
+    ...props
+}: {
     key: string;
     title: string;
     icon?: ReactElement;
     text: ReactNode;
     onClick: () => void;
+    /** How soon it truncates as the path runs out of room, against the other links. */
+    shrink?: number;
 }) {
     return button({
         ...props,
         className: `${CLS}__crumb ${CLS}__crumb--link`,
         minimal: true,
-        small: true
+        small: true,
+        flex: `0 ${shrink} auto`
     });
 }

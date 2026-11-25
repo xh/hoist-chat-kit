@@ -134,6 +134,26 @@ describe('BlueprintInspector', () => {
         expect(tile('Grid').getAttribute('title')).toEqual(expect.any(String));
     });
 
+    it('gives way nearest the root first, and keeps the selection whole', async () => {
+        const {design} = open(),
+            {container} = render(blueprintInspector({designModel: design}) as ReactElement);
+        act(() => design.select({kind: 'element', id: 'headlineMktVal'}));
+        await vi.waitFor(() =>
+            expect(
+                container.querySelector('.xh-blueprint-inspector__crumb--current')?.textContent
+            ).toContain('headlineMktVal')
+        );
+        const shrinks = [
+            ...container.querySelectorAll<HTMLElement>('.xh-blueprint-inspector__crumb--link')
+        ].map(it => Number(it.style.flex.split(' ')[1]));
+        expect(shrinks.length).toBeGreaterThan(1);
+        shrinks.slice(1).forEach((it, i) => expect(it).toBeLessThan(shrinks[i]));
+        const current = container.querySelector<HTMLElement>(
+            '.xh-blueprint-inspector__crumb--current'
+        );
+        expect(current.style.flex).toBe('');
+    });
+
     it("adds an open column's list and name to the path, the list going back to it", () => {
         const {design} = open();
         design.openItemPage({element: 'posGrid', list: 'columnState', key: 'mktVal#1'});
