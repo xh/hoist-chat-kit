@@ -7,6 +7,15 @@
     flex: none;
     align-items: center;
     padding: var(--xh-spacing-half) var(--xh-spacing);
+
+    // A chevron that opens a menu sits in Blueprint's popover target, a block, which would set it
+    // on a text line's baseline rather than the row's center.
+    > .bp6-popover-target {
+      display: flex;
+      flex: none;
+      align-self: stretch;
+      align-items: center;
+    }
   }
 
   &__crumb {
