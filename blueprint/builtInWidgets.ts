@@ -2022,7 +2022,7 @@ const tabContainer: WidgetSpec = {
 
 const panes: WidgetSpec = {
     name: 'panes',
-    icon: 'window',
+    icon: 'layout',
     summary: 'Views a user drags into tabs, stacks, rows and columns, and resizes.',
     version: 1,
     label: 'Panes',
