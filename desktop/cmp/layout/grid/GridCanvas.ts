@@ -43,6 +43,7 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
         frameProps,
         onDropOver,
         onDrop,
+        dropEnabled = true,
         editable = false,
         compact = 'vertical',
         preventCollision = false,
@@ -81,7 +82,7 @@ export const gridCanvas = hoistCmp.factory<HoistProps & GridCanvasProps>({
                 },
                 resizeConfig: {enabled: editable, handles: editable ? RESIZE_HANDLES : []},
                 dropConfig: {
-                    enabled: editable && !!onDrop,
+                    enabled: editable && !!onDrop && dropEnabled,
                     defaultItem: {w: Math.floor(columns / 3), h: Math.floor(columns / 3)},
                     onDragOver: e => impl.dropOver(e)
                 },

@@ -25,3 +25,18 @@ export function currentDropSource(): DropSource {
         widget = paletteDrag.current?.component;
     return element ? {element} : widget ? {widget} : null;
 }
+
+// A drag source lives only as long as its drag. A new drag starts without one, and one that drops
+// or ends clears it once its drop is handled, even where the source's own dragend never fires, as
+// when the dragged tile leaves the page.
+function clearDropSources() {
+    paletteDrag.end();
+    elementDrag.end();
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('dragstart', clearDropSources, true);
+    ['drop', 'dragend'].forEach(type =>
+        window.addEventListener(type, () => window.setTimeout(clearDropSources), true)
+    );
+}

@@ -142,7 +142,8 @@ export class PanesWidgetModel extends BlueprintWidgetModel<PanesWidgetConfig> {
         }
         const drag = paletteDrag.current;
         paletteDrag.end();
-        drag?.add(this.id, {
+        if (!drag) return;
+        drag.add(this.id, {
             extraOps: id => [
                 {op: 'set', path: this.layoutPath, value: insertView(this.layout, id, target)}
             ]

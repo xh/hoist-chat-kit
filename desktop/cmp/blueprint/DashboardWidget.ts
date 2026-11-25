@@ -191,7 +191,8 @@ export class DashboardWidgetModel extends BlueprintWidgetModel<DashboardWidgetCo
         }
         const drag = paletteDrag.current;
         paletteDrag.end();
-        drag?.add(this.id, {
+        if (!drag) return;
+        drag.add(this.id, {
             child: pick(place, 'x', 'y', 'w', 'h'),
             siblings: siblings.map(it => ({...it}))
         });
@@ -317,6 +318,9 @@ export const [DashboardWidget, dashboardWidget] = hoistCmp.withFactory({
                         'data-blueprint-view-of': model.id
                     }),
                     onChange: (cells, change) => model.onCellsChange(cells, change),
+                    // Only a palette widget or an element drops here: any other drag, such as a
+                    // pane's tab, passes on to the dock that holds the dashboard.
+                    dropEnabled: model.takesDrop,
                     onDropOver: e => model.onDropOver(e),
                     onDrop: (place, siblings) => model.onDrop(place, siblings)
                 }),

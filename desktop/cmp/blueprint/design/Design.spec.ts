@@ -472,6 +472,79 @@ describe('design mode selection', () => {
         expect(design.selection).toBeNull();
     });
 
+    describe('a dashboard in a pane', () => {
+        function showPanes() {
+            stubRects();
+            const width = vi
+                .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+                .mockReturnValue(1200);
+            onTestFinished(() => width.mockRestore());
+            const {design, model} = open('p1-one-grid.json', bp => {
+                    bp.elements.notes = {component: 'markdown', config: {text: 'Notes'}};
+                    bp.elements.board = {
+                        component: 'dashboard',
+                        config: {},
+                        children: [{id: 'posGrid', x: 0, y: 0, w: 6, h: 4}]
+                    };
+                    bp.elements.views = {
+                        component: 'panes',
+                        config: {},
+                        children: [{id: 'board'}, {id: 'notes'}]
+                    };
+                    bp.elements.page.children = [{id: 'views'}];
+                }),
+                {container} = render(blueprintView({model, designModel: design}) as ReactElement),
+                grid = () =>
+                    container.querySelector<HTMLElement>(
+                        '[data-blueprint-element="board"] .react-grid-layout'
+                    ),
+                tab = (id: string) =>
+                    container.querySelector<HTMLElement>(
+                        `[role=tab][data-blueprint-view-tab="${id}"]`
+                    );
+            return {design, model, grid, tab};
+        }
+
+        it("leaves a pane tab's drag to the dock, and adds nothing on its drop, even after a palette drag that never ended", async () => {
+            const {model, grid, tab} = showPanes();
+            await vi.waitFor(() => expect(grid()).not.toBeNull());
+            const add = vi.fn(),
+                versions = model.version;
+            // A palette drag whose tile left the page before its dragend.
+            act(() => paletteDrag.start({component: 'dashboard', size: {w: 4, h: 2}, add}));
+
+            act(() => {
+                fireEvent.dragStart(tab('notes'), {
+                    dataTransfer: {setData: () => null, effectAllowed: ''}
+                });
+            });
+            expect(paletteDrag.current).toBeNull();
+            let accepted: boolean;
+            act(() => {
+                fireEvent.dragEnter(grid());
+                // The dock takes it: it is refused nowhere and lets the drop through.
+                accepted = !fireEvent.dragOver(grid(), {
+                    clientX: 100,
+                    clientY: 50,
+                    dataTransfer: {dropEffect: ''}
+                });
+                fireEvent.drop(grid(), {dataTransfer: {dropEffect: ''}});
+            });
+            expect(accepted).toBe(true);
+            expect(grid().querySelector('.react-grid-placeholder')).toBeNull();
+            expect(add).not.toHaveBeenCalled();
+            expect(model.version).toBe(versions);
+        });
+
+        it('forgets a drag source once its drag ends, wherever it ends', async () => {
+            act(() =>
+                paletteDrag.start({component: 'dashboard', size: {w: 4, h: 2}, add: vi.fn()})
+            );
+            window.dispatchEvent(new Event('dragend'));
+            await vi.waitFor(() => expect(paletteDrag.current).toBeNull());
+        });
+    });
+
     it("opens a panes view's own menu on a right-click on its tab, and only switches tabs on a click", async () => {
         stubRects();
         const {design, model} = open('p1-one-grid.json', bp => {

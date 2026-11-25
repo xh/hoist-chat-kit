@@ -65,6 +65,11 @@ export interface GridCanvasProps {
     /** An external drag dropped at a place, with the other cells where the drop left them. */
     onDrop?: (place: Omit<GridCell, 'id'>, cells: GridCell[], e: DragEvent) => void;
     /**
+     * False to leave external drags alone, so they reach what holds the canvas, such as a dock
+     * whose own tab is dragged over it. Default true.
+     */
+    dropEnabled?: boolean;
+    /**
      * How the canvas packs its cells. Default 'vertical'. With false, a moved cell stays where it
      * is put, and the cells it lands on move down as far as they must.
      */
