@@ -188,19 +188,82 @@ describe('dockLayout', () => {
             expect(model.activeOf(model.props.layout[0])).toBe('chart');
         });
 
-        it('refuses a zone with nowhere to go, or one the host refuses, checking each once a drag', () => {
+        it('refuses a zone the host refuses, with its reason, checking each once a drag', () => {
             const canMove = vi.fn(() => 'Not here.'),
                 onChange = vi.fn(),
                 model = dragModel({onChange, editable: true, canMove});
             model.startDrag('chart');
-            expect(model.dragOver({view: 'chart', zone: 'left'})).toBe(false);
-            expect(model.drop.refusal).toMatch(/there already/);
-
-            expect(model.dragOver({view: 'positions', zone: 'right'})).toBe(false);
-            model.dragOver({view: 'positions', zone: 'right'});
+            expect(model.dragOver({view: 'positions', zone: 'right'}, null, {x: 5, y: 6})).toBe(
+                false
+            );
+            model.dragOver({view: 'positions', zone: 'right'}, null, {x: 5, y: 6});
             expect(canMove).toHaveBeenCalledTimes(1);
-            expect(model.drop.refusal).toBe('Not here.');
+            expect(model.drop).toMatchObject({
+                refusal: 'Not here.',
+                reason: 'Not here.',
+                point: {x: 5, y: 6}
+            });
 
+            model.dropHere();
+            expect(onChange).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            [false, 'a note of the reason by the pointer, and no zone'],
+            [true, 'the refused zone in red, with its reason']
+        ])('with showRefusedZones %s, draws a refusal as %s', async showRefusedZones => {
+            // jsdom has no layout, and the overlay draws only what has a size.
+            const box = {
+                    x: 0,
+                    y: 0,
+                    left: 0,
+                    top: 0,
+                    width: 400,
+                    height: 300,
+                    right: 400,
+                    bottom: 300
+                },
+                spy = vi
+                    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+                    .mockReturnValue(box as DOMRect);
+            onTestFinished(() => spy.mockRestore());
+            const {container} = renderLayout({
+                    editable: true,
+                    canMove: () => 'Not here.',
+                    showRefusedZones
+                }),
+                body = container.querySelector('.xh-layout-dock__body');
+            fireEvent.dragStart(tab(container, 'chart'), {
+                dataTransfer: {setData: () => null, effectAllowed: ''}
+            });
+            fireEvent.dragOver(body, {clientX: 200, clientY: 150, dataTransfer: {dropEffect: ''}});
+            const zone = () => document.querySelector('.xh-layout-dock__preview--refused'),
+                note = () => document.querySelector('.xh-layout-dock__refusal');
+            await vi.waitFor(() => expect(zone() ?? note()).not.toBeNull());
+            expect(!!zone()).toBe(showRefusedZones);
+            expect(!!note()).toBe(!showRefusedZones);
+            expect((zone() ?? note()).textContent).toBe('Not here.');
+        });
+
+        it('keeps a refusal quiet where its reason would not help', () => {
+            const model = dragModel({editable: true});
+            model.startDrag('chart');
+            expect(model.dragOver({view: 'chart', zone: 'middle'} as any)).toBe(false);
+            expect(model.drop).toMatchObject({refusal: 'There is no such place.', reason: null});
+        });
+
+        it('lets a drop that changes nothing land as nothing, with no preview and no change', () => {
+            const canMove = vi.fn(() => null),
+                onChange = vi.fn(),
+                model = dragModel({onChange, editable: true, canMove});
+            model.startDrag('chart');
+            expect(model.dragOver({view: 'chart', zone: 'left'})).toBe(true);
+            expect(model.drop).toBeNull();
+            expect(canMove).not.toHaveBeenCalled();
+
+            model.startDrag('positions');
+            expect(model.dragOver({view: 'positions', zone: 'tab', index: 1})).toBe(true);
+            expect(model.drop).toBeNull();
             model.dropHere();
             expect(onChange).not.toHaveBeenCalled();
         });

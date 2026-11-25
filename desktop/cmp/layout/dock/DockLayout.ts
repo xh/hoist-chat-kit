@@ -22,7 +22,13 @@ import {
     type SeparatorProps
 } from 'react-resizable-panels';
 import './DockLayout.scss';
-import {DockLayoutModel, type DockLayoutProps, tabIndexAt, zoneAt} from './DockLayoutModel';
+import {
+    type DockDrop,
+    DockLayoutModel,
+    type DockLayoutProps,
+    tabIndexAt,
+    zoneAt
+} from './DockLayoutModel';
 import type {DockItem, DockTarget} from './dockTree';
 
 // Named apart from Hoist's own panel and separator.
@@ -281,7 +287,11 @@ function allow(impl: DockLayoutModel, e: DragEvent, target: DockTarget, barX?: n
     if ((!impl.dragging && !impl.external) || !target) return;
     if (!impl.dragging && impl.props.acceptsDragAt?.(e.nativeEvent) === false) return;
     e.stopPropagation();
-    if (impl.dragOver(target, barX)) {
+    const el = 'view' in target ? impl.stackEls.get(target.view) : impl.rootEl,
+        r = el?.getBoundingClientRect(),
+        point = r ? {x: e.clientX - r.left, y: e.clientY - r.top} : null;
+    // Left refused, the browser draws its not-allowed cursor.
+    if (impl.dragOver(target, barX, point)) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
     }
@@ -343,17 +353,19 @@ function usePreviewMarks(impl: DockLayoutModel) {
     useEffect(
         () =>
             impl.overlay.addMarks(`dock-${impl.xhId}`, () => {
-                const {drop} = impl;
-                if (!drop) return [];
-                const {target, refusal, barX} = drop,
-                    el = 'view' in target ? impl.stackEls.get(target.view) : impl.rootEl;
+                const {drop} = impl,
+                    showRefused = !!impl.props.showRefusedZones;
+                if (!drop || (drop.refusal && !showRefused && !drop.reason)) return [];
+                const el =
+                    'view' in drop.target ? impl.stackEls.get(drop.target.view) : impl.rootEl;
                 if (!el) return [];
                 return [
                     {
                         key: `dock-preview-${impl.xhId}`,
                         target: el,
                         layer: OVERLAY_LAYERS.dock,
-                        render: () => preview(target, refusal, barX)
+                        render: () =>
+                            drop.refusal && !showRefused ? refusalNote(drop) : preview(drop)
                     }
                 ];
             }),
@@ -361,7 +373,16 @@ function usePreviewMarks(impl: DockLayoutModel) {
     );
 }
 
-function preview(target: DockTarget, refusal: string, barX: number): ReactElement {
+// A refusal's reason, beside the pointer, which shows the browser's not-allowed cursor.
+function refusalNote({reason, point}: DockDrop): ReactElement {
+    return div({
+        className: `${CLS}__refusal`,
+        style: {left: (point?.x ?? 0) + 16, top: (point?.y ?? 0) + 16},
+        children: reason
+    });
+}
+
+function preview({target, refusal, barX}: DockDrop): ReactElement {
     const zone = target.zone,
         cls = classNames(`${CLS}__preview`, refusal && `${CLS}__preview--refused`);
     if (zone === 'tab') {

@@ -157,6 +157,21 @@
     }
   }
 
+  // A refused drop's reason, beside the not-allowed cursor.
+  &__refusal {
+    position: absolute;
+    max-width: 240px;
+    padding: 2px var(--xh-spacing-half);
+    border: var(--xh-border-solid);
+    border-radius: var(--xh-border-radius);
+    background-color: var(--xh-bg);
+    color: var(--xh-text-color);
+    font-size: var(--xh-font-size-small);
+    filter: var(--xh-tooltip-shadow);
+    pointer-events: none;
+    white-space: normal;
+  }
+
   &__preview-reason {
     position: absolute;
     top: var(--xh-spacing-half);

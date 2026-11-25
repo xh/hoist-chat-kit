@@ -1,5 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import {type DockItem, dockMoveRefusal, type DockTarget, insertView, moveView} from './dockTree';
+import {
+    type DockItem,
+    dockDropOutcome,
+    dockMoveRefusal,
+    type DockTarget,
+    insertView,
+    moveView
+} from './dockTree';
 
 /**
  * Every move in every zone, from layouts of each shape, either refuses or gives a sound tree:
@@ -102,16 +109,41 @@ describe('dock tree moves, exhaustively', () => {
         );
     });
 
-    it('splits a view off its own stack to an edge, but refuses one alone there', () => {
+    it('splits a view off its own stack to an edge, and leaves one alone there as it is', () => {
         const layout = LAYOUTS['a row of stacks'];
         expect(stacksIds(moveView(layout, 'b', {view: 'b', zone: 'right'}))).toEqual([
             ['a'],
             ['b'],
             ['c']
         ]);
-        expect(dockMoveRefusal(layout, 'c', {view: 'c', zone: 'right'})).toBe(
-            'The view is there already.'
-        );
+        expect(dockMoveRefusal(layout, 'c', {view: 'c', zone: 'right'})).toBeNull();
+        expect(dockDropOutcome(layout, 'c', {view: 'c', zone: 'right'})).toEqual({noop: true});
+    });
+
+    it('calls a drop that leaves the layout as it is a no-op, wherever it lands', () => {
+        const layout = LAYOUTS['a row of stacks'],
+            stack = stacksIds(layout).find(it => it.length > 1),
+            [first] = stack;
+        // Onto its own stack, or before or after itself in its own tab strip.
+        for (const target of [
+            {view: first, zone: 'center'},
+            {view: first, zone: 'tab', index: 0},
+            {view: first, zone: 'tab', index: 1}
+        ] as DockTarget[]) {
+            expect(dockDropOutcome(layout, first, target)).toEqual({noop: true});
+        }
+        expect(
+            dockDropOutcome(layout, first, {view: first, zone: 'tab', index: 2}).noop
+        ).toBeUndefined();
+    });
+
+    it('marks a refusal quiet where its reason would not help a user', () => {
+        const layout = LAYOUTS['a row of stacks'];
+        expect(dockDropOutcome(layout, 'a', {view: 'c', zone: 'middle'} as any)).toEqual({
+            refusal: 'There is no such place.',
+            quiet: true
+        });
+        expect(dockDropOutcome(layout, 'a', {view: 'c', zone: 'left'})).toHaveProperty('layout');
     });
 
     it('refuses a move that would nest deeper than a blueprint allows', () => {

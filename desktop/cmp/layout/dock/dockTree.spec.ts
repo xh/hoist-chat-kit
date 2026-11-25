@@ -108,9 +108,13 @@ describe('dock tree', () => {
         ]);
     });
 
-    it('refuses a move that has nowhere to go', () => {
-        expect(moveView(LAYOUT, 'chart', {view: 'chart', zone: 'left'})).toBeNull();
-        expect(moveView(LAYOUT, 'chart', {view: 'chart', zone: 'center'})).toBeNull();
+    it('leaves a view moved onto its own stack where it is, and refuses one with nowhere to go', () => {
+        expect(stacksOf(moveView(LAYOUT, 'chart', {view: 'chart', zone: 'left'}))).toEqual(
+            stacksOf(LAYOUT)
+        );
+        expect(stacksOf(moveView(LAYOUT, 'chart', {view: 'chart', zone: 'center'}))).toEqual(
+            stacksOf(LAYOUT)
+        );
         expect(moveView(LAYOUT, 'nothing', {view: 'chart', zone: 'left'})).toBeNull();
         expect(moveView(LAYOUT, 'chart', {view: 'nothing', zone: 'left'})).toBeNull();
     });

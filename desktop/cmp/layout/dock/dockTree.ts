@@ -1,4 +1,4 @@
-import {cloneDeep, isFinite, sumBy} from 'lodash';
+import {cloneDeep, isEqual, isFinite, sumBy} from 'lodash';
 
 /**
  * A layout tree of splits, stacks and views. A `row` or `column` splits its content, sized by each
@@ -18,7 +18,8 @@ export type DockZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
 
 /**
  * A stack, named by a view in it, and where in it a view lands, or an edge of the whole layout, or
- * anywhere in a layout with no views yet.
+ * anywhere in a layout with no views yet. A tab's `index` is a place in the strip as it shows,
+ * before the view moves: before the tab at that index, or after the last.
  */
 export type DockTarget =
     | {view: string; zone: DockZone}
@@ -31,8 +32,32 @@ export const MAX_DOCK_DEPTH = 6,
     MAX_DOCK_ITEMS = 20;
 
 /**
+ * What a drop would do: change the layout, change nothing, or be refused. A drop that changes
+ * nothing, as of a view onto its own stack, is no refusal. A refusal is `quiet` where its reason
+ * would not help a user, as for a place that is no target.
+ */
+export interface DockDropOutcome {
+    layout?: DockItem[];
+    noop?: boolean;
+    refusal?: string;
+    quiet?: boolean;
+}
+
+/** What a move, or with `isNew` a new view's placement, would do - see {@link DockDropOutcome}. */
+export function dockDropOutcome(
+    layout: DockItem[],
+    viewId: string,
+    target: DockTarget,
+    isNew = false
+): DockDropOutcome {
+    const ret = tryMove(layout, viewId, target, isNew);
+    if ('refusal' in ret) return ret;
+    return !isNew && isEqual(ret.layout, normalized(layout)) ? {noop: true} : ret;
+}
+
+/**
  * The layout with a view moved to a target, or null if the move is refused: see
- * {@link dockMoveRefusal} for why. A view outside a stack moves as one in a stack of its own. A
+ * {@link dockMoveRefusal} for why. A move that changes nothing gives the layout as it is. A view outside a stack moves as one in a stack of its own. A
  * stack left empty goes, a split left with one child gives way to it, and each split's sizes sum
  * to 100.
  */
@@ -82,14 +107,22 @@ const EDGE_DIR = {left: 'row', right: 'row', top: 'column', bottom: 'column'} as
 // The whole layout's holder, which has no direction and sizes nothing.
 const ROOT = 'root';
 
+// The layout as a move leaves it, every view in a stack and each split's sizes summing to 100.
+function normalized(layout: DockItem[]): DockItem[] {
+    return (
+        normalize({type: ROOT, content: inStacks(cloneDeep(layout ?? []))} as any)?.content ?? []
+    );
+}
+
 function tryMove(
     layout: DockItem[],
     viewId: string,
     target: DockTarget,
     isNew: boolean
-): {layout: DockItem[]} | {refusal: string} {
+): {layout: DockItem[]} | {refusal: string; quiet?: boolean} {
+    const quiet = (refusal: string) => ({refusal, quiet: true});
     try {
-        if (!isPlace(target)) return {refusal: 'There is no such place.'};
+        if (!isPlace(target)) return quiet('There is no such place.');
         const root = {
                 type: ROOT,
                 content: inStacks(cloneDeep(layout ?? []))
@@ -97,23 +130,30 @@ function tryMove(
             from = isNew ? null : findStackOf(root, viewId),
             to = 'view' in target ? findStackOf(root, target.view) : null;
         if (isNew && findStackOf(root, viewId)) return {refusal: 'The layout already shows it.'};
-        if (!isNew && !from) return {refusal: 'There is no such view to move.'};
-        if ('view' in target && !to) return {refusal: 'There is no such place.'};
+        if (!isNew && !from) return quiet('There is no such view to move.');
+        if ('view' in target && !to) return quiet('There is no such place.');
         if (target.zone === 'root' && stacksOf(root.content).length) {
-            return {refusal: 'Drop it on a stack, or at an edge of the layout.'};
+            return quiet('Drop it on a stack, or at an edge of the layout.');
         }
+        // The view is there already, so the move changes nothing.
         if (
             !isNew &&
             to === from &&
             target.zone !== 'tab' &&
             (target.zone === 'center' || from.content.length === 1)
         ) {
-            return {refusal: 'The view is there already.'};
+            return {layout: normalized(layout)};
         }
-        const moved = isNew
-            ? {type: 'view' as const, id: viewId}
-            : from.content.splice(indexOfView(from, viewId), 1)[0];
-        place(root, to, target, moved);
+        const fromIdx = isNew ? -1 : indexOfView(from, viewId),
+            moved = isNew
+                ? {type: 'view' as const, id: viewId}
+                : from.content.splice(fromIdx, 1)[0],
+            // A place past the view in its own strip counts one fewer once it leaves.
+            at =
+                target.zone === 'tab' && to === from && target.index > fromIdx
+                    ? {...target, index: target.index - 1}
+                    : target;
+        place(root, to, at, moved);
         const ret = normalize(root)?.content ?? [];
         if (depthOf(ret) > MAX_DOCK_DEPTH) {
             return {
@@ -125,7 +165,7 @@ function tryMove(
         }
         return {layout: ret};
     } catch (e) {
-        return {refusal: `The layout cannot take that move: ${e?.message ?? e}`};
+        return quiet(`The layout cannot take that move: ${e?.message ?? e}`);
     }
 }
 

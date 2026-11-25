@@ -8,7 +8,7 @@ import {
     type DockItem,
     type DockTarget,
     type DockZone,
-    dockMoveRefusal,
+    dockDropOutcome,
     moveView,
     stacksOf
 } from './dockTree';
@@ -56,14 +56,23 @@ export interface DockLayoutProps {
     onDropExternal?: (key: string, target: DockTarget) => void;
     /** Why an external drag may not drop at a target, or null if it may. */
     canDropExternal?: (key: string, target: DockTarget) => string;
+    /**
+     * For debugging: draw each refused drop zone in red, with its reason. Default false, when a
+     * refusal shows only the cursor, with its reason beside it where the reason helps the user.
+     */
+    showRefusedZones?: boolean;
 }
 
 /** The drop a drag would make now, and why it may not, if it may not. */
 export interface DockDrop {
     target: DockTarget;
     refusal: string;
+    /** The refusal's reason to show the user, or null where it would not help. */
+    reason?: string;
     /** For a tab drop, the insertion bar's offset from the stack's left edge, in pixels. */
     barX?: number;
+    /** The pointer, from the top left of the stack or layout dropped on, to show a reason by. */
+    point?: {x: number; y: number};
 }
 
 /**
@@ -148,7 +157,12 @@ export class DockLayoutModel extends HoistModel {
             stack = this.stacks.find(it => it.includes(id)),
             idx = stack?.indexOf(id);
         if (!editable || !stack || idx + step < 0 || idx + step >= stack.length) return;
-        const next = moveView(layout, id, {view: id, zone: 'tab', index: idx + step});
+        // A place in the strip as it shows: before the tab before, or after the tab after.
+        const next = moveView(layout, id, {
+            view: id,
+            zone: 'tab',
+            index: idx + (step > 0 ? 2 : -1)
+        });
         if (!next) return;
         // The stack may draw again, so its tab takes focus back once it has.
         this.pendingFocus = id;
@@ -191,27 +205,36 @@ export class DockLayoutModel extends HoistModel {
         return this.dragging ? null : (this.props?.externalDrag?.() ?? null);
     }
 
-    /** Note where the drag would drop now. Returns true if it may drop there. */
+    /**
+     * Note where the drag would drop now. Returns true if it may drop there, as it may where the
+     * drop changes nothing: that shows no preview, and drops as nothing.
+     */
     @action
-    dragOver(target: DockTarget, barX?: number): boolean {
+    dragOver(target: DockTarget, barX?: number, point?: {x: number; y: number}): boolean {
         const {dragging, external} = this,
             {layout, canMove, canDropExternal} = this.props;
         if (!dragging && !external) return false;
         const key = `${dragging ?? external}|${JSON.stringify(target)}`;
         if (!this.verdicts.has(key)) {
-            const placed = dockMoveRefusal(layout, dragging ?? NEW_VIEW, target, !dragging);
-            this.verdicts.set(
-                key,
-                placed ??
-                    (dragging
-                        ? canMove?.(dragging, target)
-                        : canDropExternal?.(external, target)) ??
-                    null
-            );
+            const outcome = dockDropOutcome(layout, dragging ?? NEW_VIEW, target, !dragging),
+                byHost =
+                    outcome.refusal || outcome.noop
+                        ? null
+                        : dragging
+                          ? canMove?.(dragging, target)
+                          : canDropExternal?.(external, target);
+            this.verdicts.set(key, {
+                noop: !!outcome.noop,
+                refusal: outcome.refusal ?? byHost ?? null,
+                reason: outcome.quiet ? null : (outcome.refusal ?? byHost ?? null)
+            });
         }
-        const drop = {target, refusal: this.verdicts.get(key), barX};
+        const {noop, refusal, reason} = this.verdicts.get(key),
+            drop: DockDrop = noop
+                ? null
+                : {target, refusal, reason, barX, ...(reason ? {point} : {})};
         if (!isEqual(drop, this.drop)) this.drop = drop;
-        return !drop.refusal;
+        return !refusal;
     }
 
     /**
@@ -234,7 +257,7 @@ export class DockLayoutModel extends HoistModel {
         if (drop && !drop.refusal) {
             if (dragging) {
                 const next = moveView(this.props.layout, dragging, drop.target);
-                if (next) {
+                if (next && !isEqual(next, this.props.layout)) {
                     this.activate(dragging, next);
                     this.props.onChange?.(next, {kind: 'move', id: dragging});
                 }
@@ -253,7 +276,7 @@ export class DockLayoutModel extends HoistModel {
         this.drop = null;
     }
 
-    private verdicts = new Map<string, string>();
+    private verdicts = new Map<string, {noop: boolean; refusal: string; reason: string}>();
 }
 
 /** The zone of a stack's body a point falls in: an edge in the outer quarter, else the center. */
