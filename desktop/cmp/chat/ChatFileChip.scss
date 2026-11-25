@@ -1,19 +1,20 @@
 @use '../../../styles/mixins' as *;
 
-// A file as one 24px line: its icon or thumbnail, name and size, at meta size.
+// A file as one line: its icon or thumbnail, name and size, at meta size.
 .xh-chat-file-chip {
   align-items: center;
-  background-color: var(--xh-chat-bg);
-  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
+  background-color: var(--xh-chat-chip-bg, var(--xh-chat-bg));
+  border: var(--xh-border-width) solid
+    var(--xh-chat-chip-border-color, var(--xh-chat-part-border-color));
   border-radius: var(--xh-chat-border-radius);
   box-sizing: border-box;
   display: inline-flex;
-  font-size: var(--xh-chat-meta-font-size);
-  gap: calc(var(--xh-spacing) * 0.6);
-  height: 24px;
-  max-width: 240px;
+  font-size: var(--xh-chat-chip-font-size, var(--xh-chat-meta-font-size));
+  gap: var(--xh-chat-file-chip-gap);
+  height: var(--xh-chat-file-chip-height);
+  max-width: var(--xh-chat-file-chip-max-width);
   min-width: 0;
-  padding: 0 calc(var(--xh-spacing) * 0.8);
+  padding: var(--xh-chat-file-chip-padding);
   position: relative;
 
   &--removable {
@@ -42,7 +43,7 @@
   &__text {
     align-items: baseline;
     display: flex;
-    gap: calc(var(--xh-spacing) * 0.6);
+    gap: var(--xh-chat-file-chip-gap);
     line-height: 16px;
     min-width: 0;
   }

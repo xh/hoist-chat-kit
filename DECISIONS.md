@@ -144,6 +144,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D120](#d120-a-replayed-failure-reads-as-the-same-failure-live) | A replayed failure reads as the same failure live | Accepted |
 | [D121](#d121-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
 | [D122](#d122-the-chat-panel-is-the-drop-zone-for-files) | The chat panel is the drop zone for files | Accepted |
+| [D123](#d123-framed-chips-share-one-set-of-variables) | Framed chips share one set of variables | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2521,3 +2522,27 @@ composer: no one has asked for the smaller zone back.
 `core/composer/AttachmentTip.ts`. Hoist's `FileChooser` has the same need and prints raw
 extensions. Filed as [xh/hoist-react#5040](https://github.com/xh/hoist-react/issues/5040), for a
 shared utility. The kit drops its tables when Hoist ships one.
+
+## D123. Framed chips share one set of variables
+
+**Status.** Accepted.
+
+**Decision.** The kit's framed chips share `--xh-chat-chip-*` variables for height, font size,
+padding, gap, background, border color and hover. The font size and colors are unset by default,
+and each chip falls back to the kit variable it read before, such as `--xh-chat-bg`. A value
+derived on `body` would freeze there and stop following a container that restates the kit
+variable. These chips are composer pills, the scope chip
+(a pill), file chips and follow-up chips. Each kind keeps its own size variables, named for the
+component, and they default to the shared ones. A kind sets its own value only where its content
+needs one: a pill's tighter padding at the chevron, a file chip's max width, and a follow-up
+chip's link color and primary-tinted hover. Inline markers, such as citations, are not chips in
+this sense. They size to the line of text and keep their own variables.
+
+**Why.** A maintainer found the file chip had no variables, where the pill had several. The
+framed chips render as one family, 24px and framed on the chat background, but each had grown
+its own names and drifted: the follow-up chip took the code font size and Hoist's button border.
+An app that wanted bigger chips had to find and set three sets of variables.
+
+**Alternatives.** One set of variables for every chip, with no per-kind names. A file chip also
+shows on sent messages, and a pill name would be wrong there. An app could also no longer tune
+one kind alone. Separate variables per kind with no shared base. That is what drifted.

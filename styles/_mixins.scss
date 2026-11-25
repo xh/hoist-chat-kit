@@ -12,6 +12,21 @@
   }
 }
 
+// A chip's background on hover and press, through the variables Hoist's button reads: `-bg-darker`
+// on hover, then `-bg-darkest` (light theme) or `-bg-lighter` (dark theme) on press. A press
+// deepens the hover color toward `$ink`, so the chip keeps its own look in place of Hoist's gray.
+// Pass `$press: false` for a chip that should not react.
+@mixin chip-hover-bg($bg, $ink: var(--xh-chat-text-color), $press: true) {
+  $pressed: $bg;
+  @if $press {
+    $pressed: color-mix(in srgb, #{$bg}, #{$ink} 12%);
+  }
+
+  --xh-button-bg-darker: #{$bg};
+  --xh-button-bg-darkest: #{$pressed};
+  --xh-button-bg-lighter: #{$pressed};
+}
+
 // The quiet buttons of a bar of message actions - a message view's, or the feedback controls'
 // standing alone - with the chosen thumb and the "Add a comment" link. Include it in the block
 // that holds the bar.

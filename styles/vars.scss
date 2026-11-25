@@ -68,6 +68,22 @@ body {
   --xh-chat-rated-bg: var(--xh-chat-mention-bg);
 
   //------------------------
+  // Chips
+  //------------------------
+  // The small framed chips around the text share these: composer pills (the scope chip is one),
+  // file chips and follow-up chips. Each kind's own height and gap derive from them. File and
+  // follow-up chips take the padding too, while a pill keeps its own. Inline markers, such as
+  // citations, size to the text instead.
+  --xh-chat-chip-height: 24px;
+  --xh-chat-chip-padding: 0 8px;
+  // Between a chip's icon, words and count.
+  --xh-chat-chip-gap: 6px;
+  // Chips also read these, unset by default so that each falls back to a variable an app may set
+  // on a container: `--xh-chat-chip-font-size` (to `--xh-chat-meta-font-size`), `--xh-chat-chip-bg`
+  // (to `--xh-chat-bg`), `--xh-chat-chip-border-color` (to `--xh-chat-part-border-color`) and
+  // `--xh-chat-chip-hover-bg` (to `--xh-chat-sidebar-row-hover-bg`, for a pill).
+
+  //------------------------
   // Agent activity timeline
   //------------------------
   --xh-chat-timeline-header-height: 28px;
@@ -133,7 +149,8 @@ body {
   --xh-chat-chart-height: 220px;
   --xh-chat-tile-min-width: 150px;
   --xh-chat-tile-value-font-size: var(--xh-font-size-large);
-  --xh-chat-followup-height: 24px;
+  --xh-chat-followup-height: var(--xh-chat-chip-height);
+  --xh-chat-followup-padding: var(--xh-chat-chip-padding);
   --xh-chat-followup-text-color: var(--xh-intent-primary-text-color);
   --xh-chat-followup-hover-bg: var(--xh-intent-primary-trans1);
 
@@ -170,11 +187,17 @@ body {
   // The gap between the bar's pills and buttons, and the room around the inline layout's row.
   --xh-chat-composer-bar-gap: 6px;
   --xh-chat-composer-inline-padding: 0;
-  // A composer pill's height, the room between its icon, words and chevron, and its padding.
-  --xh-chat-composer-pill-height: 24px;
-  --xh-chat-composer-pill-gap: 6px;
+  // A composer pill's height, the room between its icon, words and chevron, and its padding. Its
+  // right side is tighter, as the chevron carries its own room.
+  --xh-chat-composer-pill-height: var(--xh-chat-chip-height);
+  --xh-chat-composer-pill-gap: var(--xh-chat-chip-gap);
   --xh-chat-composer-pill-chevron-gap: 4px;
   --xh-chat-composer-pill-padding: 0 6px 0 8px;
+  // A file chip, in the composer's attachment tray and on a sent message.
+  --xh-chat-file-chip-height: var(--xh-chat-chip-height);
+  --xh-chat-file-chip-gap: var(--xh-chat-chip-gap);
+  --xh-chat-file-chip-padding: var(--xh-chat-chip-padding);
+  --xh-chat-file-chip-max-width: 240px;
   --xh-chat-composer-status-height: 24px;
   // The room before the status region's line, to set its text level with the input's.
   --xh-chat-composer-status-inset: 4px;

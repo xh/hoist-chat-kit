@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 // A small chip in the composer: icon, words, count and chevron, at meta size. The pill is a minimal
 // Hoist button. Hoist sets a minimal button's padding and font size under `.xh-app`, and again
 // under `.xh-app.xh-dark.bp6-dark`, so the pill's rule takes the dark selector and the minimal
@@ -5,24 +7,23 @@
 :is(.xh-app, .xh-app.xh-dark.bp6-dark)
   .xh-chat-composer-pill.xh-button.bp6-button.xh-button--minimal {
   // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
-  // component styles in the dark theme - so set the variables, not the colors.
+  // component styles - so set the variables, not the colors.
   --xh-button-text-color: var(--xh-chat-text-color);
 
-  background-color: var(--xh-chat-bg);
-  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
+  @include chip-hover-bg(var(--xh-chat-chip-hover-bg, var(--xh-chat-sidebar-row-hover-bg)));
+
+  background-color: var(--xh-chat-chip-bg, var(--xh-chat-bg));
+  border: var(--xh-border-width) solid
+    var(--xh-chat-chip-border-color, var(--xh-chat-part-border-color));
   border-radius: var(--xh-chat-border-radius);
   flex: none;
-  font-size: var(--xh-chat-meta-font-size);
+  font-size: var(--xh-chat-chip-font-size, var(--xh-chat-meta-font-size));
   gap: var(--xh-chat-composer-pill-gap);
   height: var(--xh-chat-composer-pill-height);
   max-width: 220px;
   min-height: var(--xh-chat-composer-pill-height);
   min-width: 0;
   padding: var(--xh-chat-composer-pill-padding);
-
-  &:hover {
-    background-color: var(--xh-chat-sidebar-row-hover-bg);
-  }
 
   // Blueprint spaces a button's children with an 8px right margin. The pill spaces them with its
   // own `gap`, so that margin would double the room between icon, words and chevron.
@@ -38,13 +39,17 @@
     min-width: 0;
   }
 
+  // An open pill, and one that is on, keep their look on hover.
   &.xh-chat-composer-pill--open {
+    @include chip-hover-bg(var(--xh-chat-citation-active-bg));
+
     background-color: var(--xh-chat-citation-active-bg);
   }
 
   // A setting that is on takes the look of a chosen thumb.
   &.xh-chat-composer-pill--active {
     --xh-button-text-color: var(--xh-chat-rated-color);
+    @include chip-hover-bg(var(--xh-chat-rated-bg), var(--xh-chat-rated-color));
 
     background-color: var(--xh-chat-rated-bg);
 
@@ -57,8 +62,9 @@
     cursor: not-allowed;
     opacity: var(--xh-button-disabled-opacity);
 
-    &:not(.xh-chat-composer-pill--active):hover {
-      background-color: var(--xh-chat-bg);
+    // The button stays enabled for its tooltip, so Hoist still draws a hover. Draw none.
+    &:not(.xh-chat-composer-pill--active) {
+      @include chip-hover-bg(var(--xh-chat-chip-bg, var(--xh-chat-bg)), $press: false);
     }
   }
 }

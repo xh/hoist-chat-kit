@@ -1432,6 +1432,12 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-part-border-color` | `--xh-border-color` |
 | | `--xh-chat-part-header-bg` | `--xh-bg-alt` |
 | | `--xh-chat-code-bg` | `--xh-grid-odd-row-bg` |
+| Chips | `--xh-chat-chip-height` | `24px`, for every framed chip: composer pills, file chips and follow-up chips |
+| | `--xh-chat-chip-padding` | `0 8px`, for file and follow-up chips. A pill keeps its own |
+| | `--xh-chat-chip-gap` | `6px`, between a chip's icon, words and count |
+| | `--xh-chat-chip-font-size` | Unset, so a chip falls back to `--xh-chat-meta-font-size` |
+| | `--xh-chat-chip-bg`, `--xh-chat-chip-border-color` | Unset, so a chip falls back to `--xh-chat-bg` and `--xh-chat-part-border-color` |
+| | `--xh-chat-chip-hover-bg` | Unset, so a pill falls back to `--xh-chat-sidebar-row-hover-bg`. A follow-up chip uses `--xh-chat-followup-hover-bg` |
 | Status | `--xh-chat-busy-color` | `--xh-intent-primary-text-color` |
 | | `--xh-chat-attention-color` | `--xh-card-primary-color` |
 | | `--xh-chat-success-color`, `--xh-chat-warning-color`, `--xh-chat-error-color` | Hoist's intent text colors |
@@ -1442,10 +1448,11 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-composer-bar-gap` | `6px` |
 | | `--xh-chat-composer-toolbar-padding` | `4px`, then `--xh-spacing` at the sides and bottom, around the bar of pills and Send |
 | | `--xh-chat-composer-row-gap` | `--xh-spacing`, between the box and the `topItems` and `bottomItems` rows |
-| | `--xh-chat-composer-pill-height` | `24px` |
-| | `--xh-chat-composer-pill-padding` | `0 6px 0 8px` |
-| | `--xh-chat-composer-pill-gap` | `6px`, between a pill's icon, words and count |
+| | `--xh-chat-composer-pill-height`, `--xh-chat-composer-pill-gap` | `--xh-chat-chip-height`, `--xh-chat-chip-gap` |
+| | `--xh-chat-composer-pill-padding` | `0 6px 0 8px`, tighter at the chevron |
 | | `--xh-chat-composer-pill-chevron-gap` | `4px`, before a pill's chevron |
+| | `--xh-chat-file-chip-height`, `--xh-chat-file-chip-padding`, `--xh-chat-file-chip-gap` | The `--xh-chat-chip-*` values, for a file chip in the attachment tray or on a sent message |
+| | `--xh-chat-file-chip-max-width` | `240px`. A longer name truncates |
 | | `--xh-chat-composer-inline-padding` | `0` |
 | File drop hint | `--xh-chat-drop-hint-bg` | `--xh-chat-bg` at 90%, the scrim over the drop zone |
 | | `--xh-chat-drop-hint-border` | `2px dashed var(--xh-intent-primary)`. Set `none` for no outline |
@@ -1457,6 +1464,14 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-drop-hint-title-font-size` | `18px` |
 | | `--xh-chat-drop-hint-tip-color` | `--xh-text-color`, for the line of attachment rules |
 | | `--xh-chat-composer-status-inset` | `4px`, the room before the status region's line |
+
+The framed chips share the `--xh-chat-chip-*` variables: composer pills (the scope chip is a pill),
+file chips and follow-up chips. Each kind's height and gap derive from the chip ones. File and
+follow-up chips also take the chip padding, while a pill keeps its own, tighter at the chevron. Set
+a chip size on `body.xh-app` to change every kind, or a kind's own variable to change one. The
+chip font size and colors are unset by default. A chip falls back to `--xh-chat-meta-font-size`,
+`--xh-chat-bg` and `--xh-chat-part-border-color`, so it follows those when a container restates
+them. Citation markers size to the text, with their own `--xh-chat-citation-*` variables.
 
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:
 `--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-source-*`, `--xh-chat-viewer-*`,

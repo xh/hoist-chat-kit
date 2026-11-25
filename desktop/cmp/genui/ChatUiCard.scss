@@ -44,21 +44,29 @@
     max-width: var(--xh-chat-prose-max-width, none);
   }
 
-  // Follow-up chips: outlined, in link color, one line each. A long chip is cut short - its
-  // tooltip shows what it sends.
+  // Follow-up chips: framed as the kit's other chips, in link color, one line each. A long chip is
+  // cut short - its tooltip shows what it sends.
   @include hoist-button('.xh-chat-ui-card__action') {
-    background-color: var(--xh-chat-bg);
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-followup-text-color, var(--xh-intent-primary-text-color));
+    --xh-button-border-color: var(
+      --xh-chat-chip-border-color,
+      var(--xh-chat-part-border-color, var(--xh-border-color))
+    );
+
+    @include chip-hover-bg(
+      var(--xh-chat-followup-hover-bg, var(--xh-intent-primary-trans1)),
+      var(--xh-chat-followup-text-color, var(--xh-intent-primary-text-color))
+    );
+
+    background-color: var(--xh-chat-chip-bg, var(--xh-chat-bg, var(--xh-bg)));
     border-radius: var(--xh-chat-border-radius);
-    color: var(--xh-chat-followup-text-color, var(--xh-intent-primary-text-color));
-    font-size: var(--xh-chat-code-font-size, 12px);
+    font-size: var(--xh-chat-chip-font-size, var(--xh-chat-meta-font-size, 12px));
     max-width: 100%;
     min-height: var(--xh-chat-followup-height, 24px);
     min-width: 0;
-    padding: 0 8px;
-
-    &:hover:not(:disabled) {
-      background-color: var(--xh-chat-followup-hover-bg, var(--xh-intent-primary-trans1));
-    }
+    padding: var(--xh-chat-followup-padding, 0 8px);
 
     .bp6-button-text {
       overflow: hidden;
