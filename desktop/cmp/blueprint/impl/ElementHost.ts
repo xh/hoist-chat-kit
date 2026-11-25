@@ -94,8 +94,10 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                     if (window.getSelection()?.isCollapsed !== false) altHold.consume();
                     return;
                 }
-                // A click on a dashboard cell's header or grip selects its view.
-                const view = viewAt(e.target as HTMLElement, e.currentTarget),
+                // A click on a dashboard cell's header or grip, or a pane's tab, selects its view.
+                const view =
+                        viewAt(e.target as HTMLElement, e.currentTarget) ??
+                        tabViewAt(e.target as HTMLElement, e.currentTarget),
                     target = innermost(e, 'xhSelected');
                 if (!target) return;
                 designModel.select(view ? {kind: 'view', ...view} : {kind: 'element', id: target});
@@ -165,10 +167,7 @@ export function viewAt(target: HTMLElement, host: HTMLElement): {id: string; of:
     return {id, of: view.dataset.blueprintViewOf};
 }
 
-/**
- * The panes view whose tab a click landed on, or null. Only a right-click reads it: a left click on
- * a tab switches tabs, and selects nothing more.
- */
+/** The panes view whose tab a click landed on, or null. The tab switches too, as its own. */
 function tabViewAt(target: HTMLElement, host: HTMLElement): {id: string; of: string} {
     const tab = target?.closest<HTMLElement>('[data-blueprint-view-tab]');
     return tab && host.contains(tab)

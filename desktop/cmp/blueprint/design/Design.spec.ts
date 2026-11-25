@@ -545,7 +545,7 @@ describe('design mode selection', () => {
         });
     });
 
-    it("opens a panes view's own menu on a right-click on its tab, and only switches tabs on a click", async () => {
+    it('selects a panes view from its tab, switching to it on a click, and opens its own menu on a right-click', async () => {
         stubRects();
         const {design, model} = open('p1-one-grid.json', bp => {
                 bp.elements.notes = {component: 'markdown', config: {text: 'Notes'}};
@@ -563,7 +563,7 @@ describe('design mode selection', () => {
 
         design.select(null);
         fireEvent.click(tab('notes'));
-        expect(design.selection?.kind).not.toBe('view');
+        expect(design.selection).toEqual({kind: 'view', id: 'notes', of: 'views'});
         expect(tab('notes').getAttribute('aria-selected')).toBe('true');
 
         expect(fireEvent.contextMenu(tab('posGrid'))).toBe(false);
