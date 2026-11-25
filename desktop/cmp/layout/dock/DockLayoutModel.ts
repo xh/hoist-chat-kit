@@ -3,7 +3,7 @@ import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {cloneDeep, isEqual} from 'lodash';
 import type {ReactNode} from 'react';
 import {layoutGesture} from '../gesture';
-import {OverlayModel} from '../overlay';
+import {type OverlayBox, OverlayModel} from '../overlay';
 import {
     type DockItem,
     type DockTarget,
@@ -278,6 +278,29 @@ export class DockLayoutModel extends HoistModel {
 
     private verdicts = new Map<string, {noop: boolean; refusal: string; reason: string}>();
 }
+
+/**
+ * Where a refusal's note goes, from the top left of the box it is drawn over: below and right of
+ * the pointer, or above or left of it where it would pass the edge of what the overlay shows.
+ * @internal
+ */
+export function refusalNoteAt(
+    point: {x: number; y: number},
+    size: {width: number; height: number},
+    box: Pick<OverlayBox, 'x' | 'y' | 'area' | 'clip'>
+): {left: number; top: number} {
+    const {x = 0, y = 0} = point ?? {},
+        shown = box.clip ?? {x: 0, y: 0, ...box.area},
+        right = shown.x + shown.width - box.x,
+        bottom = shown.y + shown.height - box.y;
+    return {
+        left: x + NOTE_GAP + size.width > right ? x - NOTE_GAP - size.width : x + NOTE_GAP,
+        top: y + NOTE_GAP + size.height > bottom ? y - NOTE_GAP - size.height : y + NOTE_GAP
+    };
+}
+
+// Clear of the cursor's own icon.
+const NOTE_GAP = 16;
 
 /** The zone of a stack's body a point falls in: an edge in the outer quarter, else the center. */
 export function zoneAt(rect: DOMRect, x: number, y: number): DockZone {

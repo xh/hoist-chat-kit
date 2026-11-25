@@ -8,9 +8,10 @@ import {
     type ReactElement,
     useEffect,
     useLayoutEffect,
-    useRef
+    useRef,
+    useState
 } from 'react';
-import {overlayHost, OVERLAY_LAYERS} from '../overlay';
+import {type OverlayBox, overlayHost, OVERLAY_LAYERS} from '../overlay';
 import {
     Group,
     type GroupImperativeHandle,
@@ -26,6 +27,7 @@ import {
     type DockDrop,
     DockLayoutModel,
     type DockLayoutProps,
+    refusalNoteAt,
     tabIndexAt,
     zoneAt
 } from './DockLayoutModel';
@@ -364,8 +366,8 @@ function usePreviewMarks(impl: DockLayoutModel) {
                         key: `dock-preview-${impl.xhId}`,
                         target: el,
                         layer: OVERLAY_LAYERS.dock,
-                        render: () =>
-                            drop.refusal && !showRefused ? refusalNote(drop) : preview(drop)
+                        render: box =>
+                            drop.refusal && !showRefused ? refusalNote({drop, box}) : preview(drop)
                     }
                 ];
             }),
@@ -373,14 +375,28 @@ function usePreviewMarks(impl: DockLayoutModel) {
     );
 }
 
-// A refusal's reason, beside the pointer, which shows the browser's not-allowed cursor.
-function refusalNote({reason, point}: DockDrop): ReactElement {
-    return div({
-        className: `${CLS}__refusal`,
-        style: {left: (point?.x ?? 0) + 16, top: (point?.y ?? 0) + 16},
-        children: reason
-    });
-}
+// A refusal's reason, beside the pointer, which shows the browser's not-allowed cursor. Measured
+// once drawn, so it flips to stay within what the overlay shows.
+const refusalNote = hoistCmp.factory<HoistProps & {drop: DockDrop; box: OverlayBox}>({
+    displayName: 'DockRefusalNote',
+    model: false,
+    render({drop, box}) {
+        const ref = useRef<HTMLDivElement>(null),
+            [size, setSize] = useState({width: 0, height: 0});
+        useLayoutEffect(() => {
+            const el = ref.current;
+            if (el && (el.offsetWidth !== size.width || el.offsetHeight !== size.height)) {
+                setSize({width: el.offsetWidth, height: el.offsetHeight});
+            }
+        });
+        return div({
+            ref,
+            className: `${CLS}__refusal`,
+            style: refusalNoteAt(drop.point, size, box),
+            children: drop.reason
+        });
+    }
+});
 
 function preview({target, refusal, barX}: DockDrop): ReactElement {
     const zone = target.zone,

@@ -9,6 +9,7 @@ import {
     DockLayoutModel,
     type DockItem,
     type DockLayoutProps,
+    refusalNoteAt,
     tabIndexAt,
     withSizes,
     zoneAt
@@ -149,6 +150,17 @@ describe('dockLayout', () => {
         const {container, rerender} = renderLayout({});
         rerender(layout({active: ['orders']}));
         expect(selected(container)).toEqual(['orders', 'chart']);
+    });
+
+    it("places a refusal's note below and right of the pointer, flipping where it would be cut off", () => {
+        const size = {width: 200, height: 30},
+            box = {x: 50, y: 40, area: {width: 1000, height: 800}, clip: null},
+            clipped = {...box, clip: {x: 50, y: 40, width: 400, height: 300}};
+        expect(refusalNoteAt({x: 10, y: 10}, size, box)).toEqual({left: 26, top: 26});
+        // Near the bottom right of what shows, it goes above and to the left.
+        expect(refusalNoteAt({x: 300, y: 280}, size, clipped)).toEqual({left: 84, top: 234});
+        expect(refusalNoteAt({x: 10, y: 280}, size, clipped)).toEqual({left: 26, top: 234});
+        expect(refusalNoteAt({x: 300, y: 10}, size, clipped)).toEqual({left: 84, top: 26});
     });
 
     describe('drag', () => {
